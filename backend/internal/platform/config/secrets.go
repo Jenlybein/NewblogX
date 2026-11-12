@@ -46,34 +46,36 @@ func (s *RuntimeConfigService) Sealer() *secretbox.Box {
 // sealForStore 返回"要落库的那一份"：敏感字段换成密文，其余原样。
 //
 // 返回副本而不是就地改：调用方传进来的是要进缓存的明文，就地改会让缓存里也变成密文。
+// 段的类型各不相同，没法用一张表表达"这个字段是密钥"，所以仍是 type switch；
+// 但每个 case 只有一行，加一个段也就一行。
 func (s *RuntimeConfigService) sealForStore(name SectionName, value any) (any, error) {
 	box := s.Sealer()
 	switch v := value.(type) {
 	case conf.Mail:
-		sealed, err := box.Seal(v.SecretKey)
-		if err != nil {
-			return nil, secretStoreError(err)
-		}
-		v.SecretKey = sealed
-		return v, nil
+		return sealIn(box, &v, &v.SecretKey)
 	case conf.QiNiu:
-		sealed, err := box.Seal(v.SecretKey)
-		if err != nil {
-			return nil, secretStoreError(err)
-		}
-		v.SecretKey = sealed
-		return v, nil
+		return sealIn(box, &v, &v.SecretKey)
 	case conf.QQ:
-		sealed, err := box.Seal(v.AppKey)
-		if err != nil {
-			return nil, secretStoreError(err)
-		}
-		v.AppKey = sealed
-		return v, nil
+		return sealIn(box, &v, &v.AppKey)
+	case conf.SMS:
+		return sealIn(box, &v, &v.AccessKeySecret)
 	default:
 		_ = name
 		return value, nil
 	}
+}
+
+// sealIn 把 value 里的密钥字段就地换成密文后返回副本。
+//
+// field 必须指向 value 自己的字段：按值传 value、再传 &value.SecretKey 的话，
+// 改的是调用方那个变量，返回的仍是加密前的副本 —— 库里就会落下明文。
+func sealIn[T any](box *secretbox.Box, value *T, field *string) (any, error) {
+	sealed, err := box.Seal(*field)
+	if err != nil {
+		return nil, secretStoreError(err)
+	}
+	*field = sealed
+	return *value, nil
 }
 
 // openForUse 把内存里的密文解回明文。
@@ -87,30 +89,23 @@ func (s *RuntimeConfigService) openForUse(cfg *RuntimeConfig) {
 		return
 	}
 
-	if secretbox.IsSealed(cfg.Mail.SecretKey) {
-		plain, err := box.Open(cfg.Mail.SecretKey)
-		if err != nil {
-			s.warnOpenFailed("mail.secret_key", err)
-		} else {
-			cfg.Mail.SecretKey = plain
-		}
+	s.openIn(box, "mail.secret_key", &cfg.Mail.SecretKey)
+	s.openIn(box, "storage.secret_key", &cfg.Storage.SecretKey)
+	s.openIn(box, "oauth.app_key", &cfg.OAuth.AppKey)
+	s.openIn(box, "sms.access_key_secret", &cfg.SMS.AccessKeySecret)
+}
+
+// openIn 把单个字段的密文解成明文；不是密文就跳过，解密失败只记日志并保留密文。
+func (s *RuntimeConfigService) openIn(box *secretbox.Box, label string, field *string) {
+	if !secretbox.IsSealed(*field) {
+		return
 	}
-	if secretbox.IsSealed(cfg.Storage.SecretKey) {
-		plain, err := box.Open(cfg.Storage.SecretKey)
-		if err != nil {
-			s.warnOpenFailed("storage.secret_key", err)
-		} else {
-			cfg.Storage.SecretKey = plain
-		}
+	plain, err := box.Open(*field)
+	if err != nil {
+		s.warnOpenFailed(label, err)
+		return
 	}
-	if secretbox.IsSealed(cfg.OAuth.AppKey) {
-		plain, err := box.Open(cfg.OAuth.AppKey)
-		if err != nil {
-			s.warnOpenFailed("oauth.app_key", err)
-		} else {
-			cfg.OAuth.AppKey = plain
-		}
-	}
+	*field = plain
 }
 
 // secretStoreError 把"没有主密钥"翻成面向运维的错误码。
@@ -143,51 +138,26 @@ func (s *RuntimeConfigService) EncryptStoredSecrets(box *secretbox.Box) (int, er
 			return err
 		}
 
-		// 每一段：解码成强类型（缺字段用默认值补齐）→ 加密 → 写回。
-		if _, ok := payloads[string(SectionMail)]; ok {
-			mail, err := decodeSection(SectionMail, s.defaults.Mail, payloads)
-			if err != nil {
-				return err
-			}
-			if !secretbox.IsSealed(mail.SecretKey) && mail.SecretKey != "" {
-				if mail.SecretKey, err = box.Seal(mail.SecretKey); err != nil {
-					return secretStoreError(err)
-				}
-				if err := writeSection(tx, SectionMail, mail); err != nil {
-					return err
-				}
-				changed++
-			}
+		// 每个敏感字段一次「解码 → 加密 → 写回」。四段各抄一遍曾是四个
+		// 二十行的复制块：加第六个敏感字段时漏抄一处，那一处就永远明文落库，
+		// 且没有任何测试会红。现在只有一份实现，每个字段一行。
+		type step func() (bool, error)
+		steps := []step{
+			sealStep(tx, s, box, SectionMail, s.defaults.Mail, payloads,
+				func(v *conf.Mail) *string { return &v.SecretKey }),
+			sealStep(tx, s, box, SectionStorage, s.defaults.Storage, payloads,
+				func(v *conf.QiNiu) *string { return &v.SecretKey }),
+			sealStep(tx, s, box, SectionOAuth, s.defaults.OAuth, payloads,
+				func(v *conf.QQ) *string { return &v.AppKey }),
+			sealStep(tx, s, box, SectionSMS, s.defaults.SMS, payloads,
+				func(v *conf.SMS) *string { return &v.AccessKeySecret }),
 		}
-
-		if _, ok := payloads[string(SectionStorage)]; ok {
-			storage, err := decodeSection(SectionStorage, s.defaults.Storage, payloads)
+		for _, run := range steps {
+			sealed, err := run()
 			if err != nil {
 				return err
 			}
-			if !secretbox.IsSealed(storage.SecretKey) && storage.SecretKey != "" {
-				if storage.SecretKey, err = box.Seal(storage.SecretKey); err != nil {
-					return secretStoreError(err)
-				}
-				if err := writeSection(tx, SectionStorage, storage); err != nil {
-					return err
-				}
-				changed++
-			}
-		}
-
-		if _, ok := payloads[string(SectionOAuth)]; ok {
-			oauth, err := decodeSection(SectionOAuth, s.defaults.OAuth, payloads)
-			if err != nil {
-				return err
-			}
-			if !secretbox.IsSealed(oauth.AppKey) && oauth.AppKey != "" {
-				if oauth.AppKey, err = box.Seal(oauth.AppKey); err != nil {
-					return secretStoreError(err)
-				}
-				if err := writeSection(tx, SectionOAuth, oauth); err != nil {
-					return err
-				}
+			if sealed {
 				changed++
 			}
 		}
@@ -197,6 +167,56 @@ func (s *RuntimeConfigService) EncryptStoredSecrets(box *secretbox.Box) (int, er
 		return 0, err
 	}
 	return changed, nil
+}
+
+// sealStep 把"补加密某一段"包成迁移命令要的一个 step。
+func sealStep[T any](
+	tx *gorm.DB,
+	svc *RuntimeConfigService,
+	box *secretbox.Box,
+	name SectionName,
+	defaults T,
+	payloads map[string]string,
+	field func(*T) *string,
+) func() (bool, error) {
+	return func() (bool, error) {
+		return sealSectionSecret(tx, svc, box, name, defaults, payloads, field)
+	}
+}
+
+// sealSectionSecret 把某一段里的密钥字段加密后写回库，返回是否真的改动了。
+//
+// 已是密文或空值时跳过（幂等）；段不在库里时也跳过——补种由 seedMissing 负责，
+// 迁移命令不该顺手创建新段。
+func sealSectionSecret[T any](
+	tx *gorm.DB,
+	svc *RuntimeConfigService,
+	box *secretbox.Box,
+	name SectionName,
+	defaults T,
+	payloads map[string]string,
+	field func(*T) *string,
+) (bool, error) {
+	if _, ok := payloads[string(name)]; !ok {
+		return false, nil
+	}
+	value, err := decodeSection(name, defaults, payloads)
+	if err != nil {
+		return false, err
+	}
+	secret := *field(&value)
+	if secretbox.IsSealed(secret) || secret == "" {
+		return false, nil
+	}
+	sealed, err := box.Seal(secret)
+	if err != nil {
+		return false, secretStoreError(err)
+	}
+	*field(&value) = sealed
+	if err := writeSection(tx, name, value); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // writeSection 把一段配置序列化后 upsert 进库。

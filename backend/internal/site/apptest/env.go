@@ -196,6 +196,7 @@ type Runtime struct {
 	mail    conf.Mail
 	storage conf.QiNiu
 	oauth   conf.QQ
+	sms     conf.SMS
 	log     conf.Logrus
 	upload  conf.Upload
 	deco    conf.Deco
@@ -267,6 +268,13 @@ func (r *Runtime) OAuth() conf.QQ {
 	return r.oauth
 }
 
+// SMS 实现 domain.RuntimeConfig。
+func (r *Runtime) SMS() conf.SMS {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sms
+}
+
 // Log 实现 domain.RuntimeConfig。
 func (r *Runtime) Log() conf.Logrus {
 	r.mu.Lock()
@@ -302,6 +310,14 @@ func (r *Runtime) UpdateOAuth(oauth conf.QQ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.oauth = oauth
+	return nil
+}
+
+// UpdateSMS 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateSMS(sms conf.SMS) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sms = sms
 	return nil
 }
 

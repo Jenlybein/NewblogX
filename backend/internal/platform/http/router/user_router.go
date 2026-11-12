@@ -42,10 +42,15 @@ func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	Group.POST("email/login", runtimeMw.EmailVerifyMiddleware, auth.EmailLogin)
 	Group.POST("email/register", runtimeMw.EmailVerifyMiddleware, auth.RegisterEmail)
 	Group.POST("qq", auth.QQLogin)
+	// 手机号通道：发码带图形验证码中间件（与邮件发码同一道闸），
+	// 登录本身由 handler 内调用阿里云核验，不需要中间件。
+	Group.POST("phone/verify", runtimeMw.CaptchaMiddleware, auth.SendSms)
+	Group.POST("phone", auth.PhoneLogin)
 	Group.POST("login", runtimeMw.CaptchaMiddleware, auth.PwdLogin)
 	Group.POST("refresh", auth.Refresh)
 	Group.PUT("password/recovery/email", runtimeMw.EmailVerifyMiddleware, auth.ResetPassword)
 	authGroup.PUT("password/renewal/email", auth.UpdatePassword)
+	authGroup.POST("password/set", auth.SetPassword)
 	authGroup.POST("logout", auth.Logout)
 	authGroup.POST("logout/all", auth.LogoutAll)
 	authGroup.PUT("email/bind", runtimeMw.EmailVerifyMiddleware, auth.BindEmail)

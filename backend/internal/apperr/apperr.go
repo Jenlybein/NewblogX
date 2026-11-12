@@ -228,20 +228,39 @@ const (
 	CodeUserEmailUnregistered Code = "user.email_unregistered"
 	// CodeUserMailTooFrequent 是"发验证码太频繁"，与登录失败限流分开：
 	// 共用 auth.too_frequent 时文案是"登录失败次数过多"，会把用户引到错误的方向。
-	CodeUserMailTooFrequent   Code = "user.mail_too_frequent"
+	CodeUserMailTooFrequent Code = "user.mail_too_frequent"
+	// 手机号相关的四个码。
+	//
+	// CodeUserPhoneTaken 只在"绑定手机号"时出现；登录/注册走的是
+	// 「查到就登录、查不到就建档」，没有"这个号已注册"这种提示，
+	// 也就没有账号枚举面。
+	CodeUserPhoneTaken Code = "user.phone_taken"
+	// CodeUserPhoneInvalid 是格式不合法（不是号码归属校验）。
+	CodeUserPhoneInvalid Code = "user.phone_invalid"
+	// CodeUserSmsTooFrequent 与邮件那个分开：两种通道的限流配额独立，
+	// 共用同一个码会让用户"邮件没发过也被挡住"。
+	CodeUserSmsTooFrequent Code = "user.sms_too_frequent"
+	CodeUserSmsSendFailed  Code = "user.sms_send_failed"
+	// CodeUserSmsVerifyFailed 专门给"核验这一步本身没跑通"（未配置、网络、平台报错），
+	// 与"码填错了"分开：码错返回 CodeUserCaptchaInvalid，用户该改输入；
+	// 复用 code=sms_send_failed 会让核验失败显示成"短信发送失败"，指错方向。
+	CodeUserSmsVerifyFailed   Code = "user.sms_verify_failed"
 	CodeUserInvalidCredential Code = "user.invalid_credential"
 	CodeUserAccountDisabled   Code = "user.account_disabled"
 	CodeUserAccountBanned     Code = "user.account_banned"
 	CodeUserPasswordRequired  Code = "user.password_required"
-	CodeUserPasswordTooShort  Code = "user.password_too_short"
-	CodeUserOldPasswordWrong  Code = "user.old_password_wrong"
-	CodeUserPasswordSame      Code = "user.password_same"
-	CodeUserSessionExpired    Code = "user.session_expired"
-	CodeUserTokenInvalid      Code = "user.token_invalid"
-	CodeUserCaptchaInvalid    Code = "user.captcha_invalid"
-	CodeUserMailSendFailed    Code = "user.mail_send_failed"
-	CodeUserOAuthFailed       Code = "user.oauth_failed"
-	CodeUserRegisterDisabled  Code = "user.register_disabled"
+	// CodeUserPasswordAlreadySet 表示账号已有密码，应走「修改密码」（要验旧密码），
+	// 而不是「首次设置密码」。两者分开是为了不给免旧密码改密留后门。
+	CodeUserPasswordAlreadySet Code = "user.password_already_set"
+	CodeUserPasswordTooShort   Code = "user.password_too_short"
+	CodeUserOldPasswordWrong   Code = "user.old_password_wrong"
+	CodeUserPasswordSame       Code = "user.password_same"
+	CodeUserSessionExpired     Code = "user.session_expired"
+	CodeUserTokenInvalid       Code = "user.token_invalid"
+	CodeUserCaptchaInvalid     Code = "user.captcha_invalid"
+	CodeUserMailSendFailed     Code = "user.mail_send_failed"
+	CodeUserOAuthFailed        Code = "user.oauth_failed"
+	CodeUserRegisterDisabled   Code = "user.register_disabled"
 )
 
 // 认证与会话。
@@ -584,34 +603,40 @@ var messages = map[Code]string{
 	CodeReviewTaskHandled:  "审核任务已处理",
 	CodeReviewTaskDenied:   "无权处理该审核任务",
 
-	CodeUserNotFound:          "用户不存在",
-	CodeUserForbidden:         "无权操作该用户",
-	CodeUserUsernameTaken:     "用户名已被使用",
-	CodeUserUsernameCooldown:  "用户名每 30 天内只能更新 1 次",
-	CodeUserUsernameInvalid:   "用户名格式不符合要求",
-	CodeUserNicknameRequired:  "昵称不能为空",
-	CodeUserNicknameTooLong:   "昵称长度超出限制",
-	CodeUserAbstractTooLong:   "个人简介长度超出限制",
-	CodeUserStatusInvalid:     "账号状态不合法",
-	CodeUserStatusSelfLocked:  "不能修改自己的账号状态",
-	CodeUserEmailTaken:        "邮箱已被使用",
-	CodeUserEmailNotBound:     "账号尚未绑定邮箱",
-	CodeUserEmailRegistered:   "该邮箱已注册，请直接登录或找回密码",
-	CodeUserEmailUnregistered: "该邮箱还没有注册，请先注册",
-	CodeUserMailTooFrequent:   "验证码发送太频繁，请稍后再试",
-	CodeUserInvalidCredential: "账号或密码错误",
-	CodeUserAccountDisabled:   "账号已被禁用",
-	CodeUserAccountBanned:     "账号已被封禁",
-	CodeUserPasswordRequired:  "请先设置密码",
-	CodeUserPasswordTooShort:  "密码长度不足",
-	CodeUserOldPasswordWrong:  "旧密码错误",
-	CodeUserPasswordSame:      "新密码不能与旧密码相同",
-	CodeUserSessionExpired:    "登录状态已过期，请重新登录",
-	CodeUserTokenInvalid:      "登录凭证无效",
-	CodeUserCaptchaInvalid:    "验证码错误或已过期",
-	CodeUserMailSendFailed:    "邮件发送失败，请稍后重试",
-	CodeUserOAuthFailed:       "第三方登录失败",
-	CodeUserRegisterDisabled:  "当前站点未开放注册",
+	CodeUserNotFound:           "用户不存在",
+	CodeUserForbidden:          "无权操作该用户",
+	CodeUserUsernameTaken:      "用户名已被使用",
+	CodeUserUsernameCooldown:   "用户名每 30 天内只能更新 1 次",
+	CodeUserUsernameInvalid:    "用户名格式不符合要求",
+	CodeUserNicknameRequired:   "昵称不能为空",
+	CodeUserNicknameTooLong:    "昵称长度超出限制",
+	CodeUserAbstractTooLong:    "个人简介长度超出限制",
+	CodeUserStatusInvalid:      "账号状态不合法",
+	CodeUserStatusSelfLocked:   "不能修改自己的账号状态",
+	CodeUserEmailTaken:         "邮箱已被使用",
+	CodeUserEmailNotBound:      "账号尚未绑定邮箱",
+	CodeUserEmailRegistered:    "该邮箱已注册，请直接登录或找回密码",
+	CodeUserEmailUnregistered:  "该邮箱还没有注册，请先注册",
+	CodeUserMailTooFrequent:    "验证码发送太频繁，请稍后再试",
+	CodeUserPhoneTaken:         "该手机号已被其他账号绑定",
+	CodeUserPhoneInvalid:       "手机号格式不正确",
+	CodeUserSmsTooFrequent:     "验证码发送太频繁，请稍后再试",
+	CodeUserSmsSendFailed:      "短信发送失败，请稍后重试",
+	CodeUserSmsVerifyFailed:    "短信验证码校验失败，请稍后重试",
+	CodeUserInvalidCredential:  "账号或密码错误",
+	CodeUserAccountDisabled:    "账号已被禁用",
+	CodeUserAccountBanned:      "账号已被封禁",
+	CodeUserPasswordRequired:   "请先设置密码",
+	CodeUserPasswordAlreadySet: "账号已有密码，请使用修改密码",
+	CodeUserPasswordTooShort:   "密码长度不足",
+	CodeUserOldPasswordWrong:   "旧密码错误",
+	CodeUserPasswordSame:       "新密码不能与旧密码相同",
+	CodeUserSessionExpired:     "登录状态已过期，请重新登录",
+	CodeUserTokenInvalid:       "登录凭证无效",
+	CodeUserCaptchaInvalid:     "验证码错误或已过期",
+	CodeUserMailSendFailed:     "邮件发送失败，请稍后重试",
+	CodeUserOAuthFailed:        "第三方登录失败",
+	CodeUserRegisterDisabled:   "当前站点未开放注册",
 
 	CodeAuthRequired:       "请先登录",
 	CodeAuthTooFrequent:    "登录失败次数过多，请稍后再试",
@@ -712,12 +737,12 @@ var messages = map[Code]string{
 
 	CodeSetupAlreadyDone: "站点已初始化完成，该入口已关闭",
 
-	CodeRuntimeConfigDBMissing:    "数据库未初始化",
-	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",
-	CodeRuntimeConfigDecodeFailed: "运行时配置解析失败",
+	CodeRuntimeConfigDBMissing:         "数据库未初始化",
+	CodeRuntimeConfigPathMissing:       "运行时站点默认配置路径未设置",
+	CodeRuntimeConfigDecodeFailed:      "运行时配置解析失败",
 	CodeRuntimeConfigSecretUnavailable: "未配置主密钥（BLOGX_CONFIG_SECRET_KEY），无法加密保存密钥；请先在环境变量里设置 32 字节密钥",
-	CodeRuntimeConfigTableMissing: "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
-	CodeSiteAIDailyLimitInvalid:   "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
+	CodeRuntimeConfigTableMissing:      "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
+	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",

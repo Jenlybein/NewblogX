@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { toTypedSchema } from "@vee-validate/zod";
 import { useForm } from "vee-validate";
 import { z } from "zod";
 import { NButton, NForm, NFormItem, NInput, useMessage } from "naive-ui";
 import { sendEmailCode } from "~/services/auth";
 import { errorMessage } from "~/utils/errorMessage";
+import { useVerificationCountdown } from "~/composables/useVerificationCountdown";
+import { useCaptchaProof } from "~/composables/useCaptchaProof";
+import ImageCaptchaField from "~/components/auth/ImageCaptchaField.vue";
 
 const emit = defineEmits<{
   success: [];
@@ -14,8 +17,16 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const message = useMessage();
 const emailId = ref("");
-const countdown = ref(0);
-let timer: ReturnType<typeof setInterval> | null = null;
+const { counting: sendDisabled, sendLabel, start: startCountdown } = useVerificationCountdown();
+const {
+  enabled: captchaEnabled,
+  image: captchaImage,
+  code: captchaCode,
+  loading: captchaLoading,
+  missing: captchaMissing,
+  refresh: refreshCaptcha,
+  payload: captchaPayload,
+} = useCaptchaProof();
 
 const schema = toTypedSchema(
   z.object({
@@ -35,23 +46,14 @@ const { defineField, handleSubmit, errors, values } = useForm({
 const [email, emailProps] = defineField("email");
 const [emailCode, emailCodeProps] = defineField("email_code");
 
-const sendDisabled = computed(() => countdown.value > 0);
-
-function startCountdown() {
-  countdown.value = 60;
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => {
-    countdown.value -= 1;
-    if (countdown.value <= 0) {
-      if (timer) clearInterval(timer);
-      timer = null;
-    }
-  }, 1000);
-}
-
 async function handleSendCode() {
   if (!values.email) {
     message.warning("请先输入邮箱");
+    return;
+  }
+
+  if (captchaMissing.value) {
+    message.warning("请输入图形验证码");
     return;
   }
 
@@ -59,9 +61,12 @@ async function handleSendCode() {
     const payload = await sendEmailCode({
       email: values.email,
       purpose: "login",
+      captcha: captchaPayload(),
     });
     emailId.value = payload.id;
     startCountdown();
+    // 图形码是一次性的：校验过就作废，换一张给下一次发码用。
+    void refreshCaptcha();
     message.success("验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送失败"));
@@ -96,9 +101,18 @@ const onSubmit = handleSubmit(async (formValues) => {
       <div class="flex w-full gap-3">
         <NInput v-model:value="emailCode" v-bind="emailCodeProps" placeholder="输入邮箱验证码" />
         <NButton secondary :disabled="sendDisabled" @click="handleSendCode">
-          {{ sendDisabled ? `${countdown}s` : "发送验证码" }}
+          {{ sendLabel }}
         </NButton>
       </div>
+    </NFormItem>
+    <NFormItem v-if="captchaEnabled">
+      <ImageCaptchaField
+        :image="captchaImage"
+        :code="captchaCode"
+        :loading="captchaLoading"
+        @update:code="value => (captchaCode = value)"
+        @refresh="refreshCaptcha"
+      />
     </NFormItem>
     <NButton type="primary" attr-type="submit" block :loading="authStore.pending">
       邮箱登录

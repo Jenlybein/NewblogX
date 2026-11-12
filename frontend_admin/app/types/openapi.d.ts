@@ -5661,6 +5661,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 sms 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSmsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/storage": {
         parameters: {
             query?: never;
@@ -6183,6 +6219,47 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionSiteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 sms 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description sms 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionSmsRequest"];
                 };
             };
             responses: {
@@ -7143,6 +7220,129 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/password/set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 设置首个密码 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_auth_adapter_http.SetPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手机号登录/注册 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_auth_adapter_http.PhoneLoginRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发送手机验证码 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_auth_adapter_http.SendSmsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -8161,7 +8361,19 @@ export interface components {
             sort?: number;
             title: string;
         };
+        "internal_auth_adapter_http.PhoneLoginRequest": {
+            code: string;
+            phone: string;
+        };
         "internal_auth_adapter_http.PwdLoginRequest": {
+            captcha_code?: string;
+            /**
+             * @description 图形验证码答案。站点启用 `site.login.captcha` 时必填，由
+             *     middleware.CaptchaMiddleware 在读本 handler 之前校验——它读的是同一份 JSON body
+             *     （io_util.ShouldBindJSONWithRecover 读完会把 body 复位，所以这里还能再绑一次）。
+             *     开关关着时这两个字段可以不传，这里是空串，不影响校验。
+             */
+            captcha_id?: string;
             password: string;
             /**
              * @description Scope 指定登录入口。空 = 读者站（行为与以前完全一致）；
@@ -8184,6 +8396,9 @@ export interface components {
             new_password: string;
         };
         "internal_auth_adapter_http.SendEmailRequest": {
+            captcha_code?: string;
+            /** @description 图形验证码答案，同 PwdLoginRequest：开关打开时由中间件先校验。 */
+            captcha_id?: string;
             email: string;
             /**
              * @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。
@@ -8194,6 +8409,20 @@ export interface components {
         };
         "internal_auth_adapter_http.SendEmailResponse": {
             id?: string;
+        };
+        "internal_auth_adapter_http.SendSmsRequest": {
+            captcha_code?: string;
+            /** @description 图形验证码答案，同 PwdLoginRequest：开关打开时由中间件先校验。 */
+            captcha_id?: string;
+            phone: string;
+            /**
+             * @description Type：1 登录/注册、3 设置密码前的复验。
+             *
+             *     取值与 platform/sms 的 Kind 一一对齐（2 曾是「绑定手机号」，随该功能下线并停用号位）；
+             *     用 oneof 收窄，拼错直接 400，而不是一路走到发送层才变成"短信发送失败"。
+             * @enum {integer}
+             */
+            type: 1 | 3;
         };
         "internal_auth_adapter_http.SessionItem": {
             addr?: string;
@@ -8217,6 +8446,11 @@ export interface components {
             os_version?: string;
             /** @description UA 保留原始串供排查，页面上不再直接展示。 */
             ua?: string;
+        };
+        "internal_auth_adapter_http.SetPasswordRequest": {
+            code: string;
+            new_password: string;
+            phone: string;
         };
         "internal_auth_adapter_http.UpdatePasswordRequest": {
             new_password: string;
@@ -8714,6 +8948,44 @@ export interface components {
             seo?: components["schemas"]["myblogx_conf_site.Seo"];
             site_info?: components["schemas"]["myblogx_conf_site.SiteInfo"];
         };
+        "internal_site_adapter_http.SiteSectionSmsRequest": {
+            /** @description AccessKeyID 阿里云 AccessKey ID */
+            access_key_id?: string;
+            /** @description AccessKeySecret 阿里云 AccessKey Secret（敏感，后台回显时用占位符遮蔽） */
+            access_key_secret?: string;
+            /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
+            endpoint?: string;
+            /** @description SignName 短信签名。PNVS 短信认证用控制台赠送的签名，必须与赠送模板配套 */
+            sign_name?: string;
+            /** @description TemplateCode 短信模板 Code。同样是控制台赠送的那一个 */
+            template_code?: string;
+            /**
+             * @description TimeoutSec 单次调用超时（秒）；<=0 按 DefaultSMSTimeoutSec 处理。
+             *
+             *     和邮件同理：发码在登录/注册的**同步**路径上，没有上限的话一次上游卡顿
+             *     会把请求挂到分钟级。
+             */
+            timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionSmsResponse": {
+            /** @description AccessKeyID 阿里云 AccessKey ID */
+            access_key_id?: string;
+            /** @description AccessKeySecret 阿里云 AccessKey Secret（敏感，后台回显时用占位符遮蔽） */
+            access_key_secret?: string;
+            /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
+            endpoint?: string;
+            /** @description SignName 短信签名。PNVS 短信认证用控制台赠送的签名，必须与赠送模板配套 */
+            sign_name?: string;
+            /** @description TemplateCode 短信模板 Code。同样是控制台赠送的那一个 */
+            template_code?: string;
+            /**
+             * @description TimeoutSec 单次调用超时（秒）；<=0 按 DefaultSMSTimeoutSec 处理。
+             *
+             *     和邮件同理：发码在登录/注册的**同步**路径上，没有上限的话一次上游卡顿
+             *     会把请求挂到分钟级。
+             */
+            timeout_sec?: number;
+        };
         "internal_site_adapter_http.SiteSectionStorageRequest": {
             access_key?: string;
             bucket?: string;
@@ -8953,6 +9225,14 @@ export interface components {
             /** @description 邮箱验证码有效期，单位：分钟 */
             email_code_timeout?: number;
             email_login?: boolean;
+            /**
+             * @description EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
+             *
+             *     必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
+             *     只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
+             *     本项目的口径是「注册只走手机号」，所以它默认 false。
+             */
+            email_register?: boolean;
             /** @description 单邮箱窗口内最大发送次数 */
             email_send_per_email_max?: number;
             /** @description 单IP窗口内最大发送次数 */
@@ -8965,7 +9245,20 @@ export interface components {
             login_fail_user_max?: number;
             /** @description 登录失败统计窗口，单位：分钟 */
             login_fail_window_minute?: number;
+            /** @description PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关。 */
+            phone_login?: boolean;
             qq_login?: boolean;
+            /** @description 短信验证码有效期，单位：分钟 */
+            sms_code_timeout?: number;
+            /** @description 单IP窗口内最大发送次数 */
+            sms_send_per_ip_max?: number;
+            /** @description 单手机号窗口内最大发送次数 */
+            sms_send_per_phone_max?: number;
+            /**
+             * @description 短信发送限流：与邮件那三个并列，因为它们是同一类策略。
+             *     分开计数（互不占用额度）：短信成本远高于邮件，且两条通道的滥用方式不同。
+             */
+            sms_send_window_second?: number;
             username_pwd_login?: boolean;
         };
         "myblogx_conf_site.Moderation": {
@@ -9536,6 +9829,11 @@ export interface components {
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionSiteResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSmsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionSmsResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionStorageResponse"];
@@ -10038,6 +10336,15 @@ export interface components {
             like_tag_ids?: string[];
             like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];
             nickname?: string;
+            /**
+             * @description Phone 是当前用户自己绑定的手机号（完整号码）。
+             *
+             *     只出现在"我自己"的详情里，绝不出现在公开的 BaseInfo/主页接口：
+             *     用户名下的手机号是本人数据，对别人一条都不能漏。
+             *     返回完整号码是因为"设置首个密码"要用它去调发码接口——
+             *     打码的值发不了验证码。
+             */
+            phone?: string;
             private_chat_notice_enabled?: boolean;
             register_source?: number;
             /**

@@ -45,6 +45,7 @@ import type {
   LogRuntimeConfig,
   MailRuntimeConfig,
   OAuthRuntimeConfig,
+  SMSRuntimeConfig,
   SiteRuntimeConfig,
   StorageRuntimeConfig,
   SumResponseData,
@@ -56,13 +57,14 @@ import type {
   GroupTreeData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的九段一一对应（ADR-0029）。 */
+/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十段一一对应（ADR-0029）。 */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
   | 'mail'
   | 'storage'
   | 'oauth'
+  | 'sms'
   | 'log'
   | 'upload'
   | 'deco'
@@ -589,6 +591,14 @@ export function getOAuthRuntimeConfig() {
 
 export function updateOAuthRuntimeConfig(payload: OAuthRuntimeConfig) {
   return updateRuntimeSection('oauth', payload)
+}
+
+export function getSMSRuntimeConfig() {
+  return getRuntimeSection<SMSRuntimeConfig>('sms')
+}
+
+export function updateSMSRuntimeConfig(payload: SMSRuntimeConfig) {
+  return updateRuntimeSection('sms', payload)
 }
 
 export function getLogRuntimeConfig() {

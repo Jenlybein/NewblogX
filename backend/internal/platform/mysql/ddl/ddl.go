@@ -13,8 +13,9 @@
 //
 // 由 M6 的一次性生成器从当时的 models 全部行结构导出
 // （AutoMigrate 后逐表 SHOW CREATE TABLE）。此后**手工维护**：
-// 加表就加一段 CREATE TABLE，改列就改这一段 —— 但改列违反零列变更口径，
-// 真要改必须先想清楚 ES 投影怎么办。
+// 加表就加一段 CREATE TABLE；给既有表加列要同时改这一段**和** migrate.go
+// 的 columnAdditions（否则既有库拿不到列），改名 / 改类型 / 删列仍然禁止
+// —— 那几类动作会让 CDC 按列名解析静默错位。
 //
 // # 一致性怎么保证
 //
@@ -66,6 +67,12 @@ func Apply(db *gorm.DB) error {
 		if err := db.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("执行第 %d 条建表语句失败: %w\n语句: %s", i+1, err, stmt)
 		}
+	}
+
+	// 建表之后再补列：CREATE TABLE IF NOT EXISTS 对既有表是空操作，
+	// 所以只在建表语句里加列，已有库永远拿不到这一列（详见 migrate.go）。
+	if err := ApplyColumnAdditions(db); err != nil {
+		return fmt.Errorf("补齐既有表的列失败: %w", err)
 	}
 	return nil
 }

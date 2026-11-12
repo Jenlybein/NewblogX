@@ -47,11 +47,11 @@ _Avoid_: 在 handler 里裸起 goroutine 发事件（v1 做法，已废）。
 位置：`backend/internal/apperr`；archcheck R8 拦 `errors.New("中文")`。
 _Avoid_: 按中文字符串匹配错误分支（改一个字就断）。
 
-**零 DDL（零 DDL 硬约束 = 零列变更 + 允许新增表）**：
-不改、不删既有表结构（列名、类型、列顺序、删列全禁），只允许 `CREATE TABLE IF NOT EXISTS` 新建表；因为 **CDC 按列名解析 binlog 行**（ES 文章投影与 image-ref 两条链路都从行快照按列名取值，不是只有 ES 投影）。
-例外边界写死在"新建表"这一侧：**新建表本身不违反零 DDL**，但必须由一条 ADR 指名立项，并走 `schema.sql` + testkit 三处登记。私信模块唯一经 ADR 指名新增的表是 `chat_block_models`（[ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)）；通用取景表 `picture_crop_models` 曾由 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 立项、已随取景退场在 #205 物理下线（该 ADR 由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。**既有表的列变更没有任何例外**（含 ALTER、DROP 后重建、加列、删列）——说"没有登记例外"指的是这一侧。
+**零 DDL（零 DDL 硬约束 = 只做加法：允许新增表 + 允许补列）**：
+不做**破坏性**的既有表结构变更（列名、类型、列顺序、删列全禁）；允许 `CREATE TABLE IF NOT EXISTS` 新建表，也允许给既有表**补列 / 补唯一索引**——但补列必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行（先查 `information_schema` 再决定是否 `ALTER`）。这样做的原因还是 **CDC 按列名解析 binlog 行**（ES 文章投影与 image-ref 两条链路都从行快照按列名取值，不是只有 ES 投影）：改名 / 改类型 / 删列会让同步静默错位，而在末尾补一个 NULL 列不会。
+例外边界：**新建表**必须由一条 ADR 指名立项，并走 `schema.sql` + testkit 三处登记。私信模块唯一经 ADR 指名新增的表是 `chat_block_models`（[ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)）；通用取景表 `picture_crop_models` 曾由 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 立项、已随取景退场在 #205 物理下线（该 ADR 由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。补列通道本身由 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 的「后续修订」立项，首个登记项是 `user_models.phone`。
 位置：硬约束 A1，见 `docs/architecture/overview.md` §六、`README.md` §11.3 与 §十三；新增表仍走 `schema.sql` + testkit 三处登记。
-_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"；把已下线的通用取景表当作现行登记例外；把"没有登记例外"读成"不允许新增表"（新建表只需 ADR 指名，不是例外）。
+_Avoid_: 把"迁移"理解成 AutoMigrate（本项目不做运行时结构推导）；把"允许新增表"读成"允许重建既有表"；把"允许补列"读成"允许改名 / 改类型 / 删列"；把已下线的通用取景表当作现行登记例外；把"没有登记例外"读成"不允许新增表"（新建表只需 ADR 指名，不是例外）。
 
 ---
 
@@ -124,8 +124,8 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；九段 `site/ai/mail/storage/oauth/log/upload/deco/image_gc`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0029](./docs/adr/0029-config-section-registry-and-nine-named-sections.md)）。
-_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，九段各有具名响应/请求形状）。
+位置：表 `runtime_config_models`；十段 `site/ai/mail/storage/oauth/sms/log/upload/deco/image_gc`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0029](./docs/adr/0029-config-section-registry-and-nine-named-sections.md)）。`sms` 段只放短信通道的传输层凭证与模板；登录开关与发码限流在 `site.login`，与邮件那几项并排。
+_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，十段各有具名响应/请求形状）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。

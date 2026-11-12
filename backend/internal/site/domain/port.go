@@ -40,7 +40,7 @@ type ImageResolver interface {
 // RuntimeConfig 是运行时站点配置的读写端口。
 //
 // 具体实现是 platform/config 的 RuntimeConfigService。
-// 九个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
+// 十个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
 // 其它模块只消费、不写。
 type RuntimeConfig interface {
 	// Site 返回当前生效的站点配置。
@@ -53,6 +53,8 @@ type RuntimeConfig interface {
 	Storage() conf.QiNiu
 	// OAuth 返回当前第三方登录配置。
 	OAuth() conf.QQ
+	// SMS 返回当前短信通道配置。
+	SMS() conf.SMS
 	// Log 返回当前日志配置。
 	Log() conf.Logrus
 	// Upload 返回当前上传策略。
@@ -72,6 +74,8 @@ type RuntimeConfig interface {
 	UpdateStorage(storage conf.QiNiu) error
 	// UpdateOAuth 覆盖第三方登录配置。
 	UpdateOAuth(oauth conf.QQ) error
+	// UpdateSMS 覆盖短信通道配置。
+	UpdateSMS(sms conf.SMS) error
 	// UpdateLog 覆盖日志配置。
 	UpdateLog(log conf.Logrus) error
 	// UpdateUpload 覆盖上传策略。

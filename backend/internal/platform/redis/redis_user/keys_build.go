@@ -27,6 +27,19 @@ func emailSendKeyByIP(ip string, sendType int8) string {
 	return fmt.Sprintf("auth:email:send:ip:%d:%s", sendType, ip)
 }
 
+// smsSendKeyByPhone 生成手机号维度发送频率计数的 Redis Key。
+//
+// 与邮件那组用不同的前缀而不是共用 "auth:email:*"：两条通道的配额互相独立，
+// 共用前缀会让"发过邮件"占掉短信额度。
+func smsSendKeyByPhone(phone string, sendType int8) string {
+	return fmt.Sprintf("auth:sms:send:phone:%d:%s", sendType, phone)
+}
+
+// smsSendKeyByIP 生成 IP 维度发送频率计数的 Redis Key。
+func smsSendKeyByIP(ip string, sendType int8) string {
+	return fmt.Sprintf("auth:sms:send:ip:%d:%s", sendType, ip)
+}
+
 // loginFailUserKey 生成用户登录失败计数的Redis Key
 func loginFailUserKey(account string) string {
 	return fmt.Sprintf("auth:login:fail:user:%s", account)

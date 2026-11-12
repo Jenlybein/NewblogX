@@ -572,7 +572,7 @@ cd frontend_admin && pnpm openapi:types
 
 | # | 约束 | 守卫 |
 | --- | --- | --- |
-| A1 | **零列变更 + 允许新增表**：既有表的列名 / 类型 / 列顺序 / 删列一律禁止（索引、外键、CH 的 `TTL`/`CODEC` 允许）；新增表走 `CREATE TABLE IF NOT EXISTS` 登记。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表 `picture_crop_models` 曾是首个也是唯一一个，已随取景退场物理下线；[ADR-0020](../adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](../adr/0015-banner-framing-as-parameters.md) 取代）。理由是 **CDC 按列名解析**：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值。放宽列变更的前提是有列名契约测试（`schema.ColumnsDiff` / `AssertColumns`） | 人工 + 契约测 |
+| A1 | **只做加法：允许新增表 + 允许补列**。破坏性变更一律禁止——既有表的列名 / 类型 / 列顺序 / 删列（索引、外键、CH 的 `TTL`/`CODEC` 不受此限）；新增表走 `CREATE TABLE IF NOT EXISTS` 登记；**补列**必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行（先查 `information_schema`，只 ADD 不修改）。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表 `picture_crop_models` 曾是首个也是唯一一个，已随取景退场物理下线；[ADR-0020](../adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](../adr/0015-banner-framing-as-parameters.md) 取代；补列通道本身见 ADR-0020 的「后续修订」）。理由是 **CDC 按列名解析**：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值 | 人工 + 契约测 |
 | A2 | **ID 语义字段必须是 `ctype.ID`**，禁止裸 `uint64`/`int64`（含指针与切片）；反序列化须同时接受数字与字符串 | `archcheck R12`，基线 0 |
 | A3 | **ID 比较必须显式走 `Uint64()`**——字符串语义下 `"10" < "9"` 成立 | 人工 |
 | A4 | **禁止 `type Deps struct`**；`*gorm.DB` 只能出现在 `*/adapter/` 与 `platform/mysql/` | `R3` / `R1` / `R2` |

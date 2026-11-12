@@ -43,19 +43,51 @@
 
 ## 当前生效约束
 
-1. 运行时配置恰好九段：`site / ai / mail / storage / oauth / log / upload / deco / image_gc`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。
-2. 对外只留九段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点。
+1. 运行时配置恰好十段：`site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。第十段 `sms` 见文末「后续修订」。
+2. 对外只留十段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点。
 3. 每段一对具名响应/请求形状，字段只有 `conf` 包一份定义（新类型而非真别名）；两端类型一律从各自生成的 `openapi.d.ts` 派生，不得手写配置视图模型、不得维护第三份字段清单、不得新增解析 Go tag / TS 键的源码文本断言。
-4. 三份契约产物（`backend/docs/swagger.json` + 两个 app 的 `app/types/openapi.d.ts`）必须同批由生成器产出；`minimumEntries` 以 `scripts/contract-structures.json` 为独立事实源（当前 135/176/326），判据四文件不得为绕开条目变动而改；`addedIn` 里 273 / 274 / 283 三批结构必须在重新生成的产物中在场。
-5. 审计口径不变（`runtime_config_update` + `TargetID=段名`），`TargetID` 由具名 handler 写死；右栏卡片是独立运营位，不属于九段注册表。
-6. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写九段现状，否决理由链到本 ADR；不再出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类口径。
-7. 本条与 ADR-0028 各自独立、互不引用为替代；零 DDL 口径不变：`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不 DROP / ALTER。
+4. 三份契约产物（`backend/docs/swagger.json` + 两个 app 的 `app/types/openapi.d.ts`）必须同批由生成器产出；`minimumEntries` 以 `scripts/contract-structures.json` 为独立事实源（当前 158/202/369），判据四文件不得为绕开条目变动而改；`addedIn` 里 273 / 274 / 283 三批结构，以及手机号登录那批（`ticket: "phone-sms-auth"`）的 5 个 path / 6 个 schema，必须在重新生成的产物中在场。
+5. 审计口径不变（`runtime_config_update` + `TargetID=段名`），`TargetID` 由具名 handler 写死；右栏卡片是独立运营位，不属于十段注册表。
+6. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写十段现状，否决理由链到本 ADR；不再出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类口径。
+7. 本条与 ADR-0028 各自独立、互不引用为替代；零 DDL 口径见 [ADR-0020](./0020-zero-ddl-exception-and-generic-framing-table.md)：`-db` 只做加法（建表 + 按 `columnAdditions` 补列），不改名、不改类型、不删列，也不 DROP 任何表。
 
 ## 相关代码与文档
 
 - 概念：[GLOSSARY · 运行时配置](../../GLOSSARY.md) · [GLOSSARY · 契约（开放接口契约）](../../GLOSSARY.md) · [配置分层](../architecture/configuration.md) · [契约](../architecture/contracts.md)
 - 上游决策：[ADR-0003](./0003-generated-contract-single-source.md)（契约以代码生成为单一来源）· [ADR-0016](./0016-deco-segment-and-cursor-charm.md)（第 8 段 deco 的当年口径，历史判断保留）· [ADR-0028](./0028-named-outline-trees-as-the-only-shape.md)（各自独立，非替代）· [架构总纲 §六 A1](../architecture/overview.md)（零 DDL）
 - 后端注册表：`backend/internal/platform/config/registry.go`、`registry_test.go`、`runtime.go`、`runtime_section_read.go`
-- 九段具名出入口：`backend/internal/site/adapter/http/{dto_runtime_sections.go,handler_runtime_sections.go,handler.go}`、`internal/site/app/service.go`、`internal/site/domain/port.go`、`internal/site/apptest/env.go`、`app/site_wiring.go`、`internal/platform/http/router/{site_router.go,admin_gate_scan_test.go,admin_gate_test.go,runtime_sections_contract_test.go,contract_routes_test.go}`
+- 十段具名出入口：`backend/internal/site/adapter/http/{dto_runtime_sections.go,handler_runtime_sections.go,handler.go}`、`internal/site/app/service.go`、`internal/site/domain/port.go`、`internal/site/apptest/env.go`、`app/site_wiring.go`、`internal/platform/http/router/{site_router.go,admin_gate_scan_test.go,admin_gate_test.go,runtime_sections_contract_test.go,contract_routes_test.go}`
+- 第十段 `sms` 的消费方：[`platform/sms`](../../backend/internal/platform/sms/sms.go)（阿里云 PNVS 适配器）、`backend/app/user_wiring.go` 的 `smsCodeBridge`、`backend/internal/platform/redis/redis_user`（发码限流）
 - 前端与门禁：`frontend/app/types/api.ts`、`frontend/test/gates/site-runtime-config-parity.test.ts`、`frontend_admin/app/types/api.ts`、`frontend_admin/app/services/admin.ts`、两个 app 的 `app/types/openapi.d.ts`
 - 契约与守卫：`backend/docs/swagger.json`、`scripts/contract-structures.json`、`scripts/check-contract-freshness.mjs`、`scripts/test-contract-freshness.mjs`、`scripts/verify-gates.sh`、`scripts/tool-versions.env`
+
+## 后续修订：九段 → 十段（sms）
+
+- 日期：2026-11-12
+- 起因：手机号 + 短信验证码注册/登录（阿里云号码认证服务 PNVS 的短信认证）
+
+**结论**：新增第十段 `sms`，其余决策与理由一律不变。段注册表、具名端点、破坏性收缩三件事的机制原样复用——`sms` 只是注册表里多的一项，不是新机制。
+
+**为什么必须新开一段，而不是塞进 `site` 或 `mail`**（这条理由比"段清单说九段"重要）：
+
+1. `sms` 段里有 `access_key_secret`，是机密；机密必须经 `sealForStore` 加密落库。
+2. `site` 段**有匿名可读的公开端点**：`PublicSite()` 直接返回整个 `conf.Site`（`internal/site/app/service.go`），
+   把它塞进 `site` 等于把密钥通过 `GET /api/site/site` 发给所有访客。
+3. 塞进 `mail` 段也不行：那段语义是腾讯云 SES，两套密钥共用一段会让"改邮件配置顺手清掉短信密钥"
+   变成可能，后台两个编辑页也会互相覆盖。
+
+**边界**：`sms` 段只放"怎么把短信发出去"（access_key_id / access_key_secret / endpoint / sign_name /
+template_code / timeout_sec）。**所有登录策略与限流**留在 `site.login`，与邮件那几项并排
+（`phone_login` / `sms_code_timeout` / `sms_send_window_second` / `sms_send_per_phone_max` / `sms_send_per_ip_max`）——
+同一个概念只有一处，避免两个段互相打脸。
+
+**顺带解掉的耦合**：`site.login` 新增 `email_register`，与 `email_login` 分开。此前两者共用一个开关，
+一关邮箱登录就再也发不出"绑定邮箱"的验证码；而绑定邮箱恰恰是手机号注册用户之后补邮箱的唯一入口。
+
+**契约**：实测 `158/202/369`（rebase 到 #364 之后由 153/197/363 抬高而来，+5 path / +5 operation / +6 schema，零删除），
+`scripts/contract-structures.json` 按实测抬高基线并追加 `addedIn`；判据四个文件一字未改。
+
+**部署**：本批首次用到 [ADR-0020](./0020-zero-ddl-exception-and-generic-framing-table.md) 的补列通道
+（`user_models.phone`），老库必须跑一次 `-db` 才有这一列；后台要先把「短信」页凭证填完，再打开
+`site.login.phone_login`，否则登录弹窗不会落在手机号 tab 上。完整步骤与回滚边界见
+[发布说明](../notes/2026-11-12-phone-sms-auth-release-notes.md)。

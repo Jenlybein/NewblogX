@@ -211,6 +211,43 @@ func (h *Handler) UpdateOauthSection(c *gin.Context) {
 	})
 }
 
+// AdminSmsSection 返回 sms 段管理端配置。
+// @Summary 获取 sms 段运行时配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[SiteSectionSmsResponse]
+// @Router /site/admin/sms [get]
+func (h *Handler) AdminSmsSection(c *gin.Context) {
+	res.OkWithData(SiteSectionSmsResponse(h.svc.AdminSMS()), c)
+}
+
+// UpdateSmsSection 覆盖 sms 段运行时配置。
+// @Summary 更新 sms 段运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SiteSectionSmsRequest true "sms 段配置"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /site/sms [put]
+func (h *Handler) UpdateSmsSection(c *gin.Context) {
+	if err := updateNamedSection(c, func(v SiteSectionSmsRequest) error {
+		return h.svc.UpdateSMS(conf.SMS(v))
+	}); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "sms",
+		Success:    true,
+		Message:    "更新运行时配置成功: sms",
+	})
+}
+
 // AdminLogSection 返回 log 段管理端配置。
 // @Summary 获取 log 段运行时配置（管理员）
 // @Tags site

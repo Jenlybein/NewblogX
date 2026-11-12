@@ -27,6 +27,7 @@ import (
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_email"
 	"myblogx/internal/platform/redis/redis_user"
+	"myblogx/internal/platform/sms"
 	socialdomain "myblogx/internal/social/domain"
 	userhttp "myblogx/internal/user/adapter/http"
 	usermysql "myblogx/internal/user/adapter/mysql"
@@ -126,6 +127,14 @@ func WireUser(infra *Infra) {
 		}),
 		// QQ 配置每次现读：后台改 AppID / 回调地址后立刻生效，不用重启。
 		authapp.WithOAuth(qqBridge{conf: func() conf.QQ { return infra.RuntimeSite.GetRuntimeOAuth() }}),
+		// 短信同理：密钥、签名、模板都走运行时配置，后台改完即时生效。
+		authapp.WithSmsCodes(&smsCodeBridge{
+			sender:    sms.New(),
+			conf:      func() conf.SMS { return infra.RuntimeSite.GetRuntimeSMS() },
+			loginConf: loginConf,
+			redis:     redisOptions,
+			logger:    infra.Logger,
+		}),
 	)
 
 	if cfg.System.Env == conf.EnvProductionLegacy {
@@ -244,6 +253,25 @@ func (b *directoryBridge) FindOrCreateByOpenID(ctx context.Context, openID, nick
 	return toAuthAccount(u), nil
 }
 
+// FindOrCreateByPhone 实现 authapp.Directory。
+func (b *directoryBridge) FindOrCreateByPhone(ctx context.Context, phone string) (authapp.Account, error) {
+	u, err := b.svc.FindOrCreateByPhone(ctx, phone)
+	if err != nil {
+		return authapp.Account{}, err
+	}
+	return toAuthAccount(u), nil
+}
+
+// SetPassword 实现 authapp.Directory。
+func (b *directoryBridge) SetPassword(ctx context.Context, userID uint64, newPassword string) error {
+	return b.svc.SetPassword(ctx, ctype.NewID(userID), newPassword)
+}
+
+// PhoneOf 实现 authapp.Directory。
+func (b *directoryBridge) PhoneOf(ctx context.Context, userID uint64) (string, error) {
+	return b.svc.PhoneOf(ctx, ctype.NewID(userID))
+}
+
 // ResetPasswordByEmail 实现 authapp.Directory。
 func (b *directoryBridge) ResetPasswordByEmail(ctx context.Context, email, newPassword string) (authapp.Account, error) {
 	u, err := b.svc.ResetPasswordByEmail(ctx, email, newPassword)
@@ -353,6 +381,55 @@ func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, e
 	return authapp.OAuthUser{OpenID: info.OpenID, Nickname: info.NickName, Avatar: info.Avatar}, nil
 }
 
+// smsCodeBridge 实现 authapp.SmsCodes：限流 + 交给阿里云发送/核验。
+//
+// 与 emailCodeBridge 的分工差别：邮件验证码由我们生成并存在 Redis（校验在
+// 中间件里一次性消费），短信验证码由阿里云生成、也只能由阿里云核验，
+// 所以这里同时提供 Send 与 Check 两个动作。
+type smsCodeBridge struct {
+	sender    sms.Sender
+	conf      func() conf.SMS
+	loginConf func() siteconf.Login
+	redis     redis_service.Options
+	logger    *logrus.Logger
+}
+
+var _ authapp.SmsCodes = (*smsCodeBridge)(nil)
+
+// Send 实现 authapp.SmsCodes。
+func (b *smsCodeBridge) Send(ctx context.Context, kind int8, phone, ip string) error {
+	// 先校验形状再花配额：非法号码根本不可能收到短信，
+	// 却会占掉同一 IP 的发送额度（和邮件那边的取舍一致）。
+	if err := userdomain.ValidatePhone(phone); err != nil {
+		return err
+	}
+
+	lc := b.loginConf()
+	if !redis_user.AllowSmsSend(b.redis, lc, phone, ip, kind) {
+		return apperr.New(apperr.CodeUserSmsTooFrequent)
+	}
+
+	timeout := lc.SmsCodeTimeout
+	if timeout <= 0 {
+		timeout = 5
+	}
+	// 重发间隔与限流窗口取同一个值：两边不一致时用户会「我们放行、平台拒绝」。
+	interval := lc.SmsSendWindowSecond
+	if err := b.sender.Send(ctx, b.conf(), phone, sms.Kind(kind), timeout, interval); err != nil {
+		if b.logger != nil {
+			// 只记打码后的号码：日志会被收集，不能把完整手机号写进去。
+			b.logger.Errorf("短信发送失败: phone=%s err=%v", userdomain.MaskPhone(phone), err)
+		}
+		return apperr.New(apperr.CodeUserSmsSendFailed)
+	}
+	return nil
+}
+
+// Check 实现 authapp.SmsCodes。
+func (b *smsCodeBridge) Check(ctx context.Context, phone, code string) (bool, error) {
+	return b.sender.Check(ctx, b.conf(), phone, code)
+}
+
 // policyBridge 实现 authhttp.LoginPolicy。
 type policyBridge struct {
 	site *sitecfg.RuntimeConfigService
@@ -366,6 +443,19 @@ func (p *policyBridge) PasswordEnabled() bool {
 // EmailEnabled 是否启用邮箱登录。
 func (p *policyBridge) EmailEnabled() bool {
 	return p.site != nil && p.site.GetRuntimeLogin().EmailLogin
+}
+
+// EmailRegisterEnabled 是否启用邮箱注册。
+//
+// 与 EmailEnabled 分开：注册与登录是两件事，而绑定邮箱要用发码接口。
+// 只用一个开关时，"关掉邮箱注册"会连带把"给已注册用户发绑定验证码"一起关掉。
+func (p *policyBridge) EmailRegisterEnabled() bool {
+	return p.site != nil && p.site.GetRuntimeLogin().EmailRegister
+}
+
+// PhoneEnabled 是否启用手机号 + 短信验证码登录。
+func (p *policyBridge) PhoneEnabled() bool {
+	return p.site != nil && p.site.GetRuntimeLogin().PhoneLogin
 }
 
 // QQEnabled 是否启用 QQ 登录。
@@ -390,6 +480,8 @@ func loginTypeOf(kind string) enum.LoginType {
 		return enum.EmailLoginType
 	case "qq":
 		return enum.QQLoginType
+	case "phone":
+		return enum.PhoneLoginType
 	default:
 		return enum.LoginType(0)
 	}

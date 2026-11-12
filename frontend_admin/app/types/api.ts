@@ -266,6 +266,7 @@ export type AIRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSec
 export type MailRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionMailResponse">
 export type StorageRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionStorageResponse">
 export type OAuthRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionOauthResponse">
+export type SMSRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSmsResponse">
 export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionLogResponse">
 export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
 export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -274,6 +275,33 @@ func NeedsDisplaySnapshotSync(changed []string) bool {
 		}
 	}
 	return false
+}
+
+// minPhonePattern 是中国大陆手机号的形状校验：11 位、以 1 开头、第二位 3-9。
+//
+// 只校验"形状"，不做归属地/在网校验 —— 真实有效性由短信验证码证明：
+// 收不到码就绑不上，比任何号段库都准。
+var minPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// ValidatePhone 校验手机号形状。
+func ValidatePhone(s string) error {
+	if !minPhonePattern.MatchString(strings.TrimSpace(s)) {
+		return apperr.New(apperr.CodeUserPhoneInvalid)
+	}
+	return nil
+}
+
+// MaskPhone 把手机号打成 138****8000 的形状，用于默认昵称与后台展示。
+//
+// 默认昵称用打码号而不是完整号：昵称会出现在评论、关注列表等公开位置，
+// 直接放完整手机号等于替用户公开了隐私。
+func MaskPhone(phone string) string {
+	s := strings.TrimSpace(phone)
+	if len(s) != 11 {
+		// 非 11 位的输入（历史脏数据）不猜结构，整体打码。
+		return "***"
+	}
+	return s[:3] + "****" + s[7:]
 }
 
 // MinPasswordLen 是密码最小长度。

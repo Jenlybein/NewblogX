@@ -167,8 +167,8 @@ func TestInitRuntimeConfig_给缺失段补默认行(t *testing.T) {
 	if err := db.Model(&runtimeConfigRow{}).Count(&count).Error; err != nil {
 		t.Fatalf("统计行数失败: %v", err)
 	}
-	if count != 9 {
-		t.Fatalf("九段都应补一行，实际 %d 行", count)
+	if count != 10 {
+		t.Fatalf("十段都应补一行，实际 %d 行", count)
 	}
 
 	// 补进去的内容必须是该段默认值的完整 JSON，不能是空字符串。

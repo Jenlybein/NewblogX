@@ -10,18 +10,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// FlagDB 建出全部表。
+// FlagDB 建出全部表，并补齐既有表缺失的列。
 //
-// 执行的是 internal/platform/mysql/ddl 里的 schema.sql，不再用 AutoMigrate：
+// 表结构执行的是 internal/platform/mysql/ddl 里的 schema.sql，不用 AutoMigrate：
 //
-//   - 表结构是冻结的契约（零列变更口径），该是可 review 的文本，
+//   - 表结构是冻结的契约，该是可 review 的文本，
 //     而不是"当前 Go 结构长什么样"的推导结果；
-//   - AutoMigrate 会为了对齐结构主动 ALTER 既有表，
-//     这在零列变更口径下是明确禁止的；
+//   - AutoMigrate 会为了对齐结构主动改既有表（改名 / 改类型 / 删列），
+//     这些会让 CDC 按列名解析静默错位，仍然明确禁止；
 //   - 它还会建出建模副产物，例如一条物理上无法满足的外键
 //     （见 docs/archive/v1/05-baseline-and-process.md）。
 //
-// 语句都是 CREATE TABLE IF NOT EXISTS，可重复执行。
+// 需要给既有表**补列**时不再靠人工敲 ALTER：在 ddl 包的 columnAdditions
+// 登记一条，本命令会幂等地补齐（列已存在则跳过）。仍只做加法。
 func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 	if db == nil {
 		return fmt.Errorf("数据库迁移失败: 数据库未初始化")

@@ -39,12 +39,25 @@ type About struct {
 }
 
 // 登录设置
+//
+// 这一节只放「登录策略」：哪种方式开放、验证码多久过期、发码限流多严。
+// 短信通道的密钥与模板不在这里（那些是机密，要加密落库、且 site 段有
+// 匿名可读的公开端点），见 conf.SMS 与运行时配置的 sms 段。
 type Login struct {
 	QQLogin          bool `yaml:"qq_login" json:"qq_login"`
 	UsernamePwdLogin bool `yaml:"username_pwd_login" json:"username_pwd_login"`
 	EmailLogin       bool `yaml:"email_login" json:"email_login"`
-	Captcha          bool `yaml:"captcha" json:"captcha"`
+	// EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
+	//
+	// 必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
+	// 只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
+	// 本项目的口径是「注册只走手机号」，所以它默认 false。
+	EmailRegister bool `yaml:"email_register" json:"email_register"`
+	// PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关。
+	PhoneLogin bool `yaml:"phone_login" json:"phone_login"`
+	Captcha    bool `yaml:"captcha" json:"captcha"`
 	EmailCodeTimeout int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
+	SmsCodeTimeout   int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
 
 	LoginFailWindowMinute int   `yaml:"login_fail_window_minute" json:"login_fail_window_minute"` // 登录失败统计窗口，单位：分钟
 	LoginFailUserMax      int64 `yaml:"login_fail_user_max" json:"login_fail_user_max"`           // 单账号窗口内最大失败次数
@@ -53,6 +66,12 @@ type Login struct {
 	EmailSendWindowSecond int   `yaml:"email_send_window_second" json:"email_send_window_second"` // 邮件发送限流窗口，单位：秒
 	EmailSendPerEmailMax  int64 `yaml:"email_send_per_email_max" json:"email_send_per_email_max"` // 单邮箱窗口内最大发送次数
 	EmailSendPerIPMax     int64 `yaml:"email_send_per_ip_max" json:"email_send_per_ip_max"`       // 单IP窗口内最大发送次数
+
+	// 短信发送限流：与邮件那三个并列，因为它们是同一类策略。
+	// 分开计数（互不占用额度）：短信成本远高于邮件，且两条通道的滥用方式不同。
+	SmsSendWindowSecond int   `yaml:"sms_send_window_second" json:"sms_send_window_second"` // 短信发送限流窗口，单位：秒
+	SmsSendPerPhoneMax  int64 `yaml:"sms_send_per_phone_max" json:"sms_send_per_phone_max"` // 单手机号窗口内最大发送次数
+	SmsSendPerIPMax     int64 `yaml:"sms_send_per_ip_max" json:"sms_send_per_ip_max"`       // 单IP窗口内最大发送次数
 }
 
 type Article struct {

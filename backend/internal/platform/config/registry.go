@@ -14,6 +14,7 @@ const (
 	SectionMail    = "mail"
 	SectionStorage = "storage"
 	SectionOAuth   = "oauth"
+	SectionSMS     = "sms"
 	SectionLog     = "log"
 	SectionUpload  = "upload"
 	SectionDeco    = "deco"
@@ -100,6 +101,20 @@ var sectionRegistry = []sectionEntry{
 			typed, ok := v.(conf.QQ)
 			if ok {
 				c.OAuth = typed
+			}
+			return ok
+		},
+	},
+	{
+		Name:     SectionSMS,
+		Defaults: func(d conf.RuntimeDefaults) any { return d.SMS },
+		Decode: func(s *RuntimeConfigService, p map[string]string) any {
+			return decodeOrDefault(SectionSMS, s.defaults.SMS, p, s.logger)
+		},
+		Apply: func(c *RuntimeConfig, v any) bool {
+			typed, ok := v.(conf.SMS)
+			if ok {
+				c.SMS = typed
 			}
 			return ok
 		},

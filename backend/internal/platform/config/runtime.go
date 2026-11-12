@@ -36,6 +36,7 @@ type RuntimeConfig struct {
 	Mail    conf.Mail
 	Storage conf.QiNiu
 	OAuth   conf.QQ
+	SMS     conf.SMS
 	Log     conf.Logrus
 	Upload  conf.Upload
 	Deco    conf.Deco
@@ -160,6 +161,13 @@ func (s *RuntimeConfigService) GetRuntimeOAuth() conf.QQ {
 	return s.GetRuntimeConfig().OAuth
 }
 
+// GetRuntimeSMS 返回短信通道配置。
+//
+// 每次现读：后台改完密钥/模板要立刻生效，不能要求重启。
+func (s *RuntimeConfigService) GetRuntimeSMS() conf.SMS {
+	return s.GetRuntimeConfig().SMS
+}
+
 // GetRuntimeLog 返回日志配置。
 func (s *RuntimeConfigService) GetRuntimeLog() conf.Logrus {
 	return s.GetRuntimeConfig().Log
@@ -198,6 +206,7 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		Mail:    s.defaults.Mail,
 		Storage: s.defaults.Storage,
 		OAuth:   s.defaults.OAuth,
+		SMS:     s.defaults.SMS,
 		Log:     s.defaults.Log,
 		Upload:  s.defaults.Upload,
 		Deco:    s.defaults.Deco,
@@ -357,6 +366,11 @@ func (s *RuntimeConfigService) UpdateStorage(storage conf.QiNiu) error {
 // UpdateOAuth 覆盖第三方登录配置并刷新缓存。
 func (s *RuntimeConfigService) UpdateOAuth(oauth conf.QQ) error {
 	return updateSection(s, SectionOAuth, oauth)
+}
+
+// UpdateSMS 覆盖短信通道配置并刷新缓存。
+func (s *RuntimeConfigService) UpdateSMS(sms conf.SMS) error {
+	return updateSection(s, SectionSMS, sms)
 }
 
 // UpdateLog 覆盖日志配置并刷新缓存，并把级别下发给 logger。

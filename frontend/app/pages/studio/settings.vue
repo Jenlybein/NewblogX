@@ -4,7 +4,7 @@ import { computed, reactive, ref } from "vue";
 import { NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
-import { sendEmailCode } from "~/services/auth";
+import { sendEmailCode, sendSmsCode, setAccountPassword } from "~/services/auth";
 import { uploadImageByTask } from "~/services/image";
 import { getTagOptions } from "~/services/search";
 import {
@@ -28,6 +28,9 @@ import {
 import { isImageFile, measureImage, type ShapeFramingState } from "~/utils/imageShaping";
 import { buildPrivacyUpdatePayload, buildProfileUpdatePayload, buildVisibilityUpdatePayload } from "~/utils/studioSettings";
 import { errorMessage } from "~/utils/errorMessage";
+import { useVerificationCountdown } from "~/composables/useVerificationCountdown";
+import { useCaptchaProof } from "~/composables/useCaptchaProof";
+import ImageCaptchaField from "~/components/auth/ImageCaptchaField.vue";
 
 definePageMeta({
   layout: "studio",
@@ -89,6 +92,9 @@ const emailBindForm = reactive({
 const passwordForm = reactive({
   old_password: "",
   new_password: "",
+  // 仅在"还没有密码"时使用：设置首个密码要对绑定手机号再做一次短信复验。
+  phone: "",
+  sms_code: "",
 });
 
 const preferenceForm = reactive({
@@ -261,7 +267,46 @@ const hasBoundPassword = computed(() => {
   return true;
 });
 
-const maskedPasswordText = computed(() => (hasBoundPassword.value ? "******" : "******(未绑定)"));
+const maskedPasswordText = computed(() => (hasBoundPassword.value ? "******" : "******(未设置)"));
+
+/** 当前账号绑定的手机号（完整号码，只出现在"我自己"的详情里）。 */
+const currentPhone = computed(() => {
+  const user = profile.value as { phone?: string | null } | null;
+  return (user?.phone ?? "").trim();
+});
+const hasBoundPhone = computed(() => currentPhone.value.length > 0);
+const maskedPhoneText = computed(() => {
+  const phone = currentPhone.value;
+  if (!phone) {
+    return "********(未绑定)";
+  }
+  if (phone.length !== 11) {
+    return "***";
+  }
+  return `${phone.slice(0, 3)}****${phone.slice(7)}`;
+});
+
+/** 设置首个密码时的短信验证码倒计时。 */
+const {
+  counting: passwordSmsLocked,
+  sendLabel: passwordSmsLabel,
+  start: startPasswordSmsCountdown,
+  reset: resetPasswordSmsCountdown,
+} = useVerificationCountdown();
+
+/**
+ * 图形验证码：本页两条发码通道（绑定邮箱、设密码复验）后端都挂了同一个中间件，
+ * 所以共用一份状态——两个弹窗不会同时打开，一次只服务一条。
+ */
+const {
+  enabled: captchaEnabled,
+  image: captchaImage,
+  code: captchaCode,
+  loading: captchaLoading,
+  missing: captchaMissing,
+  refresh: refreshCaptcha,
+  payload: captchaPayload,
+} = useCaptchaProof();
 const profileAvatarPreview = computed(() => resolveAvatarUrl(profileForm.avatar));
 const profileAvatarInitial = computed(() => resolveAvatarInitial(profileForm.nickname || profileForm.username, "我"));
 
@@ -334,7 +379,40 @@ function openEmailModalDialog() {
 function openPasswordModalDialog() {
   passwordForm.old_password = "";
   passwordForm.new_password = "";
+  passwordForm.phone = currentPhone.value;
+  passwordForm.sms_code = "";
+  resetPasswordSmsCountdown();
   showPasswordModal.value = true;
+}
+
+/**
+ * 给"当前密码"弹窗发一条短信验证码。
+ *
+ * 只有"还没有密码"的账号会走到这里：他们无法提供旧密码，所以用绑定手机号的
+ * 短信复验来证明身份（后端 SetPassword 会核对号码是否与绑定的一致）。
+ */
+async function sendPasswordCode() {
+  if (!hasBoundPhone.value) {
+    message.warning("当前账号还没有绑定手机号，无法用短信验证身份");
+    return;
+  }
+  if (captchaMissing.value) {
+    message.warning("请输入图形验证码");
+    return;
+  }
+
+  try {
+    await sendSmsCode({
+      phone: currentPhone.value,
+      purpose: "passwordProof",
+      captcha: captchaPayload(),
+    });
+    startPasswordSmsCountdown();
+    void refreshCaptcha();
+    message.success("验证码已发送");
+  } catch (error) {
+    message.error(errorMessage(error, "发送验证码失败"));
+  }
 }
 
 function clearAvatar() {
@@ -418,12 +496,20 @@ function cancelAvatarCrop() {
 }
 
 async function sendBindCode() {
+  if (captchaMissing.value) {
+    message.warning("请输入图形验证码");
+    return;
+  }
+
   try {
     const payload = await sendEmailCode({
       email: emailBindForm.email.trim(),
       purpose: "bindEmail",
+      captcha: captchaPayload(),
     });
     emailBindForm.email_id = payload.id;
+    // 图形码一次性：用过就换一张。
+    void refreshCaptcha();
     message.success("邮箱验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送验证码失败"));
@@ -447,16 +533,33 @@ async function submitBindEmail() {
 
 async function submitPasswordReset() {
   try {
-    await renewPasswordByEmail({
-      old_password: passwordForm.old_password,
-      new_password: passwordForm.new_password,
-    });
-    passwordForm.old_password = "";
+    if (hasBoundPassword.value) {
+      await renewPasswordByEmail({
+        old_password: passwordForm.old_password,
+        new_password: passwordForm.new_password,
+      });
+      passwordForm.old_password = "";
+      message.success("密码已更新，请留意旧登录态可能会失效");
+    } else {
+      if (!passwordForm.sms_code.trim()) {
+        message.warning("请先输入短信验证码");
+        return;
+      }
+      // 首次设置密码：不需要旧密码，但要用绑定手机号的短信复验证明身份。
+      await setAccountPassword({
+        phone: passwordForm.phone,
+        code: passwordForm.sms_code.trim(),
+        new_password: passwordForm.new_password,
+      });
+      passwordForm.sms_code = "";
+      message.success("密码已设置，现在可以用「用户名 + 密码」登录");
+    }
     passwordForm.new_password = "";
     showPasswordModal.value = false;
-    message.success("密码已更新，请留意旧登录态可能会失效");
+    // 刷新详情：has_password 变了，"设置密码/修改密码"的文案要跟着变。
+    await Promise.all([refreshProfile(), authStore.fetchCurrentUser()]);
   } catch (error) {
-    message.error(errorMessage(error, "更新密码失败"));
+    message.error(errorMessage(error, hasBoundPassword.value ? "更新密码失败" : "设置密码失败"));
   }
 }
 
@@ -629,6 +732,15 @@ useNoIndexPage();
 
       <div class="mt-4">
         <div class="settings-row">
+          <span class="settings-row__label">手机号</span>
+          <div class="settings-row__control flex items-center justify-between gap-3">
+            <span class="text-sm muted">{{ maskedPhoneText }}</span>
+            <!-- 手机号是登录主标识，绑定/换绑要用短信验证；后台开关关闭时这里不提供入口。 -->
+            <span class="text-xs muted">{{ hasBoundPhone ? "用于登录与找回" : "未绑定" }}</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
           <span class="settings-row__label">邮箱</span>
           <div class="settings-row__control flex items-center justify-between gap-3">
             <span class="text-sm muted">{{ maskedEmailText }}</span>
@@ -643,7 +755,7 @@ useNoIndexPage();
           <div class="settings-row__control flex items-center justify-between gap-3">
             <span class="text-sm muted">{{ maskedPasswordText }}</span>
             <NButton text type="primary" data-role="settings-bind-password" @click="openPasswordModalDialog()">
-              {{ hasBoundPassword ? "修改密码" : "绑定密码" }}
+              {{ hasBoundPassword ? "修改密码" : "设置密码" }}
             </NButton>
           </div>
         </div>
@@ -788,6 +900,14 @@ useNoIndexPage();
           <NButton quaternary @click="sendBindCode()">发送邮箱验证码</NButton>
           <span v-if="emailBindForm.email_id" class="glass-badge">email_id 已生成</span>
         </div>
+        <ImageCaptchaField
+          v-if="captchaEnabled"
+          :image="captchaImage"
+          :code="captchaCode"
+          :loading="captchaLoading"
+          @update:code="value => (captchaCode = value)"
+          @refresh="refreshCaptcha"
+        />
         <label class="space-y-2 block">
           <span class="text-sm font-medium">邮箱验证码</span>
           <NInput v-model:value="emailBindForm.email_code" maxlength="8" placeholder="输入邮箱验证码…" />
@@ -802,22 +922,54 @@ useNoIndexPage();
     <NModal
       v-model:show="showPasswordModal"
       preset="card"
-      title="修改密码"
+      :title="hasBoundPassword ? '修改密码' : '设置密码'"
       class="w-[min(92vw,520px)]"
       :mask-closable="false">
       <div class="space-y-4">
-        <p class="text-sm leading-6 muted">密码接口当前要求提交旧密码和新密码。</p>
-        <label class="space-y-2 block">
-          <span class="text-sm font-medium">旧密码</span>
-          <NInput v-model:value="passwordForm.old_password" type="password" show-password-on="click" />
-        </label>
+        <p v-if="hasBoundPassword" class="text-sm leading-6 muted">修改密码需要先提交旧密码和新密码。</p>
+        <p v-else class="text-sm leading-6 muted">
+          手机号注册的账号还没有密码。设置后即可用「用户名 + 密码」登录；为防止会话被盗后被人锁死账号，这里要用绑定手机号的短信验证码确认是本人。
+        </p>
+
+        <template v-if="hasBoundPassword">
+          <label class="space-y-2 block">
+            <span class="text-sm font-medium">旧密码</span>
+            <NInput v-model:value="passwordForm.old_password" type="password" show-password-on="click" />
+          </label>
+        </template>
+
+        <template v-else>
+          <label class="space-y-2 block">
+            <span class="text-sm font-medium">手机号</span>
+            <NInput v-model:value="passwordForm.phone" readonly placeholder="当前账号绑定的手机号" />
+          </label>
+          <label class="space-y-2 block">
+            <span class="text-sm font-medium">短信验证码</span>
+            <div class="flex gap-2">
+              <NInput v-model:value="passwordForm.sms_code" maxlength="8" placeholder="输入短信验证码" />
+              <NButton secondary :disabled="passwordSmsLocked || !hasBoundPhone" @click="sendPasswordCode()">
+                {{ passwordSmsLabel }}
+              </NButton>
+            </div>
+          </label>
+          <ImageCaptchaField
+            v-if="captchaEnabled"
+            :image="captchaImage"
+            :code="captchaCode"
+            :loading="captchaLoading"
+            @update:code="value => (captchaCode = value)"
+            @refresh="refreshCaptcha"
+          />
+          <p v-if="!hasBoundPhone" class="text-xs muted">当前账号没有绑定手机号，暂时无法设置密码。</p>
+        </template>
+
         <label class="space-y-2 block">
           <span class="text-sm font-medium">新密码</span>
           <NInput v-model:value="passwordForm.new_password" type="password" show-password-on="click" />
         </label>
         <div class="flex justify-end gap-2 pt-1">
           <NButton quaternary @click="showPasswordModal = false">取消</NButton>
-          <NButton type="primary" @click="submitPasswordReset()">{{ hasBoundPassword ? "确认修改" : "确认绑定" }}</NButton>
+          <NButton type="primary" @click="submitPasswordReset()">{{ hasBoundPassword ? "确认修改" : "确认设置" }}</NButton>
         </div>
       </div>
     </NModal>

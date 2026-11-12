@@ -13,6 +13,7 @@ type RuntimeDefaults struct {
 	Mail    Mail    `yaml:"mail"`
 	Storage QiNiu   `yaml:"storage"`
 	OAuth   QQ      `yaml:"oauth"`
+	SMS     SMS     `yaml:"sms"`
 	Log     Logrus  `yaml:"log"`
 	Upload  Upload  `yaml:"upload"`
 	Deco    Deco    `yaml:"deco"`

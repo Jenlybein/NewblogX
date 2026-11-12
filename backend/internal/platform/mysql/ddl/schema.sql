@@ -749,6 +749,7 @@ CREATE TABLE IF NOT EXISTS `user_models` (
   `password` varchar(64) DEFAULT NULL,
   `email` varchar(256) DEFAULT NULL,
   `open_id` varchar(64) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
   `status` tinyint DEFAULT '1',
   `token_version` int unsigned DEFAULT '1',
   `last_password_changed_at` datetime(3) DEFAULT NULL,
@@ -759,6 +760,7 @@ CREATE TABLE IF NOT EXISTS `user_models` (
   UNIQUE KEY `uk_user_username` (`username`),
   UNIQUE KEY `uk_user_email` (`email`),
   UNIQUE KEY `uk_user_open_id` (`open_id`),
+  UNIQUE KEY `uk_user_phone` (`phone`),
   KEY `idx_user_models_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

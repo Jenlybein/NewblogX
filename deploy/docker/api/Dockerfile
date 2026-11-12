@@ -7,6 +7,15 @@ ENV CGO_ENABLED=0
 # 配置国内镜像，加速依赖下载
 ENV GOPROXY=https://goproxy.cn,direct
 
+# 构建阶段的 Go 客户端退回 HTTP/1.1。
+#
+# goproxy.cn 偶发用 HTTP/2 GOAWAY 掐断一次 `go mod download`（`ErrCode=NO_ERROR`、
+# `LastStreamID≈2000`），而 Go 不会重试，表现为某个模块稳定下载失败。2026-11-12
+# 部署 #365 时就是这样：`github.com/tklauser/go-sysconf@v0.3.12` 连试三次都断在
+# 同一处，但同一 URL 用 curl 是 200。退到 HTTP/1.1 即可绕过，且只影响构建期的
+# 模块下载，不影响运行镜像。
+ENV GODEBUG=http2client=0
+
 # 修改 alpine 软件源，加速 apk 安装
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 

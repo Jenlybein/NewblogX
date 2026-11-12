@@ -89,7 +89,7 @@ const shelfEntries = computed(() => props.articles.map((article) => fromFavorite
 
       <!-- 用与分类栏同一套多列文章卡：收藏页原来是一行一条的长条，
            一屏看不了几篇，和分类栏放在一起像是两个页面（2026-11-12 反馈）。 -->
-      <div v-else-if="shelfEntries.length" class="article-grid">
+      <div v-else-if="shelfEntries.length" class="profile-article-grid">
         <ArticleGridCard
           v-for="entry in shelfEntries"
           :key="entry.id || entry.href"

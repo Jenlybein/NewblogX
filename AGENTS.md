@@ -8,11 +8,12 @@
 
 ## 分支与 CI
 
-- **`main` 只走 PR，禁止直接 push。** 分支保护要求 16 项状态检查，但管理员权限能 bypass ——
+- **`main` 只走 PR，禁止直接 push。** 分支保护要求 20 项状态检查，但管理员权限能 bypass ——
   "能推上去"不等于"合规"，不要用 bypass 当捷径。流程一律是：开分支 → push → `gh pr create`
   → 等检查全绿 → squash merge → 删分支。
-  其中 `backend (integration)` 被切成 3 片（`integration 1/3`、`2/3`、`3/3`），
-  另有 `backend (integration race)` 单独跑并发相关包。
+  其中 `backend (integration)` 切成 6 片（`integration 1/6`…`6/6`），
+  `backend (integration race)` 切成 2 片，只跑并发相关包（名单见
+  `scripts/ci-race-packages.txt`）。
   **改分片数或改 job 名必须同时改分支保护的必过列表**，否则 PR 永远满足不了旧名字、无法合并。
 - **push 之后必须核对 CI 结果，不能只看本地绿灯。** 本地通过和 CI 通过是两件事：
   CI 跑的是 `scripts/gates/run.mjs --group <group>` 全组 + `archcheck --skip-tests=false` 那遍

@@ -102,14 +102,30 @@ func TestAssertSendOK_两个失败面都要看(t *testing.T) {
 	}
 }
 
-// 模板参数是阿里云的硬性要求：不传直接 400 MissingTemplateParam（2026-11-12 线上）。
-// 这里守住两点：它是合法 JSON，且 code 变量的值让平台自己生成验证码。
-func TestTemplateParamPlaceholder(t *testing.T) {
+// 模板参数必须与模板正文的变量**逐个对上**，否则阿里云回
+// 400 isv.INVALID_PARAMETERS（"请检查模板内容与模板参数是否匹配"），
+// 而且不告诉你少了哪个。系统赠送模板 100001 用的是 code + min 两个变量。
+func TestTemplateParam_两个变量都要有(t *testing.T) {
 	var parsed map[string]string
-	if err := json.Unmarshal([]byte(templateParamPlaceholder), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(templateParam(5)), &parsed); err != nil {
 		t.Fatalf("模板参数必须是合法 JSON：%v", err)
 	}
 	if got := parsed["code"]; got != "##code##" {
 		t.Fatalf("code 变量应交给平台生成（##code##），实际 %q", got)
+	}
+	if got := parsed["min"]; got != "5" {
+		t.Fatalf("min 变量应等于有效分钟数，实际 %q", got)
+	}
+	if len(parsed) != 2 {
+		t.Fatalf("多传变量同样会被判为不匹配，实际字段 %v", parsed)
+	}
+}
+
+// 配置里的分钟数非法时按 5 分钟兜底：宁可给默认值，也不要发出一个空 min。
+func TestTemplateParam_非法分钟数按5分钟(t *testing.T) {
+	var parsed map[string]string
+	_ = json.Unmarshal([]byte(templateParam(0)), &parsed)
+	if parsed["min"] != "5" {
+		t.Fatalf("0 分钟应回落 5，实际 %q", parsed["min"])
 	}
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -420,10 +421,16 @@ func (b *smsCodeBridge) Send(ctx context.Context, kind int8, phone, ip string) e
 	}
 	// 重发间隔与限流窗口取同一个值：两边不一致时用户会「我们放行、平台拒绝」。
 	interval := lc.SmsSendWindowSecond
-	if err := b.sender.Send(ctx, b.conf(), phone, sms.Kind(kind), timeout, interval); err != nil {
+	conf := b.conf()
+	if err := b.sender.Send(ctx, conf, phone, sms.Kind(kind), timeout, interval); err != nil {
 		if b.logger != nil {
 			// 只记打码后的号码：日志会被收集，不能把完整手机号写进去。
-			b.logger.Errorf("短信发送失败: phone=%s err=%v", userdomain.MaskPhone(phone), err)
+			//
+			// 必须把**底层原因**一起打出来：err 是 apperr，Error() 只有"短信发送失败"
+			// 这句人话，阿里云返回的 code / message（签名未审核、模板不存在、余额不足…）
+			// 全在被包装的 cause 里。只打 err 的话，运维只能看到一个没有信息量的错误。
+			b.logger.Errorf("短信发送失败: phone=%s sign=%s template=%s cause=%v err=%v",
+				userdomain.MaskPhone(phone), conf.SignName, conf.TemplateCode, errors.Unwrap(err), err)
 		}
 		// "没配凭证"必须原样带给管理员：统一改写成"发送失败，请稍后重试"会让
 		// 他对着一个永远失败、却看不出该去配什么的提示反复重试。

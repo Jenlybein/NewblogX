@@ -4,6 +4,9 @@ import (
 	"time"
 
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/idgen"
+
+	"gorm.io/gorm"
 )
 
 // Record 是 cdc_dead_letter 表的行。
@@ -32,3 +35,25 @@ type Record struct {
 
 // TableName 固定表名。
 func (Record) TableName() string { return "cdc_dead_letter" }
+
+// BeforeCreate 生成雪花主键。
+//
+// 这一条以前漏了，后果很隐蔽：主键恒为 0，而 `ByIDs` / `MarkResolved` /
+// `BumpRetry` 全都按主键定位 —— 重投时把空串塞进 `id IN (?)` 与 bigint 比较，
+// MySQL 直接报 `Error 1292 Truncated incorrect INTEGER value: ''`。
+// 而且主键是唯一键，第二条死信写进来就会撞车。
+//
+// 为什么一直没被发现：`testkit/schema` 里的 CdcDeadLetterRow **有这个钩子**，
+// 用例插进去的行主键都正常，只有生产结构体没有 —— 测试绿、线上坏。
+// `rows_test.go` 里有一条用例专门盯着这一点。
+func (r *Record) BeforeCreate(*gorm.DB) error {
+	if !r.ID.IsZero() {
+		return nil
+	}
+	next, err := idgen.Next()
+	if err != nil {
+		return err
+	}
+	r.ID = next
+	return nil
+}

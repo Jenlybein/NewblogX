@@ -409,7 +409,25 @@
     @apply block truncate text-xs text-ink-muted;
   }
 
-  /* 关注 / 粉丝：用户卡网格，与搜索页「相关用户」同一套卡片样式。 */
+  /* 公开主页里的文章卡网格。
+ *
+ * 不能直接用 .article-grid：那套按**视口**宽度定列数（1400+ 是 7 列），
+ * 但公开主页的内容区旁边还有侧栏，实际只有 700px 左右 —— 视口再宽，
+ * 卡片也只有 90px，字全挤成竖条（2026-11-12 反馈"是不是太小导致的"）。
+ * 这里改成按**容器**宽度自适应：每张至少 148px，宽到能放下 6 张就 6 张。
+ */
+.profile-article-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+}
+
+@media (min-width: 1600px) {
+  .profile-article-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+/* 关注 / 粉丝：用户卡网格，与搜索页「相关用户」同一套卡片样式。 */
   .profile-relation-grid {
     @apply mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
   }

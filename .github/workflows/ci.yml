@@ -77,10 +77,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       - name: go build
         run: go build ./...
@@ -158,10 +162,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # ClickHouse 那批仍用 testcontainers，需要 Docker：runner 自带，这里断言一下，
       # 免得哪天镜像变了变成静默跳过。
@@ -258,10 +266,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       - name: go test (race，仅并发相关包)
         env:
@@ -316,10 +328,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # 规则自检 + 棘轮两遍都登记在仓库级门禁清单（scripts/gates/gates.json）：
       # 本地 check.sh、CI、门禁自检都经 scripts/gates/run.mjs 读同一份。
@@ -356,10 +372,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # 判定实现是仓库级 .mjs 脚本，显式装 Node 而不是依赖 runner 预装版本。
       - uses: actions/setup-node@v4
@@ -644,10 +664,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       - uses: pnpm/action-setup@v4
         with:

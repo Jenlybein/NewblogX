@@ -425,6 +425,11 @@ func (b *smsCodeBridge) Send(ctx context.Context, kind int8, phone, ip string) e
 			// 只记打码后的号码：日志会被收集，不能把完整手机号写进去。
 			b.logger.Errorf("短信发送失败: phone=%s err=%v", userdomain.MaskPhone(phone), err)
 		}
+		// "没配凭证"必须原样带给管理员：统一改写成"发送失败，请稍后重试"会让
+		// 他对着一个永远失败、却看不出该去配什么的提示反复重试。
+		if apperr.IsCode(err, apperr.CodeUserSmsNotConfigured) {
+			return err
+		}
 		return apperr.New(apperr.CodeUserSmsSendFailed)
 	}
 	return nil

@@ -2,6 +2,7 @@ package sms
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	dypns "github.com/alibabacloud-go/dypnsapi-20170525/v2/client"
@@ -98,5 +99,17 @@ func TestAssertSendOK_两个失败面都要看(t *testing.T) {
 				t.Fatalf("%s：错误码应是 %s，实际 %v", tc.name, apperr.CodeUserSmsSendFailed, err)
 			}
 		}
+	}
+}
+
+// 模板参数是阿里云的硬性要求：不传直接 400 MissingTemplateParam（2026-11-12 线上）。
+// 这里守住两点：它是合法 JSON，且 code 变量的值让平台自己生成验证码。
+func TestTemplateParamPlaceholder(t *testing.T) {
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(templateParamPlaceholder), &parsed); err != nil {
+		t.Fatalf("模板参数必须是合法 JSON：%v", err)
+	}
+	if got := parsed["code"]; got != "##code##" {
+		t.Fatalf("code 变量应交给平台生成（##code##），实际 %q", got)
 	}
 }

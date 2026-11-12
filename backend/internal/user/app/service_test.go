@@ -491,3 +491,35 @@ func assertCode(t *testing.T, err error, want apperr.Code) {
 		t.Fatalf("错误码 got=%s want=%s", code, want)
 	}
 }
+
+// 管理员删头像：传空 ID 必须**明确清空**，而不是去图片表查一个 id=0 的图片。
+//
+// 语义写在 user/app/admin.go 里；这条用例守住"清空"这条路径不被后续重构
+// 悄悄改成"查不到就跳过"（跳过 = 删不掉头像，而且用户看不出来）。
+func TestAdminUpdate_空头像ID表示清空(t *testing.T) {
+	t.Parallel()
+	r := apptest.NewRepos(baseTime)
+	seed(t, r)
+	if got := mustUser(t, r, aliceID).Avatar; got == "" {
+		t.Fatalf("前置条件失败：种子用户应当有头像，实际 %q", got)
+	}
+
+	empty := ctype.ID("")
+	if err := r.Service().AdminUpdate(testCtx(), admin, aliceID, app.AdminPatchInput{AvatarImageID: &empty}); err != nil {
+		t.Fatalf("清空头像不该报错: %v", err)
+	}
+
+	if got := mustUser(t, r, aliceID).Avatar; got != "" {
+		t.Fatalf("头像应被清空，实际 %q", got)
+	}
+}
+
+// mustUser 读回种子用户，供断言使用（apptest.Users 只有 FindByID，没有同步的 Find）。
+func mustUser(t *testing.T, r *apptest.Repos, id domain.UserID) domain.User {
+	t.Helper()
+	u, err := r.Users().FindByID(testCtx(), id)
+	if err != nil {
+		t.Fatalf("读回用户失败: %v", err)
+	}
+	return u
+}

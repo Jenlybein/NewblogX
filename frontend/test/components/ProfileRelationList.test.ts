@@ -40,22 +40,19 @@ function mountList(items: RelationItem[]) {
   });
 }
 
-/** 每张卡片上的动作按钮文案（顺序与卡片一致）。 */
-function actionLabels(wrapper: ReturnType<typeof mountList>): string[] {
-  return wrapper
-    .findAll(".profile-relation-card__actions button")
-    .map((button) => button.text());
-}
-
-describe("关系列表：动作文案", () => {
-  it("互相关注 → 取消关注，对方关注了我 → 回关，我已关注 → 取消关注", () => {
+/**
+ * 公开主页只承担展示：没有取消关注 / 回关按钮。
+ * 关系动作属于个人中心，出现在别人的主页上等于"在别人的页面改自己的关系"。
+ */
+describe("关系列表：只展示，不带关系动作", () => {
+  it("三种关系都不渲染动作按钮", () => {
     const wrapper = mountList([
       relationItem({ user_id: "a", relation: 4 }),
       relationItem({ user_id: "b", relation: 3 }),
       relationItem({ user_id: "c", relation: 2 }),
     ]);
 
-    expect(actionLabels(wrapper)).toEqual(["取消关注", "回关", "取消关注"]);
+    expect(wrapper.findAll("button")).toHaveLength(0);
   });
 
   it("关系 chip 描述客观关系；relation=3 是「回关」而不是「对方关注了你」", () => {
@@ -66,14 +63,6 @@ describe("关系列表：动作文案", () => {
 });
 
 describe("关系列表：动作事件交给页面处理", () => {
-  it("点动作按钮抛出 toggleFollow(用户 ID, relation)", async () => {
-    const wrapper = mountList([relationItem({ user_id: "u7", relation: 4 })]);
-
-    await wrapper.get(".profile-relation-card__actions button").trigger("click");
-
-    expect(wrapper.emitted("toggleFollow")).toEqual([["u7", 4]]);
-  });
-
   it("公开主页的关系列表不提供移除粉丝（管理只在个人中心）", async () => {
     const wrapper = mountList([relationItem({ relation: 3 })]);
 

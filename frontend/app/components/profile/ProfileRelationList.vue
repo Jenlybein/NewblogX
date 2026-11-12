@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { NButton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { RelationItem } from "~/types/api";
-import { formatDateTimeLabel } from "~/utils/format";
-import { getRelationActionLabel, getRelationLabel } from "~/utils/relation";
+import { getRelationLabel } from "~/utils/relation";
 
+/**
+ * 公开主页的关注 / 粉丝列表。
+ *
+ * 只承担**展示**：公开主页不是"管理我的关系"的地方，所以这里没有取消关注 /
+ * 回关按钮 —— 那样一不小心就会在别人的主页上改掉自己的关系，而且两个列表长得
+ * 跟个人中心一模一样，分不清自己在哪一页。
+ *
+ * 布局用用户卡网格而不是一行一条：一屏能看的人更多，视觉上也与搜索页的
+ * 「相关用户」一致（复用 search-user-list / search-user-card 那套样式）。
+ */
 withDefaults(
   defineProps<{
     title: string;
@@ -21,15 +29,6 @@ withDefaults(
   }>(),
   { pending: false, locked: false, lockedTitle: "", lockedDescription: "" },
 );
-
-const emit = defineEmits<{
-  toggleFollow: [id: string, relation: number];
-}>();
-
-/** 动作文案：公开主页只表达"你与这个人的关系"（互相关注 → 取消关注，对方关注了我 → 回关）。 */
-function actionLabel(relation: number) {
-  return getRelationActionLabel(relation);
-}
 </script>
 
 <template>
@@ -40,27 +39,21 @@ function actionLabel(relation: number) {
     :description="lockedDescription || '这位作者关闭了该列表的公开，当前登录用户无权查看。'"
   />
 
-  <div v-else-if="items.length" class="profile-relation-list">
-    <article v-for="item in items" :key="item.user_id" class="profile-relation-card">
-      <div class="profile-relation-card__main">
-        <AppAvatar :src="item.avatar" :name="item.nickname" fallback="友" />
-        <div class="min-w-0">
-          <div class="profile-relation-card__title-row">
-            <NuxtLink :to="`/users/${item.user_id}`" class="profile-relation-card__name">{{ item.nickname }}</NuxtLink>
-            <span class="blueprint-chip">{{ getRelationLabel(item.relation) }}</span>
-          </div>
-          <p class="profile-relation-card__abstract">{{ item.abstract || "这个用户还没有填写简介。" }}</p>
-          <p class="profile-relation-card__time">{{ formatDateTimeLabel(item.follow_time) }}</p>
-        </div>
-      </div>
-
-      <div class="profile-relation-card__actions blueprint-actions">
-        <NuxtLink :to="`/users/${item.user_id}`" class="blueprint-link">查看主页</NuxtLink>
-        <NButton quaternary attr-type="button" @click="emit('toggleFollow', item.user_id, item.relation)">
-          {{ actionLabel(item.relation) }}
-        </NButton>
-      </div>
-    </article>
+  <div v-else-if="items.length" class="profile-relation-grid">
+    <NuxtLink
+      v-for="item in items"
+      :key="item.user_id"
+      :to="`/users/${item.user_id}`"
+      class="search-user-card"
+      :title="`${getRelationLabel(item.relation)} · ${item.nickname}`"
+    >
+      <AppAvatar class="search-user-card__avatar" :src="item.avatar" :name="item.nickname" fallback="友" />
+      <span class="search-user-card__text">
+        <span class="search-user-card__name">{{ item.nickname }}</span>
+        <span class="search-user-card__abstract">{{ item.abstract || "这个用户还没有填写简介。" }}</span>
+      </span>
+      <span class="blueprint-chip flex-none">{{ getRelationLabel(item.relation) }}</span>
+    </NuxtLink>
   </div>
 
   <ProfileEmptyState

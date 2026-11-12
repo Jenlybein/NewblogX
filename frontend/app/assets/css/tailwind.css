@@ -151,13 +151,27 @@
     @apply rounded-pill border border-line px-1.5 py-0.5 text-[11px] leading-none tracking-dense text-ink-muted;
   }
 
-  .feed-entry__title {
+  /* 搜索命中词：只加粗、不换底色，保持纸面感（原来是未转义的 <em>）。 */
+.feed-entry__hit {
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+}
+
+.feed-entry__title {
     @apply block font-title leading-title tracking-title text-ink;
     font-size: 1.25rem;
   }
 
   .feed-entry--search .feed-entry__title,
-  .feed-entry--shelf .feed-entry__title {
+  .feed-entry--shelf /* 搜索命中词：只加粗、不换底色，保持纸面感（原来是未转义的 <em>）。 */
+.feed-entry__hit {
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+}
+
+.feed-entry__title {
     @apply text-lg;
   }
 
@@ -353,6 +367,10 @@
     @apply mt-5 flex items-center justify-center gap-3;
   }
 
+  .profile-pager__select {
+    @apply w-[124px];
+  }
+
   .profile-pager__status {
     @apply text-xs tabular-nums text-ink-muted;
   }
@@ -389,6 +407,11 @@
 
   .search-user-card__abstract {
     @apply block truncate text-xs text-ink-muted;
+  }
+
+  /* 关注 / 粉丝：用户卡网格，与搜索页「相关用户」同一套卡片样式。 */
+  .profile-relation-grid {
+    @apply mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
   }
 
   .profile-shelf-heading {
@@ -1584,8 +1607,10 @@
     @apply flex shrink-0 flex-col gap-4 md:items-end;
   }
 
+  /* 列数跟着指标个数走，别写死：写死 grid-cols-3 而实际只剩两项时，
+     第三格会渲染成一个空的带边框单元格，看着像"多出来一块"（2026-11-12 反馈）。 */
   .profile-hero-metrics {
-    @apply grid w-full grid-cols-3 rounded-field border border-line-faint;
+    @apply grid w-full auto-cols-fr grid-flow-col rounded-field border border-line-faint;
   }
 
   .profile-hero-metric {
@@ -2698,6 +2723,9 @@ html {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* 卡片自己裁掉溢出：标题两行、meta 一行，任何一处变高都不该画到边框外面
+     （2026-11-12 反馈：分类下的文章卡片内容突破了卡片边界）。 */
+  overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -2755,6 +2783,8 @@ html {
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
+  /* 同一行里有的卡片标题一行、有的两行：让 meta 贴底，别让短的悬在中间。 */
+  margin-top: auto;
   padding: 6px;
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;

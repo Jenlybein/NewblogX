@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import ArticleGridCard from "~/components/article/ArticleGridCard.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { FavoriteArticleItem, FavoriteFolderItem } from "~/types/api";
 import { fromFavoriteArticle } from "~/utils/articleEntry";
@@ -87,12 +87,19 @@ const shelfEntries = computed(() => props.articles.map((article) => fromFavorite
         description="系统正在读取公开收藏，稍后会自动出现。"
       />
 
-      <div v-else-if="shelfEntries.length" class="profile-shelf-list">
-        <ArticleFeedItem
+      <!-- 用与分类栏同一套多列文章卡：收藏页原来是一行一条的长条，
+           一屏看不了几篇，和分类栏放在一起像是两个页面（2026-11-12 反馈）。 -->
+      <div v-else-if="shelfEntries.length" class="article-grid">
+        <ArticleGridCard
           v-for="entry in shelfEntries"
           :key="entry.id || entry.href"
-          :entry="entry"
-          variant="shelf"
+          :title="entry.title"
+          :cover="entry.cover"
+          :to="entry.href"
+          :view-count="entry.stats.view"
+          :digg-count="entry.stats.digg"
+          :comment-count="entry.stats.comment"
+          :favor-count="entry.stats.favor"
         />
       </div>
 

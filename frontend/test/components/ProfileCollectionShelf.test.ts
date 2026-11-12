@@ -72,10 +72,11 @@ function mountShelf(props: ShelfProps = {}) {
 }
 
 describe("ProfileCollectionShelf：收藏架与文章卡片复用同一形态", () => {
-  it("有收藏文章时渲染 shelf 卡片，并高亮当前收藏夹", () => {
+  it("有收藏文章时用与分类栏同一套多列文章卡，并高亮当前收藏夹", () => {
     const wrapper = mountShelf({ folders: [folder], activeFolderId: "fav-1", articles: [article] });
 
-    const entries = wrapper.findAll(".feed-entry--shelf");
+    // 2026-11-12 起收藏页不再是长条条目，改成与分类栏一致的多列卡。
+    const entries = wrapper.findAll(".article-grid .article-grid-card");
     expect(entries).toHaveLength(1);
     expect(entries[0]?.text()).toContain("被收藏的文章");
     expect(wrapper.get(".profile-folder-card").classes()).toContain("is-active");

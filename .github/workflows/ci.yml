@@ -31,6 +31,19 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
+      # setup-go 只缓存**模块**（下载过的依赖），不缓存**编译产物**。
+      # 没有这一层，`go build ./...` 每次都要全量重编（实测 146s）——
+      # 而同样的构建在有缓存时是 20s 级。cache key 带 run_id 是为了每轮都存一份
+      # 新的（代码一直在变），restore-keys 负责命中最近一份。
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            gobuild-${{ runner.os }}-
+
       - name: go build
         run: go build ./...
 
@@ -51,8 +64,15 @@ jobs:
   # 用一个 MySQL service 供所有测试包共用：testkit 的 sync.Once 是包级的、
   # 每个包是独立进程，不共用的话 12 个包各起一个容器，并行时互相拖垮。
   backend-integration:
-    name: backend (integration)
+    name: backend (integration ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
+    # 分片：整包 `go test ./...` 带 -race 要 6 分钟，是整条流水线最慢的一段。
+    # 按包名排序后轮流分配，三片并行跑，墙钟时间降到 ~2 分钟。
+    # fail-fast 关掉：一片红了也要看完另外两片的结果，否则修一处再等一轮。
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       mysql:
         image: mysql:8.0
@@ -94,6 +114,15 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            gobuild-${{ runner.os }}-
+
       # ClickHouse 那批仍用 testcontainers，需要 Docker：runner 自带，这里断言一下，
       # 免得哪天镜像变了变成静默跳过。
       - name: 确认 Docker 可用（ClickHouse 容器测试的依赖）
@@ -104,13 +133,26 @@ jobs:
       #
       # -count=1 等价于 BLOGX_NO_CACHE=1：强制真跑，不复用测试结果缓存。
       # CI 本来就没有历史缓存，但显式写出来，避免有人以为"绿了"是缓存给的。
+      #
+      # 分片：按 `go list ./...` 的排序结果轮流取，第 N 片取 i % 3 == N-1。
+      # 不用 `-run` 或目录前缀切：包与包之间的用例数差很多，轮流取比按名字切更均匀。
       - name: go test (race, integration)
         env:
           BLOGX_MYSQL_ADDR: 127.0.0.1:3306
           # 指向上面的 elasticsearch service：让真实索引的组合用例确定性运行，
           # 而不是回退到 testcontainers（起不来会被 t.Skipf 静默跳过）。
           BLOGX_ES_ADDR: http://127.0.0.1:9200
-        run: go test -race -tags integration -count=1 -timeout 25m ./...
+        run: |
+          set -euo pipefail
+          mapfile -t pkgs < <(go list ./... | sort)
+          total=${{ strategy.job-total }}
+          idx=$(( ${{ matrix.shard }} - 1 ))
+          selected=()
+          for i in "${!pkgs[@]}"; do
+            if (( i % total == idx )); then selected+=("${pkgs[$i]}"); fi
+          done
+          echo "本片 ${#selected[@]} / ${#pkgs[@]} 个包"
+          go test -race -tags integration -count=1 -timeout 25m "${selected[@]}"
 
   # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────
   archcheck:
@@ -126,6 +168,14 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            gobuild-${{ runner.os }}-
 
       # 规则自检 + 棘轮两遍都登记在仓库级门禁清单（scripts/gates/gates.json）：
       # 本地 check.sh、CI、门禁自检都经 scripts/gates/run.mjs 读同一份。
@@ -156,6 +206,14 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            gobuild-${{ runner.os }}-
 
       # 判定实现是仓库级 .mjs 脚本，显式装 Node 而不是依赖 runner 预装版本。
       - uses: actions/setup-node@v4
@@ -427,6 +485,14 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            gobuild-${{ runner.os }}-
 
       - uses: pnpm/action-setup@v4
         with:

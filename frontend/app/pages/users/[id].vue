@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
-import { NButton, NInput, useMessage } from "naive-ui";
+import { NButton, NInput, NSelect, useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileCategoryExplorer from "~/components/profile/ProfileCategoryExplorer.vue";
@@ -161,6 +161,14 @@ const articleTotalPages = computed(() => {
   // 后端只给 has_more 时用"当前页 + 1"兜底，至少让"下一页"可用。
   return articleSearch.value?.pagination.value?.has_more ? articlePage.value + 1 : articlePage.value;
 });
+
+/** 页码下拉的选项：1..总页数，标签直接写"第 N 页"。 */
+const articlePageOptions = computed(() =>
+  Array.from({ length: Math.max(articleTotalPages.value, 1) }, (_, index) => ({
+    label: `第 ${index + 1} 页`,
+    value: index + 1,
+  })),
+);
 
 const articleListRef = ref<HTMLElement | null>(null);
 
@@ -424,26 +432,8 @@ async function handlePrivateMessage() {
   });
 }
 
-async function handleRelationToggle(targetId: string, relation: number) {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
-    return;
-  }
-
-  try {
-    if (isFollowing(relation)) {
-      await unfollowUser(targetId);
-      message.success("已取消关注");
-    } else {
-      await followUser(targetId);
-      message.success("已关注");
-    }
-    await Promise.all([refreshProfile(), refreshFollowData(), refreshFansData()]);
-  } catch (error) {
-    message.error(errorMessage(error, "操作失败"));
-  }
-}
+// 公开主页的关注 / 粉丝列表只展示，不提供取消关注或回关：
+// 那是"管理我的关系"的动作，属于个人中心，不该出现在别人的主页上。
 
 useSeoMeta({
   title: computed(() => `${profile.value?.nickname || "作者"} - 个人主页`),
@@ -557,7 +547,16 @@ useSeoMeta({
               <NButton size="small" secondary :disabled="articlePage <= 1" @click="goArticlePage(articlePage - 1)">
                 上一页
               </NButton>
-              <span class="profile-pager__status">{{ articlePage }} / {{ articleTotalPages }}</span>
+              <!-- 页码下拉：文章多的作者翻到第 7 页得点六次，直接选页才用得下去。 -->
+              <NSelect
+                class="profile-pager__select"
+                size="small"
+                :value="articlePage"
+                :options="articlePageOptions"
+                :consistent-menu-width="false"
+                data-role="article-page-select"
+                @update:value="goArticlePage" />
+              <span class="profile-pager__status">共 {{ articleTotalPages }} 页</span>
               <NButton
                 size="small"
                 secondary
@@ -604,7 +603,6 @@ useSeoMeta({
                 ? '这位作者关闭了关注列表公开，当前登录用户无权查看。'
                 : '关注/粉丝列表接口是登录态接口，先登录后才能继续查看。'
             "
-            @toggle-follow="handleRelationToggle"
           />
 
           <ProfileRelationList
@@ -619,7 +617,6 @@ useSeoMeta({
                 ? '这位作者关闭了粉丝列表公开，当前登录用户无权查看。'
                 : '粉丝列表属于登录态接口，先登录后才能继续查看。'
             "
-            @toggle-follow="handleRelationToggle"
           />
 
           <ProfileEmptyState

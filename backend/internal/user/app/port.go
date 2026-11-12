@@ -116,6 +116,8 @@ type AuthorStats struct {
 	Digg    int64
 	Favor   int64
 	Comment int64
+	// Visited 是这些文章的阅读量之和（公开主页的「累计被阅读」）。
+	Visited int64
 }
 
 // AuthorStatsReader 读作者的累计互动数。

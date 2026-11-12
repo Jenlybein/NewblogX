@@ -11,6 +11,7 @@ import {
   type ArticleEntryVariant,
 } from "~/utils/articleEntry";
 import { formatCount } from "~/utils/format";
+import { splitHighlight, stripHighlight } from "~/utils/highlight";
 
 /**
  * 文章条目：列表 / 搜索结果 / 收藏架三处共用（#7 卡片三处复用）。
@@ -56,6 +57,19 @@ const view = computed<ArticleEntryData>(() => {
 });
 
 const hasData = computed(() => Boolean(view.value.id) && Boolean(view.value.href));
+
+/**
+ * 标题里的高亮片段。
+ *
+ * 搜索结果的后端会把命中词包成 `<em>`；直接渲染会看到 `<em>深</em>度学习`
+ * 这种未转义字符串，v-html 又会把用户的标题当 HTML 执行。所以切成片段后
+ * 由模板渲染成 <mark>（见 utils/highlight）。
+ */
+const titleSegments = computed(() => splitHighlight(view.value.title));
+
+/** 无障碍标签与 tooltip 用纯文本版本：那里不该出现 <em> 标记。 */
+const plainTitle = computed(() => stripHighlight(view.value.title));
+
 const effectiveVariant = computed<ArticleEntryVariant>(() => (props.compact && props.variant === "list" ? "search" : props.variant));
 const visibleTags = computed(() => view.value.tags.slice(0, 3));
 const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
@@ -72,7 +86,7 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
       v-if="hasData"
       :to="view.href"
       class="feed-entry__cover"
-      :aria-label="`打开文章：${view.title}`"
+      :aria-label="`打开文章：${plainTitle}`"
     >
       <ArticleCover :src="view.cover" :title="view.title" />
     </NuxtLink>
@@ -103,8 +117,18 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
         <span v-if="view.statusLabel" class="feed-entry__status">{{ view.statusLabel }}</span>
       </div>
 
-      <NuxtLink v-if="hasData" :to="view.href" class="feed-entry__title">{{ view.title }}</NuxtLink>
-      <p v-else class="feed-entry__title">{{ view.title }}</p>
+      <NuxtLink v-if="hasData" :to="view.href" class="feed-entry__title">
+        <template v-for="(segment, index) in titleSegments" :key="index">
+          <mark v-if="segment.hit" class="feed-entry__hit">{{ segment.text }}</mark>
+          <template v-else>{{ segment.text }}</template>
+        </template>
+      </NuxtLink>
+      <p v-else class="feed-entry__title">
+        <template v-for="(segment, index) in titleSegments" :key="index">
+          <mark v-if="segment.hit" class="feed-entry__hit">{{ segment.text }}</mark>
+          <template v-else>{{ segment.text }}</template>
+        </template>
+      </p>
 
       <p class="feed-entry__abstract">{{ view.abstract }}</p>
 

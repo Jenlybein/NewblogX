@@ -14,6 +14,8 @@ type AuthorInteractionStats struct {
 	Digg    int64
 	Favor   int64
 	Comment int64
+	// Visited 是这些文章的阅读量之和（公开主页的「累计被阅读」）。
+	Visited  int64
 }
 
 // AuthorStats 汇总作者已发布文章的赞 / 收藏 / 评论总数。
@@ -33,7 +35,8 @@ func AuthorStats(ctx context.Context, db *gorm.DB, authorID ctype.ID) (AuthorInt
 	err := db.WithContext(ctx).Model(&articleRow{}).
 		Select("COALESCE(SUM(digg_count), 0) AS digg, "+
 			"COALESCE(SUM(favor_count), 0) AS favor, "+
-			"COALESCE(SUM(comment_count), 0) AS comment").
+			"COALESCE(SUM(comment_count), 0) AS comment, "+
+			"COALESCE(SUM(view_count), 0) AS visited").
 		Where("author_id = ? AND publish_status = ?", authorID, domain.StatusPublished).
 		Scan(&row).Error
 	if err != nil {

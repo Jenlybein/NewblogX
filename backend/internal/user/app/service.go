@@ -136,12 +136,16 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		FansVis:      settings.FansVisibility,
 		Place:        u.Addr,
 	}
-	// 累计被赞 / 被收藏 / 被评论来自文章模块。读不到就留 0，不让主页打不开。
+	// 累计被赞 / 被收藏 / 被评论 / 被阅读来自文章模块。读不到就留 0，不让主页打不开。
 	if s.authorStats != nil {
 		if agg, e := s.authorStats.AuthorStats(ctx, target); e == nil {
 			profile.DiggCount = agg.Digg
 			profile.FavorCount = agg.Favor
 			profile.CommentCount = agg.Comment
+			// 累计被阅读按文章表的真实阅读量求和，不读 user_models 上那个
+			// article_visited_count 冗余列：那一列没有任何地方在维护，
+			// 线上恒为 0，而文章列表里每篇的阅读量明明都在（2026-11-12 线上现象）。
+			profile.Stats.ArticleVisitedCount = int(agg.Visited)
 		}
 	}
 	return profile, nil

@@ -25,5 +25,10 @@ func (b *authorStatsBridge) AuthorStats(ctx context.Context, id userdomain.UserI
 	if err != nil {
 		return userapp.AuthorStats{}, err
 	}
-	return userapp.AuthorStats{Digg: raw.Digg, Favor: raw.Favor, Comment: raw.Comment}, nil
+	return userapp.AuthorStats{
+		Digg:    raw.Digg,
+		Favor:   raw.Favor,
+		Comment: raw.Comment,
+		Visited: raw.Visited,
+	}, nil
 }

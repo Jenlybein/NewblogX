@@ -137,7 +137,7 @@ func (s *Service) SetPassword(ctx context.Context, userID uint64, phone, code, n
 // SendSmsCode 发送短信验证码。
 func (s *Service) SendSmsCode(ctx context.Context, kind int8, phone, ip string) error {
 	if s.smsCodes == nil {
-		return apperr.New(apperr.CodeUserSmsSendFailed)
+		return apperr.New(apperr.CodeUserSmsNotConfigured)
 	}
 	return s.smsCodes.Send(ctx, kind, strings.TrimSpace(phone), ip)
 }
@@ -145,7 +145,7 @@ func (s *Service) SendSmsCode(ctx context.Context, kind int8, phone, ip string) 
 // CheckSmsCode 核验短信验证码。
 func (s *Service) CheckSmsCode(ctx context.Context, phone, code string) (bool, error) {
 	if s.smsCodes == nil {
-		return false, apperr.New(apperr.CodeUserSmsSendFailed)
+		return false, apperr.New(apperr.CodeUserSmsNotConfigured)
 	}
 	return s.smsCodes.Check(ctx, strings.TrimSpace(phone), strings.TrimSpace(code))
 }

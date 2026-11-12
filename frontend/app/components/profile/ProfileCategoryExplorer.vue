@@ -130,7 +130,7 @@ function toggleCategory(id: string) {
              只是把同一个信息说第二遍，还白占一行高度（2026-11-12）。 -->
         <!-- 多列文章卡（票 345 抽出来的共享卡）：封面 + 标题 + 日期 + 四个计数。
              窄栏旁边一列能放下 2–3 张，扫起来比原来的单列条目快得多。 -->
-        <div class="article-grid">
+        <div class="profile-article-grid">
           <ArticleGridCard
             v-for="item in articles"
             :key="item.id"

@@ -24,7 +24,6 @@ package sms
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"myblogx/conf"
@@ -218,12 +217,18 @@ func assertSendOK(body *dypns.SendSmsVerifyCodeResponseBody) error {
 	}
 	ok := body.Success != nil && *body.Success
 	if code != "OK" || !ok {
-		// 把响应体**整份**打出来：线上出现过 code=UNKNOWN success=false 的情况，
-		// 说明 Code / Success 两个字段都没解析到，只看这两项等于什么都没看见。
-		raw, _ := json.Marshal(body)
+		// 只记**安全的三项**：业务码、平台文案、RequestId（报工单要用）。
+		//
+		// 不把响应体整份打出来：`Model.VerifyCode` 是验证码明文，落进日志就等于
+		// 把验证码泄给所有能看日志的人 —— 调试方便不能拿用户凭证换。
+		// RequestId 足够支撑排查：阿里云工单只认它。
+		requestID := ""
+		if body.Model != nil {
+			requestID = tea.StringValue(body.Model.RequestId)
+		}
 		return apperr.Wrap(apperr.CodeUserSmsSendFailed,
-			fmt.Errorf("send sms verify code failed: code=%s success=%v message=%s body=%s",
-				code, ok, tea.StringValue(body.Message), raw))
+			fmt.Errorf("send sms verify code failed: code=%s success=%v message=%s request_id=%s",
+				code, ok, tea.StringValue(body.Message), requestID))
 	}
 	return nil
 }

@@ -1,0 +1,37 @@
+# 需要 -race 检测的包（CI 用，见 .github/workflows/ci.yml 的 backend-integration-race）
+#
+# 背景：-race 让编译成本放大 5.1 倍（实测 26s → 135s），是 CI 最慢的一段。
+# 但竞态检测只在**真正有并发**的代码上有意义：一个纯 CRUD 的 MySQL 仓储包，
+# 加不加 -race 跑出来的结论一样，只是让 CI 慢一倍。
+#
+# 所以只对下面这些包保留 -race：它们在**非测试代码**里有 goroutine、channel、
+# sync 原语或后台 worker，竞态会真的发生。判定依据是扫 `safego.Go(` / `go func(`
+# / `sync.*` / `atomic.` 的命中，不是凭感觉列的。
+#
+# 其余 160 个包在 backend-integration 里以不加 -race 的方式跑全量用例 ——
+# 用例一个都不少，少的只是插桩。这是明确接受的取舍：竞态检测覆盖并发代码，
+# 覆盖率给速度让路。
+#
+# 新增了并发代码的包要加到这里；如果加漏了，那个包就只在无 race 模式下跑。
+# 判断方法：
+#   grep -rl 'safego\.Go(\|go func(\|\bsync\.' backend --include='*.go' | grep -v _test
+#
+# 注意：本文件里的包同时也会出现在 backend-integration 的分片里（不加 race）。
+# 重复跑一遍是为了避免"排除逻辑写错 → 某个包静默没人跑"，执行成本很低。
+
+myblogx/internal/platform/log
+myblogx/internal/platform/log/persist
+myblogx/internal/platform/log/writer
+myblogx/internal/platform/cdc/outboxrelay
+myblogx/internal/platform/cdc/river
+myblogx/internal/platform/llm
+myblogx/internal/platform/safego
+myblogx/internal/platform/health
+myblogx/internal/platform/idgen
+myblogx/internal/platform/http/router
+myblogx/internal/chat/adapter/http
+myblogx/internal/ai/app
+myblogx/internal/ai/search
+myblogx/internal/ai/overwrite
+myblogx/internal/testkit/mysqlcontainer
+myblogx/app

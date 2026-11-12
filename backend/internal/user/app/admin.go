@@ -117,12 +117,22 @@ func (s *Service) AdminUpdate(ctx context.Context, viewer domain.Viewer, target 
 		Role:     in.Role,
 		Status:   in.Status,
 	}
-	if in.AvatarImageID != nil && s.enricher != nil {
-		url, err := s.enricher.AvatarURLByID(ctx, *in.AvatarImageID)
-		if err != nil {
-			return err
+	// 头像：空 ID 表示**明确清空**。
+	//
+	// 这个语义要单独写出来：`AvatarURLByID(0)` 去查图片表只会查到一个不存在的
+	// 图片，返回空串或"找不到"，两者都不是"我要删掉头像"的清晰表达，
+	// 而且把"清空"这件事绑在图片表的查询结果上，图片表一改就悄悄失效。
+	if in.AvatarImageID != nil {
+		if in.AvatarImageID.IsZero() {
+			empty := ""
+			patch.AvatarURL = &empty
+		} else if s.enricher != nil {
+			url, err := s.enricher.AvatarURLByID(ctx, *in.AvatarImageID)
+			if err != nil {
+				return err
+			}
+			patch.AvatarURL = &url
 		}
-		patch.AvatarURL = &url
 	}
 
 	if err := s.users.UpdateAdmin(ctx, target, patch); err != nil {

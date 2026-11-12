@@ -2,11 +2,15 @@
 /**
  * 后台头像（决定清单 §6）。
  *
- * 三层回退：**有图片地址** → 显示图片；**能取首字符**（昵称不是邮箱）→ 显示首字符；
+ * 回退顺序：**有图片且能加载** → 显示图片；**能取首字符**（昵称不是邮箱）→ 显示首字符；
  * 否则画人形图标。第三层存在的唯一理由：后台用户列表里大量账号的用户名是邮箱，
  * 取首字符会画出一个毫无意义的 `1`（这正是读者反馈的那个"头像没显示出来"）。
+ *
+ * 2026-11-13 补第四种情况：**地址有值但图片加载失败**（对象存储里已删除、
+ * 域名换了、路径写错）。以前只有"src 为空"才回退，于是列表里出现一个裂开的
+ * 破图标 —— 比没有头像更难看。现在加载失败同样落到首字符/图标。
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NAvatar } from 'naive-ui'
 import { IconUser } from '@tabler/icons-vue'
 import { resolveAdminAvatarInitial, resolveAdminAvatarUrl } from '~/utils/adminAvatar'
@@ -29,14 +33,23 @@ const props = withDefaults(defineProps<{
 const url = computed(() => resolveAdminAvatarUrl(props.src))
 const initial = computed(() => resolveAdminAvatarInitial(props.name))
 const iconSize = computed(() => Math.max(14, Math.round(props.size * 0.5)))
+
+/** 图片加载失败。地址一变（换用户 / 重新上传）就复位，否则会一直停在回退态。 */
+const broken = ref(false)
+watch(url, () => { broken.value = false })
+
+function handleImageError() {
+  broken.value = true
+}
 </script>
 
 <template>
   <NAvatar
-    v-if="url"
+    v-if="url && !broken"
     :round="round"
     :size="size"
     :src="url"
+    :on-error="handleImageError"
     data-role="admin-avatar-image" />
   <NAvatar
     v-else-if="initial"

@@ -40,7 +40,7 @@ vi.mock('~/services/image', () => ({ uploadImageByTask: vi.fn() }))
 // 树编辑器替身：必须实现 nodes() / markSaved()，因为弹窗的 compose 会向它取节点
 // （取不到就 fail-closed，见 currentNodes 的注释）。没有 nodes() 的替身代表
 // "编辑器坏了"，那正是另一条用例要覆盖的场景。
-const treeStubBehavior = vi.hoisted(() => ({ withNodes: true }))
+const treeStubBehavior = vi.hoisted(() => ({ withNodes: true, nodes: [] as unknown[] }))
 
 vi.mock('~/components/articles/OutlineTreeEditor.vue', () => ({
   default: {
@@ -48,7 +48,7 @@ vi.mock('~/components/articles/OutlineTreeEditor.vue', () => ({
     props: { kind: { type: String, required: true }, entityId: { type: String, required: true } },
     setup(props: { kind: string; entityId: string }, { expose }: { expose: (api: Record<string, unknown>) => void }) {
       const api: Record<string, unknown> = { markSaved: vi.fn() }
-      if (treeStubBehavior.withNodes) api.nodes = () => []
+      if (treeStubBehavior.withNodes) api.nodes = () => treeStubBehavior.nodes
       expose(api)
       return () =>
         h('div', {
@@ -84,6 +84,8 @@ function card(overrides: Partial<CollectionCardItem> = {}): CollectionCardItem {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  treeStubBehavior.withNodes = true
+  treeStubBehavior.nodes = []
 })
 
 describe('CollectionCardGrid：卡片呈现与 hover 动作', () => {
@@ -156,6 +158,49 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
 
     expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ title: '新合集', displayed: true }))
     expect(wrapper.emitted('saved')).toHaveLength(1)
+  })
+
+  it('目录树默认收起，点头部开关才展开', async () => {
+    const wrapper = mount(CollectionEditorOverlay, {
+      props: { show: true, kind: 'collection', entity: card({ id: 'c9' }) },
+    })
+
+    const drawer = wrapper.get('[data-role="collection-editor-drawer"]')
+    const toggle = wrapper.get('[data-role="collection-editor-outline-toggle"]')
+
+    // 默认收起：只显示信息卡。用 display 判断，因为 v-show 保留 DOM（不能用 exists）。
+    expect(drawer.attributes('style')).toContain('display: none')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(toggle.text()).toContain('编排目录树')
+
+    await toggle.trigger('click')
+
+    expect(drawer.attributes('style') ?? '').not.toContain('display: none')
+    expect(wrapper.get('[data-role="collection-editor-outline-toggle"]').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('[data-role="collection-editor-outline-toggle"]').text()).toContain('收起目录树')
+  })
+
+  it('收起状态下保存，仍然带着真实节点（不能因为收起就把树清空）', async () => {
+    adminApi.composeAdminEntity.mockResolvedValue(undefined)
+    adminApi.setCollectionDisplay.mockResolvedValue(undefined)
+    // 有真实内容的一棵树：收起只是布局，保存必须原样提交。
+    treeStubBehavior.nodes = [{ kind: 1, title: '第一章' }, { kind: 2, article_id: 'a1' }]
+
+    const wrapper = mount(CollectionEditorOverlay, {
+      props: { show: true, kind: 'collection', entity: card({ id: 'c9' }) },
+    })
+
+    // 全程不展开
+    expect(wrapper.get('[data-role="collection-editor-drawer"]').attributes('style')).toContain('display: none')
+
+    await wrapper.get('[data-role="collection-editor-save"]').trigger('click')
+    await flushPromises()
+
+    expect(adminApi.composeAdminEntity).toHaveBeenCalledWith(
+      'collection',
+      'c9',
+      expect.objectContaining({ nodes: [{ kind: 1, title: '第一章' }, { kind: 2, article_id: 'a1' }] }),
+    )
   })
 
   it('编辑：保存走 updateCollection + setCollectionDisplay，不重复创建', async () => {

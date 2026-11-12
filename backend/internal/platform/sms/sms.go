@@ -24,6 +24,7 @@ package sms
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"myblogx/conf"
@@ -217,9 +218,12 @@ func assertSendOK(body *dypns.SendSmsVerifyCodeResponseBody) error {
 	}
 	ok := body.Success != nil && *body.Success
 	if code != "OK" || !ok {
+		// 把响应体**整份**打出来：线上出现过 code=UNKNOWN success=false 的情况，
+		// 说明 Code / Success 两个字段都没解析到，只看这两项等于什么都没看见。
+		raw, _ := json.Marshal(body)
 		return apperr.Wrap(apperr.CodeUserSmsSendFailed,
-			fmt.Errorf("send sms verify code failed: code=%s success=%v message=%s",
-				code, ok, tea.StringValue(body.Message)))
+			fmt.Errorf("send sms verify code failed: code=%s success=%v message=%s body=%s",
+				code, ok, tea.StringValue(body.Message), raw))
 	}
 	return nil
 }

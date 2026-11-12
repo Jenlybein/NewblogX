@@ -105,6 +105,13 @@ func runtimeOptions(cfg conf.SMS) *util.RuntimeOptions {
 	}
 }
 
+// templateParamPlaceholder 是验证码模板的变量占位。
+//
+// 阿里云的验证码模板固定用 `code` 这个变量名，值写成 `##code##` 表示"由平台生成"，
+// 与我们自己生成无关 —— 验证码是平台生成、平台核验的（见 Check）。
+// 如果将来换成自定义模板（变量名不是 code），这里要跟着变成可配置。
+const templateParamPlaceholder = `{"code":"##code##"}`
+
 // Send 实现 Sender。
 func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, ttlMinutes, intervalSecond int) error {
 	if !cfg.Configured() {
@@ -120,6 +127,11 @@ func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, 
 		PhoneNumber:  tea.String(phone),
 		SignName:     tea.String(cfg.SignName),
 		TemplateCode: tea.String(cfg.TemplateCode),
+		// TemplateParam 是**必填**的：阿里云短信认证服务要求把模板变量写成
+		// `{"code":"##code##"}`，平台再把 ##code## 替换成它自己生成的那串码。
+		// 不传会直接 400 `MissingTemplateParam`（2026-11-12 线上就是这个：
+		// 页面配好了 AccessKey / 签名 / 模板，唯独代码里没带这一项）。
+		TemplateParam: tea.String(templateParamPlaceholder),
 		// 数字验证码，长度 6：手机号场景下 4 位太容易撞。
 		CodeLength: tea.Int64(6),
 		CodeType:   tea.Int64(1),

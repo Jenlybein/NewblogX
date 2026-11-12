@@ -209,8 +209,31 @@ async function saveUser() {
   }
 }
 
-/** 封禁 / 解封只改 status：封禁 = 3，解封 = 1（禁用 2 走抽屉里的状态下拉）。 */
-async function applyStatus(row: UserListItem, status: number, successText: string) {
+/**
+ * 删除用户头像。
+ *
+ * 传空串的 `avatar_image_id` 是后端的"明确清空"语义（见 user/app/admin.go）。
+ * 这是独立动作、立刻提交，不跟「保存变更」一起走：删头像不该顺手把
+ * 表单里还没保存的昵称/角色一起写进去。
+ */
+async function removeAvatar() {
+  if (!selected.value || saving.value) return
+  saving.value = true
+  try {
+    await updateAdminUser({ user_id: selected.value.id, avatar_image_id: '' })
+    message.success('头像已删除')
+    await refresh()
+    // 列表刷新后把抽屉里的选中行换成最新的一份，头像预览才会跟着变。
+    const fresh = rows.value.find(item => item.id === selected.value?.id)
+    if (fresh) selected.value = fresh
+  } catch (error) {
+    message.error(error instanceof Error ? `删除头像失败：${error.message}` : '删除头像失败，请稍后重试')
+  } finally {
+    saving.value = false
+  }
+}
+
+/** 封禁 / 解封只改 status：封禁 = 3，解封 = 1（禁用 2 走抽屉里的状态下拉）。 */async function applyStatus(row: UserListItem, status: number, successText: string) {
   try {
     await updateAdminUser({ user_id: row.id, status })
     message.success(successText)
@@ -293,6 +316,21 @@ onMounted(refresh)
   <NDrawer v-model:show="editorOpen" :width="420" placement="right">
     <NDrawerContent title="用户资料" closable @close="closeEditor">
       <NForm label-placement="top" class="admin-field-form">
+        <NFormItem label="头像">
+          <div class="user-avatar-edit" data-role="user-avatar-edit">
+            <AdminAvatar :src="selected?.avatar" :name="selected ? displayName(selected) : ''" :size="56" />
+            <div class="user-avatar-edit__actions">
+              <NButton
+                size="small"
+                :disabled="!selected?.avatar || saving"
+                data-role="user-avatar-remove"
+                @click="removeAvatar">
+                删除头像
+              </NButton>
+              <p class="muted text-xs">{{ selected?.avatar ? '删除后回退到首字母头像。' : '当前没有头像。' }}</p>
+            </div>
+          </div>
+        </NFormItem>
         <NFormItem label="用户名">
           <NInput v-model:value="editForm.username" class="admin-field--key" />
         </NFormItem>

@@ -181,6 +181,8 @@ var userRouteTemplates = []string{
 	"POST /api/users/logout/all",
 	"POST /api/users/qq",
 	"POST /api/users/phone/verify",
+	// 绑定手机号：登录用户操作自己的账号，不需要管理员。
+	"POST /api/users/phone/bind",
 	"POST /api/users/phone",
 	"POST /api/users/password/set",
 	"POST /api/users/refresh",

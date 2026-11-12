@@ -215,6 +215,43 @@ func (u *Users) ExistsEmail(_ context.Context, email string, exclude domain.User
 	return false, nil
 }
 
+// ExistsPhone 实现 domain.Repository。
+func (u *Users) ExistsPhone(_ context.Context, phone string, exclude domain.UserID) (bool, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.failReads != nil {
+		return false, u.failReads
+	}
+	for _, user := range u.byID {
+		if user.Phone != nil && *user.Phone == phone && user.ID != exclude {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// UpdatePhone 实现 domain.Repository。
+//
+// 唯一性在这里也照真库的脾气拦一道：绕过 ExistsPhone 直接改的调用方应当拿到
+// CodeUserPhoneTaken，而不是"写成功了，但同一个号现在属于两个人"。
+func (u *Users) UpdatePhone(_ context.Context, id domain.UserID, phone string) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for _, other := range u.byID {
+		if other.ID != id && other.Phone != nil && *other.Phone == phone {
+			return apperr.New(apperr.CodeUserPhoneTaken)
+		}
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	value := phone
+	user.Phone = &value
+	u.byID[id] = user
+	return nil
+}
+
 // Create 实现 domain.Repository。
 func (u *Users) Create(_ context.Context, user *domain.User) error {
 	u.mu.Lock()

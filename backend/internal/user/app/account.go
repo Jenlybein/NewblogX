@@ -153,8 +153,30 @@ func (s *Service) PhoneOf(ctx context.Context, id domain.UserID) (string, error)
 	return *u.Phone, nil
 }
 
-// SetPassword 给"尚无密码"的账号设置首个密码。
+// BindPhone 把手机号绑到已有账号上（调用方已确认这个号码通过了短信验证）。
 //
+// 与 FindOrCreateByPhone 的区别：那条路径是"查不到就建个新账号"，这条是
+// "我本来就有账号，把号补上"。所以号码被别人占用时**不能**建档绕过，
+// 必须直接报错——否则一个号可以绑出第二个账号，登录时到底进哪个号就没答案了。
+func (s *Service) BindPhone(ctx context.Context, id domain.UserID, phone string) error {
+	phone = strings.TrimSpace(phone)
+	if err := domain.ValidatePhone(phone); err != nil {
+		return err
+	}
+	if id.IsZero() {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	taken, err := s.users.ExistsPhone(ctx, phone, id)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return apperr.New(apperr.CodeUserPhoneTaken)
+	}
+	return s.users.UpdatePhone(ctx, id, phone)
+}
+
+// SetPassword 给"尚无密码"的账号设置首个密码。
 // 已有密码时拒绝：有密码的账号必须走 ChangePassword（要验旧密码），
 // 否则这个入口就成了免旧密码改密的后门。
 //

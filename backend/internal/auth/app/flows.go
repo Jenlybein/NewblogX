@@ -33,6 +33,8 @@ type Directory interface {
 	ChangePassword(ctx context.Context, userID uint64, oldPassword, newPassword string) error
 	// BindEmail 给当前用户绑定邮箱。
 	BindEmail(ctx context.Context, userID uint64, email string) error
+	// BindPhone 给当前用户绑定手机号（号码已通过短信验证）。
+	BindPhone(ctx context.Context, userID uint64, phone string) error
 }
 
 // EmailCodes 是邮箱验证码的"生成 + 发送 + 存储"能力。
@@ -132,6 +134,34 @@ func (s *Service) SetPassword(ctx context.Context, userID uint64, phone, code, n
 	}
 
 	return s.dir.SetPassword(ctx, userID, newPassword)
+}
+
+// BindPhone 给已登录账号绑定手机号。
+//
+// 与手机号登录的区别：这里**不建档**——号码已被别人绑就报错，绝不"顺手建个新号"，
+// 否则一个号能绑出两个账号，登录时进哪个号就没有答案了（判断在 user.BindPhone）。
+//
+// 验证码复用登录那条 KindAuth 通道：它证明的是"这个号码现在在你手上"，
+// 与拿它登录是同一种证明，没必要为绑定再造一个号位（也就不会出现
+// "绑定的码能拿来登录"这种跨用途的洞）。
+func (s *Service) BindPhone(ctx context.Context, userID uint64, phone, code string) error {
+	if s.dir == nil {
+		return apperr.New(apperr.CodeUserRegisterDisabled)
+	}
+	if userID == 0 {
+		return apperr.New(apperr.CodeAuthRequired)
+	}
+	phone = strings.TrimSpace(phone)
+
+	ok, err := s.CheckSmsCode(ctx, phone, code)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return apperr.New(apperr.CodeUserSmsVerifyFailed)
+	}
+
+	return s.dir.BindPhone(ctx, userID, phone)
 }
 
 // SendSmsCode 发送短信验证码。

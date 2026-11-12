@@ -93,3 +93,45 @@ func TestFindOrCreateByPhone_非法号码不建档(t *testing.T) {
 		t.Fatalf("非法号码应返回 %s，实际 %v", apperr.CodeUserPhoneInvalid, err)
 	}
 }
+
+// 绑定手机号是"给已有账号补一个号"，不是"再建一个账号"。
+// 号被别人占着时必须报错 —— 若走成"建档"，同一个号会进两个账号，
+// 以后用它登录到底进哪个号就没有答案了。
+func TestBindPhone_号码被占用时拒绝(t *testing.T) {
+	t.Parallel()
+	r := apptest.NewRepos(baseTime)
+	taken := "13800001111"
+	r.Users().Seed(domain.User{Username: "owner", Phone: &taken})
+	mine := r.Users().Seed(domain.User{Username: "mine"})
+	svc := r.ServiceWith(app.WithUsernameAllocator(&alloc{}))
+
+	err := svc.BindPhone(testCtx(), mine.ID, taken)
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserPhoneTaken {
+		t.Fatalf("应返回 %s，实际 %v", apperr.CodeUserPhoneTaken, err)
+	}
+	got, err := svc.PhoneOf(testCtx(), mine.ID)
+	if err != nil {
+		t.Fatalf("回查手机号失败: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("绑定失败后不该写库，实际 %s", got)
+	}
+}
+
+func TestBindPhone_未占用时写入(t *testing.T) {
+	t.Parallel()
+	r := apptest.NewRepos(baseTime)
+	mine := r.Users().Seed(domain.User{Username: "mine"})
+	svc := r.ServiceWith(app.WithUsernameAllocator(&alloc{}))
+
+	if err := svc.BindPhone(testCtx(), mine.ID, "13800002222"); err != nil {
+		t.Fatalf("绑定应成功: %v", err)
+	}
+	got, err := svc.PhoneOf(testCtx(), mine.ID)
+	if err != nil {
+		t.Fatalf("回查手机号失败: %v", err)
+	}
+	if got != "13800002222" {
+		t.Fatalf("手机号未写入，实际 %q", got)
+	}
+}

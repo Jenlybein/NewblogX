@@ -4,7 +4,7 @@ import { computed, reactive, ref } from "vue";
 import { NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
-import { sendEmailCode, sendSmsCode, setAccountPassword } from "~/services/auth";
+import { bindPhone, sendEmailCode, sendSmsCode, setAccountPassword } from "~/services/auth";
 import { uploadImageByTask } from "~/services/image";
 import { getTagOptions } from "~/services/search";
 import {
@@ -89,6 +89,12 @@ const emailBindForm = reactive({
   email_code: "",
 });
 
+/** 绑定手机号：号码与短信验证码。只在"尚未绑定"时使用。 */
+const phoneBindForm = reactive({
+  phone: "",
+  code: "",
+});
+
 const passwordForm = reactive({
   old_password: "",
   new_password: "",
@@ -111,6 +117,7 @@ const avatarUploading = reactive({
 });
 const avatarDirty = ref(false);
 const showEmailModal = ref(false);
+const showPhoneModal = ref(false);
 const showPasswordModal = ref(false);
 
 /**
@@ -292,6 +299,14 @@ const {
   sendLabel: passwordSmsLabel,
   start: startPasswordSmsCountdown,
   reset: resetPasswordSmsCountdown,
+} = useVerificationCountdown();
+
+/** 绑定手机号时的短信验证码倒计时（与设密码那条各算各的：两条通道互不影响）。 */
+const {
+  counting: phoneBindSmsLocked,
+  sendLabel: phoneBindSmsLabel,
+  start: startPhoneBindSmsCountdown,
+  reset: resetPhoneBindSmsCountdown,
 } = useVerificationCountdown();
 
 /**
@@ -531,6 +546,56 @@ async function submitBindEmail() {
   }
 }
 
+/**
+ * 发送绑定手机号的短信验证码。
+ *
+ * 走的是登录那条通道（purpose=login）：后端核对的是"这个号码现在在你手上"，
+ * 与拿它登录是同一种证明，没有为绑定另造一个号位。
+ */
+async function sendPhoneBindCode() {
+  const phone = phoneBindForm.phone.trim();
+  if (!/^1[3-9]\d{9}$/.test(phone)) {
+    message.warning("请输入 11 位手机号");
+    return;
+  }
+  if (captchaMissing.value) {
+    message.warning("请输入图形验证码");
+    return;
+  }
+
+  try {
+    await sendSmsCode({ phone, purpose: "login", captcha: captchaPayload() });
+    // 图形码一次性：用过就换一张。
+    void refreshCaptcha();
+    startPhoneBindSmsCountdown();
+    message.success("短信验证码已发送");
+  } catch (error) {
+    message.error(errorMessage(error, "发送验证码失败"));
+  }
+}
+
+async function submitBindPhone() {
+  try {
+    await bindPhone({ phone: phoneBindForm.phone.trim(), code: phoneBindForm.code.trim() });
+    message.success("手机号已绑定");
+    phoneBindForm.code = "";
+    showPhoneModal.value = false;
+    resetPhoneBindSmsCountdown();
+    await Promise.all([refreshProfile(), authStore.fetchCurrentUser()]);
+  } catch (error) {
+    message.error(errorMessage(error, "绑定手机号失败"));
+  }
+}
+
+function openPhoneModal() {
+  phoneBindForm.phone = "";
+  phoneBindForm.code = "";
+  resetPhoneBindSmsCountdown();
+  showPhoneModal.value = true;
+  // 站点开了图形验证码就先把图取回来，省得用户点了发码才等。
+  if (captchaEnabled.value) void refreshCaptcha();
+}
+
 async function submitPasswordReset() {
   try {
     if (hasBoundPassword.value) {
@@ -735,8 +800,17 @@ useNoIndexPage();
           <span class="settings-row__label">手机号</span>
           <div class="settings-row__control flex items-center justify-between gap-3">
             <span class="text-sm muted">{{ maskedPhoneText }}</span>
-            <!-- 手机号是登录主标识，绑定/换绑要用短信验证；后台开关关闭时这里不提供入口。 -->
-            <span class="text-xs muted">{{ hasBoundPhone ? "用于登录与找回" : "未绑定" }}</span>
+            <!-- 手机号是登录主标识：未绑定时给一个入口，已绑定时只说明用途（换绑本期不做）。 -->
+            <NButton
+              v-if="!hasBoundPhone"
+              text
+              type="primary"
+              data-role="settings-bind-phone"
+              @click="openPhoneModal()"
+            >
+              绑定手机号
+            </NButton>
+            <span v-else class="text-xs muted">用于登录与找回</span>
           </div>
         </div>
 
@@ -915,6 +989,42 @@ useNoIndexPage();
         <div class="flex justify-end gap-2 pt-1">
           <NButton quaternary @click="showEmailModal = false">取消</NButton>
           <NButton type="primary" @click="submitBindEmail()">{{ hasBoundEmail ? "确认修改" : "确认绑定" }}</NButton>
+        </div>
+      </div>
+    </NModal>
+
+    <NModal
+      v-model:show="showPhoneModal"
+      preset="card"
+      title="绑定手机号"
+      class="w-[min(92vw,520px)]"
+      :mask-closable="false">
+      <div class="space-y-4">
+        <label class="space-y-2 block">
+          <span class="text-sm font-medium">手机号</span>
+          <NInput v-model:value="phoneBindForm.phone" maxlength="11" placeholder="11 位手机号" />
+        </label>
+        <div class="flex flex-wrap items-center gap-3">
+          <NButton secondary :disabled="phoneBindSmsLocked" @click="sendPhoneBindCode()">
+            {{ phoneBindSmsLabel }}
+          </NButton>
+          <span class="text-xs muted">验证码发到上面这个号码，用来确认它确实在你手上</span>
+        </div>
+        <ImageCaptchaField
+          v-if="captchaEnabled"
+          :image="captchaImage"
+          :code="captchaCode"
+          :loading="captchaLoading"
+          @update:code="value => (captchaCode = value)"
+          @refresh="refreshCaptcha"
+        />
+        <label class="space-y-2 block">
+          <span class="text-sm font-medium">短信验证码</span>
+          <NInput v-model:value="phoneBindForm.code" maxlength="6" placeholder="6 位数字" />
+        </label>
+        <div class="flex justify-end gap-2 pt-1">
+          <NButton quaternary @click="showPhoneModal = false">取消</NButton>
+          <NButton type="primary" @click="submitBindPhone()">确认绑定</NButton>
         </div>
       </div>
     </NModal>

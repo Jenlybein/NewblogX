@@ -2499,6 +2499,21 @@
                 ],
                 "type": "object"
             },
+            "internal_auth_adapter_http.BindPhoneRequest": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "phone": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "code",
+                    "phone"
+                ],
+                "type": "object"
+            },
             "internal_auth_adapter_http.PhoneLoginRequest": {
                 "properties": {
                     "code": {
@@ -15483,6 +15498,44 @@
                     }
                 },
                 "summary": "手机号登录/注册",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/phone/bind": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_auth_adapter_http.BindPhoneRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "绑定手机号",
                 "tags": [
                     "user"
                 ]

@@ -227,6 +227,39 @@ func (r *Repo) UpdateEmail(ctx context.Context, id domain.UserID, email string) 
 	return nil
 }
 
+// ExistsPhone 实现 domain.Repository。
+func (r *Repo) ExistsPhone(ctx context.Context, phone string, exclude domain.UserID) (bool, error) {
+	q := r.db.WithContext(ctx).Model(&UserRow{}).Where("phone = ?", phone)
+	if !exclude.IsZero() {
+		q = q.Where("id <> ?", exclude.Uint64())
+	}
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return false, translate(err)
+	}
+	return count > 0, nil
+}
+
+// UpdatePhone 实现 domain.Repository。
+//
+// 唯一冲突单独翻译成 CodeUserPhoneTaken：translate 的默认语义是"用户名被占用"，
+// 在这里会把"这个号已经被别人绑了"报成用户名冲突，用户按提示改用户名永远改不好。
+func (r *Repo) UpdatePhone(ctx context.Context, id domain.UserID, phone string) error {
+	res := r.db.WithContext(ctx).Model(&UserRow{}).
+		Where("id = ?", id.Uint64()).
+		Update("phone", phone)
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
+			return apperr.Wrap(apperr.CodeUserPhoneTaken, res.Error)
+		}
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
 // UpdateAdmin 实现 domain.Repository。
 func (r *Repo) UpdateAdmin(ctx context.Context, id domain.UserID, patch domain.AdminPatch) error {
 	cols := map[string]any{}

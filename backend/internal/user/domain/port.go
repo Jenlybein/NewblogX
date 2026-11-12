@@ -93,6 +93,8 @@ type Repository interface {
 	ExistsUsername(ctx context.Context, username string, exclude UserID) (bool, error)
 	// ExistsEmail 判断邮箱是否被占用（exclude 用于排除自己）。
 	ExistsEmail(ctx context.Context, email string, exclude UserID) (bool, error)
+	// ExistsPhone 判断手机号是否被占用（exclude 用于排除自己）。
+	ExistsPhone(ctx context.Context, phone string, exclude UserID) (bool, error)
 	// Create 落库并回填 ID。
 	Create(ctx context.Context, user *User) error
 	// UpdateProfile 只更新资料字段，updatedUsernameAt 非空时一并写冷却时间戳。
@@ -103,6 +105,8 @@ type Repository interface {
 	UpdatePassword(ctx context.Context, id UserID, hash string, tokenVersion uint32) error
 	// UpdateEmail 绑定或换绑邮箱。
 	UpdateEmail(ctx context.Context, id UserID, email string) error
+	// UpdatePhone 绑定或换绑手机号；号码已被占用时返回 CodeUserPhoneTaken。
+	UpdatePhone(ctx context.Context, id UserID, phone string) error
 	// UpdateAdmin 应用管理员补丁（只写传入的列）。
 	UpdateAdmin(ctx context.Context, id UserID, patch AdminPatch) error
 	// BumpTokenVersion 把令牌版本 +1，让该用户所有旧访问令牌立即失效。

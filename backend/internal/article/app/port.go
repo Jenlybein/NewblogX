@@ -129,6 +129,12 @@ type TxManager interface {
 // 不做异步/outbox 的原因：会改变"删完文章作者文章数立刻减 1"的既有语义。
 type AuthorStatsPort interface {
 	ApplyArticleDelta(ctx context.Context, authorID domain.UserID, articleDelta, viewDelta int) error
+	// ArticleVisitedTotal 读该作者**已发布**文章的累计阅读数（SUM(view_count)）。
+	//
+	// 作者卡的「阅读」以文章表的真实计数为准：user_stat_models.article_visited_count
+	// 只在创建 / 删除文章时跟着文章数一起增删，浏览增量从来没有写进去，
+	// 线上该列恒为 0（2026-11-13 修）。汇总口径与公开主页一致：只算已发布文章。
+	ArticleVisitedTotal(ctx context.Context, authorID domain.UserID) (int64, error)
 }
 
 // OutboxPort 是领域事件出口。

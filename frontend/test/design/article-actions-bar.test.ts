@@ -53,14 +53,17 @@ function narrowActionsBlock(source: string): string {
 }
 
 describe("互动条：右栏与 hero 是同一组件的两种变体（决定清单 §3）", () => {
-  it("基础容器是横向排布的按钮条，右栏变体五等分铺满 320px 侧栏", () => {
+  it("基础容器是六等分网格，六个动作铺满 320px 侧栏", () => {
     const base = blockAfter(css(), ".article-actions-bar {");
-    const aside = blockAfter(css(), ".article-actions-bar--aside {");
+    const button = blockAfter(css(), ".article-actions-bar__button {");
 
-    expect(base).toContain("display: flex");
+    // 2026-11-13：第六个动作（到顶）落地后，等分格子必须跟着变成六列，
+    // 否则第六个按钮会溢出 320px 侧栏、被 `overflow-x: hidden` 裁掉。
+    expect(base).toContain("display: grid");
+    expect(base).toContain("grid-template-columns: repeat(6");
     expect(base).toContain("gap");
-    // 五个动作：点赞 / 收藏 / 评论 / 分享 / 底部。
-    expect(aside).toContain("grid-template-columns: repeat(5");
+    // 六个动作：点赞 / 收藏 / 评论 / 分享 / 到底 / 到顶。
+    expect(button).toContain("min-width: 0");
   });
 
   it("按钮是紧凑图标档：仍满足 44px 最小点击高度", () => {

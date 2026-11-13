@@ -34,6 +34,18 @@ func (a *authorStats) ApplyArticleDelta(ctx context.Context, authorID domain.Use
 	return a.apply(a.db, authorID.Uint64(), articleDelta, viewDelta)
 }
 
+// ArticleVisitedTotal 读作者已发布文章的累计阅读（SUM(view_count)）。
+//
+// 直接复用 AuthorStats 的汇总 SQL：口径（只算已发布、未软删）只有一处，
+// 作者卡与公开主页的「累计被阅读」不会各算一套。
+func (a *authorStats) ArticleVisitedTotal(ctx context.Context, authorID domain.UserID) (int64, error) {
+	stats, err := AuthorStats(ctx, a.db, ctype.NewID(authorID.Uint64()))
+	if err != nil {
+		return 0, err
+	}
+	return stats.Visited, nil
+}
+
 // NewUserPort 构造只读用户端口。
 //
 // 导出是为了让集成测试能单独验证"作者信息 + 三项统计"的组装，

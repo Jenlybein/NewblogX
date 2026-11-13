@@ -539,6 +539,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/article-review-tasks/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 审核任务正文 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 任务 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskContentResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/article-review-tasks/{id}/review": {
         parameters: {
             query?: never;
@@ -8006,6 +8045,9 @@ export interface components {
             label?: string;
             value?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
         };
+        "internal_article_adapter_http.ArticleReviewTaskContentResponse": {
+            content?: string;
+        };
         "internal_article_adapter_http.ArticleReviewTaskItem": {
             article_id?: string;
             article_title?: string;
@@ -8018,7 +8060,6 @@ export interface components {
              *     与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
              */
             compliance?: components["schemas"]["internal_article_adapter_http.ArticleReviewCompliance"];
-            content?: string;
             created_at?: string;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
@@ -9712,6 +9753,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewBatchResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskContentResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskContentResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {

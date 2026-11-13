@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import { NButton, NInput } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import ChipSelect from "~/components/common/ChipSelect.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { getTagOptions, searchArticles, searchArticlesWithAi } from "~/services/search";
@@ -67,6 +68,23 @@ watch(
 // 标签与结果**并行发起**（ADR-0016 约束 6：不得先 await 标签再建分页器）。
 // 标签不阻塞 setup：`useAsyncData` 立刻返回句柄，模板里用 `tagOptions` 响应式填充。
 const { data: tagOptions } = useAsyncData("search-tags", () => getTagOptions().catch(() => []));
+
+/**
+ * 标签下拉的两种形态：
+ * - `tagModel` 给 ChipSelect（单选绑 `string | null`，清空时是 null）；
+ * - `tagChipOptions` 把服务端选项归一成 chip 组件要求的字符串值。
+ *
+ * `tagId` 内部仍用空串表示"全部标签"，这样查询参数与 URL 同步逻辑不用改。
+ */
+const tagModel = computed<string | null>({
+  get: () => tagId.value || null,
+  set: (value) => {
+    tagId.value = typeof value === "string" ? value : "";
+  },
+});
+const tagChipOptions = computed(() =>
+  (tagOptions.value ?? []).map((option) => ({ label: option.label, value: String(option.value) })),
+);
 
 function formatRequestError(error: unknown) {
   if (error instanceof Error) {
@@ -354,15 +372,16 @@ useNoIndexPage();
         />
 
         <div v-if="!isAiMode" class="grid gap-4 md:grid-cols-2">
-          <label class="flex items-center">
-            <span class="sr-only">标签筛选</span>
-            <select v-model="tagId" name="tag_ids" class="search-select" aria-label="标签筛选">
-              <option value="">全部标签</option>
-              <option v-for="option in tagOptions || []" :key="option.value" :value="String(option.value)">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
+          <div class="flex items-center">
+            <!-- 标签菜单与"发布文章"里那个 chip 网格是同一个组件：
+                 竖向列表翻着找标签是发布流程里的老痛点，搜索页同理。 -->
+            <ChipSelect
+              v-model="tagModel"
+              :options="tagChipOptions"
+              placeholder="全部标签"
+              data-role="search-tag"
+            />
+          </div>
 
           <label class="flex items-center">
             <span class="sr-only">排序方式</span>

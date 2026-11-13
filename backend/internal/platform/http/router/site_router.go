@@ -25,7 +25,7 @@ func mustSiteHandler() *sitehttp.Handler {
 
 // SiteRouter 注册站点配置路由。
 //
-// 九段运行时配置各有具名端点（#283 / ADR-0029），参数化 /site/{name} 与
+// 九段运行时配置各有具名端点（#283 / ADR-0020），参数化 /site/{name} 与
 // /site/admin/{name} 已整体退场；静态路径不再与通配段争抢。
 func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	app := mustSiteHandler()

@@ -30,7 +30,7 @@ export const SCENARIO_SPECS = {
     extraFields: ["contentSelector"],
   },
   "firstScreen.userProfile": {
-    // 个人主页是 SPA（/users/** 显式 ssr:false，ADR-0019 决策 1）：它不在"SSR 首屏 < 800ms"
+    // 个人主页是 SPA（/users/** 显式 ssr:false，ADR-0016 决策 1）：它不在"SSR 首屏 < 800ms"
     // 的硬指标里，只作为"渲染边界收窄后 SPA 页的代价"参考值记录，不参与达标判定。
     group: "supplementary",
     label: "个人主页 `/users/<id>`（SPA）",
@@ -165,7 +165,7 @@ function judge(worstValue, budget) {
   return worstValue <= budget ? "pass" : "fail";
 }
 
-// 命中缓存口径（ADR-0019）：返回上一页后没有数据请求，或数据请求耗时 < 50 ms，
+// 命中缓存口径（ADR-0016）：返回上一页后没有数据请求，或数据请求耗时 < 50 ms，
 // 且不能是文档级重载（整篇文档重新加载本身就是缓存未命中的最强证据）。
 function cacheHit(run, budgets) {
   if (run.metrics.documentNavigation === true) return false;
@@ -320,7 +320,7 @@ export function renderMarkdown(report) {
   lines.push(`- 视口：${meta.viewport || "（未填）"}`);
   lines.push(`- Chromium：${meta.chromium || "（未填）"}`);
   lines.push(
-    `预算（ADR-0019 硬指标）：首屏内容可见 < ${budgets.firstScreenContentVisibleMs} ms；` +
+    `预算（ADR-0016 硬指标）：首屏内容可见 < ${budgets.firstScreenContentVisibleMs} ms；` +
       `切页内容可见 < ${budgets.transitionContentVisibleMs} ms（3 次取最差作为 P95 保守代理）；` +
       `首屏字体下载 < ${budgets.firstScreenFontBytes} B；` +
       `返回上一页命中缓存（数据请求数为 0 或数据耗时 < ${budgets.backCacheDataWallMs} ms）。`,
@@ -430,7 +430,7 @@ export function renderMarkdown(report) {
   }
   lines.push(...(profileRows.length ? profileRows : [PLACEHOLDER_ROW_6]), "");
 
-  // ⑥ 历史入口 /articles：服务端 301 → /search（ADR-0019 决策 1）
+  // ⑥ 历史入口 /articles：服务端 301 → /search（ADR-0016 决策 1）
   lines.push(
     "## ⑥ 历史入口 `/articles`：服务端 301 → `/search`",
     "",

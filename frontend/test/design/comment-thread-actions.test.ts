@@ -12,7 +12,7 @@ import { blockAfter } from "../helpers/designFiles";
  * 为什么单独一条：这两处是"行为对了但样子没跟上"的高发区 —— 图标按钮很常见地
  * 没有焦点环（键盘用户看不见焦点）、没有最小点击高度（手机上点不中）；胶囊按钮
  * 很常见地写成裸色值或复用卡片的圆角档（圆角阶梯里胶囊只有一档 `pill`）。
- * 颜色仍然只能来自语义 token（ADR-0012）。
+ * 颜色仍然只能来自语义 token（ADR-0011）。
  */
 
 const projectDir = process.cwd();

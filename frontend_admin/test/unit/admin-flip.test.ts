@@ -212,7 +212,7 @@ describe("每页都有可见且可用的主题开关", () => {
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
     // 25 个页面退役合集 / 项目两个旧排列页与目录编排页后剩 22 个；
     // #322 新增「标签管理」页后是 23 个。
-    // ADR-0039：站点拆出 login / publish / chat（基础页复用 /site）、
+    // ADR-0029：站点拆出 login / publish / chat（基础页复用 /site）、
     // 媒体运营拆出 banners / images（/media 保留为跳转页），共 29 个（另加站点「短信」配置页）。
     expect(pages.length).toBe(29);
     for (const page of pages) {

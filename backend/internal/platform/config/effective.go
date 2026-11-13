@@ -36,7 +36,7 @@ func (e *EffectiveConfig) Storage() conf.QiNiu {
 // 「每天 99 条」只在本文件的 DefaultChatDailyMax 声明一次；apperr 的文案用
 // 中性说法，限流器与 Redis 兜底都从这里派生，不再各抄一份 10 / 99。
 
-// 私信发送限流的默认值与合法区间（ADR-0026）。
+// 私信发送限流的默认值与合法区间（ADR-0018）。
 const (
 	DefaultChatWindowSec = 10
 	DefaultChatDailyMax  = 99
@@ -70,7 +70,7 @@ func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
 	return ChatRate{WindowSec: windowSec, DailyMax: dailyMax}
 }
 
-// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0031，
+// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0022，
 // spec #302 决策 19）。
 //
 // 「每天 15 次」只在本文件声明一次：Redis 兜底（redis_article_quota 的 dailyMax<=0
@@ -78,7 +78,7 @@ func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
 // 与 chat 的「每天 99 条」同一条口径。数据库补种用的字面量仍由
 // site_default_settings.yaml 显式给出。
 const (
-	// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0031，
+	// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0022，
 	// spec #302 决策 19）。
 	//
 	// 「每天 15 次」只在本文件声明一次：Redis 兜底（redis_article_quota 的 dailyMax<=0
@@ -93,7 +93,7 @@ const (
 	maxArticleSubmitDailyMax = 9999
 )
 
-// AI 每日额度的默认值与合法区间（ADR-0038）。
+// AI 每日额度的默认值与合法区间（ADR-0028）。
 //
 // 「每个场景每天多少次」在这里声明一次：读取侧的越界回落、装配层缺省闭包、
 // 单测里的最小装配都从这里派生。数据库补种用的字面量仍由
@@ -151,7 +151,7 @@ func NormalizeAIDailyLimits(in conf.DailyLimits) conf.DailyLimits {
 
 // AIDailyLimits 现读七个场景的每日额度（已归一化）。
 //
-// 每次调用现读，所以后台改完下一次请求即生效（ADR-0038 的验收标准之一）。
+// 每次调用现读，所以后台改完下一次请求即生效（ADR-0028 的验收标准之一）。
 func (e *EffectiveConfig) AIDailyLimits() conf.DailyLimits {
 	if e == nil || e.store == nil {
 		return DefaultAIDailyLimits()
@@ -245,7 +245,7 @@ func (e *EffectiveConfig) ChatRateFunc() func() (int, int) {
 }
 
 // OnlyAdminAuthors 现读「显示非管理员发布文章」开关的反面：
-// 为真表示公开读面只出管理员作者的文章（ADR-0017 决策 4）。
+// 为真表示公开读面只出管理员作者的文章（ADR-0015 决策 4）。
 //
 // 取反只在这里做一次；article / search / 右栏 / AI 检索四处消费点都拿它。
 func (e *EffectiveConfig) OnlyAdminAuthors() bool {

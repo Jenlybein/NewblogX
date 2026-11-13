@@ -15,7 +15,7 @@ import (
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面，由 adapter 每请求
 // 从站点运行时配置现读后传入；开关关闭且作者不是管理员时同样返回"不存在"
-// （ADR-0017 决策 4，规则本身在 domain.CanBeSeenByReader）。
+// （ADR-0015 决策 4，规则本身在 domain.CanBeSeenByReader）。
 func (s *Service) Detail(ctx context.Context, id domain.ArticleID, viewer domain.Viewer, onlyAdminAuthors bool) (*ArticleView, error) {
 	var view *ArticleView
 

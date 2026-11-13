@@ -12,7 +12,7 @@ export function getRootComments(articleId: string | number, page = 1, limit = 7)
 }
 
 /**
- * 根评论的**匿名**取数（ADR-0019 决策 5 / 约束 2）。
+ * 根评论的**匿名**取数（ADR-0016 决策 5 / 约束 2）。
  *
  * 评论条目里可能带 `is_digg`（"我有没有点过赞"）与 `relation`（"我和作者的关系"），
  * 都是登录用户私有状态；SSR 的 HTML 会进按 URL 键的 30s 共享缓存，所以服务端

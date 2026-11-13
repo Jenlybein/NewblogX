@@ -1,6 +1,6 @@
 # 读者站性能尺子（`scripts/perf`）
 
-用真实 Chromium（Playwright）测量读者站的**四项硬指标**（首屏内容可见 / 切页内容可见 / 首屏字体下载 / 返回是否命中缓存）并补两个渲染边界场景（个人主页首屏参考值、`/articles` 服务端 301），输出**固定格式**的两份报告（`report.json` 机器可读、`report.md` 人类可读），作为性能改动的验收依据与基线存档。测量口径来自实测笔记 [读者站性能实测](../../docs/notes/2026-11-01-reader-site-performance-probe.md)，预算口径来自 [ADR-0019](../../docs/adr/0019-reader-rendering-and-cache-strategy.md)。
+用真实 Chromium（Playwright）测量读者站的**四项硬指标**（首屏内容可见 / 切页内容可见 / 首屏字体下载 / 返回是否命中缓存）并补两个渲染边界场景（个人主页首屏参考值、`/articles` 服务端 301），输出**固定格式**的两份报告（`report.json` 机器可读、`report.md` 人类可读），作为性能改动的验收依据与基线存档。测量口径来自实测笔记（读者站性能实测），预算口径来自 ADR-0016（读者站渲染与缓存策略）。
 
 **默认不进 CI 门禁**：它要打真实站点、耗时几分钟、结果受网络抖动影响，只按需手动跑。依赖也不放进 `frontend` 的依赖树，单独声明在本目录的 `package.json`。
 
@@ -33,7 +33,7 @@ pnpm run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
 
 ## 量什么（六个场景）
 
-| 编号 | 场景 | 指标 | 预算（ADR-0019） |
+| 编号 | 场景 | 指标 | 预算（ADR-0016） |
 | --- | --- | --- | --- |
 | ① | `firstScreen.home` / `firstScreen.article` | 文档级直达的「首屏内容可见」 | < 800 ms |
 | ② | `transition.homeToArticle` | 首页点击文章链接的「切页内容可见」（点击 → 目标内容可见） | < 300 ms（3 次取最差作 P95 保守代理） |
@@ -76,7 +76,7 @@ node probes/hydration-probe.mjs http://127.0.0.1:3000           # 首页与文�
 ```
 
 - `transition-probe`：同一构建上分别测「正常过渡」与「注入 `.page-enter-active/.page-leave-active { transition-duration: 0 }`」的
-  点击→URL / 点击→骨架 / 点击→正文可见。用来量化 `pageTransition` 的固定开销，决定 ADR-0012 三档里页面过渡取哪一档。
+  点击→URL / 点击→骨架 / 点击→正文可见。用来量化 `pageTransition` 的固定开销，决定 ADR-0011 三档里页面过渡取哪一档。
 - `hydration-probe`：抓 `Hydration completed but contains mismatches`、`console.error` 与未捕获异常（spec #79 已登记的独立观察项）。
 
 ## 已知口径坑
@@ -89,7 +89,7 @@ node probes/hydration-probe.mjs http://127.0.0.1:3000           # 首页与文�
 5. 结果与网络、机器负载相关；基线存档必须带上 `--label` 与 `--note`，说明测的是哪个站点/哪个阶段。
 6. **字体字节是资源计时里的体积（`encodedBodySize`）**：热模式即便命中 HTTP 缓存，这个体积仍会被报告（`transferSize` 会归零），所以"热"那一行的字体字节不代表新增下载量。字体预算判定以冷模式为准；报告在字体热体积非零时会自动加一条备注。
 7. **内容选择器是测量定义的一部分**：`DEFAULT_SELECTORS` 指错（例如指到站点标题）会把"崩溃"测成"3 ms 可见"。改版后若选择器失效，报告会显示"不可测（从不出现）"而不是误报成功——先核对选择器再下结论。
-8. **⑤ 个人主页是 SPA 参考值，不是硬指标**：它的首屏数字包含"客户端取数 + 渲染"（`/users/**` 显式 `ssr:false`），和首页/文章页的 SSR 首屏不是同一种成本；不要拿它去判定 ADR-0019 的 `< 800 ms`，它只回答"SPA 页首屏要多久"。
+8. **⑤ 个人主页是 SPA 参考值，不是硬指标**：它的首屏数字包含"客户端取数 + 渲染"（`/users/**` 显式 `ssr:false`），和首页/文章页的 SSR 首屏不是同一种成本；不要拿它去判定 ADR-0016 的 `< 800 ms`，它只回答"SPA 页首屏要多久"。
 9. **⑥ 看重定向链的链头状态码**：`page.goto` 会自动跟随 301，拿到的 `finalResponse` 是最终 `/search` 的 200；脚本从 `response.request().redirectedFrom()` 倒推整条链，取链头请求的响应状态码。若以后有人把 `/articles` 改成 client-side 跳转，链会变短、链头会是 `/articles` 的 200 → 判定 fail（这正是要抓的 SEO 退化）。
 
 ## 目录

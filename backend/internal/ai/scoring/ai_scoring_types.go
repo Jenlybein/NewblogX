@@ -62,7 +62,7 @@ var dimensionOrder = []string{
 type ArticleScoreRequest struct {
 	Title   string
 	Content string
-	// Policy 是运行时策略文本正文（skills/scoring/SKILL.md，ADR-0040）；空串表示
+	// Policy 是运行时策略文本正文（skills/scoring/SKILL.md，ADR-0023）；空串表示
 	// 站点没有给评分场景绑定策略文本，此时只用内置的判据与形态封顶。
 	//
 	// 它与代码里的 JSON 形状、分档数字是两件事：那些是**解析契约**，改坏会让结果

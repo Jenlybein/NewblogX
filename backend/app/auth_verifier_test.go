@@ -20,7 +20,7 @@ import (
 	"myblogx/utils/jwts"
 )
 
-// 本文件锁死 ADR-0017 决策 3：**受限访客（guest / role=3）与未知角色（role=0）
+// 本文件锁死 ADR-0015 决策 3：**受限访客（guest / role=3）与未知角色（role=0）
 // 在每请求重建身份时一律按"未登录"处理**。
 //
 // 为什么测在装配层、而不是各模块的 principal：

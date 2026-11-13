@@ -39,7 +39,7 @@ const (
 	SourceCreate   Source = "create"
 	SourceEdit     Source = "edit"
 	SourceResubmit Source = "resubmit"
-	// SourceCompliance 是模型合规判定命中的自动拒绝（票 313 / ADR-0034）。
+	// SourceCompliance 是模型合规判定命中的自动拒绝（票 313 / ADR-0025）。
 	//
 	// 单开一个来源而不是复用 create：复盘时要能一眼分清"人拒的"与"系统拒的"，
 	// 否则自动拒的误判会被当成审核员判断失误。
@@ -54,7 +54,7 @@ const (
 	SourceModelSuspect Source = "model_suspect"
 	SourceModelFailure Source = "model_failure"
 	// SourceQuotaDeferred 是「合规判定因为作者当日额度用尽而推迟，兜底扫描把它
-	// 转回人工」（ADR-0038）。正常路径下这类文章次日会自动重审，不会走到人工；
+	// 转回人工」（ADR-0028）。正常路径下这类文章次日会自动重审，不会走到人工；
 	// 这条来源只在延迟事件丢失、被兜底扫描捞回来时出现。
 	SourceQuotaDeferred Source = "quota_deferred"
 )

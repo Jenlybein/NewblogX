@@ -61,7 +61,7 @@ const (
 	ReviewTaskSourceCreate   ReviewTaskSource = "create"
 	ReviewTaskSourceEdit     ReviewTaskSource = "edit"
 	ReviewTaskSourceResubmit ReviewTaskSource = "resubmit"
-	// ReviewTaskSourceCompliance 是合规判定命中的自动拒绝（票 313 / ADR-0034）。
+	// ReviewTaskSourceCompliance 是合规判定命中的自动拒绝（票 313 / ADR-0025）。
 	//
 	// 单列一个来源：复盘时要能一眼分清"人拒的"与"系统拒的"。
 	ReviewTaskSourceCompliance ReviewTaskSource = "compliance"

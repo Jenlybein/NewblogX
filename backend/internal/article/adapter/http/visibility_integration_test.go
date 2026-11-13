@@ -16,7 +16,7 @@ import (
 )
 
 // 本文件验证「显示非管理员发布文章」开关在**真 MySQL** 上的读面效果
-// （ADR-0017 决策 4）。DSL 那一半由 search 模块的 golden 守；
+// （ADR-0015 决策 4）。DSL 那一半由 search 模块的 golden 守；
 // 这里守四个 MySQL 读面：详情、收藏内容、浏览历史、首页热门置顶。
 //
 // 为什么必须真库：收藏内容、浏览历史与热门置顶的过滤都是 SQL（join user_models

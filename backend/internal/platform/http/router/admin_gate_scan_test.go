@@ -145,7 +145,7 @@ var adminRouteTemplates = []string{
 	"DELETE /api/projects/:id",
 	"PATCH /api/projects/:id/display",
 	"PATCH /api/projects/order",
-	// 合集 / 项目分组（ADR-0041）：读面与写面都在管理员分组下。
+	// 合集 / 项目分组（ADR-0019）：读面与写面都在管理员分组下。
 	"GET /api/collections/groups",
 	"PUT /api/collections/groups",
 	"PUT /api/collections/groups/order",

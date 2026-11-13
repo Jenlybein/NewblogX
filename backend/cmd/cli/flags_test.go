@@ -311,7 +311,7 @@ func TestSyncArticleDocuments(t *testing.T) {
 	if got, ok := bulkDocs[1]["author_is_admin"].(bool); !ok || !got {
 		t.Fatalf("管理员作者的 author_is_admin 应为 true, got=%#v", bulkDocs[1]["author_is_admin"])
 	}
-	// ADR-0017 决策 6：三个置顶派生字段不再进 ES。
+	// ADR-0015 决策 6：三个置顶派生字段不再进 ES。
 	for _, key := range []string{"top", "admin_top", "author_top"} {
 		if _, ok := first[key]; ok {
 			t.Fatalf("全文重建不应再写置顶字段 %q, got=%#v", key, first[key])

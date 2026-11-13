@@ -8,7 +8,7 @@ export interface PagedResourcePage<TItem> {
 }
 
 /**
- * 初始化取数的调度方式（ADR-0019 决策 3：页面 setup 不得被取数挡住）。
+ * 初始化取数的调度方式（ADR-0016 决策 3：页面 setup 不得被取数挡住）。
  *
  * - `block`（默认）：等首屏取数回来才返回句柄 —— 既有调用方（首页 / 评论区）一直如此，
  *   保持向后兼容；服务端渲染也靠它保证 HTML 里有首屏内容。
@@ -25,7 +25,7 @@ interface UsePagedResourceCacheOptions<TItem> {
   initialLoad?: MaybeRefOrGetter<PagedResourceInitialLoad>;
   fetchPage: (page: number, limit: number) => Promise<PagedResourcePage<TItem>>;
   /**
-   * 跨导航共享缓存（30s SWR，ADR-0019 决策 4）。
+   * 跨导航共享缓存（30s SWR，ADR-0016 决策 4）。
    *
    * 不传 = 客户端用模块级共享实例、服务端自动禁用；传 `null` = 完全关闭（服务端渲染 /
    * 单测要隔离时用）；传实例 = 注入（单测用假时钟，不真的 sleep 30 秒）。

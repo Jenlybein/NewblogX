@@ -16,7 +16,7 @@ import (
 	"myblogx/internal/testkit/schema"
 )
 
-// 本文件是「显示非管理员发布文章」开关在**查询层**的契约测试（ADR-0017 决策 4）。
+// 本文件是「显示非管理员发布文章」开关在**查询层**的契约测试（ADR-0015 决策 4）。
 //
 // 为什么必须真 MySQL：过滤是 SQL（join user_models 判 role），而且 join 必须
 // 同时作用于 count 与当页查询。用内存 fake 只验证"开关传下去了"，验证不了

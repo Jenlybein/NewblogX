@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -49,4 +49,3 @@ Go handler + struct + swag 注解 → `backend/docs/swagger.json` → 各前端 
 - 代码：[backend/docs/swagger.json](../../backend/docs/swagger.json)（唯一的契约产物）
 - 代码：[frontend/app/types/openapi.d.ts](../../frontend/app/types/openapi.d.ts)、[frontend_admin/app/types/openapi.d.ts](../../frontend_admin/app/types/openapi.d.ts)（生成产物）
 - 文档：[契约：单一来源、生成流水线与类型真相](../architecture/contracts.md)（流水线与 swag 的坑）
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)

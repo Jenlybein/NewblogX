@@ -691,7 +691,7 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 	}
 }
 
-// TestFavoriteWriteReturnsAuthoritativeCount 钉住写响应回填的计数（ADR-0024 决策 4）。
+// TestFavoriteWriteReturnsAuthoritativeCount 钉住写响应回填的计数（ADR-0016 决策 4）。
 //
 // 前端不再"收藏后重新取一次正文"才看到数字，而是直接 patch 响应里的 favor_count。
 // 所以用例必须返回**文章级权威计数**（库内快照 + 缓存增量），不是"这次 +1"。

@@ -20,7 +20,7 @@ import (
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面，由 adapter 每请求
 // 从站点运行时配置现读后传入：开关关闭时只出"作者是管理员"的卡片
-// （ADR-0017 决策 4 —— 热门置顶与首页列表、详情、收藏内容、浏览历史同一口径）。
+// （ADR-0015 决策 4 —— 热门置顶与首页列表、详情、收藏内容、浏览历史同一口径）。
 func (s *Service) ListHotTopCards(ctx context.Context, onlyAdminAuthors bool) ([]hottop.Card, error) {
 	var cards []hottop.Card
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
@@ -64,7 +64,7 @@ func (s *Service) ListHotTopItems(ctx context.Context, viewer domain.Viewer) ([]
 
 // SetHotTop 设置或取消热门置顶。两个方向都幂等。
 //
-// 设置时四条规则（ADR-0017 决策 5）：
+// 设置时四条规则（ADR-0015 决策 5）：
 //  1. 只有管理员；
 //  2. 文章必须已发布且可见——不给"先置顶、发布后自动生效"，那会让首页出现
 //     一条指向草稿的死链；

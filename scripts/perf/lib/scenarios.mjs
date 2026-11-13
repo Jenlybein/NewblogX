@@ -2,7 +2,7 @@
 //   firstScreen.*  文档级直达的首屏内容可见 + 字体字节（① ③；含 SPA 个人主页、补充参考）
 //   transition.*   点击站内链接后的切页内容可见（②）
 //   backCache.*    浏览器返回上一页是否命中缓存（④）
-//   redirect.*     历史入口 /articles 是否由服务端 301 到 /search（渲染边界，ADR-0019 决策 1）
+//   redirect.*     历史入口 /articles 是否由服务端 301 到 /search（渲染边界，ADR-0016 决策 1）
 import { DEFAULT_OPTIONS, openContext, settle, collectResources, fontFilesOf, apiResourcesOf, sumBytes, apiWallMs, sleep } from "./browser.mjs";
 
 /** ① ③：文档级直达（冷 = 全新上下文；热 = 同上下文先访问一次再测）。 */
@@ -244,7 +244,7 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
 }
 
 /**
- * redirect.*：历史入口是否由**服务端 301**承担（ADR-0019 决策 1 / #83 口径）。
+ * redirect.*：历史入口是否由**服务端 301**承担（ADR-0016 决策 1 / #83 口径）。
  *
  * `/articles` 是并入 `/search` 的旧列表入口：必须在渲染前 301（把权重合并过去），
  * 不能写成普通 `ssr: false`（那会给爬虫/无 JS 客户端一个 200 空壳，属 SEO 退化）。

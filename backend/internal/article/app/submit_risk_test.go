@@ -148,7 +148,7 @@ func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 	}
 }
 
-// 额度延迟重审（ADR-0038）：改回审核中，但**不建**人工任务（次日自动重审）。
+// 额度延迟重审（ADR-0028）：改回审核中，但**不建**人工任务（次日自动重审）。
 func TestDeferForComplianceCreatesNoManualTask(t *testing.T) {
 	t.Parallel()
 

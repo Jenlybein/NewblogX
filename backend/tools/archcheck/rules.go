@@ -82,7 +82,7 @@ func ruleAPINoGorm() Rule {
 //
 // 现状：32 个 Deps，30 个含 *gorm.DB，传递链最长 6 层。
 // 这是把 global.DB 改名成 deps.DB，比裸全局更糟——它让人误以为重构已完成。
-// 目标：完全废弃，改为能力接口（ADR-001）。
+// 目标：完全废弃，改为能力接口（ADR-0001）。
 func ruleAPINoDeps() Rule {
 	return Rule{
 		ID:    "R2",

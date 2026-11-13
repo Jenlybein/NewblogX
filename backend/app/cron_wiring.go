@@ -39,7 +39,7 @@ const (
 //
 // 每次注册时现读运行期配置（库里的 site.reconcile 段），缺省 30 分钟。
 // 想改周期不必改代码；但它是**调度注册参数**，与「日志清理每天几点」同一口径：
-// 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0025。
+// 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0016。
 func reconcileInterval(infra *Infra) time.Duration {
 	if infra.RuntimeSite == nil {
 		return site.Reconcile{}.Interval()
@@ -91,7 +91,7 @@ var ArticleCounterMetrics = []CounterMetric{
 // ReconcileArticleCount 的注释里。
 //
 // 覆盖面：刷盘由"哪个 id 还有增量"驱动，所以重算只发生在**本轮有增量的文章**上。
-// 一篇再没人互动的文章不会被重算——这是 ADR-0025「代价」里认下的范围，不是漏项：
+// 一篇再没人互动的文章不会被重算——这是 ADR-0016「代价」里认下的范围，不是漏项：
 // 漂移会在下一次有人点赞 / 收藏它时随并账一起被纠正。
 func FlushArticleCounters(ctx context.Context, db *gorm.DB, flusher *rediscounter.Flusher, log rediscounter.Logger) (int, error) {
 	if flusher == nil {
@@ -138,7 +138,7 @@ func FlushArticleCounters(ctx context.Context, db *gorm.DB, flusher *rediscounte
 // 尊重清空水位 / 排除用户级删除」），不必起 MySQL 容器。
 //
 // 与文章计数并账**共用同一个 30 分钟 tick**（见 WireCron），不新增调度器：
-// ADR-0025 认下的「不新增定时任务」在这里同样成立。私信没有 Redis 增量源，
+// ADR-0016 认下的「不新增定时任务」在这里同样成立。私信没有 Redis 增量源，
 // 所以覆盖面是全部活跃会话，而不是"本轮有增量的会话"。
 func ReconcileChatUnread(ctx context.Context, db *gorm.DB) (int, error) {
 	return chatmysql.ReconcileAllChatUnread(ctx, db, 200)
@@ -330,7 +330,7 @@ const (
 	viewHistoryCleanupLockTTL = 10 * time.Minute
 )
 
-// 额度延迟重审兜底的调度参数（ADR-0038）。
+// 额度延迟重审兜底的调度参数（ADR-0028）。
 //
 // 与浏览历史清理错开：这个任务只扫一小批行，放在 05:10 是为了排在
 // 「次日 00:05 自动重审」之后——正常文章那时已经重审完，扫到的都是真悬挂。

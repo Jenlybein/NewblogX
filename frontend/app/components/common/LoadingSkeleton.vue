@@ -19,7 +19,7 @@ const barClass = computed(() => `skeleton-bar--${props.variant}`);
 <template>
   <div class="skeleton" data-role="skeleton">
     <!--
-      骨架 = "数据还没到"那一瞬间的最小占位（ADR-0019 决策 3）。
+      骨架 = "数据还没到"那一瞬间的最小占位（ADR-0016 决策 3）。
       只吃语义 token（发丝线色），**不做动画**：它不是装饰动效，数据到了就该立刻被真内容替换。
     -->
     <p v-if="label" class="sr-only">{{ label }}</p>

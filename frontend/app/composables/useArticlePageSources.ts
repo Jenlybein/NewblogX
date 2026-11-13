@@ -65,7 +65,7 @@ export interface ArticlePageSourcesOptions {
 const ROOT_COMMENT_PAGE_SIZE = 7;
 
 /**
- * 文章页的取数编排（ADR-0019 决策 3）。
+ * 文章页的取数编排（ADR-0016 决策 3）。
  *
  * 病根：以前是 `await 正文 → await 作者资料 → await 评论 → await 评分`，
  * 一次切页 4 个接口严格首尾相接；而且作者资料只能靠"正文的 author_id"才知道取谁，
@@ -76,7 +76,7 @@ const ROOT_COMMENT_PAGE_SIZE = 7;
  * - **第二波（作者资料）**：正文到达后拿到 author_id，才发起作者资料；
  *   首屏 hydration 时作者统计已在 payload 里，只补作者主页资料（它本来就不服务端渲染）。
  *
- * 第一波与第二波的作者统计都走 30s SWR（ADR-0019 决策 4 / 约束 4）：30 秒内重进同一篇，
+ * 第一波与第二波的作者统计都走 30s SWR（ADR-0016 决策 4 / 约束 4）：30 秒内重进同一篇，
  * 正文 / 评论 / 评分 / 作者统计都直接命中缓存、**请求数为 0**（作者主页资料因为不在
  * payload 且 key 依赖第二波，不参与这条验收）。
  *
@@ -85,7 +85,7 @@ const ROOT_COMMENT_PAGE_SIZE = 7;
  * - 首屏 hydration：只等评论分页（不在 payload 里，等不到会和 SSR 的列表打架）；
  * - 客户端跳转：一个都不等，setup 立刻返回 → 页面先画骨架，数据并行到达后自己填。
  *
- * 服务端还有一个额外口径（ADR-0019 决策 5 / 约束 2）：SSR 的 HTML 会进按 URL 键的
+ * 服务端还有一个额外口径（ADR-0016 决策 5 / 约束 2）：SSR 的 HTML 会进按 URL 键的
  * 30s 共享缓存，所以服务端取到的正文与评论都要先过一层匿名化 —— 匿名取数（不携带
  * 登录身份）+ 剔除 `is_digg` / `is_favor` / `relation`。客户端照旧拿带鉴权的数据，
  * 登录用户的点赞态由它自己补齐（先默认态、后跳变，ADR 已接受这个观感）。
@@ -114,7 +114,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     options.fetchComments ??
     (async (id: string, page: number, limit: number) => {
       // 服务端显式匿名：评论区里的 is_digg / relation 同样是登录用户私有状态，
-      // 不能进按 URL 键的共享缓存（ADR-0019 约束 2）。
+      // 不能进按 URL 键的共享缓存（ADR-0016 约束 2）。
       const load = mode === "server" ? getRootCommentsAnonymous : getRootComments;
       const payload = await load(id, page, limit);
       return {
@@ -131,12 +131,12 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     options.fetchArticlePrivate ?? ((id: string) => getArticlePrivateState(id));
 
   // 用户态只在服务端剔除；客户端（跳转 / 首屏 hydration）要原样保留，靠它渲染"已点赞"。
-  // 私有字段清单来自 `readerPrivateFields.ts` —— 与客户端 30s 缓存用的是同一份（ADR-0019 约束 2）。
+  // 私有字段清单来自 `readerPrivateFields.ts` —— 与客户端 30s 缓存用的是同一份（ADR-0016 约束 2）。
   const articleForRender = (article: ArticleDetail) =>
     mode === "server" ? withoutPrivateFields(article) : article;
 
   // 第一波：三个请求只依赖路由里的文章 id，**同时发起**。
-  // 正文走 30s SWR（ADR-0019 决策 4）：30 秒内重进同一篇文章直接命中、不再请求；过期则
+  // 正文走 30s SWR（ADR-0016 决策 4）：30 秒内重进同一篇文章直接命中、不再请求；过期则
   // 旧值先上屏、后台静默刷新。写缓存前剔除 `is_digg` / `is_favor`（私有字段不进缓存）；
   // 服务端渲染的正文同样经过 `articleForRender` 剔除 —— 它要进按 URL 键的 30s 共享缓存。
   const articleSource = useReaderSwrAsyncData({
@@ -155,8 +155,8 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     watch: [articleId],
   });
 
-  // 用户私有态（ADR-0024 决策 2）：已赞 / 已收藏是**登录用户私有**数据，
-  // 既不能进 SSR payload（ADR-0019 约束 2），也不能进 30 秒 SWR（那是共享缓存）。
+  // 用户私有态（ADR-0016 决策 2）：已赞 / 已收藏是**登录用户私有**数据，
+  // 既不能进 SSR payload（ADR-0016 约束 2），也不能进 30 秒 SWR（那是共享缓存）。
   // 所以它不走 `useReaderSwrAsyncData`，而是单独的 `useAsyncData`：
   //   - `server: false`：服务端不取、也不把值写进 payload；
   //   - `getCachedData: () => undefined`：任何 cause 都不读缓存/payload，真发请求；
@@ -179,7 +179,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
       ...articleSource.data.value,
       is_digg: state.is_digg,
       is_favor: state.is_favor,
-      // 权威计数一起回填（ADR-0024 后续修订）：payload 里的数字是写之前的快照，
+      // 权威计数一起回填（ADR-0016 后续修订）：payload 里的数字是写之前的快照，
       // 只补两个布尔会留下"按钮已赞、数字没变"。
       digg_count: state.digg_count,
       favor_count: state.favor_count,
@@ -264,7 +264,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   }
 
   /**
-   * 阅读页取数模块统一管写响应（ADR-0024 决策 4 / 票 282）：
+   * 阅读页取数模块统一管写响应（ADR-0016 决策 4 / 票 282）：
    * 页面只上报「读者做了什么 + 写响应」，不接触缓存单例与缓存键。
    *
    * - 写响应带权威字段：直接覆盖本次渲染的正文（权威计数 + 私有态），**不做本地 ±1**；

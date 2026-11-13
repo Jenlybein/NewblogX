@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -57,4 +57,3 @@ OpenTelemetry Collector 保留为**可选导出器**（`log.Emitter` 面向"记�
 
 - 代码：[platform/log](../../backend/internal/platform/log)（`emit.go` / `sink_file.go` / `event.go` 等）
 - 文档：[治理与质量 · 日志模块](../architecture/governance.md)（六条硬约束、管道结构与可观测性）
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)

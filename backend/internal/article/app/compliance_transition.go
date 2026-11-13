@@ -42,7 +42,7 @@ func (s *Service) PublishForCompliance(ctx context.Context, articleID domain.Art
 //
 // 代价是这篇文章在管理员队列里不可见，所以必须有兜底：
 // 每日扫描「审核中 + 无待处理任务 + 超过 24 小时」的文章转人工（见 article 的
-// EscalateForReview），否则投递丢失就会永久悬挂（ADR-0038）。
+// EscalateForReview），否则投递丢失就会永久悬挂（ADR-0028）。
 //
 // 幂等：文章已不在 pending_review 时 domain.BackToReview 返回 ErrInvalidTransition，
 // 这里按"目的已达成"吞掉，不把中继推进死信。

@@ -5,7 +5,7 @@ import type { ReaderRenderMode } from "~/utils/readerRenderMode";
 import { readerSwrCache, type ReaderSwrCache, type ReaderSwrLookup } from "~/utils/readerSwrCache";
 
 /**
- * 给 `useAsyncData` 套一层客户端 30s SWR（ADR-0019 决策 4）。
+ * 给 `useAsyncData` 套一层客户端 30s SWR（ADR-0016 决策 4）。
  *
  * #84 把取数改成了并行 + 骨架优先，但每次路由重进仍会重新发请求：`useAsyncData`
  * 的默认 `getCachedData` 只在首屏 hydration 时读 payload，站内导航没有 payload。
@@ -109,7 +109,7 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
     // 只有首屏（initial）允许复用 fresh：30 秒内"不重复请求"的验收靠它。
     // 其它 cause（refresh:manual / refresh:hook / watch）一律返回 undefined，让 handler
     // 真取一次 —— 否则 Nuxt 的 granularCachedData 会拿这里的返回值短路 handler，
-    // 手工 refresh() 永不发请求（ADR-0024 决策 1；旧实现把 refresh 也钉成了"fresh 命中"，
+    // 手工 refresh() 永不发请求（ADR-0016 决策 1；旧实现把 refresh 也钉成了"fresh 命中"，
     // 于是 hydration 预热进缓存的匿名 payload 让登录用户永远拿不到自己点过赞没有）。
     if (cause !== "initial") {
       return undefined;
@@ -153,12 +153,12 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
 
   /**
    * 给"内部第二波"用的取数入口：fresh 命中就直接落数据、**不发请求**，
-   * miss/stale 才真取一次（ADR-0024 决策 1 的边界）。
+   * miss/stale 才真取一次（ADR-0016 决策 1 的边界）。
    *
    * 为什么不直接用 `source.refresh()`：新的 SWR 语义里 `refresh()` 一定是"人要求
    * 重新取数"，必须真发请求（否则手工刷新又会拿不到用户态）。而作者资料这种
    * "正文回来才知道 author_id"的第二波初始化，30 秒内重进同一篇时应当命中缓存
-   * （ADR-0019 决策 4 / #85 的请求数为 0 验收）。两者需要不同的入口。
+   * （ADR-0016 决策 4 / #85 的请求数为 0 验收）。两者需要不同的入口。
    *
    * **状态语义（明确说明代价）**：fresh 分支不走 `useAsyncData` 的 refresh 生命周期，
    * 而是直接落值 —— 因此 `pending` 保持 `false`（本来就没有在途请求，这是正确语义），

@@ -9,7 +9,7 @@ import { blockAfter } from "../helpers/designFiles";
 import { MOTION_REVEAL_OFFSET_PX, PARALLAX_MAX_PX } from "~/utils/motion";
 
 /**
- * 吸顶玻璃导航 + 滚动进场 + 锚点补偿的设计断言（ADR-0012 决策 6–7 与约束 8–9）。
+ * 吸顶玻璃导航 + 滚动进场 + 锚点补偿的设计断言（ADR-0011 决策 6–7 与约束 8–9）。
  *
  * 这里锁的是"文件之间必须成立的关系"：页头真的 sticky、三套布局都给锚点留了
  * scroll-padding、区块进场只出现在布局级容器而不是正文段落、视差有真实消费者。

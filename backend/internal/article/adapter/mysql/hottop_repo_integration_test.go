@@ -275,7 +275,7 @@ func TestHotTopRepo_ListCardsSkipsStale(t *testing.T) {
 // TestHotTopRepo_ListCardsFiltersNonAdminAuthor 「显示非管理员发布文章」关闭时
 // 公开卡片只剩管理员作者的文章。
 //
-// 热门置顶是读者端公开读面（ADR-0017 决策 4），所以它不能只过滤"文章还在不在"：
+// 热门置顶是读者端公开读面（ADR-0015 决策 4），所以它不能只过滤"文章还在不在"：
 // 作者不是管理员时，即使文章仍"已发布 + visible"，首页运营位也不该出现它。
 // 没有这一条，关掉开关后首页仍会把被隐藏的文章顶在最上面。
 func TestHotTopRepo_ListCardsFiltersNonAdminAuthor(t *testing.T) {

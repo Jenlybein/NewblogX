@@ -19,7 +19,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 评分场景同样吃运行期策略文本（ADR-0040）。
+// 评分场景同样吃运行期策略文本（ADR-0023）。
 //
 // 与 search_answer 那一组用例同一个套路：桩模型只负责收下请求、把 system prompt
 // 记下来，断言的是"模型到底看到了什么口径"，不是模型会不会打分。运营改一份

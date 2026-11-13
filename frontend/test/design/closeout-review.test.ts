@@ -36,7 +36,7 @@ function read(relPath: string): string {
   return readFileSync(join(projectDir, relPath), "utf8");
 }
 
-/** 品牌资产例外（ADR-0012 约束、GLOSSARY「品牌资产例外」）。 */
+/** 品牌资产例外（ADR-0011 约束、GLOSSARY「品牌资产例外」）。 */
 const brandAssetExempt = (file: string) => file.includes("assets/brand/") || file.includes("assets/og/");
 
 const readerFiles = sourceFiles("frontend");

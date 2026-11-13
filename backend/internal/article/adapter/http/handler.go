@@ -74,13 +74,13 @@ func (h *Handler) skipExamining() bool {
 // onlyAdminAuthors 取「显示非管理员发布文章」开关的反面，作为读面过滤开关。
 //
 // 做成方法而不是构造时的布尔：开关每请求现读，后台改完下一次请求即生效
-// （ADR-0017 决策 4 + GLOSSARY 的「Provider 闭包（现读）」）。取反只发生在
+// （ADR-0015 决策 4 + GLOSSARY 的「Provider 闭包（现读）」）。取反只发生在
 // platform/config 的生效值模块里，这里与另外三处消费点共用同一个闭包口径。
 func (h *Handler) onlyAdminAuthors() bool {
 	return h.effective.OnlyAdminAuthors()
 }
 
-// writePolicy 取站点「发布与展示」里与写作权限有关的两个开关（ADR-0017 决策 2）。
+// writePolicy 取站点「发布与展示」里与写作权限有关的两个开关（ADR-0015 决策 2）。
 //
 // 这里只负责"取值"，判定在 app/domain 层 —— HTTP 层不做权限决策，
 // 否则同一条规则会出现两份（一份在 handler、一份在用例里）。
@@ -96,7 +96,7 @@ func (h *Handler) writePolicy() domain.WritePolicy {
 	}
 }
 
-// qualityGate 取「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+// qualityGate 取「发布质量闸门」的生效配置快照（票 306 / ADR-0023）。
 //
 // 与上面几个方法同一条口径：每请求现读，后台改完下一次提交即生效。
 // 取值与归一化都在这一处：conf 里的 QualityGate.Effective() 只钳越界，
@@ -121,7 +121,7 @@ func (h *Handler) qualityGate() app.QualityGatePolicy {
 //
 // 「质量不达标」是唯一的例外：它是一次**带数据的业务拒绝**——错误码仍由
 // apperr 一处映射（前端按码分支），而分数 / 差额 / 问题列表是动态数据，
-// 塞进错误码文案表是不可能的，只能走 data（票 306 / ADR-0032）。
+// 塞进错误码文案表是不可能的，只能走 data（票 306 / ADR-0023）。
 func (h *Handler) fail(c *gin.Context, err error) {
 	switch {
 	case err == nil:

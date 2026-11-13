@@ -14,7 +14,7 @@ func testRedisOptions() redis_service.Options {
 	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
-// 限流口径（ADR-0026 / 票 268）：同一 (sender, receiver) 10 秒内 1 条、自然日 99 条。
+// 限流口径（ADR-0018 / 票 268）：同一 (sender, receiver) 10 秒内 1 条、自然日 99 条。
 // 旧的 60/60s、30/60s 与周配额 1/3 条已整体替换。
 
 func TestReserveChatPairRateBlocksBurstWithinTenSeconds(t *testing.T) {

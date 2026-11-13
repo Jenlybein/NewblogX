@@ -33,7 +33,7 @@ func CanBeViewedBy(a *Article, viewer Viewer) bool {
 
 // CanBeSeenByReader 判断「显示非管理员发布文章」开关是否放过这篇（给这个人读）。
 //
-// 这是 CanBeViewedBy 之上的**第二层**过滤（ADR-0017 决策 4）：开关关闭
+// 这是 CanBeViewedBy 之上的**第二层**过滤（ADR-0015 决策 4）：开关关闭
 // （onlyAdminAuthors 为真）时，作者不是管理员的文章在公开读面一律读不出来。
 // 三个入参都是纯布尔，domain 不读配置、不认识 site 段。
 //
@@ -42,7 +42,7 @@ func CanBeViewedBy(a *Article, viewer Viewer) bool {
 //   - 作者本人：与"作者能看到自己的草稿"同一条道理——studio 编辑器用
 //     GET /articles/{id} 取正文，作者连自己的稿子都打不开就没法继续写。
 //     注意它**不是**管理员例外：管理员读者看别人的非管理员文章仍然 404
-//     （ADR-0017 明确不做前台管理员例外，读者站缓存键不区分身份）。
+//     （ADR-0015 明确不做前台管理员例外，读者站缓存键不区分身份）。
 func CanBeSeenByReader(onlyAdminAuthors bool, authorIsAdmin bool, isAuthor bool) bool {
 	if !onlyAdminAuthors {
 		return true
@@ -147,7 +147,7 @@ func CanBeTopped(a *Article, viewer Viewer) bool {
 	return viewer.UserID == a.authorID
 }
 
-// ── 站点「发布与展示」开关（ADR-0017 决策 2）──
+// ── 站点「发布与展示」开关（ADR-0015 决策 2）──
 
 // WritePolicy 是 `site.article` 里与写作权限有关的两个开关的取值快照。
 //
@@ -177,7 +177,7 @@ func OpenWritePolicy() WritePolicy {
 // writableRole 判断操作者是否有写权限的角色。
 //
 // 只有管理员（1）与注册用户（2）算"能写的人"。受限访客（3）与库里未入枚举的
-// role=0 在鉴权层已经按未登录处理（ADR-0017 决策 3），这里再兜一层：
+// role=0 在鉴权层已经按未登录处理（ADR-0015 决策 3），这里再兜一层：
 // 三个开关全开时也不能让它们借道写进来——它们连"非管理员作者"都不算。
 func writableRole(v Viewer) bool {
 	return v.IsLoggedIn() && (v.Role == RoleAdmin || v.Role == RoleUser)

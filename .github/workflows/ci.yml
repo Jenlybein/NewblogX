@@ -502,7 +502,7 @@ jobs:
       - name: 设计 token 漂移检查
         run: pnpm check:tokens
 
-      # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0012 约束 14 / #22；
+      # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0011 约束 14 / #22；
       # 两端 imageShaping 定形工具与裁剪窗四份组件逐字节同源 = #200 / #225）。
       # 命令登记在 scripts/gates/gates.json 这一处清单里，与本地 scripts/check.sh
       # 的「仓库级门禁（两端 token / 同源副本）」跨同一个 runner；矩阵里只跑一份。

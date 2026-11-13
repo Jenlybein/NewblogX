@@ -6,7 +6,7 @@
 //     表 article_hot_top_models，最多 MaxItems 条、可整体排序。
 //
 // 本包只放"什么是合法置顶"的纯规则与读模型，不含 SQL 也不认识 gin。
-// 取舍见 docs/adr/0017-publish-display-switches-and-hot-top-operator-slot.md 决策 5。
+// 取舍见 docs/adr/0015-publish-display-switches-and-hot-top-operator-slot.md 决策 5。
 package hottop
 
 import (
@@ -18,7 +18,7 @@ import (
 
 // MaxItems 是热门置顶的条数上限。
 //
-// 12 来自首页版式（ADR-0017 决策 5）。上限只在 app 层用，不靠数据库约束：
+// 12 来自首页版式（ADR-0015 决策 5）。上限只在 app 层用，不靠数据库约束：
 // 零 DDL 口径下加不了 CHECK，而"第 13 条"要给出可读错误而不是 1062。
 const MaxItems = 12
 
@@ -162,7 +162,7 @@ type Repository interface {
 	//
 	// 失效的置顶行不出现：首页容器靠这条查询过滤，不靠前端判断。
 	//
-	// onlyAdminAuthors 为真时只返回"作者是管理员"的卡片（ADR-0017 决策 4：
+	// onlyAdminAuthors 为真时只返回"作者是管理员"的卡片（ADR-0015 决策 4：
 	// 热门置顶属于读者端公开读面，与收藏内容 / 浏览历史同一口径）。
 	ListCards(ctx context.Context, onlyAdminAuthors bool) ([]Card, error)
 	// ListAdminItems 列出**全部**置顶行（含已失效），按序号升序。

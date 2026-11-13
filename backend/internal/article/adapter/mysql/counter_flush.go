@@ -26,7 +26,7 @@ const (
 
 // relationRowOf 返回"这个计数列的权威来源是哪张关系表的行"。
 //
-// 只有两个社列有关系行来源（ADR-0025 决策 1）；返回 nil 表示这一列没有关系行，
+// 只有两个社列有关系行来源（ADR-0016 决策 1）；返回 nil 表示这一列没有关系行，
 // 只能继续按增量累加：
 //   - `view_count`：浏览量是"匿名也记一次"的事件，没有关系行可数；
 //   - `comment_count`：由评论模块自己维护（删评论、审核状态不止"行数"），
@@ -45,7 +45,7 @@ func relationRowOf(col ArticleCounter) any {
 // （已被删除）。这种情况**不返回 error**：调用方若把它当失败就会把增量回补到 Redis，
 // 下一轮再撞同一条、无限重试。正确处置是丢弃这条增量并记一条 Warn。
 //
-// 两种写库方式（ADR-0025）：
+// 两种写库方式（ADR-0016）：
 //   - 有关系行来源的列（digg / favor）：用 `COUNT(关系行)` **重算覆盖**整列，
 //     delta 完全不参与运算。历史漂移因此在本轮自愈，不需要额外对账任务；
 //   - 没有关系行来源的列（view / comment）：照旧 `列 += delta`。
@@ -58,7 +58,7 @@ func relationRowOf(col ArticleCounter) any {
 // ——读出来就是临时 +1。反过来（增量已被定格、关系事务尚未提交）是本轮少算 1。
 // 两种情况都**不累积**：这里每次都是拿 COUNT 覆盖整列，不做 `列 += 增量`，
 // 所以该文章下一次进入增量批次时会被覆盖回关系行的真值（漂移只可能活到那一次，
-// 覆盖面与 ADR-0025 认下的「只对这批有增量的 id 做」一致）。累加式才会把一次
+// 覆盖面与 ADR-0016 认下的「只对这批有增量的 id 做」一致）。累加式才会把一次
 // 丢失永久留在账上，这正是本 ADR 要根除的形态。
 func ReconcileArticleCount(db *gorm.DB, col ArticleCounter, articleID uint64, delta int) (hit bool, err error) {
 	if db == nil {

@@ -362,7 +362,7 @@ type SendCommand struct {
 // 对外只回答"这条幂等键对应哪个主键"。
 //
 // 由此有一条必须遵守的约束：**排序、水位、分页一律不读 ID 大小**。
-// 派生主键的大小与消息先后完全无关（见 ADR-0025「读取路径与号段」）。
+// 派生主键的大小与消息先后完全无关（见 ADR-0016「读取路径与号段」）。
 
 // RelationReader 读关注关系。
 type RelationReader interface {
@@ -430,7 +430,7 @@ type ImageURLVerifier interface {
 	IsOwnedImageURL(ctx context.Context, rawURL string) (bool, error)
 }
 
-// BlockLevel 是屏蔽 / 拉黑的级别（ADR-0026）。两者不是同义词：
+// BlockLevel 是屏蔽 / 拉黑的级别（ADR-0018）。两者不是同义词：
 //   - BlockLevelSoft（屏蔽）：对方发不进来，但我仍能看到历史会话；
 //   - BlockLevelHard（拉黑）：屏蔽 + 我也看不到他的会话（会话列表不出现）。
 type BlockLevel uint8

@@ -91,7 +91,7 @@ func TestPublicSidebarCardsAttachKindData(t *testing.T) {
 	}
 }
 
-// 取数失败只影响那张卡的数据，不把整个接口带崩（ADR-0017 决策 5 的同一条口径）。
+// 取数失败只影响那张卡的数据，不把整个接口带崩（ADR-0015 决策 5 的同一条口径）。
 func TestPublicSidebarCardsDataFailureDegrades(t *testing.T) {
 	svc, cards, data := newSidebar()
 	data.FailWith(apperr.New(apperr.CodeCommonDBRequired))

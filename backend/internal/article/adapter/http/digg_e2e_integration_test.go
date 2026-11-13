@@ -65,7 +65,7 @@ func TestDiggThreeConsecutiveTogglesSucceed(t *testing.T) {
 		}
 		// 写响应回填权威计数：本套装配没接 Redis，计数增量退化，但字段必须存在且自洽。
 		if _, ok := dataOf(t, resp)["digg_count"]; !ok {
-			t.Fatalf("%s 的写响应必须带 digg_count（ADR-0024 决策 4）: %v", w.step, resp)
+			t.Fatalf("%s 的写响应必须带 digg_count（ADR-0016 决策 4）: %v", w.step, resp)
 		}
 		// 每次操作后，库里的活关系行必须与 is_digg 一致。
 		if n := countLiveDiggRows(t, db, 1001); (n == 1) != w.digg {

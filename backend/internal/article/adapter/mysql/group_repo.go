@@ -116,7 +116,7 @@ func (r *GroupRepo) FindGroup(ctx context.Context, id grouping.ID) (*grouping.Gr
 // 用 `ON DUPLICATE KEY UPDATE` 一步做完，而不是"先 UPDATE、看 RowsAffected 再决定
 // 要不要 INSERT"：MySQL 默认只统计**真正改变**的行数，所以把同样的内容再存一次
 // 会得到 RowsAffected=0，被误判成"这行不存在"，接着 INSERT 撞主键 ——
-// 幂等承诺（ADR-0041 决策 4）就是这么破的。
+// 幂等承诺（ADR-0019 决策 4）就是这么破的。
 func (r *GroupRepo) SaveGroup(ctx context.Context, g *grouping.Group) error {
 	return r.db.WithContext(ctx).Table(r.tables.groups).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
@@ -204,7 +204,7 @@ func (r *GroupRepo) ReplaceOrder(ctx context.Context, tree grouping.TreeOrder, n
 // 同样走 `ON DUPLICATE KEY UPDATE`（唯一键在实体列上）：用"先 UPDATE 看
 // RowsAffected 再 INSERT"会在**内容没变**时把已有行当成不存在（MySQL 只统计
 // 真正改变的行数），于是重复提交同一份顺序就撞唯一键 —— 而整树换序的幂等
-// 正是 ADR-0041 决策 4 承诺的东西。
+// 正是 ADR-0019 决策 4 承诺的东西。
 //
 // `deleted_at` 一并清空：唯一键覆盖软删行，一条软删的归属行会吞掉这次写入
 // 并对 ListAssignments（deleted_at IS NULL）继续不可见 —— 与 #344 的收藏夹

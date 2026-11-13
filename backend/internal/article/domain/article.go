@@ -254,7 +254,7 @@ func (a *Article) ApplyEdit(p EditPatch, now time.Time) (EditFlags, error) {
 		next := NormalizeVisibility(*p.Visibility)
 		// pending_review 是系统内部中间态：作者不能借"编辑文章"接口把
 		// visibility_status 改成 visible 来提前放行、绕过模型合规判定
-		// （ADR-0035 约束 3）。CanSetVisibility 只管管理员的改可见性端点，
+		// （ADR-0025 约束 3）。CanSetVisibility 只管管理员的改可见性端点，
 		// 这条通用的 Update 路径必须自己再挡一次。
 		// 不改原值就不报 flags.Visibility，纯改可见性的请求因此变成 no-op，
 		// 不会返回"已修改"误导调用方。
@@ -479,7 +479,7 @@ func (a *Article) BackToReview(now time.Time) error {
 }
 
 // Reject 审核拒绝。
-// RevokeForCompliance 把一篇文章因合规判定置为「已拒绝」（票 313 / ADR-0034）。
+// RevokeForCompliance 把一篇文章因合规判定置为「已拒绝」（票 313 / ADR-0025）。
 //
 // 与 Reject 的差别只有一处：允许的起点不同。Reject 是人工驳回，只从「审核中」
 // 出发；这里允许从「已发布」出发——违规内容已经在公网上了，自动拒的意义就是

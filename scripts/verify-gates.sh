@@ -572,7 +572,7 @@ fi
 echo ""
 if canary_selected 12; then
 echo "===== 12/14 两端 tokens.css 同源门禁 ====="
-# 门禁原型：scripts/check-token-parity.mjs（ADR-0012 约束 14 / #22）
+# 门禁原型：scripts/check-token-parity.mjs（ADR-0011 约束 14 / #22）
 # 判据是"两份文件逐字节相同"。注入：给后台那份末尾追加一个注释 —— 模拟最真实的
 # 事故：只改了读者站（或只改了后台），另一端忘记同步。门禁必须变红。
 ADMIN_TOKENS="frontend_admin/app/assets/css/tokens.css"

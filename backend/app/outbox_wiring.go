@@ -74,7 +74,7 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
 	relay.On(articleapp.EventArticlePublished, scoreSubscriber(infra))
 
-	// 合规判定（票 312 / ADR-0033）：文章创建与发布各跑一次。
+	// 合规判定（票 312 / ADR-0024）：文章创建与发布各跑一次。
 	// 与评分并列挂在同一批事件上，但**结论落在自己的表**（article_risk_models），
 	// 不借用评分记录——两者判的是不同的问题，失败与重试口径也不同。
 	relay.On(articleapp.EventArticleCreated, complianceSubscriber(infra))
@@ -183,7 +183,7 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 	}
 }
 
-// complianceSubscriber 触发一次模型合规判定并落库（票 312 / ADR-0033）。
+// complianceSubscriber 触发一次模型合规判定并落库（票 312 / ADR-0024）。
 //
 // 失败语义：拿不到结论时返回 error，交给发件箱重试；重试耗尽后进死信，
 // 后台看到的是"这篇文章没有合规结论"（未判定），而不是被当成"干净"放行。
@@ -214,7 +214,7 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		}
 
 		// 归属：异步链路没有登录态，只能回查作者与角色。管理员豁免在额度收费点
-		// 只认 IsAdmin 布尔，不认识角色枚举（ADR-0038）。
+		// 只认 IsAdmin 布尔，不认识角色枚举（ADR-0028）。
 		isAdmin, err := userIsAdmin(ctx, infra, article.AuthorID)
 		if err != nil {
 			return err
@@ -269,7 +269,7 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return articleSvc.BackToReviewForCompliance(ctx, articleID,
 				article_review_enum.SourceModelSuspect)
 		case moderation.VerdictViolation:
-			// 高置信违规自动拒（票 313 / ADR-0033）：档位 violation 且风险 ≥ 2。
+			// 高置信违规自动拒（票 313 / ADR-0024）：档位 violation 且风险 ≥ 2。
 			// 风险 1 的 violation 也交人，理由同 suspect。
 			if result.RiskLevel >= autoRejectRiskLevel {
 				return articleSvc.AutoRejectForCompliance(ctx, articleID)
@@ -305,7 +305,7 @@ func userIsAdmin(ctx context.Context, infra *Infra, userID ctype.ID) (bool, erro
 
 // deferComplianceForQuota 在作者当日合规判定额度用尽时收尾一条事件。
 //
-// 三件事必须一起发生（ADR-0038）：
+// 三件事必须一起发生（ADR-0028）：
 //  1. 文章改回「审核中」且**不建人工任务**（明天会自动重审）；
 //  2. 给作者一条系统通知，说清楚"明天自动重审、期间读者看不到"；
 //  3. 把本条事件推迟到次日零点后重投（既不算完成也不算失败）。
@@ -445,7 +445,7 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 // 不能留一句"失败原因："后面什么都没有。文案与"作者打开被打回的草稿"
 // 看到的是同一句话，替换文案只改 review.ReasonText 一处。
 //
-// 系统直接拒（票 302 同步风险命中 / ADR-0034 合规自动拒）是**终局、不给改**，
+// 系统直接拒（票 302 同步风险命中 / ADR-0025 合规自动拒）是**终局、不给改**，
 // 仍说"请修改后再提交"会把作者引向一个必然被拒的动作，所以换一句陈述式文案。
 func rejectionContent(title, reason string) string {
 	text := review.ReasonText(reason)

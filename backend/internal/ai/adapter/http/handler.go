@@ -51,7 +51,7 @@ func userID(c *gin.Context) uint64 {
 // 管理员身份与链路 ID —— handler 是唯一同时知道登录态和请求 ID 的地方。
 //
 // IsAdmin 放在这里而不是让收费点去查库：internal/ai 只认布尔，不认角色枚举，
-// 判定留在拿到登录态的这一处（与 ADR-0031 的"豁免在用例外判"同一思路）。
+// 判定留在拿到登录态的这一处（与 ADR-0022 的"豁免在用例外判"同一思路）。
 func callCtx(c *gin.Context) context.Context {
 	meta := ai.CallMeta{
 		UserID:    ctype.NewID(userID(c)),

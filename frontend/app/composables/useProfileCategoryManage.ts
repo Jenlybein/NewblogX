@@ -101,7 +101,7 @@ export function useProfileCategoryManage(options: ProfileCategoryManageOptions) 
       options.message.success(renaming ? "分类已改名" : "分类已新建");
       await options.reload();
     } catch (error) {
-      // 「名称重复」等可读文案由后端给出，原样展示（ADR-0036 约束 5）。
+      // 「名称重复」等可读文案由后端给出，原样展示（ADR-0026 约束 5）。
       // 失败时弹窗保持打开：用户改个名字就能重试，不用重新敲。
       options.message.error(errorMessage(error, "保存分类失败"));
     } finally {

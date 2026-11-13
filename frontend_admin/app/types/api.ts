@@ -240,7 +240,7 @@ export type ProjectOutlineSavePayload = Required<Schema<"internal_article_adapte
  * `/articles/hot-top/admin` 的列表项。
  *
  * 后台唯一的置顶状态来源（文章管理列表的按钮状态也用它）：带排序号与失效标记，
- * 比公开接口多出 stale 行。**不要**改去读 ES 文档里的字段（ADR-0017 决策 5）。
+ * 比公开接口多出 stale 行。**不要**改去读 ES 文档里的字段（ADR-0015 决策 5）。
  */
 export type HotTopAdminItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopAdminItem">;
 
@@ -252,7 +252,7 @@ export type ArticleSearchResponseData = Omit<
 }
 
 /**
- * 九段运行时配置：全部从生成的契约派生（#283 / ADR-0029）。
+ * 九段运行时配置：全部从生成的契约派生（#283 / ADR-0020）。
  *
  * 参数化 /site/{name} 与自由键值块已退场，每段各有具名响应/请求 schema；
  * 后台不再手写投影，字段名与类型都在编译期由 openapi.d.ts 给出。
@@ -343,7 +343,7 @@ export type TagListItem = RequiredSchema<"internal_article_adapter_http.TagListI
  */
 export type TagWritePayload = Schema<"internal_article_adapter_http.TagRequest">;
 
-// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+// ── 合集 / 项目分组（ADR-0019）─────────────────────────────────
 
 /** 分组里的一个条目：顺序由数组位置表达，元素只有一个 ID。 */
 export type GroupItem = RequiredSchema<"internal_article_adapter_http.GroupItemResponse">;

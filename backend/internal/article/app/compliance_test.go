@@ -9,7 +9,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 合规结论覆盖写：一篇文章只有一行，后写的覆盖先写的（票 312 / ADR-0033）。
+// 合规结论覆盖写：一篇文章只有一行，后写的覆盖先写的（票 312 / ADR-0024）。
 func TestSaveComplianceResultOverwritesSingleRow(t *testing.T) {
 	t.Parallel()
 

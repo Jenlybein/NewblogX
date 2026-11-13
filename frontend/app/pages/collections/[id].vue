@@ -9,7 +9,7 @@ import { collectionOutlineView } from "~/utils/collection";
 /**
  * 合集详情（票 219：详情页 = 目录页，决定清单 A7–A8）。
  *
- * 渲染边界：不进 SSR 白名单（与列表页、搜索页同一处理，ADR-0019）。
+ * 渲染边界：不进 SSR 白名单（与列表页、搜索页同一处理，ADR-0016）。
  *
  * 后端返回的是嵌套目录树（`outline`），文件夹可展开 / 收起、文章节点带
  * `?from=collection:<id>` 打开阅读页；「第 N 篇」位置标记随扁平列表退役，

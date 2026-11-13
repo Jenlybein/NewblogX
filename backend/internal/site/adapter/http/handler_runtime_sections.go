@@ -11,7 +11,7 @@ import (
 	_ "myblogx/internal/kernel"
 )
 
-// 九段运行时配置的具名 HTTP 出入口（#283 / ADR-0029）。
+// 九段运行时配置的具名 HTTP 出入口（#283 / ADR-0020）。
 //
 // 参数化 /site/{name} 与 /site/admin/{name} 已整体退场：每段各有自己的
 // GET /site/admin/<name> 与 PUT /site/<name>，注解直接引用该段的具名形状。

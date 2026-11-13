@@ -8,7 +8,7 @@ import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 <template>
   <div class="article-skeleton" data-role="article-page-skeleton" data-state="pending">
     <!--
-      文章页切页骨架（ADR-0019 决策 3）：客户端跳转时 setup 不再等正文，
+      文章页切页骨架（ADR-0016 决策 3）：客户端跳转时 setup 不再等正文，
       页面先按文章页既有版式（纸面区块 + 主栏/侧栏）占位，正文与作者区随后各就各位。
       版式复用 tailwind.css 里的 .article-paper / .article-layout，不另起一套骨架布局。
     -->

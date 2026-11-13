@@ -10,7 +10,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// RiskRepo 是 risk.Repository 的内存实现（票 312 / ADR-0033）。
+// RiskRepo 是 risk.Repository 的内存实现（票 312 / ADR-0024）。
 //
 // 一篇文章一行、覆盖写：与真实仓储同样的语义，所以用例层的"覆盖 vs 累加"
 // 这类差别能被测出来。

@@ -10,8 +10,8 @@ import {
 } from "~/utils/folderCardGeometry";
 
 /**
- * 合集/项目文件夹卡（术语见 GLOSSARY「合集/项目文件夹卡」，口径见
- * docs/notes/2026-11-07-reading-ui-grill.md §三 3.6，票 293）。
+ * 合集/项目文件夹卡（术语见 GLOSSARY「合集/项目文件夹卡」，口径见阅读页 UI 记录
+ * §三 3.6，票 293）。
  *
  * 形态（自下而上四层，缺一层就不像文件夹）：
  *   1. 背板：圆角实体面 + 内阴影，顶边比前盖低一点、底边露出 6px 后沿；
@@ -25,7 +25,7 @@ import {
  * 所以列宽变了形状不变，没有写死的 321×270 像素。
  *
  * 间距/位移只动 transform；前盖是内容面上**唯一**允许的玻璃层
- * （ADR-0012 后续修订 2026-11-07），因此必须自带两条不透明降级与窄屏 12px 模糊。
+ * （ADR-0011 后续修订 2026-11-07），因此必须自带两条不透明降级与窄屏 12px 模糊。
  * 本票不参与「弹簧」三处例外：位移走 200ms CSS 过渡 + 唯一缓动 token。
  */
 interface FolderCardProps {
@@ -385,7 +385,7 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
   }
 }
 
-/* 降级 ③：窄屏把模糊压到 12px（ADR-0012 约束 7 的移动端上限）。 */
+/* 降级 ③：窄屏把模糊压到 12px（ADR-0011 约束 7 的移动端上限）。 */
 @media (max-width: 768px) {
   .folder-card__flap-glass {
     backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-blur-mobile));

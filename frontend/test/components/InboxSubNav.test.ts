@@ -11,7 +11,7 @@ import { SEAM_CLOSED_GAP, SEAM_CORNER_PX, SEAM_OPEN_PX } from "~/utils/subnavNec
  *
  * 断言的是**外部行为**：顺序与 href、`aria-current`、未读数规则、激活块的可观察标记、
  * 激活块两侧的接缝张开、圆角只给敞口一侧、减少动态下的落位。像素级视觉不断言
- * （ADR-0012 已否决截图比对），配色与贴合规则落在 `test/design/message-center.test.ts`
+ * （ADR-0011 已否决截图比对），配色与贴合规则落在 `test/design/message-center.test.ts`
  * 里按 CSS 源码判。
  *
  * 颈部退役后这里只剩一条相关断言：DOM 里**没有任何**连接形状（`svg` / `path` /

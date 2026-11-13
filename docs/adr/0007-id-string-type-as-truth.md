@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -45,5 +45,4 @@
 
 - 代码：[kernel/ctype/id.go](../../backend/internal/kernel/ctype/id.go)（`ctype.ID` 的 string 底层与转换方法）
 - 代码：[tools/archcheck/rules_id.go](../../backend/tools/archcheck/rules_id.go)（R12 `id-must-be-ctype`）
-- 文档：[契约 · ADR-007：ID 类型底层统一为 string](../architecture/contracts.md)（统一策略、四类豁免、唯一不能靠编译器发现的风险）
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)
+- 文档：[契约 · ADR-0007：ID 类型底层统一为 string](../architecture/contracts.md)（统一策略、四类豁免、唯一不能靠编译器发现的风险）

@@ -124,7 +124,7 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 //
 // 拉黑（level=2）的过滤在**查库层**完成（domain.SessionQuery.HideBlocked），
 // 因此 total 就是过滤后的真值：不再"先分页、再按全部拉黑目标数扣总数"。
-// 屏蔽（level=1）不影响可见性 —— 历史会话仍要看得到（ADR-0026）。
+// 屏蔽（level=1）不影响可见性 —— 历史会话仍要看得到（ADR-0018）。
 //
 // 管理员视图不过滤拉黑是**有意例外**：运维排查需要看全量会话，
 // 这条规则与读者视图不同，不是漏判（#280 AC 1 / #272 User Story 15）。

@@ -407,7 +407,7 @@ export function outlineDropIndex(
  * 被拖的是一个**块**：文件夹连同它的子树一起移动，子树内部的 parentKey 不变。
  * 落点若落在自己的块内（等于"移到自己身上"）直接返回原数组。
  *
- * 顺序与层级仍然只是本地扁平行，保存时才整树一次性提交（ADR-0023 约束 7 不变）。
+ * 顺序与层级仍然只是本地扁平行，保存时才整树一次性提交（ADR-0019 约束 7 不变）。
  */
 export function moveOutlineRowToIndex(
   rows: readonly OutlineFlatRow[],

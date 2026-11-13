@@ -28,7 +28,7 @@ void siteStore.ensurePublicBootstrap();
 </template>
 
 <style scoped>
-/* 页头是吸顶玻璃导航：锚点跳转与页内滚动都要给页头留位（ADR-0012 约束 8）。 */
+/* 页头是吸顶玻璃导航：锚点跳转与页内滚动都要给页头留位（ADR-0011 约束 8）。 */
 .studio-layout-page {
   scroll-padding-top: calc(var(--site-header-height) + 0.5rem);
 }

@@ -15,7 +15,7 @@ import (
 // 与旧实现一致：不能收藏自己的文章；不指定收藏夹时落到默认收藏夹
 // （没有则自动创建）。收藏数走缓存增量，不写文章表。
 //
-// 返回值是操作后的权威状态与收藏总数（ADR-0024 决策 4）：前端据此直接 patch，
+// 返回值是操作后的权威状态与收藏总数（ADR-0016 决策 4）：前端据此直接 patch，
 // 不必重新取整篇正文。
 func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult, error) {
 	var out FavoriteResult
@@ -164,7 +164,7 @@ func (s *Service) Top(ctx context.Context, cmd TopCmd) error {
 	})
 }
 
-// Digg 把点赞关系收敛到目标态，返回操作后的权威状态与计数（ADR-0024 决策 3/4）。
+// Digg 把点赞关系收敛到目标态，返回操作后的权威状态与计数（ADR-0016 决策 3/4）。
 //
 // 语义与旧 toggle 的区别：
 //   - 传 `Liked=true` 时"确保已赞"：已赞就是无操作，不再反向取消；
@@ -254,7 +254,7 @@ func (s *Service) RecordView(ctx context.Context, articleID domain.ArticleID, vi
 // ListViewHistory 列出浏览历史的一页（游标分页）。
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面：浏览历史同样属于
-// 公开读面，开关关闭时作者不是管理员的记录不再出现（ADR-0017 决策 4）。
+// 公开读面，开关关闭时作者不是管理员的记录不再出现（ADR-0015 决策 4）。
 // 与收藏内容一致，过滤下推到查询层，保证分页在**过滤之后**进行。
 //
 // 为什么不再返回 total：游标分页只答一个方向的问题（"还有没有下一页"），

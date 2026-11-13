@@ -13,7 +13,7 @@ import { siteOrigin } from "./siteUrl";
  * **私密页面（/studio、/messages、/history、/search）刻意不在这里 Disallow** ——
  * 被 Disallow 的页面爬虫进不去，也就读不到页面里的 `noindex`；若别处有链接指向
  * 它，它仍可能以"裸 URL 无标题"出现在结果里。那几页改由页面级 meta 声明，
- * 理由见 docs/notes/2026-11-07-publish-gate-and-moderation-grill.md §6.2③。
+ * 理由见发布闸门与机审设计口径 §6.2③。
  */
 
 /** 站点地图的路径（后端新端点，挂 /api 下）。 */

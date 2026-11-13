@@ -161,7 +161,7 @@ func setupMockESCollectingBulkDocs(t *testing.T) *[]map[string]any {
 // 用户角色变更必须让该作者的文章文档重算 author_is_admin。
 //
 // 走的是已有分支：river 收到 user_models 行变更 → ArticleSearchProjectionAuthorSnapshot
-// → SyncESDocsByAuthorIDs（ADR-0017 决策 4 明确要复用这条路径，不新增事件）。
+// → SyncESDocsByAuthorIDs（ADR-0015 决策 4 明确要复用这条路径，不新增事件）。
 func TestSyncArticleSearchProjectionRefreshesAuthorIsAdmin(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},

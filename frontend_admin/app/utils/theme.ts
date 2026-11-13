@@ -3,7 +3,7 @@
  *
  * 为什么需要这个模块（而不是在 app.vue 里写一串十六进制）：
  *
- *   1. **颜色只有一个来源**（ADR-0012 约束 4）。这里直接解析 `--color-*` 语义层，
+ *   1. **颜色只有一个来源**（ADR-0011 约束 4）。这里直接解析 `--color-*` 语义层，
  *      不再像旧版那样先读原始层 hex 再自己拼一遍 —— 那等于给颜色留了第二套来源。
  *   2. **Naive 不接受 CSS 变量当颜色**。它的 `self()` 会用 seemly 的
  *      `changeColor()` / `composite()` 对传入颜色做运算（Tag、Alert、DataTable、
@@ -105,7 +105,7 @@ export const ALPHA = {
   rail: 0.12,
 } as const;
 
-/** 英文正文字体 Inter + 中文系统字体栈（顺序有意义；中文不再自托管，见 ADR-0019）。 */
+/** 英文正文字体 Inter + 中文系统字体栈（顺序有意义；中文不再自托管，见 ADR-0016）。 */
 export const FONT_STACK =
   '"Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
@@ -276,7 +276,7 @@ export function buildNaiveThemeOverrides(
       primaryColorHover: palette.inkMuted,
       primaryColorPressed: palette.ink,
       primaryColorSuppl: palette.inkMuted,
-      // 功能蓝只用于信息语义；hover/pressed 不派生蓝色填充（ADR-0012 约束 1）。
+      // 功能蓝只用于信息语义；hover/pressed 不派生蓝色填充（ADR-0011 约束 1）。
       infoColor: palette.link,
       infoColorHover: palette.inkMuted,
       infoColorPressed: palette.ink,

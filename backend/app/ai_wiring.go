@@ -35,7 +35,7 @@ func WireAI(infra *Infra) {
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	catalog := aimysql.NewCatalog(infra.DB)
 
-	// 每日额度的计数端口（ADR-0038）。装在这里而不是 ai 包内部：
+	// 每日额度的计数端口（ADR-0028）。装在这里而不是 ai 包内部：
 	// internal/ai 不 import platform/redis，落点属于装配层的决定。
 	ai.SetQuotaGate(airedis.NewDailyQuota(redisOptions))
 
@@ -134,7 +134,7 @@ func installCallReporter(infra *Infra) {
 // sceneSkillCatalog 把平台层 skill 目录适配成 AI 用例层的读取端口。
 //
 // 适配放在装配层：internal/ai 的用例只知道"要一段策略文本与版本"，
-// 不知道它是从磁盘哪个目录读的；skills 加载器也不 import 任何业务包（ADR-0030）。
+// 不知道它是从磁盘哪个目录读的；skills 加载器也不 import 任何业务包（ADR-0021）。
 type sceneSkillCatalog struct {
 	catalog *skills.Catalog
 }
@@ -159,7 +159,7 @@ func (r sceneSkillCatalog) ReadSceneSkill(name string) (domain.SceneSkill, error
 		return domain.SceneSkill{}, apperr.Wrap(apperr.CodeAIPolicySkillMissing, err)
 	}
 	// version 必须与 body 来自同一次读盘：正文可以热改，加载时的哈希会过期，
-	// 用它记版本就会出现"新正文配旧版本号"（#309 用户故事 32 / ADR-0030）。
+	// 用它记版本就会出现"新正文配旧版本号"（#309 用户故事 32 / ADR-0021）。
 	return domain.SceneSkill{Name: skill.Name(), Body: body, Version: version}, nil
 }
 

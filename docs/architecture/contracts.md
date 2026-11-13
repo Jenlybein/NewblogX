@@ -1,7 +1,7 @@
 # 契约：单一来源、生成流水线与类型真相
 
 > 归档自：`11-契约可用性方案.md`、`ADR-003-前后端契约单一来源.md`、`ADR-007-ID类型统一为string底层.md`
-> 拍板时间：2026-10-24（ADR-003）/ 2026-10-26（ADR-007 + 契约可用性改造）
+> 拍板时间：2026-10-24（ADR-0003）/ 2026-10-26（ADR-0007 + 契约可用性改造）
 > 状态：**已交付并落地**
 > 归档时实测：`backend/docs/swagger.json` = OpenAPI **3.1.0 / 92 path / 119 operation / 203 schema**
 
@@ -18,7 +18,7 @@
 | 阶段 | 链路 | 步数 |
 | --- | --- | --- |
 | M7 之前 | swag v1 → swagger2openapi → `fix-openapi-id-types.mjs` → openapi-typescript | 4 |
-| ADR-007 E5 | swag v1 → swagger2openapi → openapi-typescript | 3 |
+| ADR-0007 E5 | swag v1 → swagger2openapi → openapi-typescript | 3 |
 | **当前** | **swag v2 `--v3.1` → openapi-typescript** | **2** |
 
 ```
@@ -303,7 +303,7 @@ grep -rhoE "@Success 200 \{object\} [a-z]+\." --include=*.go internal/*/adapter/
 
 ---
 
-## 7. ADR-007：ID 类型底层统一为 string（类型即真相）
+## 7. ADR-0007：ID 类型底层统一为 string（类型即真相）
 
 ### 7.1 决策
 
@@ -428,7 +428,7 @@ bash scripts/check.sh
 ## 【归档备注】仅具历史价值、v2 不需要再看
 
 - **方案 A/B/C/D/E 的完整对比论证**：决策已落地，只需记住结论"选 E 不选 A"及其唯一理由。
-- **ADR-007 的 26 项豁免逐条清单**：已由 §7.4 压缩为四类 + 每类一句理由。
+- **ADR-0007 的 26 项豁免逐条清单**：已由 §7.4 压缩为四类 + 每类一句理由。
 - **P0–P5 的阶段划分与原排期**：P3 已取消、P4 已改方案、P5 已完成，阶段编号本身不再有意义。
 - **各模块的处数明细表**（article 30 / analytics 14 / …）：改动已完成，处数只对当时的排期有用。
 - **"required 比例 6.9% → 6.0%"这条因果链的推翻过程**：结论有用，过程可丢。

@@ -12,7 +12,7 @@ import { parseOutlineSource } from "~/utils/outlineTree";
  *
  * 公开读：左栏不依赖登录身份，匿名取数（`auth: false`）就不会把用户态带进
  * 这条客户端请求。树**只在客户端取数**：调用点（`useArticleOutlineContext`）
- * 负责在 SSR 阶段跳过本请求（ADR-0019 / 票 220）。
+ * 负责在 SSR 阶段跳过本请求（ADR-0016 / 票 220）。
  *
  * 归属只由 `?from=<kind>:<id>` 给出：来源指向哪棵具名树就只打那一个具名端点，
  * 并把当前文章 ID 作为 `article_id` 带给后端回答上一章 / 下一篇。来源缺失或

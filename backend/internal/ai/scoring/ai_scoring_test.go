@@ -65,7 +65,7 @@ func TestScoreArticleQualityShortArticle(t *testing.T) {
 
 	resp, err := ScoreArticleQuality(context.Background(), aiConf, ArticleScoreRequest{
 		Title: "Go 写作实践",
-		// 形态要"成篇"（够长 + 多段）：ADR-0040 起过短或单段的正文会被形态封顶，
+		// 形态要"成篇"（够长 + 多段）：ADR-0023 起过短或单段的正文会被形态封顶，
 		// 这条用例验的是"短线路径走全文 prompt、总分由后端重算"，不该被封顶干扰。
 		Content: strings.Join([]string{
 			"# Go 写作实践",

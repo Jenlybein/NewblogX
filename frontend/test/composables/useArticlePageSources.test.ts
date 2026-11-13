@@ -398,7 +398,7 @@ describe("useArticlePageSources：正文优先 + 第一波并行 + 作者第二�
   });
 });
 
-describe("SSR 匿名化：服务端渲染的数据里没有用户私有状态（ADR-0019 约束 2）", () => {
+describe("SSR 匿名化：服务端渲染的数据里没有用户私有状态（ADR-0016 约束 2）", () => {
   it("服务端：文章里的 is_digg / is_favor 被剔除，字段名都不留在 SSR 数据里", async () => {
     installAwaitableAsyncData();
     installFakeNuxtApp();
@@ -461,7 +461,7 @@ describe("SSR 匿名化：服务端渲染的数据里没有用户私有状态（
   });
 });
 
-describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
+describe("用户私有态独立取数（ADR-0016 决策 2/6）", () => {
   function privateOptions(mode: "hydration" | "navigation") {
     return {
       mode,
@@ -538,7 +538,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     expect(sources.article.value?.is_digg).toBe(true);
   });
 
-  it("手工 refreshArticle 不被 fresh 缓存短路：页面刷新能拿回带用户态的正文（ADR-0024 决策 1）", async () => {
+  it("手工 refreshArticle 不被 fresh 缓存短路：页面刷新能拿回带用户态的正文（ADR-0016 决策 1）", async () => {
     installFakeNuxtApp();
     const cache = createReaderSwrCache({ now: () => 1_000 });
     cache.write("article-a1", { id: ARTICLE_ID, title: "缓存标题", author_id: AUTHOR_ID });
@@ -560,7 +560,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     expect(sources.article.value?.is_digg).toBe(true);
   });
 
-  it("私有态响应里的权威计数覆盖 payload 旧值（ADR-0024 后续修订：按钮与数字同源）", async () => {
+  it("私有态响应里的权威计数覆盖 payload 旧值（ADR-0016 后续修订：按钮与数字同源）", async () => {
     installFakeNuxtApp();
     const cache = createReaderSwrCache({ now: () => 1_000 });
     installAwaitableAsyncData();

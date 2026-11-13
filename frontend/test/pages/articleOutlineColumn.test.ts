@@ -12,7 +12,7 @@ import { findColorLiterals } from "../../../scripts/check-design-tokens.mjs";
  * #213 的先例：只断言页面源码里的接线（判定在可单测的 composable/纯函数里）。
  *
  * 守住的边界：
- *  - 树只在客户端取数（不在 setup / SSR 里 await 或注入请求，ADR-0019）；
+ *  - 树只在客户端取数（不在 setup / SSR 里 await 或注入请求，ADR-0016）；
  *  - 有归属树才出现左栏，且三栏布局在 1024px 以上成立；
  *  - 右栏标题大纲与阅读进度保持原样，不被左栏替换。
  */

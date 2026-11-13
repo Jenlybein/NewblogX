@@ -9,7 +9,7 @@ import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRen
  * 阅读页左栏目录树的取数时序（票 220 / 决定清单 A9–A11）。
  *
  * 三条约束：
- *  1. **树只在客户端取数**：`/article/**` 的 SSR 边界与匿名缓存策略不变（ADR-0019），
+ *  1. **树只在客户端取数**：`/article/**` 的 SSR 边界与匿名缓存策略不变（ADR-0016），
  *     SSR 阶段一次也不发这条请求；
  *  2. 站内跳转先出骨架：client navigation 下同步进入 `pending`，页面骨架与
  *     真实三栏版式同构，不引发布局跳动；
@@ -49,7 +49,7 @@ export function useArticleOutlineContext(options: ArticleOutlineContextOptions) 
 
   async function load(): Promise<void> {
     const articleId = currentArticleId();
-    // SSR 不取数：服务端渲染边界与按 URL 键的匿名缓存不得因左栏变宽（ADR-0019）。
+    // SSR 不取数：服务端渲染边界与按 URL 键的匿名缓存不得因左栏变宽（ADR-0016）。
     if (mode === "server" || !articleId) {
       status.value = "idle";
       return;

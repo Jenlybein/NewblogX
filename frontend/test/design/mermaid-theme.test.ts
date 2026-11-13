@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildMermaidConfig, resolveMarkdownTheme, resolveMermaidTheme } from "~/utils/markdownTheme";
 
 /**
- * mermaid 图表接语义 token（ADR-0012 决策 #11 与 #17 spec 的硬要求）。
+ * mermaid 图表接语义 token（ADR-0011 决策 #11 与 #17 spec 的硬要求）。
  *
  * 为什么值得测：mermaid 的 `themeVariables` 不传就是**第三方默认配色**（浅紫 flowchart
  * 节点底），图表因此成为全站唯一不受 token 约束的绘制面 —— 换肤不跟随、对比度门禁也

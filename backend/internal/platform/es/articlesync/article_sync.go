@@ -322,7 +322,7 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 			"nickname": author.Nickname,
 			"avatar":   author.Avatar,
 		},
-		// 作者角色投影：公开查询在“显示非管理员文章”关掉时按它过滤（ADR-0017 决策 4）。
+		// 作者角色投影：公开查询在“显示非管理员文章”关掉时按它过滤（ADR-0015 决策 4）。
 		"author_is_admin":   author.IsAdmin,
 		"view_count":        snapshot.ViewCount,
 		"digg_count":        snapshot.DiggCount,
@@ -353,7 +353,7 @@ func SyncESDocsByArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, sna
 
 // SyncESDocs 按文章 ID 批量重建 ES 文档。
 // 这里会从数据库重新读取文章、标签与作者/分类快照，再统一索引到 ES。
-// 写入侧不再同步任何置顶派生字段（ADR-0017 决策 6），作者置顶只留在 MySQL。
+// 写入侧不再同步任何置顶派生字段（ADR-0015 决策 6），作者置顶只留在 MySQL。
 func SyncESDocs(db *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.ID) error {
 	if db == nil || client == nil {
 		return nil

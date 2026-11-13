@@ -275,13 +275,13 @@ type CategoryRepository interface {
 	// Save 新建或更新。
 	//
 	// 新建时若存在**同名软删行**（(user_id, title) 唯一索引不含 deleted_at，
-	// 删除又是软删），实现必须恢复那一行而不是插入（ADR-0036 约束 1，
+	// 删除又是软删），实现必须恢复那一行而不是插入（ADR-0026 约束 1，
 	// 房规见 platform/mysql.RestoreOrCreateUnique）：因此新建后库里的 ID
 	// 可能不是调用方给的那个，调用方不要依赖新建时的 ID（列表另行读取）。
 	Save(ctx context.Context, c *Category) error
 	// Delete 删除分类。
 	//
-	// 契约是**两步、顺序固定**（ADR-0036 约束 3）：先把挂在该分类下的文章
+	// 契约是**两步、顺序固定**（ADR-0026 约束 3）：先把挂在该分类下的文章
 	// `category_id` 置空（文章本身不删，变成"未分类"），再软删分类本身。
 	// 两步必须在调用方的事务里完成（UseCase 的 WithinTx 现场构造本仓储），
 	// 中途失败不能留下"文章已解绑、分类还在"或相反的半截状态。

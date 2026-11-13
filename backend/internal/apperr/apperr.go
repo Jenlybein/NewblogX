@@ -50,18 +50,18 @@ const (
 	//
 	// 原因列是 varchar(500) 且枚举值也编在同一列：不拦的话超长粘贴会变成写库失败（500）。
 	CodeArticleReviewReasonTooLong Code = "article.review_reason_too_long"
-	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0031）。
+	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0022）。
 	//
 	// 与 article.forbidden / publish_disabled_by_site 都不同：那些是"你/站点不允许"，
 	// 这个是"今天的提交次数用完了，明天自然恢复"。三类混用会让作者去查自己的账号
 	// 或去找管理员改开关，而正确动作是"明天再来"。
 	CodeArticleSubmitQuotaExceeded Code = "article.submit_quota_exceeded"
-	// CodeArticleQualityRejected 是「拿到分数，但没达到发布线」（票 306 / ADR-0032）。
+	// CodeArticleQualityRejected 是「拿到分数，但没达到发布线」（票 306 / ADR-0023）。
 	//
 	// 它与 article.score_unavailable 必须是两个码：前者是"文章不够好"（去改稿），
 	// 后者是"平台没给出结论"（稍后重试）。作者据此决定下一步动作，混用会误导。
 	CodeArticleQualityRejected Code = "article.quality_rejected"
-	// CodeArticleScoreUnavailable 是「评分失败：没拿到可用分数」（票 306 / ADR-0032）。
+	// CodeArticleScoreUnavailable 是「评分失败：没拿到可用分数」（票 306 / ADR-0023）。
 	//
 	// 覆盖网络错、超时、429/5xx、返回非 JSON、缺总分等情形：一律拒绝本次提交
 	// 且不落库（失败关闭），并归还已经预占的投稿配额。
@@ -164,7 +164,7 @@ const (
 	// CodeProjectOrderMismatch 全集顺序替换的输入与当前集合不一致。
 	CodeProjectOrderMismatch Code = "project.order_mismatch"
 
-	// ── 合集 / 项目分组（ADR-0041）──
+	// ── 合集 / 项目分组（ADR-0019）──
 	//
 	// 分组是两个实体共用的一套编排语义，所以错误码不按实体分叉：
 	// 同一个结构错误不该出现两种码，前端要维护两份映射。
@@ -351,7 +351,7 @@ const (
 	// 陌生人私信开着时，content 里塞任意外链可以当追踪像素 / 钓鱼图用，
 	// 所以 msg_type=2 必须能反解出本站 object_key、且该 key 在 image_models 里。
 	CodeChatImageNotOwned Code = "chat.image_not_owned"
-	// CodeChatBlocked 对方在我 / 我在对方的屏蔽或拉黑名单里（ADR-0026）。
+	// CodeChatBlocked 对方在我 / 我在对方的屏蔽或拉黑名单里（ADR-0018）。
 	CodeChatBlocked     Code = "chat.blocked"
 	CodeChatStrangerOff Code = "chat.stranger_disabled"
 	// CodeChatRecipientStrangerOff 接收方个人开关关闭（#247）。
@@ -417,7 +417,7 @@ const (
 	// 混在一起会让运维照着"配置解析失败"去翻 JSON。
 	CodeRuntimeConfigSecretUnavailable Code = "runtimeconfig.secret_unavailable"
 
-	// AI 每日额度的保存期校验（ADR-0038）。与"额度用完"完全不同：
+	// AI 每日额度的保存期校验（ADR-0028）。与"额度用完"完全不同：
 	// 那是运行期的业务结论，这是保存配置时的参数错误。
 	CodeSiteAIDailyLimitInvalid Code = "site.ai_daily_limit_invalid"
 
@@ -470,7 +470,7 @@ const (
 	// CodeAIPolicySkillMissing 是「场景配置引用了读不到的运行时策略 skill」。
 	//
 	// 它属于服务异常而不是参数错误：出问题的是部署/配置，不是这次请求的入参。
-	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0030）。
+	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0021）。
 	CodeAIPolicySkillMissing Code = "ai.policy_skill_missing"
 
 	// CodeAIDailyLimitExceeded 是「今天的 AI 使用次数用完了」。

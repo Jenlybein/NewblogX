@@ -63,7 +63,7 @@ func newArticleService(infra *Infra) *articleapp.Service {
 	// 作者统计的写入逻辑归 user 模块，这里把函数交给 article 的 UoW，
 	// 由它在自己的事务里调用 —— 跨模块写仍然同事务，但不再互相 import。
 	uow := mysql.NewTxManager(infra.DB, counterOptions, usermysql.ApplyArticleDelta)
-	// 投稿配额（票 304 / ADR-0031）：普通用户每自然日可提交的次数上限。
+	// 投稿配额（票 304 / ADR-0022）：普通用户每自然日可提交的次数上限。
 	// 上限取生效值的**现读闭包**，所以后台改完下一次请求即生效；管理员豁免在
 	// 用例层判定（这里不传角色）。Redis 不可用时适配器返回错误 —— 失败关闭。
 	quota := adapterredis.NewSubmitQuota(counterOptions, infra.Effective.ArticleSubmitDailyMaxFunc())
@@ -134,7 +134,7 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 	return id.Uint64()
 }
 
-// NextGroupID 返回下一个分组 ID（ADR-0041）。
+// NextGroupID 返回下一个分组 ID（ADR-0019）。
 func (snowflakeIDs) NextGroupID() grouping.ID {
 	id, err := idgen.Next()
 	if err != nil {
@@ -233,7 +233,7 @@ func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (s
 	return mediamysql.ResolveURLByID(r.db, id.Uint64())
 }
 
-// qualityGatePort 是「发布质量闸门」的评分端口适配器（票 306 / ADR-0032）。
+// qualityGatePort 是「发布质量闸门」的评分端口适配器（票 306 / ADR-0023）。
 //
 // 它把 article 用例层的窄口子接到 AI 模块：调 ScoreForGate 拿分数与问题列表，
 // 并把"没有可用分数"的各种情形（未装配、AI 未开启、模型调用失败、返回非 JSON）

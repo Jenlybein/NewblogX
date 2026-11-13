@@ -149,7 +149,7 @@ export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_doma
  * 首页「热门置顶」运营位的一张卡片（`GET /articles/hot-top`，公开读）。
  *
  * 与作者置顶（`/articles/top?user_id=`）的卡片形状相同，但数据源不同：
- * 前者是管理员挑选并手动排序的运营位，后者是作者钉在自己主页上的那一篇（ADR-0017）。
+ * 前者是管理员挑选并手动排序的运营位，后者是作者钉在自己主页上的那一篇（ADR-0015）。
  */
 export type ArticleHotTopItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopCardResponse">;
 
@@ -218,12 +218,12 @@ export type ArticleDetail = Nullable<
 >;
 
 /**
- * 点赞写响应（ADR-0024 决策 3/4）：收敛后的状态 + 权威 `digg_count`。
+ * 点赞写响应（ADR-0016 决策 3/4）：收敛后的状态 + 权威 `digg_count`。
  */
 export type ArticleDiggResult = RequiredSchema<"internal_article_adapter_http.ArticleDiggResponse">;
 
 /**
- * 收藏写响应（ADR-0024 决策 4/6）：用工编辑（POST 收藏 / DELETE 移除）都回填
+ * 收藏写响应（ADR-0016 决策 4/6）：用工编辑（POST 收藏 / DELETE 移除）都回填
  * 权威 `is_favor` 与 `favor_count`，前端直接 patch。
  */
 export type ArticleFavoriteResult = RequiredSchema<"internal_article_adapter_http.ArticleFavoriteResponse">;
@@ -378,7 +378,7 @@ export type UserProfileUpdatePayload = Nullable<
 >;
 
 
-// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+// ── 合集 / 项目分组（ADR-0019）─────────────────────────────────
 
 /** 分组里的一个条目：顺序由数组位置表达，元素只有一个 ID。 */
 export type GroupItem = RequiredSchema<"internal_article_adapter_http.GroupItemResponse">;

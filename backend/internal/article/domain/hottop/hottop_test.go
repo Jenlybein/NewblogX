@@ -30,7 +30,7 @@ func newArticle(status domain.Status, visibility domain.Visibility, deleted bool
 
 // TestCanBePinned 是"什么样的文章能被设成热门置顶"的穷举矩阵。
 //
-// 规则来自 ADR-0017 决策 5：只有"已发布且可见"的文章可置顶。
+// 规则来自 ADR-0015 决策 5：只有"已发布且可见"的文章可置顶。
 // 期望值不是猜的——它等价于 domain.Article.IsPubliclyVisible，
 // 也就是"匿名访客能不能在读者站看到这篇"，两者必须一致：
 // 否则会出现"首页置顶了一张点进去 404 的卡片"。
@@ -77,7 +77,7 @@ func TestCanBePinnedNil(t *testing.T) {
 // TestIsStale 是"已失效"的判定矩阵。
 //
 // 失效 = 文章已物理删除（置顶行还在，join 不到文章）、已软删、
-// 不再是"已发布且可见"。置顶行本身**保留**（ADR-0017 决策 5），
+// 不再是"已发布且可见"。置顶行本身**保留**（ADR-0015 决策 5），
 // 首页靠 JOIN 过滤，后台靠这个判定标"已失效"。
 func TestIsStale(t *testing.T) {
 	t.Parallel()

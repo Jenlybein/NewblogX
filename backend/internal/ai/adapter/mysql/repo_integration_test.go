@@ -70,7 +70,7 @@ func createArticle(t *testing.T, db *gorm.DB, articleID uint64, title string) {
 }
 
 // TestScoreRepo_UpsertAcceptsArticleNotYetCreated 钉住闸门路径：
-// 新建文章的评分记录先于文章行落库（ADR-0032 决策 5 要求评分在提交事务之外）。
+// 新建文章的评分记录先于文章行落库（ADR-0023 决策 5 要求评分在提交事务之外）。
 //
 // 回归的是"闸门开着就发不出新文章"：lockArticle 查不到文章行时返回
 // ai.article_missing，整次提交被打成"拿不到可用分数"，于是任何新建即提交

@@ -26,7 +26,7 @@ const rows = ref<SearchArticleItem[]>([])
 /**
  * 热门置顶的当前 ID 序列。
  *
- * **状态来自 `/articles/hot-top/admin`，不是 ES 字段**（ADR-0017 决策 5：热门置顶不进 ES、
+ * **状态来自 `/articles/hot-top/admin`，不是 ES 字段**（ADR-0015 决策 5：热门置顶不进 ES、
  * 也不依赖任何 ES 派生字段）。失效项也算「已置顶」——置顶行还在，只是首页不展示。
  */
 const hotTopIdList = ref<string[]>([])

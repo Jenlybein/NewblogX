@@ -93,7 +93,7 @@ vi.mock("naive-ui", () => {
   });
 
   // NAlert 只在「质量不达标」时出现：把 header 与正文都渲染出来，
-  // 这样用例能直接断言作者看到的措辞（ADR-0040 要求点名没过的维度）。
+  // 这样用例能直接断言作者看到的措辞（ADR-0023 要求点名没过的维度）。
   const NAlert = defineComponent({
     name: "NAlert",
     setup(_, { slots }) {
@@ -277,7 +277,7 @@ describe("StudioWritePublishDialog · 标签下拉的错误提示", () => {
   });
 });
 
-// 木桶判定（ADR-0040）：总分过线但某一项没过及格线时 gap 是 0，
+// 木桶判定（ADR-0023）：总分过线但某一项没过及格线时 gap 是 0，
 // 所以驳回卡片必须点名"哪一项差多少"，不能只说"还差 0 分"。
 describe("StudioWritePublishDialog · 质量驳回（单项未过及格线）", () => {
   it("点名没达到及格线的维度与它的分数", () => {

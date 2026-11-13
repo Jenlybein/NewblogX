@@ -38,7 +38,7 @@ import {
  * 字节一致由 scripts/check-image-shaping-parity.mjs 守住，但"这份副本真的能定形"
  * 只能靠后台自己的用例证明；顺带它也是后台覆盖率门槛的分母（utils 门槛 95%）。
  *
- * 画布 / 图片解码 / object URL 全部可注入（ADR-0016：测试环境没有 canvas 实现），
+ * 画布 / 图片解码 / object URL 全部可注入（ADR-0014：测试环境没有 canvas 实现），
  * 这里连浏览器默认实现也一并覆盖：那些函数只在真正调用时才碰 `Image` / `canvas`。
  */
 

@@ -8,7 +8,7 @@ import { projectCardView } from "~/utils/project";
 /**
  * 项目列表（读者站「项目」入口的落地页，票 193）。
  *
- * 渲染边界：本页与详情页都**不进 SSR 白名单**（与合集、搜索页一致，ADR-0019）,
+ * 渲染边界：本页与详情页都**不进 SSR 白名单**（与合集、搜索页一致，ADR-0016）,
  * 由 shared/readerRenderingBoundary.ts 的 CLIENT_ONLY_PATTERNS 声明。
  *
  * 可见性完全由后端决定：只返回"展示中"的项目，篇数只算仍公开的文章，

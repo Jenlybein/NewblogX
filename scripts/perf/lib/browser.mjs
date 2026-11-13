@@ -1,7 +1,7 @@
 // 浏览器测量层：上下文与缓存模式、内容可见性判定、点击/返回观察器、资源汇总。
 // 只收集"浏览器里能观察到的事实"（毫秒 / 字节 / 次数），判定与汇总在 report.mjs。
 //
-// 口径（与 docs/notes/2026-11-01-reader-site-performance-probe.md 一致）：
+// 口径（与读者站性能实测一致）：
 // - 冷 = 全新浏览器上下文 + CDP 禁用 HTTP 缓存（相当于第一次访问）；
 // - 热 = 同一上下文先访问一次再测（相当于回访）；
 // - "内容可见" = 目标内容元素存在、链路上无 opacity:0/visibility:hidden/display:none、
@@ -36,7 +36,7 @@ export const DEFAULT_OPTIONS = {
   transitionLink: 'a[href^="/article/"]',
   /** 个人主页 URL 的发现锚点：首页/文章页里的作者链接都长这样。 */
   userLink: 'a[href^="/users/"]',
-  /** 服务端 301 的历史入口（ADR-0019 决策 1）；redirect 场景断言它跳到 /search。 */
+  /** 服务端 301 的历史入口（ADR-0016 决策 1）；redirect 场景断言它跳到 /search。 */
   redirectPath: "/articles",
   redirectTargetPath: "/search",
   onRun: null,

@@ -11,13 +11,13 @@ import (
 	"myblogx/internal/article/domain"
 )
 
-// fakeQualityGate 是 app.QualityGatePort 的内存实现（票 306 / ADR-0032）。
+// fakeQualityGate 是 app.QualityGatePort 的内存实现（票 306 / ADR-0023）。
 //
 // 只模拟"端口返回什么"：给分、给问题、或报错。它不模拟模型行为——这里要验的
 // 是"我们拿这个分数做了什么决定"，不是模型会不会打分。
 type fakeQualityGate struct {
 	score int
-	// dimensions 是六个维度的分（ADR-0040 的木桶判定要用）。留空表示"这次评分
+	// dimensions 是六个维度的分（ADR-0023 的木桶判定要用）。留空表示"这次评分
 	// 没给维度分"，此时只按总分判。
 	dimensions []app.QualityDimension
 	issues     []app.QualityIssue
@@ -194,7 +194,7 @@ func TestGateGrayBandDoesNotPass(t *testing.T) {
 	}
 }
 
-// TestGateBucketRejectsWhenSingleDimensionBelowPassScore 钉住木桶判定（ADR-0040）：
+// TestGateBucketRejectsWhenSingleDimensionBelowPassScore 钉住木桶判定（ADR-0023）：
 // 总分过线，但某一项没过及格线，仍然不放行。
 //
 // 这条正是线上那次"两行祝福语拿到 51 分并被发布"的结构性修复：加权总分会让

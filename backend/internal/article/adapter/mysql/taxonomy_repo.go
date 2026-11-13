@@ -98,7 +98,7 @@ func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, ti
 //
 // 新建走平台的 RestoreOrCreateUnique（match = UserID + Title）：
 // (user_id, title) 上是**不含** deleted_at 的唯一索引，而删除是软删，裸 INSERT 会让
-// "删掉一个分类之后再建同名"永远得到 1062。房规（ADR-0036 约束 1）是恢复那条
+// "删掉一个分类之后再建同名"永远得到 1062。房规（ADR-0026 约束 1）是恢复那条
 // 软删行、保留原 ID，与点赞 / 标签一致。
 func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	id := ctype.ID(c.ID())
@@ -173,7 +173,7 @@ func taxonomySaveError(err error) error {
 
 // Delete 删除分类。
 //
-// 两步，顺序不得颠倒（ADR-0036 约束 3）：
+// 两步，顺序不得颠倒（ADR-0026 约束 3）：
 //  1. 先把挂在该分类下的文章 `category_id` 置空 —— 那列上有外键指向分类表，
 //     但删除是软删，外键永远不会触发；不显式置空，文章就会继续指着一个
 //     已经"不存在"的分类（详情页仍显示它、列表按它筛出空结果）。
@@ -183,7 +183,7 @@ func taxonomySaveError(err error) error {
 // 因此中途失败不会留下"文章已解绑、分类还在"或反过来的半截状态。
 // 置空会经 binlog 触发搜索投影重算（ADR-0009），不需要补偿任务。
 //
-// 两条容易写错的边界（ADR-0036 决策 6 / 已知限制）：
+// 两条容易写错的边界（ADR-0026 决策 6 / 已知限制）：
 //   - **回收站里的文章保留分类归属**：软删作用域让它们不参与这次置空，这是有意的。
 //     删除是软删、同名重建会恢复同一行分类，归属随之回来；顺手清掉反而丢信息。
 //   - **不写 `updated_at`**：用 `UpdateColumn` 而不是 `Updates`。后者会顺带把

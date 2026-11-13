@@ -53,12 +53,12 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 
 	// 站点「发布与展示」开关：草稿看 draft 开关、提交审核/创建即发布看 publish 开关。
 	// 判定放在事务之前——被站点策略拦下的请求一个字节都不该落库。
-	// （ADR-0017 决策 2；管理员不受影响，见 domain.CheckWriteOnCreate。）
+	// （ADR-0015 决策 2；管理员不受影响，见 domain.CheckWriteOnCreate。）
 	if err := domain.CheckWriteOnCreate(cmd.Actor, target, cmd.Policy); err != nil {
 		return nil, err
 	}
 
-	// 投稿配额（票 304 / ADR-0031）：只有提交才算一次提交动作，存草稿不计。
+	// 投稿配额（票 304 / ADR-0022）：只有提交才算一次提交动作，存草稿不计。
 	// 预占放在事务之前——超限时一个字节都不该落库；闸门落地后评分调用也要排在
 	// 预占之后，否则"评分成功才发现超限"会白烧一次模型调用。
 	var reservation SubmitQuotaReservation
@@ -89,7 +89,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		}
 
 		if cmd.QualityGate.Enabled && !riskRejected {
-			// 评分必须在数据库事务之外（票 306 / ADR-0032）：一次模型调用 5–30 秒，
+			// 评分必须在数据库事务之外（票 306 / ADR-0023）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
 			articleID = s.ids.NextArticleID()

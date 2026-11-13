@@ -1,4 +1,4 @@
-// Package redis 是 article 模块的 Redis 适配器：投稿配额（票 304 / ADR-0031）。
+// Package redis 是 article 模块的 Redis 适配器：投稿配额（票 304 / ADR-0022）。
 //
 // 为什么适配器在模块里而不是合成根里：合成根只该做跨模块接线；本文只是把平台层
 // 的计数能力翻成 article 用例层定义的端口，属于本模块自己的适配细节。

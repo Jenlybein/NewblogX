@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { applySiteSectionPatch } from '~/utils/siteSectionSave'
 
 /**
- * 站点四页的「读-改-写」合并语义（ADR-0039）。
+ * 站点四页的「读-改-写」合并语义（ADR-0029）。
  *
  * 这是拆页唯一的安全写法：每页只能覆盖自己拥有的顶层块，其它块（兄弟页字段、
  * 以及后台没有 UI 的 about / project / reconcile）必须原样往返。

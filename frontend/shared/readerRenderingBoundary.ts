@@ -1,5 +1,5 @@
 /**
- * 读者站渲染边界（ADR-0019 决策 1 / 约束 1）的**唯一来源**。
+ * 读者站渲染边界（ADR-0016 决策 1 / 约束 1）的**唯一来源**。
  *
  * 三张表：
  *   1. `SSR_WHITELIST_PATTERNS` —— 允许服务端渲染的读者站路由（首页门面 + 文章页分享卡片/收录）；
@@ -13,7 +13,7 @@
  *   - `frontend/test/gates/rendering-boundary.test.ts`：白名单双向门禁；
  *   - `frontend/test/gates/ssr-anonymous-cache.test.ts`：缓存范围门禁。
  *
- * 新增 SSR 页面必须先改 ADR-0019 再改这里，不得在消费方按页面随手加。
+ * 新增 SSR 页面必须先改 ADR-0016 再改这里，不得在消费方按页面随手加。
  * 本文件不依赖 Nuxt/Nitro 的任何自动导入（`nuxt.config` 与 Nitro 服务端都要能直接 import）。
  */
 
@@ -25,11 +25,11 @@ export interface ServerRedirectRoute {
   statusCode: 301;
 }
 
-/** 允许服务端渲染的读者站路由（ADR-0019 决策 1 / 约束 1）。 */
+/** 允许服务端渲染的读者站路由（ADR-0016 决策 1 / 约束 1）。 */
 export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
 
 /**
- * 必须显式 `ssr: false` 的读者站路由（ADR-0019 决策 1）。
+ * 必须显式 `ssr: false` 的读者站路由（ADR-0016 决策 1）。
  *
  * `/collections/**` 与 `/projects/**` 都是运营编排列表：内容随管理员的操作变化，
  * 不参与 SSR 首屏，也不进匿名缓存。

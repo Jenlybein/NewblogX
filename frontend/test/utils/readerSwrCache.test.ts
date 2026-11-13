@@ -6,7 +6,7 @@ import {
   resetReaderSwrCache,
 } from "~/utils/readerSwrCache";
 
-describe("readerSwrCache：客户端 30s SWR 内存缓存（ADR-0019 决策 4）", () => {
+describe("readerSwrCache：客户端 30s SWR 内存缓存（ADR-0016 决策 4）", () => {
   it("默认 TTL 是 30 秒（与票面一致，不落盘）", () => {
     expect(READER_SWR_TTL_MS).toBe(30_000);
     expect(createReaderSwrCache().ttlMs).toBe(READER_SWR_TTL_MS);

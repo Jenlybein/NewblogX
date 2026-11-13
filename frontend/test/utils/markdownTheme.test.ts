@@ -414,7 +414,7 @@ describe("markdown 主题 CSS：自有主题，不再加载 github-markdown-css"
     expect(declarations).not.toMatch(/(?:rgba?|hsla?)\(/u);
     // 必须真的消费语义层与排版层，而不是自己造颜色。
     expect(declarations).toMatch(/var\(--color-/u);
-    // 正文色板单独治理：标题/内联/列表/代码另有一组 --md-*（ADR-0012 后续修订）。
+    // 正文色板单独治理：标题/内联/列表/代码另有一组 --md-*（ADR-0011 后续修订）。
     expect(declarations).toMatch(/var\(--md-/u);
     expect(declarations).toMatch(/var\(--type-/u);
     expect(declarations).toMatch(/var\(--font-/u);

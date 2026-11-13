@@ -12,13 +12,13 @@ import {
 } from "../../shared/readerRenderingBoundary";
 
 /**
- * 渲染边界门禁（ADR-0019 决策 1 / 约束 1）。
+ * 渲染边界门禁（ADR-0016 决策 1 / 约束 1）。
  *
  * Nuxt 默认**全站 SSR**："关掉 SSR"是逐条显式声明，漏写一行没有任何信号，
  * 页面就悄悄带着服务端渲染上线 —— 每次直达都白付一次服务端渲染代价。所以
  * 边界必须是一张**双向白名单**：
  *   1. 允许服务端渲染的只有 `/` 与 `/article/**`（分享卡片与搜索引擎靠它，
- *      ADR-0019 决策 1）；新增 SSR 页面必须先改 ADR 再加进白名单；
+ *      ADR-0016 决策 1）；新增 SSR 页面必须先改 ADR 再加进白名单；
  *   2. 其余读者站路由必须在 `routeRules` 里显式 `ssr: false`；
  *   3. `/articles` 例外：它是历史列表入口，已并入 `/search`，必须由**服务端
  *      301**（`routeRules.redirect`）在渲染前把权重信号合并过去。写成普通
@@ -165,7 +165,7 @@ function renderingBoundaryViolations(rules: RouteRules, pages: string[] = pageRo
   return violations;
 }
 
-describe("渲染边界白名单（ADR-0019 决策 1）", () => {
+describe("渲染边界白名单（ADR-0016 决策 1）", () => {
   it("当前配置满足白名单：只有 / 与 /article/** 服务端渲染，其余读者站路由显式关掉 SSR", () => {
     expect(renderingBoundaryViolations(routeRulesOf(nuxtConfig))).toEqual([]);
   });
@@ -299,7 +299,7 @@ describe("门禁不能恒绿：人造违规必须被抓到", () => {
 });
 
 describe("分享卡片契约：文章页的 og:* 仍由服务端输出", () => {
-  it("文章页继续用 useSeoMeta 声明 ogTitle / ogDescription（ADR-0019 约束 8）", () => {
+  it("文章页继续用 useSeoMeta 声明 ogTitle / ogDescription（ADR-0016 约束 8）", () => {
     // 渲染边界改了，但"分享卡片必须有服务端 og:*"没变；这条锁住文章页别被顺手 SPA 化。
     const source = readFileSync(join(projectDir, "app/pages/article/[id].vue"), "utf8");
 

@@ -143,7 +143,7 @@ var adminOnly = []struct {
 	{"GET", "/api/projects/admin"},
 	{"POST", "/api/projects"},
 	{"PATCH", "/api/projects/order"},
-		// 合集 / 项目分组（ADR-0041）。
+		// 合集 / 项目分组（ADR-0019）。
 		{"GET", "/api/collections/groups"},
 		{"PUT", "/api/collections/groups"},
 		{"PUT", "/api/collections/groups/order"},

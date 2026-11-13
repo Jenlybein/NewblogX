@@ -10,7 +10,7 @@ import (
 	"myblogx/test/testutil"
 )
 
-// 屏蔽 / 拉黑（ADR-0026）：方向性、软删解除、拉黑清单。
+// 屏蔽 / 拉黑（ADR-0018）：方向性、软删解除、拉黑清单。
 func TestBlockPolicyLevelIsDirectionalAndSoftDeletable(t *testing.T) {
 	db := testutil.SetupSQLite(t, &chatBlockRow{})
 	p := NewBlockPolicy(db)

@@ -9,7 +9,7 @@ import (
 	"myblogx/internal/article/domain"
 )
 
-// 发布质量闸门（票 306 / ADR-0032）。
+// 发布质量闸门（票 306 / ADR-0023）。
 //
 // 这里是"拿分数做决定"的地方：评分本身由 QualityGatePort 完成（装配层接到
 // AI 模块），本文件只决定这次提交落草稿还是继续走发布/审核。
@@ -32,7 +32,7 @@ type QualityGatePolicy struct {
 	Enabled bool
 	// PassScore 是及格线（0–100）。发布线 = 及格线 + 灰带宽度。
 	//
-	// 它同时是**每个维度的下限**（ADR-0040 的木桶判定）：总分只是加权结果，
+	// 它同时是**每个维度的下限**（ADR-0023 的木桶判定）：总分只是加权结果，
 	// 加权会让长板补短板，所以"六项都过及格线"必须单独成立。
 	PassScore int
 	// GrayBandWidth 是灰带宽度（默认 2）：及格线**之上**再让出这么多分才放行。
@@ -47,7 +47,7 @@ type QualityGatePolicy struct {
 
 // PublishLine 是实际判定用的发布线。
 //
-// 灰带做在及格线**上方**而不是上下各留一半（spec 决策 9 与 ADR-0032 决策 7）：
+// 灰带做在及格线**上方**而不是上下各留一半（spec 决策 9 与 ADR-0023 决策 7）：
 // 实际放行线 = 及格线 + 灰带宽度。只有把放行线整体抬出抖动量程，"49 与 51 都卡"
 // 的窄缝才不会正好落在阈值正上方；两侧各留一半挡不住阈值附近的抖动。
 // 作者看到的"还差几分"按这条线算，三个数字（及格线 / 灰带 / 放行线）后台都可见。
@@ -84,7 +84,7 @@ type qualityVerdict struct {
 	Gap int
 	// Level 是按配置档界算出的档名。
 	Level string
-	// WeakDimensions 是低于及格线的维度（木桶判定，ADR-0040）。
+	// WeakDimensions 是低于及格线的维度（木桶判定，ADR-0023）。
 	//
 	// 它与 Gap 是两条独立的驳回理由：Gap>0 说"总分不够"，WeakDimensions 非空说
 	// "某一项不够"。两者可能同时成立，也可能只有后者成立（总分 78 但完整度 41）。
@@ -118,7 +118,7 @@ func (s *Service) judgeQuality(
 	required := policy.PublishLine()
 	weak := weakDimensions(score.Dimensions, policy.PassScore)
 
-	// 木桶：总分过线 **且** 六项都过及格线（ADR-0040）。两个条件都要成立 ——
+	// 木桶：总分过线 **且** 六项都过及格线（ADR-0023）。两个条件都要成立 ——
 	// 只留其中一个都会出现"六项都 51 与六项都 90 同等放行"这类说不清的口径。
 	if score.TotalScore >= required && len(weak) == 0 {
 		return qualityVerdict{Passed: true, Score: score.TotalScore, Required: required}, nil
@@ -183,7 +183,7 @@ type QualityRejectionDetails struct {
 	Gap int `json:"gap"`
 	// Level 是按运行时档界算出的档名。
 	Level string `json:"level"`
-	// MinDimensionScore 是每个维度的下限（= 及格线，ADR-0040）。
+	// MinDimensionScore 是每个维度的下限（= 及格线，ADR-0023）。
 	MinDimensionScore int `json:"min_dimension_score"`
 	// WeakDimensions 是没到下限的维度，分数最低的排最前。
 	//
@@ -226,7 +226,7 @@ func newQualityRejection(articleID domain.ArticleID, v qualityVerdict, minDimens
 // updatePreview 是 Update 在事务外评分之前需要的"这次会不会提交"的预演结论。
 //
 // 只读：previewUpdate 不改库，也不预占配额。它的唯一用途是让评分发生在
-// 数据库事务之外（ADR-0032），写事务会重新读一遍文章并以它读到的状态为准。
+// 数据库事务之外（ADR-0023），写事务会重新读一遍文章并以它读到的状态为准。
 type updatePreview struct {
 	// NeedsSubmit 表示这次更新确实是一次提交动作（显式提交或自动重新送审）。
 	// 票 302 新规则：不论闸门开不开，提交都要在事务外先做同步风险扫描，

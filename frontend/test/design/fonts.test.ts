@@ -126,7 +126,7 @@ function fontFamilyDeclarations(): { file: string; family: string }[] {
   return declarations;
 }
 
-describe("中文字体不再自托管：改走系统字体栈（ADR-0019 决策 2 / 约束 5）", () => {
+describe("中文字体不再自托管：改走系统字体栈（ADR-0016 决策 2 / 约束 5）", () => {
   it("fonts.css 里没有任何 CJK 字族的 @font-face（Noto 两个整包已删除）", () => {
     // 反向断言：把 Noto 两档 @font-face 加回来（首屏 2.3 MB）就会红。
     expect(facesOfFamily(fontsCss, "Noto Sans SC")).toHaveLength(0);

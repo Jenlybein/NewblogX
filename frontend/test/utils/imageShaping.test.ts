@@ -35,7 +35,7 @@ interface FakeShapeDeps {
   encode: ReturnType<typeof vi.fn>;
 }
 
-/** 假画布：只记录 drawImage 的 9 个参数，不依赖真实 canvas（ADR-0016）。 */
+/** 假画布：只记录 drawImage 的 9 个参数，不依赖真实 canvas（ADR-0014）。 */
 function createFakeDeps(decoded = { width: 800, height: 400 }): FakeShapeDeps {
   const drawImage = vi.fn();
   const encode = vi.fn(async (_canvas: HTMLCanvasElement, type: string) => new Blob([], { type }));

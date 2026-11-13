@@ -13,10 +13,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// 站点段与「发布与展示」三开关的默认值/存储形状（ADR-0017 决策 1–2）。
+// 站点段与「发布与展示」三开关的默认值/存储形状（ADR-0015 决策 1–2）。
 // 拆成独立文件是为了守住 R6：单文件不得超过 800 行。
 
-// ── 票 #60：删站点模式（ADR-0017） ───────────────────────────
+// ── 票 #60：删站点模式（ADR-0015） ───────────────────────────
 //
 // 站点模式是死配置：只有枚举声明、默认值、后台下拉框与两端手写类型，
 // 全仓没有一处读它。它给管理员的是一个"看起来能改站点定位、实际什么都不改变"
@@ -37,7 +37,7 @@ func TestSiteSection_序列化后不再有mode(t *testing.T) {
 		t.Fatal("site 段必须仍有 site_info 子块")
 	}
 	if _, hasMode := siteInfo["mode"]; hasMode {
-		t.Fatal("site_info 不得再有 mode 键（站点模式已删除，见 ADR-0017）")
+		t.Fatal("site_info 不得再有 mode 键（站点模式已删除，见 ADR-0015）")
 	}
 }
 
@@ -121,7 +121,7 @@ func TestRuntimeConfig_旧站点载荷缺机审词表时按默认值补齐(t *te
 }
 
 func TestUpdateSite_旧mode残留不报错且保存后消失(t *testing.T) {
-	// 库里已存的 site 段可能还留着 "mode": 1。ADR-0017 明确不做数据迁移：
+	// 库里已存的 site 段可能还留着 "mode": 1。ADR-0015 明确不做数据迁移：
 	// 深度合并会把它留在 map 里但不再进类型，管理员下次保存整段即自然消失。
 	// 两个方向都要钉：读不能报错（否则老部署升级后站点配置整段回退默认值），
 	// 保存要把残留键挤掉（否则"删了配置"只在代码里成立）。
@@ -247,7 +247,7 @@ func TestDefaultSettingsYaml_站点段不再有index_right(t *testing.T) {
 }
 
 func TestUpdateSite_旧index_right残留不报错且保存后消失(t *testing.T) {
-	// 与 ADR-0017 删站点模式同一口径：不做数据迁移。
+	// 与 ADR-0015 删站点模式同一口径：不做数据迁移。
 	defaults := conf.RuntimeDefaults{
 		Site: conf.Site{Project: siteconf.Project{Title: "默认标题"}},
 	}
@@ -274,7 +274,7 @@ func TestUpdateSite_旧index_right残留不报错且保存后消失(t *testing.T
 	}
 }
 
-// ── 票 #60：发布与展示三开关（ADR-0017 决策 2） ──────────────
+// ── 票 #60：发布与展示三开关（ADR-0015 决策 2） ──────────────
 //
 // 三个布尔都在 site.article 段、默认 true，后台同一张「发布与展示」卡维护。
 // 默认值只在 site_default_settings.yaml 里写一份（深度合并负责把老库缺的键补上），

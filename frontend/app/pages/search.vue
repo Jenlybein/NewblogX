@@ -64,7 +64,7 @@ watch(
   { immediate: true },
 );
 
-// 标签与结果**并行发起**（ADR-0019 约束 6：不得先 await 标签再建分页器）。
+// 标签与结果**并行发起**（ADR-0016 约束 6：不得先 await 标签再建分页器）。
 // 标签不阻塞 setup：`useAsyncData` 立刻返回句柄，模板里用 `tagOptions` 响应式填充。
 const { data: tagOptions } = useAsyncData("search-tags", () => getTagOptions().catch(() => []));
 
@@ -85,7 +85,7 @@ const searchPager = await usePagedResourceCache({
     })}`,
   pageSize: () => 9,
   initialPage: () => committedQuery.value.page,
-  // 结果区先出骨架、请求后台跑（ADR-0019 决策 3 / 约束 6）：首页搜索词换了也不卡住 setup。
+  // 结果区先出骨架、请求后台跑（ADR-0016 决策 3 / 约束 6）：首页搜索词换了也不卡住 setup。
   initialLoad: "background",
   fetchPage: async (nextPage, limit) => {
     try {
@@ -142,7 +142,7 @@ const searchPager = await usePagedResourceCache({
 
 // 用户搜索与文章搜索并行：输作者名时，读者既要他的文章，也可能想直接进主页。
 // 这一栏是增强信息，读不到就不显示，不影响文章结果与错误态。
-// 不 await（ADR-0019 约束 6）：首屏 setup 不能被第二个请求串行拖住。
+// 不 await（ADR-0016 约束 6）：首屏 setup 不能被第二个请求串行拖住。
 const { data: userResults } = useAsyncData(
   () => `search-users:${committedQuery.value.mode}:${committedQuery.value.key.trim()}`,
   async (): Promise<PublicUserSearchItem[]> => {

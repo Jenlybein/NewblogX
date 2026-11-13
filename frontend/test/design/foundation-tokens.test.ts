@@ -297,7 +297,7 @@ describe("字体分工键：display / title / mono 都有定义与真实消费�
     expect(declaration(root, "--font-display")).toBe('"Sora", "Sora Fallback", var(--font-cjk)');
     expect(declaration(root, "--font-title")).toBe("var(--font-display)");
     expect(declaration(root, "--font-mono")).toContain('"Cascadia Code"');
-    // ADR-0019 决策 2 / 约束 5：中文不再自托管，--font-cjk 就是系统字体栈。
+    // ADR-0016 决策 2 / 约束 5：中文不再自托管，--font-cjk 就是系统字体栈。
     expect(declaration(root, "--font-cjk")).toBe(
       '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif',
     );

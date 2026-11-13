@@ -110,7 +110,7 @@ func TestDecoNormalize_帧率上限钳位(t *testing.T) {
 //
 // 为什么不能复用现成的两条规则：`normalizePositiveRange` 把 <= 0 一律回落默认
 // （0 与负偏移都被吃掉），`normalizeNonNegativeRange` 把负值夹回下限 —— 而这里的
-// 下限本来就是负数，等于"负偏移被静默改成 -24"。ADR-0018 决策 9 / 约束 8 因此
+// 下限本来就是负数，等于"负偏移被静默改成 -24"。ADR-0014 决策 9 / 约束 8 因此
 // 要求第四条规则 `normalizeSignedRange`：夹 [min,max]、NaN/±Inf 回落默认、
 // 0 与负数都是普通值、只是最后取整成整数。
 func TestDecoNormalize_指针端偏移钳位(t *testing.T) {

@@ -6,7 +6,7 @@ import "strings"
 
 // DefaultSkillsDirs 是进程级配置没写 skills.dirs 时的默认值。
 //
-// 相对**进程工作目录**解析：仓库根 skills/ 就是默认布局（ADR-0030）。
+// 相对**进程工作目录**解析：仓库根 skills/ 就是默认布局（ADR-0021）。
 // 容器里由镜像把 skills/ 放到 /app/skills；本地从 backend/ 启动时
 // 在 .envrc 里给 BLOGX_SKILLS_DIRS='../skills'（.envrc.example 有例子）。
 const DefaultSkillsDirs = "skills"

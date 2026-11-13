@@ -41,7 +41,7 @@ function formatRequestError(error: unknown) {
 }
 
 /**
- * 三路数据的失败语义收敛在一处（ADR-0017 决策 5：某个接口挂了只影响它自己那块）。
+ * 三路数据的失败语义收敛在一处（ADR-0015 决策 5：某个接口挂了只影响它自己那块）。
  * 成功返回原值；失败打一条带资源名的 warning、返回稳定的降级值，绝不把整页带崩。
  */
 async function withFallback<TValue>(
@@ -70,7 +70,7 @@ async function withFallback<TValue>(
  * - 首屏 hydration：只有分页首屏（最新文章）要等 —— 它不在 payload 里。其余复用 payload。
  *
  * 失败语义不变：轮播 / 置顶 / 最新 / 右栏都"失败降级不抛错"，某个接口挂了只影响它自己那块
- * （区块组件拿不到数据就整块不渲染，ADR-0017 决策 5）。
+ * （区块组件拿不到数据就整块不渲染，ADR-0015 决策 5）。
  */
 export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
   const mode = options.mode ?? detectReaderRenderMode();
@@ -97,7 +97,7 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
 
   // 三个数据源在这里**同时发起**：顺序只决定谁先占 socket，不决定谁等谁。
   // 轮播 / 置顶走 30s SWR：返回首页 30 秒内直接命中缓存、不发请求；过期则旧值先上屏、
-  // 后台静默刷新（ADR-0019 决策 4）。
+  // 后台静默刷新（ADR-0016 决策 4）。
   const bannerSource = useReaderSwrAsyncData({
     key: READER_HOME_CACHE_KEYS.banners,
     handler: () =>

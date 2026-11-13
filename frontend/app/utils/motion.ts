@@ -23,7 +23,7 @@ export const MOTION_DURATIONS_MS = { fast: 120, base: 200, slow: 320 } as const;
  * 的节奏天然更长 —— 数字 count-up 太快会像闪一下、拖拽落位太快看不出位移、
  * 图表首帧太快会失去"正在成形"的观感。把它们塞进三档只会让动画变差。
  *
- * 为什么仍要登记：ADR-0012 的实质要求是"组件不得内联动效字面量"，否则预算就
+ * 为什么仍要登记：ADR-0011 的实质要求是"组件不得内联动效字面量"，否则预算就
  * 失去意义（同一个数字散落在十几个组件里，没人知道全站动效总量）。所以这里
  * 只放**命名预设**，组件一律引用名字；新增一个要在这里加，不许就地写数字。
  */
@@ -51,7 +51,7 @@ export const MOTION_STAGGER_MS = 40;
 export const MOTION_ENTRANCE_OFFSET_PX = 8;
 
 /**
- * 区块级滚动进场位移上限（px）：ADR-0012 决策 7 把它放宽到 ≤12px。
+ * 区块级滚动进场位移上限（px）：ADR-0011 决策 7 把它放宽到 ≤12px。
  * 与 tokens.css 的 `--motion-reveal-offset` 是同一份预算（design 测试交叉校验）。
  * 后续票用 motion-v 的 useInView 接进场时，一律从这里取上限，不写死数字。
  */
@@ -144,7 +144,7 @@ export function clampRevealOffset(offsetPx: number): number {
 }
 
 /**
- * 区块滚动进场的可观察样式（ADR-0012 决策 7：位移 ≤12px、只动 transform/opacity）。
+ * 区块滚动进场的可观察样式（ADR-0011 决策 7：位移 ≤12px、只动 transform/opacity）。
  *
  * 用内联样式而不是 `@keyframes`：motion-v 的 `useInView` 只告诉我们"进没进视野"，
  * 过渡交给 CSS 变量驱动，时长/缓动仍然只有 tokens.css 一个来源。
@@ -168,7 +168,7 @@ export function sectionRevealStyle(
 }
 
 /**
- * 视差位移钳到 ±`--parallax-max`（ADR-0012 决策 7：视差 ≤10px）。
+ * 视差位移钳到 ±`--parallax-max`（ADR-0011 决策 7：视差 ≤10px）。
  * 「减少动态」归零（不做"慢速视差"）。
  */
 export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: boolean): number {
@@ -178,7 +178,7 @@ export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: bool
 }
 
 /* ------------------------------------------------------------------------------------
- * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0012 后续修订 2026-11-07）
+ * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0011 后续修订 2026-11-07）
  *
  * 弹簧只服务**登记过的两处**：右栏标题大纲的飞行器（travel / turn）与消息中心
  * 分段条接缝（neck）。目录树沟槽圆点已于 2026-11-10 按用户反馈移除，`SPRING_DOT`

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { ADMIN_NAV_TREE } from '../../app/utils/menu'
 
 /**
- * 侧栏缩进的层级契约（ADR-0039）。
+ * 侧栏缩进的层级契约（ADR-0029）。
  *
  * 起因是线上的真实截图：「站点配置（一级）」与「站点（二级）」缩进一模一样，
  * 而「站点」的子项却缩进得很深——层级读起来像"子项挂在站点配置下面"。

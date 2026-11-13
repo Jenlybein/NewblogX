@@ -114,7 +114,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionOutlineSaveRequest],
 		h.SaveCollectionOutlineTree)
-	// 合集分组（ADR-0041）：读面 / 建改名 / 删除 / 整树换序。
+	// 合集分组（ADR-0019）：读面 / 建改名 / 删除 / 整树换序。
 	//
 	// 分组 CRUD 立即生效，不参与拖拽的 10 秒防抖；整树换序是幂等整份覆盖。
 	// 路径里带 :kind 是为了让两个实体共用同一组 handler —— 语义完全一致，

@@ -291,7 +291,7 @@ CREATE TABLE IF NOT EXISTS `chat_session_models` (
   CONSTRAINT `fk_chat_session_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 私信屏蔽 / 拉黑（ADR-0026；本批唯一获准新增的私信表）。
+-- 私信屏蔽 / 拉黑（ADR-0018；本批唯一获准新增的私信表）。
 -- level: 1=屏蔽（对方发不进来，历史会话仍可见） 2=拉黑（屏蔽 + 我也看不到会话）。
 -- 方向性：A 对 B 的记录不影响 B 对 A；唯一键防止重复记录，软删表示解除。
 CREATE TABLE IF NOT EXISTS `chat_block_models` (
@@ -360,7 +360,7 @@ CREATE TABLE IF NOT EXISTS `project_outline_node_models` (
   KEY `idx_project_outline_owner` (`owner_id`,`article_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 合集 / 项目分组（ADR-0041）：两个实体各一对表 —— 分组表 + 条目归属表。
+-- 合集 / 项目分组（ADR-0019）：两个实体各一对表 —— 分组表 + 条目归属表。
 --
 -- 为什么条目归属单独一张表而不是在 collection_models 上加一列 group_id：
 -- 零 DDL 口径不允许给既有表加列；而且归属与组内顺序是"编排"而不是"实体属性"，
@@ -615,7 +615,7 @@ CREATE TABLE IF NOT EXISTS `sidebar_card_models` (
 -- 右栏富文本卡的正文：一张卡最多一行。
 --
 -- 与 sidebar_card_models 拆表而不是给它加列：零 DDL 的口径是"零列变更 +
--- 允许新增表"（见 ADR-0020），正文是 longtext，塞进卡片表会让那张窄行变宽，
+-- 允许新增表"（零 DDL 硬约束，见 docs/architecture/overview.md §六 A1），正文是 longtext，塞进卡片表会让那张窄行变宽，
 -- 也会让"配置快照整表替换"的语义变成两截。两张表总是一起替换，不存在
 -- 正文挂在已删卡片上的窗口。
 CREATE TABLE IF NOT EXISTS `sidebar_card_body_models` (
@@ -822,7 +822,7 @@ CREATE TABLE IF NOT EXISTS `user_view_daily_models` (
   UNIQUE KEY `uk_user_view_daily` (`user_id`,`viewer_user_id`,`view_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 文章合规风险记录（ADR-0033 / 票 312）。
+-- 文章合规风险记录（ADR-0024 / 票 312）。
 -- 一篇文章一行、随提交覆盖、不存历史；文章表与审核任务表都不加列（零 DDL）。
 -- 唯一允许新增表的通道：由 ADR 指名 + schema.sql 与 testkit 两处登记。
 CREATE TABLE IF NOT EXISTS `article_risk_models` (

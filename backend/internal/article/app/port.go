@@ -62,7 +62,7 @@ type Repos interface {
 	// 目录树不在 Repos 上：两个实体各有一张具名树表，读树前必须先用
 	// NamedOutlineRepository 把一次事务的仓储指向对应归属（见 named_outline.go）。
 
-	// Risks 是合规判定记录（票 312 / ADR-0033）。
+	// Risks 是合规判定记录（票 312 / ADR-0024）。
 	//
 	// 它是**新表**：结论写在这里，而不是给文章表或审核任务表加列（零 DDL）。
 	Risks() risk.Repository
@@ -154,7 +154,7 @@ type Event struct {
 	AggregateType string
 }
 
-// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0031）。
+// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0022）。
 //
 // 由使用方（本包）定义、装配层接 Redis 适配器；形状对齐私信发送限流的预占 / 释放
 // （domain.Limiter）：一个 Reserve 方法 + 一份可释放的预占，不引入"查询剩余额度"
@@ -175,14 +175,14 @@ type SubmitQuotaReservation interface {
 	Release(ctx context.Context) error
 }
 
-// QualityGatePort 是「发布质量闸门」的评分端口（票 306 / ADR-0032）。
+// QualityGatePort 是「发布质量闸门」的评分端口（票 306 / ADR-0023）。
 //
 // 由使用方（本包）定义、装配层接到 AI 模块。形状只有一个方法：对一篇待提交
 // 的文章打一次分，并返回分数与问题列表；"拿不到可用分数"必须返回错误。
 //
 // 这是对"article app 不直接依赖 AI 模块"的一次**有意突破**：文章应用层原本只
 // 通过事务型发件箱产生副作用，而闸门是**同步决策** —— 分数决定这次提交落草稿
-// 还是进审核，等不了异步中继，因此必须有这个窄口子。ADR-0032 记录了这条张力
+// 还是进审核，等不了异步中继，因此必须有这个窄口子。ADR-0023 记录了这条张力
 // 与理由，不要在实现里把评分调用挪回事务内。
 type QualityGatePort interface {
 	// Evaluate 对一篇待提交文章评分。
@@ -204,7 +204,7 @@ type QualityGateInput struct {
 	Content   string
 	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
 	UpdatedAt time.Time
-	// AuthorIsAdmin 表示提交者是管理员：管理员不受 AI 每日额度约束（ADR-0038）。
+	// AuthorIsAdmin 表示提交者是管理员：管理员不受 AI 每日额度约束（ADR-0028）。
 	AuthorIsAdmin bool
 }
 
@@ -212,7 +212,7 @@ type QualityGateInput struct {
 type QualityGateScore struct {
 	// TotalScore 是 0–100 的总分。
 	TotalScore int
-	// Dimensions 是六个维度的得分（ADR-0040）。
+	// Dimensions 是六个维度的得分（ADR-0023）。
 	//
 	// 闸门是**木桶**判定：任何一项低于及格线都不能发布，总分再高也不行。
 	// 为空表示这次评分没有给出维度分（旧记录 / 端口实现未填），此时只按总分判 ——
@@ -282,7 +282,7 @@ type IDGen interface {
 	// 与 NextCollectionID 分开：项目与合集是两套内容实体，ID 会出现在
 	// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
 	NextProjectID() project.ID
-	// NextGroupID 生成分组 ID（ADR-0041）。
+	// NextGroupID 生成分组 ID（ADR-0019）。
 	//
 	// 与合集 / 项目 ID 分开：分组 ID 出现在后台接口里，日志要能分辨"这一行是
 	// 分组编排还是内容实体"。
@@ -315,7 +315,7 @@ type Service struct {
 	scores ModerationScorePort
 	// words 现读机审词表（票 311）。为 nil 表示两档词表都为空。
 	words ModerationWordProvider
-	// quality 是发布质量闸门的评分端口（票 306 / ADR-0032）。
+	// quality 是发布质量闸门的评分端口（票 306 / ADR-0023）。
 	//
 	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
 	// 错误码 article.score_unavailable）。生产装配必然注入（article_wiring.go）。

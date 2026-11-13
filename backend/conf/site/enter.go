@@ -5,7 +5,7 @@ import "time"
 // 网站设置
 //
 // 曾经有一个 `mode`（1 社区 / 2 博客）：它只有枚举声明、默认值与后台下拉框，
-// 全仓没有一处读它，于是"切换站点定位"这个动作什么都不会发生。ADR-0017 决定
+// 全仓没有一处读它，于是"切换站点定位"这个动作什么都不会发生。ADR-0015 决定
 // 删除，站点表达差异改由「发布与展示」三个布尔开关（见 Article）承担。
 // 站点标题与 Logo 曾经也在这里（后台「基础信息」可改）：但读者站页头、浏览器
 // 标题与站点品牌都另有单一来源，这两项改不改都不影响读者看到的东西，于是
@@ -77,7 +77,7 @@ type Login struct {
 type Article struct {
 	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
 
-	// 「发布与展示」三个开关（ADR-0017 决策 2）。
+	// 「发布与展示」三个开关（ADR-0015 决策 2）。
 	// 它们只表达"允许什么"，判定点在 app 层与读过滤处，不靠前端隐藏；
 	// 默认值只写在 site_default_settings.yaml（这一段是自由键值块，
 	// 深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
@@ -86,7 +86,7 @@ type Article struct {
 	ShowNonAdminArticles bool `yaml:"show_non_admin_articles" json:"show_non_admin_articles"` // 显示非管理员发布的文章
 
 	// SubmitDailyMax 是「投稿配额」的每日上限：每个普通用户每自然日可提交多少次
-	// （ADR-0030，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
+	// （ADR-0021，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
 	//
 	// 计量单位是**提交动作**而不是"发布成功的文章"：被打回也算一次，因为每次提交
 	// 都会真实产生一次审核任务；因系统不可用而失败的提交由用例层释放预占，不占额度。
@@ -104,7 +104,7 @@ type Article struct {
 	//
 	// 缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
 	// 这里不写第二份字面默认值。
-	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。
+	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
 	//
 	// 它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
 	// 自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
@@ -174,7 +174,7 @@ type CommentAI struct {
 type Chat struct {
 	StrangerMsgEnabled bool `yaml:"stranger_msg_enabled" json:"stranger_msg_enabled"` // 允许陌生人发私信
 
-	// 发送限流（ADR-0026）：同一发件人对同一收件人的滑动窗口与日额度。
+	// 发送限流（ADR-0018）：同一发件人对同一收件人的滑动窗口与日额度。
 	// 后台「站点 → 私信」卡可改，零 DDL —— 它们只是运行时配置的一个键，
 	// 不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。
 	RateWindowSec int `yaml:"rate_window_sec" json:"rate_window_sec"` // 窗口长度（秒），窗口内允许 1 条
@@ -194,7 +194,7 @@ type Reconcile struct {
 	//
 	// 缺省（0）与负数回落到 30 分钟：0 周期会让调度器变成忙循环，而这更可能是
 	// "配置写漏了"而不是"想每秒并一次"。上限钳到一天，下限 1 分钟 ——
-	// 并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0025「已否决方案」）。
+	// 并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0016「已否决方案」）。
 	IntervalMinutes int `yaml:"interval_minutes" json:"interval_minutes"`
 }
 
@@ -224,7 +224,7 @@ func (r Reconcile) Interval() time.Duration {
 // 避免同一个数字被复制成多份。数据库补种用的字面量仍由
 // site_default_settings.yaml 显式给出（它是"库里没有这段时"的唯一来源）。
 
-// QualityGate 是「发布质量闸门」的配置形状（票 306 / ADR-0032）。
+// QualityGate 是「发布质量闸门」的配置形状（票 306 / ADR-0023）。
 type QualityGate struct {
 	// Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。
 	Enabled bool `yaml:"enabled" json:"enabled"`
@@ -258,7 +258,7 @@ const (
 	// minQualityGateScore / maxQualityGateScore 是分数字段的合法区间。
 	minQualityGateScore = 0
 	maxQualityGateScore = 100
-	// maxQualityGateGrayBandWidth 是灰带宽度上限（见 ADR-0032「代价」）。
+	// maxQualityGateGrayBandWidth 是灰带宽度上限（见 ADR-0023「代价」）。
 	maxQualityGateGrayBandWidth = 20
 )
 

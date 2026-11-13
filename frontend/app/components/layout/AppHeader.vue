@@ -40,7 +40,7 @@ const authStore = useAuthStore();
 const uiStore = useUiStore();
 const messageStore = useMessageStore();
 const { openWriteEntry } = useWriteEntry();
-// 站点「发布与展示」开关：发布关闭时「写文章」入口不出现（ADR-0017 决策 2）。
+// 站点「发布与展示」开关：发布关闭时「写文章」入口不出现（ADR-0015 决策 2）。
 // 服务端判定仍是唯一边界，这里只保证界面不说谎。
 const { entryVisible } = useArticleWritePolicy();
 
@@ -111,7 +111,7 @@ async function submitSearch() {
     <div class="page-shell site-header__inner">
       <div class="site-header__brand">
         <NuxtLink to="/" class="site-brand" :aria-label="`${BRAND.name.en}（${BRAND.name.zh}）首页`">
-          <!-- 品牌资产不随主题切换：亮暗两态共用同一张透底 PNG（ADR-0012 约束 12） -->
+          <!-- 品牌资产不随主题切换：亮暗两态共用同一张透底 PNG（ADR-0011 约束 12） -->
           <BrandLogo :size="40" decorative />
           <BrandWordmark size="md" />
         </NuxtLink>
@@ -187,7 +187,7 @@ async function submitSearch() {
         </button>
 
         <!-- 创作：亮暗切换之后、个人信息之前；与动作区共用 .site-action 那套样式。
-             发布门控关闭时整项不渲染（ADR-0017 决策 2）；窄屏只留图标。 -->
+             发布门控关闭时整项不渲染（ADR-0015 决策 2）；窄屏只留图标。 -->
         <button
           v-if="entryVisible"
           type="button"
@@ -315,7 +315,7 @@ async function submitSearch() {
 
 <style scoped>
 /*
- * 吸顶玻璃导航（ADR-0012 决策 6）：sticky + 高度 56–64px（--site-header-height 60px）。
+ * 吸顶玻璃导航（ADR-0011 决策 6）：sticky + 高度 56–64px（--site-header-height 60px）。
  * 静止态是不透明纸面；滚动超过阈值后由 .glass-thin 接管材料（模糊 + 边缘带 + 噪点），
  * 并补一条底部 1px 边缘高光。滚动方向感知（下滚隐藏 / 上滚出现）由 useScrollChrome
  * 的 state → class 映射，位移只走 transform，不碰布局。
@@ -393,7 +393,7 @@ async function submitSearch() {
 }
 
 /* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。
- * logo 旁的介绍小字按 ADR-0013 决策 6 删除：主旨句不再重复三处。 */
+ * logo 旁的介绍小字按 ADR-0011 决策 6 删除：主旨句不再重复三处。 */
 .site-header__panel {
   grid-area: panel;
   display: none;

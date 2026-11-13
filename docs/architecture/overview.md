@@ -12,9 +12,7 @@
 | [contracts](./contracts.md) | 契约流水线、swag v2 的坑、`contract.ts` 三层工具 | 动 API / 改注解 / 改前端类型时 |
 | [configuration](./configuration.md) | 配置分层、后台可改配置、合并规则 | 加配置项 / 排查"改了不生效" |
 | [ai-integration](./ai-integration.md) | eino 调用链、模型配置表、供应商映射 | 加供应商 / AI 不可用 |
-| [ADR 索引](../adr/README.md) | ADR 的决策骨架、理由与当前约束（0001–0009 后端架构，0010–0019 呈现层 / 前端行为 / 装饰层 / 渲染与性能策略，0020 曾为零 DDL 例外授权与通用取景表、已由 0015 取代，0021 正文内联 SVG，0022 私信双通道） | 想改某条规则前，先读它为什么存在 |
-| [v1 ADR 合集（归档原文）](../archive/v1/04-adr-collection.md) | 拆分前原文，保留合并口径与归档备注 | 需要对照历史时 |
-| [v1 基线与过程](../archive/v1/05-baseline-and-process.md) | 起点数字、M0→M7 时间线、两轮决策留档 | 想知道"这个数字原来是多少" |
+| [ADR 索引](../adr/README.md) | ADR 的决策骨架、理由与当前约束（共 29 条，0001–0029；改规则或选型前先读对应 ADR） | 想改某条规则前，先读它为什么存在 |
 
 ---
 
@@ -32,7 +30,7 @@
 | `plugin/` | 1 | 711 | 仅 prototype 使用，**随 prototype 删除** |
 | **合计（含待删 prototype）** | — | **≈ 83,000** | prototype 7.3k 在 S0 删除后约 76,000（Go 58.5k / Nuxt 20k） |
 
-测试侧：117 个测试文件 / 20,577 行 / **2,357 处断言**；架构违规基线 **324 处**（见 [05](../archive/v1/05-baseline-and-process.md) §一.4）。
+测试侧：117 个测试文件 / 20,577 行 / **2,357 处断言**；架构违规基线 **324 处**。
 
 ### 1.2 一句话诊断
 
@@ -245,7 +243,7 @@ platform ─────────────┘（domain 定义端口，plat
 | `platform/redis/` 的 `counter/guard/cache` | `platform/{redis,rediscounter}/` + 业务名子包（`redis_article` 等） |
 | `platform/http/response.go` | `platform/http/res/` |
 
-> 其中 `platform/cdc/dlq` 设计期不存在：它是"死信读端活、写端没了"被发现之后补的编排层（见 ADR-008）。
+> 其中 `platform/cdc/dlq` 设计期不存在：它是"死信读端活、写端没了"被发现之后补的编排层（见 ADR-0008）。
 
 ```
 backend/
@@ -342,7 +340,7 @@ blogx/                              ← 仓库根（无 workspace / 无 turbo）
 │       ├── nginx.template.conf     # ★ 4 份合并为 1 模板 + envsubst
 │       └── envsubst.sh
 ├── .github/workflows/ci.yml        # ★ 新建（当时完全没有）
-├── docs/                          # 文档入口（架构 / ADR / 笔记）
+├── docs/                          # 文档入口（架构 / ADR / 待办）
 └── README.md
 ```
 
@@ -572,7 +570,7 @@ cd frontend_admin && pnpm openapi:types
 
 | # | 约束 | 守卫 |
 | --- | --- | --- |
-| A1 | **只做加法：允许新增表 + 允许补列**。破坏性变更一律禁止——既有表的列名 / 类型 / 列顺序 / 删列（索引、外键、CH 的 `TTL`/`CODEC` 不受此限）；新增表走 `CREATE TABLE IF NOT EXISTS` 登记；**补列**必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行（先查 `information_schema`，只 ADD 不修改）。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表 `picture_crop_models` 曾是首个也是唯一一个，已随取景退场物理下线；[ADR-0020](../adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](../adr/0015-banner-framing-as-parameters.md) 取代；补列通道本身见 ADR-0020 的「后续修订」）。理由是 **CDC 按列名解析**：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值 | 人工 + 契约测 |
+| A1 | **只做加法：允许新增表 + 允许补列**。破坏性变更一律禁止——既有表的列名 / 类型 / 列顺序 / 删列（索引、外键、CH 的 `TTL`/`CODEC` 不受此限）；新增表走 `CREATE TABLE IF NOT EXISTS` 登记；**补列**必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行（先查 `information_schema`，只 ADD 不修改），完整机制与口径出处见本节下方「A1 补列通道」。登记例外必须一条 ADR 指名，**当前没有任何登记例外，再开例外须另开 ADR 指名**。理由是 **CDC 按列名解析**：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值 | 人工 + 契约测 |
 | A2 | **ID 语义字段必须是 `ctype.ID`**，禁止裸 `uint64`/`int64`（含指针与切片）；反序列化须同时接受数字与字符串 | `archcheck R12`，基线 0 |
 | A3 | **ID 比较必须显式走 `Uint64()`**——字符串语义下 `"10" < "9"` 成立 | 人工 |
 | A4 | **禁止 `type Deps struct`**；`*gorm.DB` 只能出现在 `*/adapter/` 与 `platform/mysql/` | `R3` / `R1` / `R2` |
@@ -584,6 +582,12 @@ cd frontend_admin && pnpm openapi:types
 | A10 | **禁裸 `go`**（一律 `safego.Go`）；**禁跨模块 import adapter**；**禁共享 models** | `R7` / `R11` / `R10` |
 | A11 | **跨模块协作通则**：读=窄 port 同步直调；写副作用=落 outbox；写结果本身=同步同事务。新增跨模块同步写必须在 ADR 里说明"为什么不走事件" | 人工 |
 | A12 | **domain 层零外部依赖**（仅 stdlib + `internal/apperr`）；中文文案不进调用点 | `R3` / `R8` |
+
+#### A1 补列通道（A1 的权威单一口径）
+
+**为什么必须走这条通道**：`schema.sql` 全是 `CREATE TABLE IF NOT EXISTS`，对已存在的表是空操作。只把新列写进 CREATE TABLE，全新库会有这一列，既有开发库 / 生产库永远没有，代码一查就报 `Unknown column`；更糟的是业务测试建表走 testkit 的 AutoMigrate，会自动补出这一列，**测试抓不到这个错误，本地越绿越危险**。因此补列必须走仓库内幂等通道 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db`（`ddl.Apply`）执行（先查 `information_schema`，只 ADD 不修改），**不允许人工在各环境敲 ALTER**。
+
+**边界与钉子**：登记项只做加法（补列、补唯一索引），每条都必须能在"列 / 索引已存在"时安全跳过；缺 `IndexColumns` 直接报错而不是静默建空索引。`migrate_roundtrip_test.go` 用「按 `schema.sql` 建全表 → 删掉登记的列 → 补列 → 与未删列的库逐列比对类型与可空性」钉住"两条路径得到同一张表"。首个登记项是 `user_models.phone`（手机号登录）；部署时必须跑一次 `-db`。
 
 ### B. 契约与类型
 
@@ -631,7 +635,7 @@ cd frontend_admin && pnpm openapi:types
 | E2 | 新代码只能写新结构，禁止往 `api/` / `service/` / `models/` 加文件（这些目录已不存在） |
 | E3 | 规则先 `warn` 后 `error`，但必须设定转 `error` 的截止点 |
 | E4 | **不保留 pipeline 开关**（如 `BLOGX_<MODULE>_NEW_PIPELINE`）：一模块一 commit，出问题整模块回滚一个 commit |
-| E5 | 提交格式：`<任务ID>: <一句话>` + 可选"背景/取舍" + `验收：<跑过的命令/结果>`（详见 [05](../archive/v1/05-baseline-and-process.md) §五） |
+| E5 | 提交格式：`<任务ID>: <一句话>` + 可选"背景/取舍" + `验收：<跑过的命令/结果>` |
 
 ---
 
@@ -648,7 +652,7 @@ cd frontend_admin && pnpm openapi:types
 | **可执行规则** | 能用 `go test` 或 CI 判定通过/失败的规则，而非文档约定 |
 | **archcheck** | Go AST 实现的架构检查工具（`backend/tools/archcheck`），替代 PowerShell 正则守卫 |
 | **有界异步管道** | 日志写入模型：双限额队列 + 单写协程批量 + ClickHouse 直写 + WAL 兜底，请求路径不阻塞 |
-| **死信重投** | CDC 失败的闭环处理（`platform/cdc/dlq`），见 [ADR-008](../adr/0008-dead-letter-replay.md) |
+| **死信重投** | CDC 失败的闭环处理（`platform/cdc/dlq`），见 [ADR-0008](../adr/0008-dead-letter-replay.md) |
 
 ---
 
@@ -658,5 +662,5 @@ cd frontend_admin && pnpm openapi:types
 2. **A1–A5 / B1–B10 / C1–C10 的问题编号与"归属阶段 S0-S5"列**。编号只服务于当时的迁移排期。
 3. **"五个 P0 / 三个看起来做了其实没做"中的修辞性段落**。它们的作用是当年说服团队接受重构，结论已固化在 §四 的 10 条决策里。
 4. **重复代码的逐对举例**（191 对 / 563 对的样本列表、`fans_list.go` vs `follow_list.go` 0.97 等）。具体文件已随迁移消失；保留"重复曾导致审计埋点只有 15% 覆盖"这个**机制性教训**就够了。
-5. **迁移顺序 R0 / S0–S5 的排期论证**。属于计划，不是约束；过程见 [05](../archive/v1/05-baseline-and-process.md)。
+5. **迁移顺序 R0 / S0–S5 的排期论证**。属于计划，不是约束；当时的排期与两轮决策留档见 v1 基线过程文档（已归档删除，仅具历史价值），v2 不需要再看。
 6. **架构守卫的 PowerShell 实现细节**（`Assert-NoMatch` 用 `Select-String -Quiet`、`Get-GoFiles` 排除 `_test.go`）。脚本已删除，这些脆弱性描述只解释了"为什么改用 AST"。

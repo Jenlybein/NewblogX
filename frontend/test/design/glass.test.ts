@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
- * 液态玻璃层的作用域 / 材料 / 降级设计测试（ADR-0012 决策 5 与约束 6–7）。
+ * 液态玻璃层的作用域 / 材料 / 降级设计测试（ADR-0011 决策 5 与约束 6–7）。
  *
  * 玻璃是最容易"顺手多用一点"的东西：一张卡片加 `backdrop-filter` 只要一行，
  * 但会同时付出两层代价 —— 可读性（正文压在模糊层上）与性能（每层一次 GPU pass，

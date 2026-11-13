@@ -19,7 +19,7 @@ import type { HeaderNavKey } from "~/utils/chrome";
  * 加项目（第五项）时同样只补这张表与 chrome.ts 的联合类型，渲染层零改动。
  *
  * 图标只表达"这是哪一档入口"，不承担状态：激活态仍由 `.is-active` 的
- * 内阴影负责（ADR-0012，不改变盒模型）。
+ * 内阴影负责（ADR-0011，不改变盒模型）。
  */
 export const HEADER_NAV_ICONS: Record<HeaderNavKey, typeof IconHome2> = {
   home: IconHome2,

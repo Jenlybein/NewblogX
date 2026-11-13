@@ -32,7 +32,7 @@ const dimensionFallback = {
   railColor: "var(--color-line-faint)",
 };
 // 维度配色只消费语义 token（禁止第六个色相）；NProgress 接受 CSS 变量，明暗两态自动跟随。
-// 中文名来自 utils/scoreDimensions 的唯一一处映射（ADR-0040），这里只管颜色。
+// 中文名来自 utils/scoreDimensions 的唯一一处映射（ADR-0023），这里只管颜色。
 const dimensionMetaMap: Record<string, { color: string; railColor: string }> = {
   clarity: { color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
   structure: { color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },

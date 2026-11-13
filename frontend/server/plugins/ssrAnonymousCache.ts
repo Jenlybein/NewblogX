@@ -6,7 +6,7 @@ import {
 } from "../utils/ssrAnonymousCache";
 
 /**
- * 匿名 SSR 的 30s 服务端缓存（ADR-0019 决策 5 / 约束 2、3）。
+ * 匿名 SSR 的 30s 服务端缓存（ADR-0016 决策 5 / 约束 2、3）。
  *
  * 为什么不写 `routeRules` 的 `swr`：Nitro 只按**注册 handler 的 route** 给 handler 套
  * 缓存（匹配时把动态段与通配段换成下划线），而 Nuxt 渲染器注册在通配路由上（构建产物

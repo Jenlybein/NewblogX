@@ -16,7 +16,7 @@ import (
 // Retention 是浏览历史的保留期：超过这个期限的记录由每日清理任务软删。
 //
 // 90 天是**数据策略**（会真实让用户的历史消失），不是可随手调的风格参数：
-// 改动它要同时更新发布说明（docs/notes 的决策清单里写明了这条取舍）。
+// 改动它要同时更新发布说明（决策清单里写明了这条取舍）。
 const Retention = 90 * 24 * time.Hour
 
 // PurgeCutoff 返回清理的时间界限：浏览时间早于它的记录应被清理。
@@ -113,7 +113,7 @@ type ListQuery struct {
 	UserID domain.UserID
 	// Keyword 非空时按文章标题模糊匹配（历史表本身只存关联，标题取自文章表）。
 	Keyword string
-	// OnlyAdminAuthors 为真时只返回"文章作者是管理员"的记录（ADR-0017 决策 4：
+	// OnlyAdminAuthors 为真时只返回"文章作者是管理员"的记录（ADR-0015 决策 4：
 	// 「显示非管理员发布文章」开关关闭时浏览历史同步过滤）。
 	OnlyAdminAuthors bool
 	// Before 为 nil 表示第一页；非 nil 表示只取严格早于该位置的记录。

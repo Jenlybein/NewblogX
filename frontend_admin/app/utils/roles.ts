@@ -15,7 +15,7 @@
  * `swaggertype`），没有暴露枚举值；契约只能保证"是个数字"。
  * 所以这层映射必须手写，并由 `test/unit/roles.test.ts` 钉住数值。
  *
- * 受限语义（[ADR-0017](../../../docs/adr/0017-publish-display-switches-and-hot-top-operator-slot.md)
+ * 受限语义（[ADR-0015](../../../docs/adr/0015-publish-display-switches-and-hot-top-operator-slot.md)
  * 决策 3）：只有管理员与注册用户算"登录"，访客（3）与库里未入枚举的 `role=0`
  * 在鉴权层视同未登录 —— 能浏览公开内容，但任何写操作与"自己的"接口都不被承认。
  * 因此这两个角色的标签必须读出"受限"，**不能显示成「注册用户」**：

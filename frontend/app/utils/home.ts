@@ -28,7 +28,7 @@ export interface HomeSectionInput {
  * 失败但有缓存条目时仍算 ready，徽标说明是缓存，避免把已有内容整块替换成错误态。
  *
  * 只服务最新文章一块：热门置顶是运营位，无数据 / 加载中 / 失败一律整块不渲染
- * （连标题与徽标都不出现），没有降级态可表达，见 ADR-0017 决策 5。
+ * （连标题与徽标都不出现），没有降级态可表达，见 ADR-0015 决策 5。
  */
 export function resolveHomeSectionState(input: HomeSectionInput): HomeSectionState {
   if (input.pending && input.itemCount === 0) {

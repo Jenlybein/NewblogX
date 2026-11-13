@@ -16,7 +16,7 @@ import (
 
 // Limiter 实现 domain.Limiter。
 //
-// 限流口径（ADR-0026）：同一发件人对同一收件人 1 条 / N 秒、M 条 / 自然日。
+// 限流口径（ADR-0018）：同一发件人对同一收件人 1 条 / N 秒、M 条 / 自然日。
 // N 与 M **每次发送现读**生效值模块给出的闭包（后台「站点 → 私信」可改），
 // 不重启即生效；默认值与合法范围只在生效值模块声明一次。
 type Limiter struct {
@@ -63,7 +63,7 @@ type chatReservation struct {
 
 func (r *chatReservation) Commit() error {
 	// 额度已由 Lua 脚本原子写入，提交阶段无需再动；保留接口是为与发件箱式
-	// "预占 → 落库 → 提交"的语义对齐（ADR-0022）。
+	// "预占 → 落库 → 提交"的语义对齐（ADR-0018）。
 	return nil
 }
 

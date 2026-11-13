@@ -284,6 +284,6 @@ replay:
 #   - 本地从 backend/ 目录 `go run ./cmd/server`，所以 .envrc 里给 ../skills。
 # 留空回落到默认 skills（见 conf.DefaultSkillsDirs）；逗号分隔可配多个目录。
 # 读不到、或格式不合规（名称与目录名不一致、描述超长、正文为空、metadata 值非字符串）
-# 一律启动失败，错误里点名具体文件——不存在代码内兜底文本（ADR-0030）。
+# 一律启动失败，错误里点名具体文件——不存在代码内兜底文本（ADR-0021）。
 skills:
   dirs: "${BLOGX_SKILLS_DIRS:-}"

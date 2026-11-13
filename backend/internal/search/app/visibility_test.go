@@ -10,7 +10,7 @@ import (
 
 // TestOnlyAdminAuthorsFiltersPublicReadTypes 锁定「显示非管理员文章」开关关闭时的 DSL 形态。
 //
-// ADR-0017 决策 4：开关关闭时公开读面（type 1/2/3，含 AI 搜索复用的 type 1）
+// ADR-0015 决策 4：开关关闭时公开读面（type 1/2/3，含 AI 搜索复用的 type 1）
 // 加 author_is_admin = true 过滤；type 4（自己的文章）与 type 5（后台）不受影响。
 // 这条规则写在 DSL 里而不是 handler 里，所以这里直接对编译出的查询断言；
 // 开关开着（零值 false）时必须**不出**现该过滤，否则等于悄悄隐藏内容。

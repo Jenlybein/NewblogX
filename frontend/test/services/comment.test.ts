@@ -4,7 +4,7 @@ import { getRootComments, getRootCommentsAnonymous } from "~/services/comment";
 
 const requestMock = vi.fn();
 
-describe("comment service：根评论有两种取数口径（ADR-0019 约束 2）", () => {
+describe("comment service：根评论有两种取数口径（ADR-0016 约束 2）", () => {
   beforeEach(() => {
     vi.stubGlobal("__useNuxtAppMock", () => ({
       $api: {

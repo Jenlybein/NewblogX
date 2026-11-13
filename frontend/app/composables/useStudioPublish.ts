@@ -40,7 +40,7 @@ export type QualityRejectionIssue = {
   positions?: Array<{ paragraph?: number; quote?: string }>;
 };
 
-/** QualityRejectionDimension 是一个没达到及格线的维度（木桶判定，ADR-0040）。 */
+/** QualityRejectionDimension 是一个没达到及格线的维度（木桶判定，ADR-0023）。 */
 export type QualityRejectionDimension = {
   /** 维度键（clarity / structure / …），中文名由 utils/scoreDimensions 映射。 */
   name?: string;
@@ -222,7 +222,7 @@ export function useStudioPublish(deps: StudioPublishDeps) {
           onQualityRejected(rejection);
         } else {
           // 兜底文案要能说清两种驳回理由：总分不够，或某一项没过及格线
-          // （木桶判定，ADR-0040）。只有后者时 gap 是 0，不能只说"还差 0 分"。
+          // （木桶判定，ADR-0023）。只有后者时 gap 是 0，不能只说"还差 0 分"。
           const weak = (rejection.weak_dimensions ?? []).filter(
             (item) => typeof item?.score === "number",
           );

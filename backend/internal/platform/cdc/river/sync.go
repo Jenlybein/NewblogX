@@ -11,7 +11,7 @@ package river
 // 2026-10-26 之前这里还有一条"通用规则"路径：配置里写 `表 → 索引 + 字段白名单`，
 // 一行一行搬进 ES。它带着一整套批量合并、重试退避、死信证据，占了本包近一半代码。
 //
-// 删掉它的依据（详见 ADR-008）：
+// 删掉它的依据（详见 ADR-0008）：
 //  1. 配置里 `source` 的 6 张表**全部**由投影分支拦截并 return，通用路径对它们不可达；
 //  2. 唯一一条 `rule` 指的也是 `article_models`（同样被拦截）；
 //  3. 就算可达，它的白名单只有 8 个列，拼不出搜索文档（缺作者名/分类名/标签）；
@@ -80,7 +80,7 @@ func (h *eventHandler) OnXID(header *replication.EventHeader, nextPos mysql.Posi
 // 分派顺序是有讲究的：
 //  1. outbox 最先判断 —— 它是领域事件，与 ES 无关，必须命中后直接返回，
 //     否则会被后面的投影分支当成业务数据；
-//  2. 投影分支处理 5 张搜索相关表（作者置顶表已不再进 ES，见 ADR-0017 决策 6）；
+//  2. 投影分支处理 5 张搜索相关表（作者置顶表已不再进 ES，见 ADR-0015 决策 6）；
 //  3. 其余表直接忽略（本服务只关心搜索投影）。
 func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 	if h.r.handleOutboxEvent(e) {

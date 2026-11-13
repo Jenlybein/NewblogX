@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 本文件是合集 / 项目分组的 HTTP 入口（ADR-0041）。
+// 本文件是合集 / 项目分组的 HTTP 入口（ADR-0019）。
 //
 // 两个实体共用同一组 handler，归属由路径段（collections / projects）决定：
 // 语义完全一致，写两份 handler 只会让"删分组时忘记把条目退回未分组"这类

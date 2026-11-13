@@ -34,7 +34,7 @@ const sitemapPageSize = 100
 //
 // 刻意**不包含**首页以外的其它页面：
 //   - 合集 / 项目 / 个人主页 / 搜索页都是 `ssr: false` 的客户端页面（渲染边界，
-//     ADR-0019 决策 1）。爬虫打开它们只拿到空壳，列进站点地图只会让站点后台
+//     ADR-0016 决策 1）。爬虫打开它们只拿到空壳，列进站点地图只会让站点后台
 //     持续报「已提交，未收录」。要收录它们得先扩 SSR 白名单，那是另一张票。
 //   - 首页由 adapter 补上（用例层不认识"站点首页"这个概念）。
 func (s *Service) Sitemap(ctx context.Context, onlyAdminAuthors bool) ([]SitemapEntry, error) {

@@ -7667,7 +7667,7 @@ export interface components {
              */
             logo_size: number;
             /**
-             * @description 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+             * @description 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0014 决策 8 / 约束 7）。
              * @default 3
              */
             pointer_offset_x: number;
@@ -8054,7 +8054,7 @@ export interface components {
             author_id?: string;
             author_name?: string;
             /**
-             * @description Compliance 是第③层模型合规结论（票 312 / ADR-0033）。
+             * @description Compliance 是第③层模型合规结论（票 312 / ADR-0024）。
              *
              *     nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
              *     与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
@@ -8846,7 +8846,7 @@ export interface components {
              * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
              *
              *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
-             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0021）。
              *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
              *     一个场景可以拼多份 skill，正文按顺序拼接。
              */
@@ -8874,7 +8874,7 @@ export interface components {
              * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
              *
              *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
-             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0021）。
              *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
              *     一个场景可以拼多份 skill，正文按顺序拼接。
              */
@@ -9225,7 +9225,7 @@ export interface components {
             /** @description 允许非管理员创建草稿 */
             allow_non_admin_draft?: boolean;
             /**
-             * @description 「发布与展示」三个开关（ADR-0017 决策 2）。
+             * @description 「发布与展示」三个开关（ADR-0015 决策 2）。
              *     它们只表达"允许什么"，判定点在 app 层与读过滤处，不靠前端隐藏；
              *     默认值只写在 site_default_settings.yaml（这一段是自由键值块，
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
@@ -9241,7 +9241,7 @@ export interface components {
              *
              *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
              *     这里不写第二份字面默认值。
-             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。
+             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
              *
              *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
              *     自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
@@ -9257,7 +9257,7 @@ export interface components {
             skip_examining?: boolean;
             /**
              * @description SubmitDailyMax 是「投稿配额」的每日上限：每个普通用户每自然日可提交多少次
-             *     （ADR-0030，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
+             *     （ADR-0021，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
              *
              *     计量单位是**提交动作**而不是"发布成功的文章"：被打回也算一次，因为每次提交
              *     都会真实产生一次审核任务；因系统不可用而失败的提交由用例层释放预占，不占额度。
@@ -9272,7 +9272,7 @@ export interface components {
             /** @description 自然日内允许的最大条数 */
             rate_daily_max?: number;
             /**
-             * @description 发送限流（ADR-0026）：同一发件人对同一收件人的滑动窗口与日额度。
+             * @description 发送限流（ADR-0018）：同一发件人对同一收件人的滑动窗口与日额度。
              *     后台「站点 → 私信」卡可改，零 DDL —— 它们只是运行时配置的一个键，
              *     不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。
              */
@@ -9383,7 +9383,7 @@ export interface components {
              *
              *     缺省（0）与负数回落到 30 分钟：0 周期会让调度器变成忙循环，而这更可能是
              *     "配置写漏了"而不是"想每秒并一次"。上限钳到一天，下限 1 分钟 ——
-             *     并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0025「已否决方案」）。
+             *     并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0016「已否决方案」）。
              */
             interval_minutes?: number;
         };

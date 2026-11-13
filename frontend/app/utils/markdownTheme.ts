@@ -36,7 +36,7 @@ export const MARKDOWN_THEME_ROLES = {
   onStrong: "--color-on-strong",
   onStrongMuted: "--color-on-strong-muted",
 
-  /* ---- 正文色板（`--md-*`，ADR-0012 后续修订）----
+  /* ---- 正文色板（`--md-*`，ADR-0011 后续修订）----
    * 这一组**只服务正文渲染区**：六层标题 + 四种内联 + 列表标记 + 代码七档。
    * 它不受五色相锁定，但也只有 token 层一个来源 —— 组件/样式里不许出现裸色值。 */
   heading1: "--md-heading-h1",
@@ -232,7 +232,7 @@ export interface MermaidRuntimeConfig {
 /**
  * 组装 mermaid 的 initialize 配置。
  *
- * 为什么单独出这个函数：传参点只有一处，但"必须带 themeVariables"是 ADR-0012 决策
+ * 为什么单独出这个函数：传参点只有一处，但"必须带 themeVariables"是 ADR-0011 决策
  * #11 的硬要求 —— 抽成函数后单测可以直接断言这份契约，不需要挂载组件。
  */
 export function buildMermaidConfig(

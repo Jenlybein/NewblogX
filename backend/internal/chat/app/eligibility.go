@@ -83,7 +83,7 @@ func (g *sendGuard) validate(ctx context.Context, msgType domain.MsgType, conten
 	return g.verifyImage(ctx, msgType, content)
 }
 
-// rejectBlocked 是第 2 层：屏蔽 / 拉黑（ADR-0026）在陌生人判定之前。
+// rejectBlocked 是第 2 层：屏蔽 / 拉黑（ADR-0018）在陌生人判定之前。
 //
 // 这是"我"明确表达过的意愿，优先级高于任何站点级 / 个人级陌生人开关：
 //   - 我屏蔽 / 拉黑了对方：我不该再能给他发（单向自律，避免手滑继续骚扰）；

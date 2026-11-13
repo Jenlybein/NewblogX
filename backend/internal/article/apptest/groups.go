@@ -9,7 +9,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// FakeGroups 是分组仓储的内存实现（ADR-0041）。
+// FakeGroups 是分组仓储的内存实现（ADR-0019）。
 //
 // 与具名树 fake 同一做法：两个实体共用一份内存状态，用例层的规则与表名无关；
 // 生产实现按表名分派，真 MySQL 契约用例负责钉住那一份行为。

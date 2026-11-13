@@ -276,7 +276,7 @@ function onCancel() {
 </template>
 
 <style scoped>
-/* 颜色与圆角只消费语义 token（ADR-0012 / ADR-0017），不新增裸色值。 */
+/* 颜色与圆角只消费语义 token（ADR-0011 / ADR-0015），不新增裸色值。 */
 .image-crop {
   display: flex;
   flex-direction: column;

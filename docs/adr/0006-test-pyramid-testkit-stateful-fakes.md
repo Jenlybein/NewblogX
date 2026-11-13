@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -52,4 +52,3 @@
 
 - 代码：[internal/testkit](../../backend/internal/testkit)（替代旧的 `test/testutil`）
 - 文档：[治理与质量 · 测试体系](../architecture/governance.md)（金字塔、分层口径、覆盖率门槛、flaky 治理）
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)

@@ -98,6 +98,8 @@ vi.mock("naive-ui", async () => {
     NForm: passthrough("NForm"),
     NFormItem: formItemStub,
     NInputNumber: inputStub("NInputNumber"),
+    NRadio: passthrough("NRadio"),
+    NRadioGroup: passthrough("NRadioGroup"),
     NSlider: inputStub("NSlider"),
     NSwitch: switchStub,
     useMessage: () => messageMock,

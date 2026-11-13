@@ -468,8 +468,23 @@ export type DecoCharmConfig = { enable: boolean } & {
   [K in DecoNumberParamKey]: number
 }
 
-/** 装饰段（只含挂件子块）。 */
+/** 首屏指针尾迹样式：像素尾迹（默认）或指针墨流（烟雾）。 */
+export type HomeTrailMode = 'pixel' | 'smoke'
+
+/** 两个可选值 + 后台文案；读者站的回落口径与这里一致（未知 → pixel）。 */
+export const HOME_TRAIL_OPTIONS: ReadonlyArray<{ value: HomeTrailMode; label: string }> = [
+  { value: 'pixel', label: '像素尾迹' },
+  { value: 'smoke', label: '指针墨流（烟雾）' },
+]
+
+/** 把任意读到的值收窄成合法模式：除了 smoke 都是 pixel。 */
+export function normalizeHomeTrail(value: unknown): HomeTrailMode {
+  return value === 'smoke' ? 'smoke' : 'pixel'
+}
+
+/** 装饰段（挂件子块 + 首屏尾迹样式）。 */
 export interface DecoRuntimeConfigShape {
+  home_trail: HomeTrailMode
   charm: DecoCharmConfig
 }
 
@@ -504,6 +519,7 @@ function buildDecoNumericParams(
  */
 export function defaultDecoConfig(): DecoRuntimeConfigShape {
   return {
+    home_trail: 'pixel',
     charm: {
       enable: true,
       ...buildDecoNumericParams((param) => param.defaultValue),
@@ -540,6 +556,7 @@ function decoConfigNumber(value: unknown): number {
  * （这个键没有值），绝不等于显式 0 —— 0 在轻晃与偏移上是合法语义。
  */
 export interface DecoRuntimeConfigInput {
+  home_trail?: unknown
   charm?: (Partial<Record<DecoCharmNumericKey, number | null>> & { enable?: boolean | null }) | null
 }
 
@@ -557,6 +574,7 @@ export function normalizeDecoConfig(
   config: DecoRuntimeConfigInput | null | undefined,
 ): DecoRuntimeConfigShape {
   return {
+    home_trail: normalizeHomeTrail(config?.home_trail),
     charm: {
       enable: Boolean(config?.charm?.enable ?? true),
       ...buildDecoNumericParams((param) =>

@@ -54,6 +54,10 @@ const (
 // Deco 是装饰配置段；契约里的区间与默认值由参数表在生成后统一注入。
 type Deco struct {
 	Charm Charm `yaml:"charm" json:"charm"`
+	// HomeTrail 是首屏指针尾迹的样式：pixel（默认）或 smoke（指针墨流）。
+	//
+	// 它不是数值参数，所以不进参数表；空值 / 未知值一律按 pixel（ADR-0031）。
+	HomeTrail string `yaml:"home_trail" json:"home_trail" default:"pixel"`
 }
 
 type Charm struct {

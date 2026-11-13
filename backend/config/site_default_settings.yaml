@@ -333,6 +333,8 @@ image_gc:
 # Generated from config/deco-charm-parameters.json by scripts/generate-deco-parameters.mjs; DO NOT EDIT.
 # 装饰配置只放纯装饰参数：改错了最多难看，不会让任何业务链路坏掉。
 deco:
+  # 首屏指针尾迹样式：pixel（像素尾迹，默认）或 smoke（指针墨流）。
+  home_trail: pixel
   charm:
     # 光标挂件总开关。默认开着：上线后读者立刻就能看到，不用先去后台找。
     enable: true

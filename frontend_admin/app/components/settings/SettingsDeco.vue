@@ -5,6 +5,8 @@ import {
   NForm,
   NFormItem,
   NInputNumber,
+  NRadio,
+  NRadioGroup,
   NSlider,
   NSwitch,
   useMessage,
@@ -13,6 +15,7 @@ import { getDecoRuntimeConfig, updateDecoRuntimeConfig } from '~/services/admin'
 import type { DecoRuntimeConfig } from '~/types/api'
 import {
   DECO_NUMBER_PARAMS,
+  HOME_TRAIL_OPTIONS,
   clampDecoParam,
   defaultDecoConfig,
   interpretDecoParamInput,
@@ -125,6 +128,16 @@ onMounted(load)
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
+      <NFormItem label="首屏指针尾迹">
+        <NRadioGroup v-model:value="config.home_trail">
+          <NRadio v-for="option in HOME_TRAIL_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </NRadio>
+        </NRadioGroup>
+        <template #feedback>
+          像素尾迹是默认；切回指针墨流就是原来的烟雾效果。改完保存，读者下一次页面请求就生效。
+        </template>
+      </NFormItem>
       <NFormItem label="启用光标挂件">
         <NSwitch v-model:value="config.charm.enable" />
       </NFormItem>

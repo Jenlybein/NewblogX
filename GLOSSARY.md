@@ -440,12 +440,20 @@ _Avoid_: 在内容面/正文上叠玻璃（文件夹卡的 flap 是登记过的�
 _Avoid_: 在组件里写 `rounded-[18px]` 一类裸圆角字面量。
 
 **首屏封面（editorial hero）**：
-首页顶部的**满幅图形封面**，是全站唯一的"编辑部式例外区"：横向色带、超大 h1、指针墨流、标题下发丝基线、下沿刻度、方括号/箭头记号、胶囊小签，视觉素材取自运营上传的首张轮播封面。它没有卡片边框与纸面底色，轮播控件并入其中；记号与下沿刻度构成右下角整组。
+首页顶部的**满幅图形封面**，是全站唯一的"编辑部式例外区"：横向色带、超大 h1、指针尾迹（默认像素尾迹，可切回墨流）、标题下发丝基线、下沿刻度、方括号/箭头记号、胶囊小签，视觉素材取自运营上传的首张轮播封面。它没有卡片边框与纸面底色，轮播控件并入其中；记号与下沿刻度构成右下角整组。
 位置：`frontend/app/pages/index.vue` 首屏区块与 `frontend/app/components/article/BannerCarousel.vue`；取舍见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。
 _Avoid_: 叫它"首屏卡片 / hero 卡片"（卡片形态已废）；把它当成可复用的版式模板（只允许出现在首页首屏）；用「线条场」指代已删除的那 15 条横条（它是历史实现，不是版式元素）。
 
+**首屏指针尾迹（home pointer trail）**：
+首屏深墨背景板上跟随指针的纯装饰图层，有两个样式：**像素尾迹**（默认）与**指针墨流**（`deco.home_trail = smoke`）。两者共用同一个图层位，都不吃点击、不进 Tab 序列；`prefers-reduced-motion` 下都不启动。取舍见 [ADR-0031](./docs/adr/0031-home-trail-pixel-smoke-switch.md)。
+_Avoid_: 把"尾迹"当成一个具体实现（它现在是可切换的样式；别再说"首屏只可能是墨流"）。
+
+**像素尾迹（pixel trail）**：
+首屏默认的指针尾迹样式：指针划过时按网格坐标「盖章」出一串方块，方块带随机抖动与正弦摆动、按寿命淡出，颜色取自 token `--jelly-yellow`（与首屏黄色色带同一支）。实现是自写的 canvas（`frontend/app/composables/usePixelTrail.ts`），不引第三方包；观感参照 [reactbits.dev/animations/pixel-trail](https://reactbits.dev/animations/pixel-trail)。
+_Avoid_: 叫它"粒子 / 鼠标拖尾"（它是一层会淡出的网格方块，不是粒子系统）；在组件里写色值（颜色只能来自 token）。
+
 **指针墨流（ink fluid）**：
-首屏深墨背景板上跟随指针的 GPU 流体墨迹：指针划过时把速度与染料一起推开，墨在底上晕开、慢慢褪回淡白。默认只在指针移动时启动；指针停 2.5s 后停掉 RAF，最后一帧留在画布上。只用两档中性反白 token，不引入新色相；无 WebGL2 或用户要求减少动态时退化为纯深墨底 / 固定静帧。
+首屏的**备选**尾迹样式（`deco.home_trail = smoke`）：深墨背景板上跟随指针的 GPU 流体墨迹，指针划过时把速度与染料一起推开，墨在底上晕开、慢慢褪回淡白。默认只在指针移动时启动；指针停 2.5s 后停掉 RAF，最后一帧留在画布上。只用两档中性反白 token，不引入新色相；无 WebGL2 或用户要求减少动态时退化为纯深墨底 / 固定静帧。
 位置：`frontend/app/components/home/HomeInkFluid.vue` + `frontend/app/composables/useInkFluid.ts` + `frontend/app/utils/inkFluid.ts`；算法参考 `WheatXie/uiarc-pro-reverse` 的 `ink-fluid`，落到 Vue/Nuxt 后由 RAF 驱动。
 _Avoid_: 叫它"粒子 / 鼠标拖尾"（它是稳定流体模拟，不是一串粒子）；把它当成可复用到列表页的装饰（只允许首屏）；在 `prefers-reduced-motion` 下继续跑动画。
 

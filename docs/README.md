@@ -7,7 +7,7 @@
 | 路径 | 内容 | 什么时候看 |
 | --- | --- | --- |
 | [`agents/`](./agents/) | 工程技能配置：issue tracker、triage 标签、domain docs 消费规则 | 换 issue 工具 / 改标签命名 / 接新技能时 |
-| [`adr/`](./adr/) | 30 条现行决策（ADR-0001–0030），编号连续；每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」 | **改规则或选型前先读**；冲突要显式指出 |
+| [`adr/`](./adr/) | 31 条现行决策（ADR-0001–0031），编号连续；每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」 | **改规则或选型前先读**；冲突要显式指出 |
 | [`architecture/`](./architecture/) | 现行架构与治理：overview / governance / contracts / configuration / ai-integration | 改代码前 |
 | [`TODO.md`](./TODO.md) | 待办与想法池（未排期） | 选题 / 排期 |
 | [根 `GLOSSARY.md`](../GLOSSARY.md) | 领域词汇表 | 命名、写 issue / ADR 前 |

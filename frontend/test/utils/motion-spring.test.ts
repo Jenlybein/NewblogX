@@ -14,7 +14,7 @@ import {
  * grill 记录 §三 3.8 / 3.9）。
  *
  * 这里测的是可观察的**取值约定**与**解析结果的行为**，不是动画怎么写：
- *   1. 三组预设齐全、参数集中在动效预算里、组件改不动它们；
+ *   1. 预设齐全、参数集中在动效预算里、组件改不动它们；
  *   2. 解析助手在「减少动态」下给的是**静止**（时长恰为 0），不是慢速弹簧 ——
  *      这是本次唯一真正的新语义，也是 `motion-foundation` / `motion-tier-c` 之外
  *      第二套预算的落位口径。
@@ -24,8 +24,8 @@ import {
  */
 
 describe("弹簧预设：三组、集中一处、组件改不动", () => {
-  it("三组预设齐全（飞行器位移 / 转向 / 分段条接缝）", () => {
-    expect(Object.keys(SPRING_PRESETS).sort()).toEqual(["neck", "travel", "turn"]);
+  it("预设齐全（飞行器位移 / 转向 / 分段条接缝 / 首屏尾迹头尾两档）", () => {
+    expect(Object.keys(SPRING_PRESETS).sort()).toEqual(["neck", "trail", "trailTail", "travel", "turn"]);
   });
 
   it("分组名字与预设对象一一对应（不靠调用点各自持有一份副本）", () => {

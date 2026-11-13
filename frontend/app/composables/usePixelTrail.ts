@@ -1,29 +1,33 @@
 import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
 
 import { useMotionPreference } from "~/composables/useMotionPreference";
+import { resolveSpringMotion, SPRING_TRAIL, SPRING_TRAIL_TAIL } from "~/utils/motion";
 
 /**
  * 首屏「像素尾迹」：指针划过时在深墨底上留下一条会淡出的像素方块轨迹。
  *
- * 观感参照 reactbits.dev/animations/pixel-trail，实现是自己写的（不引第三方包）：
- *   - 尾巴由若干个**追着指针跑**的墨点组成，越靠后的点跟得越慢；
- *   - 每个墨点按网格坐标「盖章」，盖章位置带正弦摆动与随机抖动 → 方块边缘参差；
- *   - 每个方块有寿命（约 700ms），逐帧淡出；
- *   - 两层绘制（外圈大而淡、内圈小而实）模拟原效果的辉光，而不是用 shadowBlur
- *     （每格一次模糊太贵，快速甩动时会掉帧）。
+ * 观感参照 reactbits.dev/animations/pixel-trail，实现是自己写的（不引第三方包）。
+ * 流畅度靠的是**真弹簧**，不是一阶跟随：
+ *
+ *   - 尾巴是一串弹簧结点：头结点弹向指针，后面每一节弹向**前一节**的位置；
+ *   - 每节都是速度 + 加速度积分（半隐式欧拉），所以有惯性、有连续减速度，
+ *     不是"每帧追一点"的 lerp —— lerp 只有延迟没有弹性，快速甩动会显得一顿一顿；
+ *   - 弹簧参数来自共享预设 `SPRING_TRAIL` / `SPRING_TRAIL_TAIL`（近临界阻尼，
+ *     跟得紧但不回弹；尾巴逐级软一档形成连续减速）；
+ *   - 结点之间按半格插值盖章，快速甩动时尾巴不会断成一段段。
  *
  * 与首屏其它装饰同一套纪律：
  *   - 只画 canvas，不碰任何 DOM 布局属性；
  *   - `prefers-reduced-motion: reduce` 下不挂监听、不画一帧；
  *   - 标签页隐藏 / 画布离屏时停帧；没有存活方块且指针静止时也停帧，不留常驻 rAF；
- *   - 颜色只从 CSS token 读（默认 `--jelly-yellow`，与首屏黄色色带同一支），不写任何色值。
+ *   - 颜色只从 CSS token 读（默认 `--jelly-yellow`），不写任何色值。
  */
 
 /** 尾迹参数。 */
 export interface PixelTrailOptions {
   /** 像素格边长（CSS px）。 */
   cellSize?: number;
-  /** 尾巴上的墨点数量。 */
+  /** 尾巴上的弹簧结点数量。 */
   trailLength?: number;
   /** 方块寿命（毫秒）。 */
   lifeMs?: number;
@@ -31,8 +35,6 @@ export interface PixelTrailOptions {
   maxCells?: number;
   /** 取颜色的 CSS 变量名。 */
   colorVar?: string;
-  /** 正弦摆动幅度（像素格的倍数）。 */
-  wave?: number;
 }
 
 const DEFAULTS: Required<PixelTrailOptions> = {
@@ -41,12 +43,13 @@ const DEFAULTS: Required<PixelTrailOptions> = {
   lifeMs: 700,
   maxCells: 480,
   colorVar: "--jelly-yellow",
-  wave: 0.55,
 };
 
-interface Follower {
+interface SpringNode {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
 }
 
 /**
@@ -67,7 +70,7 @@ export function usePixelTrail(
   /** 键是 "gx,gy"，值是剩余寿命（1 → 0）。 */
   const cells = new Map<string, number>();
   const pointer = { x: -9999, y: -9999, active: false, lastMove: 0 };
-  let followers: Follower[] = [];
+  let nodes: SpringNode[] = [];
   let raf = 0;
   let lastTs = 0;
   let color = "";
@@ -77,6 +80,12 @@ export function usePixelTrail(
   let resizeObserver: ResizeObserver | null = null;
   let visible = true;
 
+  // 「减少动态」经共享解析器落地：reduce 时拿到 duration 0 的落位过渡，直接不挂。
+  const headSpring = resolveSpringMotion(SPRING_TRAIL, prefersReducedMotion.value);
+  const tailSpring = resolveSpringMotion(SPRING_TRAIL_TAIL, prefersReducedMotion.value);
+  const head = headSpring.type === "spring" ? headSpring : null;
+  const tail = tailSpring.type === "spring" ? tailSpring : null;
+
   /** 在 (x,y) 附近盖一格：抖动让边缘参差，满额后不再新增。 */
   function stamp(x: number, y: number, jitter: number): void {
     const cfg = config();
@@ -85,15 +94,15 @@ export function usePixelTrail(
     if (cells.size >= cfg.maxCells && !cells.has(`${gx},${gy}`)) {
       return;
     }
-    const jx = jitter > 0 && Math.random() < 0.45 ? (Math.random() < 0.5 ? -jitter : jitter) : 0;
+    const jx = jitter > 0 && Math.random() < 0.3 ? (Math.random() < 0.5 ? -jitter : jitter) : 0;
     cells.set(`${gx + Math.round(jx)},${gy}`, 1);
   }
 
-  /** 沿两点补格：快速甩动时尾巴不断线。 */
+  /** 沿两点补格（半格步长）：快速甩动时尾巴不断线。 */
   function stampSegment(fromX: number, fromY: number, toX: number, toY: number, jitter: number): void {
     const cfg = config();
     const dist = Math.hypot(toX - fromX, toY - fromY);
-    const steps = Math.min(24, Math.max(1, Math.ceil(dist / cfg.cellSize)));
+    const steps = Math.min(32, Math.max(1, Math.ceil(dist / (cfg.cellSize * 0.5))));
     for (let i = 0; i <= steps; i += 1) {
       const t = i / steps;
       stamp(fromX + (toX - fromX) * t, fromY + (toY - fromY) * t, jitter);
@@ -116,33 +125,54 @@ export function usePixelTrail(
     }
   }
 
+  /**
+   * 一节弹簧：把结点从当前位置弹向目标。
+   *
+   * 半隐式欧拉：先算加速度、更新速度、再更新位置。dt 已经在上层钳过，
+   * 这里再做一次子步拆分（每步 ≤ 16ms），避免高刷屏上大 dt 直接发散。
+   */
+  function springStep(node: SpringNode, target: { x: number; y: number }, preset: { stiffness: number; damping: number; mass: number }, dt: number): void {
+    let remaining = Math.min(dt, 0.05);
+    while (remaining > 0) {
+      const stepDt = Math.min(remaining, 0.016);
+      remaining -= stepDt;
+      const ax = (preset.stiffness * (target.x - node.x) - preset.damping * node.vx) / preset.mass;
+      const ay = (preset.stiffness * (target.y - node.y) - preset.damping * node.vy) / preset.mass;
+      node.vx += ax * stepDt;
+      node.vy += ay * stepDt;
+      node.x += node.vx * stepDt;
+      node.y += node.vy * stepDt;
+    }
+  }
+
   function draw(timestamp: number): void {
     const el = canvas.value;
     const ctx = el?.getContext("2d");
-    if (!el || !ctx) return;
+    if (!el || !ctx || !head || !tail) return;
 
-    const dt = Math.min(48, Math.max(0, timestamp - lastTs || 16));
+    const dt = Math.min(48, Math.max(0, timestamp - lastTs || 16)) / 1000;
     lastTs = timestamp;
     const cfg = config();
 
-    if (followers.length === 0) {
-      followers = Array.from({ length: cfg.trailLength }, () => ({ x: pointer.x, y: pointer.y }));
+    if (nodes.length === 0) {
+      nodes = Array.from({ length: cfg.trailLength }, () => ({ x: pointer.x, y: pointer.y, vx: 0, vy: 0 }));
     }
 
-    for (let i = 0; i < followers.length; i += 1) {
-      const f = followers[i];
-      const lead = i === 0 ? pointer : followers[i - 1];
-      if (!f || !lead) continue;
-      // 越靠后的点跟得越慢；第一点也留一点滞后，尾迹才有"追"的感觉。
-      const lag = 0.36 * (1 - i / (followers.length + 2));
-      f.x += (lead.x - f.x) * lag;
-      f.y += (lead.y - f.y) * lag;
+    // 目标一律取**上一帧**的结点位置，链式跟随才是一条连续的尾巴；
+    // 若取本帧刚算完的位置，后面几节会瞬间追上，尾巴就"缩"回指针了。
+    const prev = nodes.map((n) => ({ x: n.x, y: n.y }));
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (!node) continue;
+      const target = i === 0 ? pointer : (prev[i - 1] ?? pointer);
+      springStep(node, target, i === 0 ? head : tail, dt);
 
-      const wave = Math.sin(timestamp * 0.004 + i * 0.7) * cfg.cellSize * cfg.wave;
-      stampSegment(f.x - (lead.x - f.x) * 4, f.y + wave, f.x, f.y + wave, i > 0 ? 1 : 0);
+      // 越靠后的结点盖得越稀，尾巴尖端淡得快，不会拖出一条硬边。
+      const jitter = i >= 2 ? 1 : 0;
+      stampSegment(prev[i]?.x ?? node.x, prev[i]?.y ?? node.y, node.x, node.y, jitter);
     }
 
-    const decay = dt / cfg.lifeMs;
+    const decay = (dt * 1000) / cfg.lifeMs;
     for (const [key, life] of cells) {
       const next = life - decay;
       if (next <= 0) cells.delete(key);
@@ -229,7 +259,12 @@ export function usePixelTrail(
   function start(): void {
     if (listening || prefersReducedMotion.value) return;
     resize();
-    followers = Array.from({ length: config().trailLength }, () => ({ x: pointer.x, y: pointer.y }));
+    nodes = Array.from({ length: config().trailLength }, () => ({
+      x: pointer.x,
+      y: pointer.y,
+      vx: 0,
+      vy: 0,
+    }));
 
     globalThis.addEventListener("pointermove", onPointerMove, { passive: true });
     globalThis.addEventListener("pointerleave", onPointerLeave, { passive: true });

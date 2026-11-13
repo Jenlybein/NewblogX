@@ -198,8 +198,8 @@ export interface SpringPreset {
   mass: number;
 }
 
-/** 预设的三组名字；`travel` 位移、`turn` 转向、`neck` 分段条接缝。 */
-export type SpringPresetName = "travel" | "turn" | "neck";
+/** 预设的名字；`travel` 位移、`turn` 转向、`neck` 分段条接缝、`trail` 首屏尾迹。 */
+export type SpringPresetName = "travel" | "turn" | "neck" | "trail" | "trailTail";
 
 /** 标题大纲飞行器：位移（grill §3.8 登记值）。 */
 export const SPRING_TRAVEL: SpringPreset = Object.freeze({
@@ -223,6 +223,30 @@ export const SPRING_NECK: SpringPreset = Object.freeze({
 });
 
 /**
+ * 首屏像素尾迹：头结点（离指针最近的那一格）。
+ *
+ * 近乎临界阻尼（ζ ≈ 1.19）：跟得紧、不回弹；尾迹的"丝滑"来自后面的结点逐级
+ * 追前一个结点，而不是把刚度调小 —— 调小只会让尾巴拖得又长又软。
+ */
+export const SPRING_TRAIL: SpringPreset = Object.freeze({
+  stiffness: 120,
+  damping: 26,
+  mass: 1,
+});
+
+/**
+ * 首屏像素尾迹：后面几节尾巴。
+ *
+ * 比头结点软一档（ζ ≈ 1.08），越靠后越"慢半拍"，形成一条连续减速度的尾巴；
+ * 仍然是接近临界阻尼，不会左右甩。
+ */
+export const SPRING_TRAIL_TAIL: SpringPreset = Object.freeze({
+  stiffness: 70,
+  damping: 18,
+  mass: 1,
+});
+
+/**
  * 全部预设的名字 → 参数。门禁按这张表的键生成"哪些文件引用了预设"的扫描面，
  * 所以新增一组预设会自动进审计，不会静默漏检。
  */
@@ -230,6 +254,8 @@ export const SPRING_PRESETS: Readonly<Record<SpringPresetName, SpringPreset>> = 
   travel: SPRING_TRAVEL,
   turn: SPRING_TURN,
   neck: SPRING_NECK,
+  trail: SPRING_TRAIL,
+  trailTail: SPRING_TRAIL_TAIL,
 });
 
 /** 弹簧过渡（motion-v 的 `transition` prop 要吃 `type`）。 */

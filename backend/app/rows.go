@@ -21,6 +21,9 @@ type noticeArticleRow struct {
 	ID       ctype.ID
 	Title    string
 	AuthorID ctype.ID
+	// 质量闸门的异步判定（ADR-0030）只认「已发布待可见」这一档，所以要状态与可见性。
+	PublishStatus int    `gorm:"column:publish_status"`
+	Visibility    string `gorm:"column:visibility_status"`
 }
 
 // TableName 固定表名。

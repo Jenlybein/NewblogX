@@ -30,6 +30,13 @@ import (
 type QualityGatePolicy struct {
 	// Enabled 是闸门开关。
 	Enabled bool
+	// Deferred 为 true 时**不在提交请求里同步评分**（ADR-0030）：
+	// 提交立即返回，文章先以「已发布待可见」落库，由发件箱后台链路
+	// 评分 → 判定 → 未达标退回草稿并通知。
+	//
+	// 零值 false 保留旧的同步口径：用例测试仍能直接验证"分数不够就拒"的分支，
+	// 生产 HTTP 层一律置 true。它只是两种口径的开关，不是站点可配项。
+	Deferred bool
 	// PassScore 是及格线（0–100）。发布线 = 及格线 + 灰带宽度。
 	//
 	// 它同时是**每个维度的下限**（ADR-0023 的木桶判定）：总分只是加权结果，
@@ -115,29 +122,9 @@ func (s *Service) judgeQuality(
 		return qualityVerdict{}, apperr.Wrap(apperr.CodeArticleScoreUnavailable, err)
 	}
 
-	required := policy.PublishLine()
-	weak := weakDimensions(score.Dimensions, policy.PassScore)
-
-	// 木桶：总分过线 **且** 六项都过及格线（ADR-0023）。两个条件都要成立 ——
-	// 只留其中一个都会出现"六项都 51 与六项都 90 同等放行"这类说不清的口径。
-	if score.TotalScore >= required && len(weak) == 0 {
-		return qualityVerdict{Passed: true, Score: score.TotalScore, Required: required}, nil
-	}
-
-	gap := required - score.TotalScore
-	if gap < 0 {
-		// 总分过线、被维度卡住时，差额不是"还差几分"，不能给负数让作者误解。
-		gap = 0
-	}
-	return qualityVerdict{
-		Passed:         false,
-		Score:          score.TotalScore,
-		Required:       required,
-		Gap:            gap,
-		Level:          policy.Level(score.TotalScore),
-		WeakDimensions: weak,
-		Issues:         score.Issues,
-	}, nil
+	// 判定规则与异步链路共用同一份（evaluateQuality）：两条链路只是"分数从哪来"
+	// 不同，阈值与木桶口径不能各写一套。
+	return evaluateQuality(policy, score.TotalScore, score.Dimensions, score.Issues), nil
 }
 
 // weakDimensions 返回低于及格线的维度，按分数从低到高排序（最该改的排在最前）。

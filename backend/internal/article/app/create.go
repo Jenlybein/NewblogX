@@ -88,7 +88,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 			riskRejected = risk.Rejected
 		}
 
-		if cmd.QualityGate.Enabled && !riskRejected {
+		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected {
 			// 评分必须在数据库事务之外（票 306 / ADR-0023）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。

@@ -60,7 +60,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			riskRejected = risk.Rejected
 		}
 
-		if cmd.QualityGate.Enabled && !riskRejected {
+		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected {
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
 				ArticleID:     cmd.ArticleID,
 				AuthorID:      cmd.Actor.UserID,

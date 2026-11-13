@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"myblogx/internal/article/domain"
@@ -523,7 +524,6 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		risk := moderation.Evaluate(task.ArticleTitle()+"\n"+body, words, facts)
 		out = append(out, ReviewTaskView{
 			Task:       *task,
-			Content:    body,
 			Risk:       risk,
 			Compliance: compliances[task.ArticleID()],
 		})
@@ -601,8 +601,38 @@ func reviewBodies(ctx context.Context, r Repos, tasks []*review.Task) (map[domai
 	return bodies, nil
 }
 
-// HandleReviewTask 处理某条审核任务（仅管理员）。
+// ReviewTaskContent 返回某条审核任务对应文章的**完整正文**（仅管理员）。
 //
+// 列表不带正文（见 ReviewTaskView 的注释），要读全文时点一次这里。
+// 文章已被删除时返回空串而**不是**报错：任务是历史证据，不能因为文章没了就打不开，
+// 界面照常显示"正文不可用"，审核员仍能凭标题/风险/合规把任务处理掉。
+func (s *Service) ReviewTaskContent(ctx context.Context, viewer domain.Viewer, taskID ctype.ID) (string, error) {
+	if !viewer.IsAdmin() {
+		return "", domain.ErrForbidden
+	}
+	var content string
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		task, err := r.Reviews().Find(ctx, taskID.Uint64())
+		if err != nil {
+			return err
+		}
+		a, err := r.Articles().Find(ctx, task.ArticleID())
+		if err != nil {
+			if errors.Is(err, domain.ErrArticleNotFound) {
+				return nil
+			}
+			return err
+		}
+		content = a.Content()
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
+// HandleReviewTask 处理某条审核任务（仅管理员）。
 // 与 Examine 的区别：Examine 是按文章审核，这里是按任务审核（管理后台的队列视图）。
 // 两者最终都改文章状态，只是入口不同；"驳回必须选一条固定原因"由同一条规则把关
 // （reviewReason），所以两个入口不会一个能空着原因通过、另一个不行。

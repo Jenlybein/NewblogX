@@ -75,3 +75,27 @@
  * （-apple-system / 苹方 / 冬青黑 / 微软雅黑 / 思源系），不同平台字形略有差异是
  * 明示的取舍。Sora / Inter 继续自托管、继续做度量匹配；中文不再需要度量匹配
  * fallback，因为根本不存在"换字"这一步。 */
+/* ---- 首屏字标：Playfair Display（全站唯一的衬线字，见 fonts.test.ts 的例外登记）----
+ * 只自托管 700 italic 拉丁一条（23 KB），只被 `--font-wordmark` 消费；
+ * 不预载：它只服务于首屏那一行大字，让浏览器在渲染到那段文字时再取，
+ * 首屏字体预算仍然只算 Sora 三档 + Inter。
+ * 度量匹配 fallback 取 Georgia（Windows/macOS 都自带衬线），只覆盖纵向度量：
+ * Playfair Display 是 upem 1000 / ascent 1082 / descent -251 / lineGap 0（从 woff 里读出来的），
+ * 所以 108.2% / 25.1% / 0%。横向不调 size-adjust：字标独占一行，宽度差只影响它自己，
+ * 不会推动别的区块。 */
+@font-face {
+  font-family: "Playfair Display";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/playfair-display/files/playfair-display-latin-700-italic.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Playfair Display Fallback";
+  src: local("Georgia");
+  ascent-override: 108.2%;
+  descent-override: 25.1%;
+  line-gap-override: 0%;
+}

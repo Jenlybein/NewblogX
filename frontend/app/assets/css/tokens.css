@@ -130,6 +130,7 @@
   --font-display: "Sora", "Sora Fallback", var(--font-cjk); /* 字标 + 大标题；中文落到系统黑体（不自托管） */
   --font-latin: "Inter", "Inter Fallback"; /* 正文 / UI（列表 / 表单 / 按钮） */
   --font-title: var(--font-display); /* 标题字体键（此前未定义，被 pages/index.vue 消费） */
+  --font-wordmark: "Playfair Display", "Playfair Display Fallback", var(--font-cjk); /* 首屏字标专用衬线：全站唯一的衬线例外（只被 components/brand/GlassHeroTitle.vue 消费，登记见 fonts.test.ts） */
   --font-cjk: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif; /* 中文组唯一来源：全是系统族；末位 Noto 只在装了 Noto 的机器上命中，不产生下载 */
   --font-sans: var(--font-latin), var(--font-cjk); /* 拉丁在前、中文系统栈在后（中文组已含 sans-serif 兜底） */
   --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 行内代码 / 刻度 */

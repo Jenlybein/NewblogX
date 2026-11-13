@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
+import BrandGlassHeroTitle from "~/components/brand/GlassHeroTitle.vue";
 import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
 import HomeInkFluid from "~/components/home/HomeInkFluid.vue";
 import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
@@ -121,8 +122,12 @@ async function handleRetryLatest() {
         <div class="home-cover__copy">
           <div class="eyebrow home-cover__eyebrow">{{ BRAND.name.en }} · {{ BRAND.name.zh }}</div>
           <h1 class="home-cover__title">
-            <span class="home-cover__title-name">{{ BRAND.name.en.toUpperCase() }}</span>
-            <span class="home-cover__title-bracket">[{{ BRAND.name.zh }}]</span>
+            <!-- 大字换成"碎玻璃"呈现（见 components/brand/GlassHeroTitle.vue）：
+                 九块裁切碎片叠印出整字，指针视差 + 点击碎裂。
+                 字标用衬线斜体（--font-wordmark，全站唯一例外），保留句点。
+                 中文名不再挂在字标后面（由上方 eyebrow 承担）。
+                 字标是首屏最上层：装饰色带 / 记号 / 轮播面板都在它下面。 -->
+            <BrandGlassHeroTitle :text="BRAND.name.en + '.'" />
           </h1>
         </div>
 
@@ -342,10 +347,11 @@ async function handleRetryLatest() {
   pointer-events: none;
 }
 
-/* 超大 h1：占满第一行（大字压在最上面，权重最高）。 */
+/* 超大 h1：占满第一行（大字压在最上层，权重最高）。
+   z-index 6 高于右侧记号组（4）与轮播面板（2）：字标不能被任何装饰压住。 */
 .home-cover__copy {
   position: relative;
-  z-index: 4;
+  z-index: 6;
   grid-column: 1 / -1;
   grid-row: 1;
   min-width: 0;
@@ -366,18 +372,8 @@ async function handleRetryLatest() {
   text-wrap: balance;
 }
 
-.home-cover__title-name {
-  display: inline-block;
-}
-
-.home-cover__title-bracket {
-  display: inline-block;
-  margin-inline-start: 0.5em;
-  font-size: clamp(0.95rem, 2.4vw, 1.75rem);
-  font-weight: 400;
-  letter-spacing: 0;
-  color: var(--color-on-inverse-muted);
-}
+/* 2026-11-13：字标后面的中文方括号 `[果冻盒]` 退场（中文名由上方 eyebrow 承担），
+   字标独占一行，不再与副标共享基线。 */
 
 /* 面板里的空态不要"卡片"：留边框+纸面底会和面板边框叠成双重容器（用户说的"很怪"）。
    改成像封面左下角的一行字幕 —— 透明底、左对齐、贴底。 */

@@ -481,8 +481,9 @@ describe('interpretDecoParamInput：数字输入的钳位与可见反馈', () =>
 })
 
 describe('恢复默认（票 #42 验收项）', () => {
-  it('恰好是规范里的十三个默认值（开关 + 十二个数值）', () => {
+  it('恰好是规范里的默认值（尾迹 + 开关 + 十二个数值）', () => {
     expect(defaultDecoConfig()).toEqual({
+      home_trail: 'pixel',
       charm: {
         enable: true,
         logo_size: DECO_LOGO_SIZE_DEFAULT,
@@ -557,6 +558,7 @@ describe('normalizeDecoConfig', () => {
         },
       }),
     ).toEqual({
+      home_trail: 'pixel',
       charm: {
         enable: false,
         logo_size: DECO_LOGO_SIZE_MAX,
@@ -608,12 +610,12 @@ describe('normalizeDecoConfig', () => {
     expect(zero.pointer_offset_y).toBe(0)
   })
 
-  it('提交出去的形状只有 charm 子块（不夹带未知字段）', () => {
+  it('提交出去的形状只有 deco 已知字段（不夹带未知字段）', () => {
     const normalized = normalizeDecoConfig({
       charm: { enable: true, logo_size: 30 },
       extra: 'x',
     } as never)
-    expect(Object.keys(normalized)).toEqual(['charm'])
+    expect(Object.keys(normalized)).toEqual(['home_trail', 'charm'])
   })
 })
 

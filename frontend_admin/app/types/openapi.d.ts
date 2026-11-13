@@ -8886,9 +8886,23 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionDecoRequest": {
             charm?: components["schemas"]["conf.Charm"];
+            /**
+             * @description HomeTrail 是首屏指针尾迹的样式：pixel（默认）或 smoke（指针墨流）。
+             *
+             *     它不是数值参数，所以不进参数表；空值 / 未知值一律按 pixel（ADR-0031）。
+             * @default pixel
+             */
+            home_trail: string;
         };
         "internal_site_adapter_http.SiteSectionDecoResponse": {
             charm?: components["schemas"]["conf.Charm"];
+            /**
+             * @description HomeTrail 是首屏指针尾迹的样式：pixel（默认）或 smoke（指针墨流）。
+             *
+             *     它不是数值参数，所以不进参数表；空值 / 未知值一律按 pixel（ADR-0031）。
+             * @default pixel
+             */
+            home_trail: string;
         };
         "internal_site_adapter_http.SiteSectionImageGcRequest": {
             /** @description BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。 */

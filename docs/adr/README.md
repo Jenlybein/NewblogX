@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-本目录是决策入口，**一条决策一个文件，编号连续 0001–0030**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
+本目录是决策入口，**一条决策一个文件，编号连续 0001–0031**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
 
 > **整理口径（2026-11-13）**：同一主题前后冲突只保留最新一条。被取代的决策与修订型 ADR 已整体并入保留下来的条目，旧文件物理删除；正文一律直接写现行结论，不留「后续修订」「实施记录」「差异表」尾段，也不留 `已取代` 状态。编号因此压缩重排为 0001–0029（此后新增正常续号），**旧编号与本次之前的引用一律失效**；历史版本查 git。整理时笔记与归档目录一并删除，过程记录、实测数字与 v1 归档只存在于 git 历史。
 
@@ -38,6 +38,7 @@
 | [0028](./0028-ai-daily-quota.md) | AI 每日额度按场景、按人、按自然日；额度耗尽次日自动重审 | 七个场景具名上限（`ai.daily_limits`，0=不限），收费点在 `ai.Chat`/`ai.ChatStream` 出口；Redis 日桶 + Lua 预占、失败关闭；合规判定被额度挡住时文章回「审核中」但不建人工任务，事件借 `available_at` 次日重投 | [GLOSSARY · AI 每日额度](../../GLOSSARY.md) · [AI 接入](../architecture/ai-integration.md) |
 | [0029](./0029-admin-nav-three-levels-and-site-split.md) | 后台菜单引入三级；站点拆四页、媒体运营拆两页 | 侧栏支持「分组 → 分组 → 页面」，分组 key 改层级链并补 depth=2 缩进；站点四页共用 `site` 段端点，保存走「取最新整段 → 只覆盖本页块 → 写回」；媒体两页各自分页，`/media` 留跳转页；零后端变更 | [GLOSSARY · 后台三级菜单](../../GLOSSARY.md) · [ADR-0020](./0020-config-section-registry-and-named-sections.md) |
 | [0030](./0030-async-quality-gate.md) | 发布质量闸门改为异步判定 | 提交立即返回；发件箱按「评分 → 质量判定 → 合规判定」串行执行；未达标退回草稿 + 站内通知（带分数与放行线）；拿不到分数失败关闭 | [ADR-0023](./0023-quality-gate.md) · [ADR-0025](./0025-risk-gated-publish.md) · [GLOSSARY · 发布质量闸门](../../GLOSSARY.md) |
+| [0031](./0031-home-trail-pixel-smoke-switch.md) | 首屏指针尾迹可切换 | 默认像素尾迹（自实现、canvas 网格盖章 + 淡出，颜色取 `--jelly-yellow`），`deco.home_trail=smoke` 可切回指针墨流；后台装饰页单选，未知值回落 pixel；两套共用 `.home-cover__ink` 图层位 | [ADR-0011](./0011-neutral-glass-visual-system.md) · [ADR-0014](./0014-deco-segment-and-cursor-charm.md) · [GLOSSARY · 首屏装饰](../../GLOSSARY.md) |
 
 ## 来源与拆分说明
 

@@ -22,6 +22,8 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
  * 默认值 —— null 与缺键同义，不能被 `Number(null) === 0` 读成"管理员填了 0"。
  */
 export type SiteDecoConfig = {
+  /** 首屏指针尾迹样式：`pixel`（默认）或 `smoke`；空值/未知值按 pixel 处理。 */
+  home_trail?: string | null;
   charm?: {
     [K in keyof RequiredSchema<"conf.Charm">]?: RequiredSchema<"conf.Charm">[K] | null;
   } | null;

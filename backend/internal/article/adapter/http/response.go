@@ -100,7 +100,6 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		AuthorID:      ctype.NewID(task.AuthorID().Uint64()),
 		ArticleTitle:  task.ArticleTitle(),
 		AuthorName:    task.AuthorName(),
-		Content:       t.Content,
 		PublishStatus: ArticleStatus(task.PublishStatus()),
 		Stage:         ReviewTaskStage(task.Stage()),
 		Source:        ReviewTaskSource(task.Source()),

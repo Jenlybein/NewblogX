@@ -43,11 +43,16 @@ void main() {
   float moved = c.g * uTintFade * uDt;
   o = vec4(c.r + moved * 0.85, c.g - moved, c.b, c.a);
 }`,
-  divergence: `${FRAG}uniform sampler2D uVelocity;
+  divergence: `${FRAG}uniform sampler2D uVelocity; uniform sampler2D uMask;
 void main() {
   float L = texture(uVelocity, vL).x, R = texture(uVelocity, vR).x, T = texture(uVelocity, vT).y, B = texture(uVelocity, vB).y;
   vec2 C = texture(uVelocity, vUv).xy;
   if (vL.x < 0.0) L = -C.x; if (vR.x > 1.0) R = -C.x; if (vT.y > 1.0) T = -C.y; if (vB.y < 0.0) B = -C.y;
+  // 元素外框当成实心墙：和画布边缘同一套处理（法向速度取反），墨撞上去会沿边绕。
+  if (texture(uMask, vL).r > 0.5) L = -C.x;
+  if (texture(uMask, vR).r > 0.5) R = -C.x;
+  if (texture(uMask, vT).r > 0.5) T = -C.y;
+  if (texture(uMask, vB).r > 0.5) B = -C.y;
   o = vec4(0.5 * (R - L + T - B), 0.0, 0.0, 1.0);
 }`,
   curl: `${FRAG}uniform sampler2D uVelocity;
@@ -60,17 +65,30 @@ void main() {
   vec2 v = texture(uVelocity, vUv).xy + f * uDt;
   o = vec4(clamp(v, -1000.0, 1000.0), 0.0, 1.0);
 }`,
-  pressure: `${FRAG}uniform sampler2D uPressure; uniform sampler2D uDivergence;
+  pressure: `${FRAG}uniform sampler2D uPressure; uniform sampler2D uDivergence; uniform sampler2D uMask;
 void main() {
-  float L = texture(uPressure, vL).x, R = texture(uPressure, vR).x, T = texture(uPressure, vT).x, B = texture(uPressure, vB).x;
+  vec4 c = texture(uPressure, vUv);
+  float L = mix(texture(uPressure, vL).x, c.x, step(0.5, texture(uMask, vL).r));
+  float R = mix(texture(uPressure, vR).x, c.x, step(0.5, texture(uMask, vR).r));
+  float T = mix(texture(uPressure, vT).x, c.x, step(0.5, texture(uMask, vT).r));
+  float B = mix(texture(uPressure, vB).x, c.x, step(0.5, texture(uMask, vB).r));
   o = vec4((L + R + B + T - texture(uDivergence, vUv).x) * 0.25, 0.0, 0.0, 1.0);
 }`,
-  gradient: `${FRAG}uniform sampler2D uPressure; uniform sampler2D uVelocity;
+  gradient: `${FRAG}uniform sampler2D uPressure; uniform sampler2D uVelocity; uniform sampler2D uMask;
 void main() {
-  float L = texture(uPressure, vL).x, R = texture(uPressure, vR).x, T = texture(uPressure, vT).x, B = texture(uPressure, vB).x;
-  o = vec4(texture(uVelocity, vUv).xy - vec2(R - L, T - B), 0.0, 1.0);
+  vec4 c = texture(uPressure, vUv);
+  float L = mix(texture(uPressure, vL).x, c.x, step(0.5, texture(uMask, vL).r));
+  float R = mix(texture(uPressure, vR).x, c.x, step(0.5, texture(uMask, vR).r));
+  float T = mix(texture(uPressure, vT).x, c.x, step(0.5, texture(uMask, vT).r));
+  float B = mix(texture(uPressure, vB).x, c.x, step(0.5, texture(uMask, vB).r));
+  vec2 v = texture(uVelocity, vUv).xy - vec2(R - L, T - B);
+  // 墙里不留速度：否则墨会被"憋"在元素内部，从边上渗回来。
+  o = vec4(v * (1.0 - step(0.5, texture(uMask, vUv).r)), 0.0, 1.0);
 }`,
   scale: `${FRAG}uniform sampler2D uTexture; uniform float uValue; void main() { o = uValue * texture(uTexture, vUv); }`,
+  /** 把墙里的染料清掉：元素范围不显示墨。 */
+  mask: `${FRAG}uniform sampler2D uSource; uniform sampler2D uMask;
+void main() { o = vec4(texture(uSource, vUv).rgb * (1.0 - step(0.5, texture(uMask, vUv).r)), 1.0); }`,
   display: `${FRAG}uniform sampler2D uDye; uniform vec3 uInk; uniform vec3 uAccent; uniform float uStrength; uniform float uShade; uniform vec2 uRes;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {

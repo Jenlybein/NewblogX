@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
 
+import { collectOccluders } from "~/utils/occluders";
 import {
   INK_FLUID_DYE,
   INK_FLUID_GRID,
@@ -127,6 +128,63 @@ function createInkFluid(
   let divergence!: InkTarget;
   let curl!: InkTarget;
 
+  /**
+   * 首屏元素遮罩（1 = 墙）。
+   *
+   * 墨流没有碰撞体，元素只是画布上方的 DOM；于是墨会直接穿过卡片和大标题，
+   * 看着像"从元素里冒出来"。这里把元素外框烘成一张低分辨率遮罩，让流场把
+   * 它们当成**实心墙**处理 —— 和画布边缘同一套边界条件，墨撞上去会沿边绕开。
+   *
+   * 遮罩不做逐帧刷新：元素位置只在视差 / 轮播切换时变，600ms 扫一次足够。
+   */
+  let maskTex: WebGLTexture | null = null;
+  let maskW = 0;
+  let maskH = 0;
+  let maskScanAt = 0;
+  let maskHost: Element | null = null;
+
+  const ensureMaskTexture = (): WebGLTexture | null => {
+    if (maskTex) return maskTex;
+    const tex = gl.createTexture();
+    if (!tex) return null;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    maskTex = tex;
+    return tex;
+  };
+
+  /** 把元素外框烘进遮罩纹理（y 轴翻转：WebGL 的 uv 原点在左下）。 */
+  const refreshMask = () => {
+    const tex = ensureMaskTexture();
+    if (!tex) return;
+    maskScanAt = performance.now();
+    maskHost = (root.parentElement ?? root) as Element | null;
+    const rect = (maskHost ?? root).getBoundingClientRect();
+    // 512 宽：模拟网格只有 128 格，遮罩太粗的话一个"字"就占一格，字间缝隙会糊成整块。
+    maskW = 512;
+    maskH = Math.max(1, Math.round(512 * (rect.height / Math.max(1, rect.width))));
+    const data = new Uint8Array(maskW * maskH);
+    // minSize 取 6：标题是"一字一框"，框本身就不大，门槛太粗会把字全筛掉。
+    // data-ink-pass：字标、刻度标尺、指针这类装饰声明"墨可以直接穿过去"。
+    const boxes = collectOccluders(maskHost, root, { minSize: 6, skipSelector: "[data-ink-pass]" });
+    for (const box of boxes) {
+      const x0 = Math.max(0, Math.round((box.x / Math.max(1, rect.width)) * maskW));
+      const x1 = Math.min(maskW, Math.round(((box.x + box.w) / Math.max(1, rect.width)) * maskW));
+      const y0 = Math.max(0, Math.round((box.y / Math.max(1, rect.height)) * maskH));
+      const y1 = Math.min(maskH, Math.round(((box.y + box.h) / Math.max(1, rect.height)) * maskH));
+      for (let y = y0; y < y1; y += 1) {
+        const row = (maskH - 1 - y) * maskW;
+        for (let x = x0; x < x1; x += 1) data[row + x] = 255;
+      }
+    }
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, maskW, maskH, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+  };
+
   const resize = () => {
     const rect = root.getBoundingClientRect();
     const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -190,6 +248,15 @@ function createInkFluid(
     gl.uniform1i(program.u(name), unit);
   };
 
+  /** 遮罩不是 render target（没有 fbo），单独一个绑定入口。 */
+  const bindMask = (program: InkPrograms[keyof InkPrograms], unit: number) => {
+    const tex = ensureMaskTexture();
+    if (!tex) return;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(program.u("uMask"), unit);
+  };
+
   /** 一笔：把速度与染料同时从点 (x,y) 向外推。 */
   const splat = (
     x: number,
@@ -234,6 +301,7 @@ function createInkFluid(
 
     program = withTexel(programs.divergence, texel);
     bind(program, "uVelocity", 0, velocity.read);
+    bindMask(program, 2);
     draw(divergence);
 
     program = withTexel(programs.scale, texel);
@@ -244,6 +312,7 @@ function createInkFluid(
 
     program = withTexel(programs.pressure, texel);
     bind(program, "uDivergence", 1, divergence);
+    bindMask(program, 2);
     for (let iteration = 0; iteration < 20; iteration += 1) {
       bind(program, "uPressure", 0, pressure.read);
       draw(pressure.write);
@@ -253,6 +322,7 @@ function createInkFluid(
     program = withTexel(programs.gradient, texel);
     bind(program, "uPressure", 0, pressure.read);
     bind(program, "uVelocity", 1, velocity.read);
+    bindMask(program, 2);
     draw(velocity.write);
     velocity.swap();
 
@@ -273,6 +343,13 @@ function createInkFluid(
     bind(program, "uSource", 1, dye.read);
     gl.uniform1f(program.u("uDissipation"), 1.1);
     gl.uniform1f(program.u("uTintFade"), 0.22);
+    draw(dye.write);
+    dye.swap();
+
+    // 墙里不留染料：元素范围内不显示墨（否则墨会从卡片里"渗"出来）。
+    program = withTexel(programs.mask, [1 / dye.w, 1 / dye.h]);
+    bind(program, "uSource", 1, dye.read);
+    bindMask(program, 2);
     draw(dye.write);
     dye.swap();
   };
@@ -360,6 +437,9 @@ function createInkFluid(
     const dt = Math.min(0.033, (now - clock) / 1000);
     clock = now;
 
+    // 元素外框扫得比帧慢得多：视差 / 轮播切换才会动，600ms 一次足够。
+    if (now - maskScanAt > 600) refreshMask();
+
     if (pointer.moved) {
       const length = Math.hypot(pointer.dx, pointer.dy);
       const push = 5200 * (0.4 + 1.2 * options().force);
@@ -373,7 +453,8 @@ function createInkFluid(
         pointer.dy * push,
         radius * (1 - share),
         radius * share * (0.75 + 0.25 * Math.sin(hue * Math.PI * 2)),
-        0.22,
+        // 笔刷半径（越小墨迹越细）：0.22 → 0.19，整团收一点，不至于糊成一片。
+        0.19,
       );
       pointer.dx = 0;
       pointer.dy = 0;
@@ -385,7 +466,8 @@ function createInkFluid(
     show();
 
     // 没有 ambient 时，指针停 2.5s 后就不再占着 RAF；最后一帧留在画布上。
-    if (!options().ambient && !pointer.moved && now - pointer.last > 2500) {
+    // 指针离开后这段是"墨还在自己走"的时间：太短会让人觉得一松手就死掉。
+    if (!options().ambient && !pointer.moved && now - pointer.last > 3500) {
       running = false;
       frame = 0;
       return;
@@ -505,6 +587,10 @@ function createInkFluid(
       );
     }
     Object.values(programs).forEach((program) => gl.deleteProgram(program.p));
+    if (maskTex) {
+      gl.deleteTexture(maskTex);
+      maskTex = null;
+    }
     gl.deleteBuffer(buffer);
   };
 

@@ -80,6 +80,7 @@ const logoTransform = computed(() => {
   <div
     v-if="enabled"
     class="charm-layer"
+    data-ink-pass
     :class="{ 'charm-layer--visible': visible }"
     aria-hidden="true"
   >

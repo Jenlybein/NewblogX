@@ -18,9 +18,15 @@ const siteStore = useSiteStore();
 
 // 首屏指针尾迹样式（后台 deco.home_trail 可切）：默认像素尾迹，`smoke` 时回到指针墨流。
 // 空值 / 未知值一律按 pixel 处理，老配置与后台漏写都不会改变默认观感。
-const trailMode = computed<"pixel" | "smoke">(() =>
-  siteStore.deco?.home_trail === "smoke" ? "smoke" : "pixel",
-);
+// 首屏指针尾迹样式（后台 deco.home_trail 可切）：默认像素尾迹，`smoke` 时回到指针墨流。
+// 空值 / 未知值一律按 pixel 处理，老配置与后台漏写都不会改变默认观感。
+// 开发时可以用 `?trail=smoke|pixel` 临时预览另一套，不改后台配置（生产不认这个参数）。
+const route = useRoute();
+const trailMode = computed<"pixel" | "smoke">(() => {
+  const override = import.meta.dev ? route.query.trail : undefined;
+  if (override === "smoke" || override === "pixel") return override;
+  return siteStore.deco?.home_trail === "smoke" ? "smoke" : "pixel";
+});
 
 // 首页三个数据源（轮播 / 热门置顶 / 最新文章）在 composable 里**同时发起**，
 // 并按渲染环境决定等谁：服务端等齐（SSR 的 HTML 里要有内容），
@@ -107,7 +113,7 @@ async function handleRetryLatest() {
     -->
     <section ref="coverRevealTarget" class="home-cover" data-home-hero>
       <!-- 2 指针尾迹：默认「像素尾迹」（后台 deco.home_trail 可切回烟雾墨流），纯装饰、不吃点击 -->
-      <HomePixelTrail v-if="trailMode === 'pixel'" class="home-cover__ink" aria-hidden="true" :cell-size="14" />
+      <HomePixelTrail v-if="trailMode === 'pixel'" class="home-cover__ink" aria-hidden="true" />
       <HomeInkFluid
         v-else
         class="home-cover__ink"
@@ -136,7 +142,7 @@ async function handleRetryLatest() {
                  字标用衬线斜体（--font-wordmark，全站唯一例外），保留句点。
                  中文名不再挂在字标后面（由上方 eyebrow 承担）。
                  字标是首屏最上层：装饰色带 / 记号 / 轮播面板都在它下面。 -->
-            <BrandGlassHeroTitle :text="BRAND.name.en + '.'" />
+            <BrandGlassHeroTitle :text="BRAND.name.en + '.'" data-ink-pass />
           </h1>
         </div>
 
@@ -161,7 +167,7 @@ async function handleRetryLatest() {
             <li class="home-cover__mark home-cover__capsule">VOL. 01</li>
             <li class="home-cover__mark home-cover__bracket">]</li>
           </ul>
-          <ul class="home-cover__ticks" aria-hidden="true">
+          <ul class="home-cover__ticks" aria-hidden="true" data-ink-pass>
             <li v-for="tick in ['000', '025', '050', '075', '100']" :key="tick" class="home-cover__tick">
               {{ tick }}
             </li>

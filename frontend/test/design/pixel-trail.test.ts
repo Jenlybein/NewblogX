@@ -28,12 +28,13 @@ describe("像素尾迹：实现与接线", () => {
   });
 
   it("像素格与淡出只画在 canvas 上，颜色从 token 读（不写死色值）", () => {
-    expect(composable).toContain("fillRect");
+    expect(composable).toContain("fillText");
+    expect(composable).toContain("randomGlyph");
     expect(composable).toContain("getComputedStyle");
-    expect(composable).toContain("--jelly-yellow");
+    expect(composable).toContain("--color-on-inverse");
     // 色值字面量（#rrggbb / rgb(...) / rgba(...)）一个都不许有。
     expect(composable).not.toMatch(/#[0-9a-fA-F]{3,8}/);
-    expect(composable).not.toMatch(/rgba?\(/);
+    expect(composable).not.toMatch(/rgba?\(\s*\d/);
   });
 
   it("减少动态时不启动：不挂监听、不画帧", () => {
@@ -42,10 +43,39 @@ describe("像素尾迹：实现与接线", () => {
     expect(composable).toContain("watch(prefersReducedMotion");
   });
 
-  it("有停帧条件：标签页隐藏 / 画布离屏 / 无存活方块且指针静止", () => {
+  it("指针停下后仍跟随到停点，结点停稳才停笔（不会一静止就消失）", () => {
+    expect(composable).toContain("timestamp - pointer.lastMove < 120");
+    expect(composable).toMatch(/if \(pointerRecent \|\| speed > 4\) \{/);
+    expect(composable).toMatch(/maxSpeed <= 4/);
+  });
+
+  it("有停帧条件：标签页隐藏 / 画布离屏 / 无存活方块且结点停稳", () => {
     expect(composable).toContain("visibilitychange");
     expect(composable).toContain("IntersectionObserver");
-    expect(composable).toMatch(/cells\.size\s*>\s*0\s*\|\|\s*!idle/);
+    expect(composable).toMatch(/cells\.size\s*>\s*0\s*\|\|\s*!settled/);
+  });
+
+  it("亮度与雾量也走弹簧（不是线性淡入淡出）", () => {
+    // 每格带 glow + glowVelocity，用同一条 SPRING_PIXEL_POP 积分。
+    expect(composable).toContain("glowVelocity");
+    expect(composable).toMatch(/cell\.glowVelocity \+= gax \* dt/);
+    // 雾：一张预渲染贴图缩放贴上，且透明度乘 glow。
+    expect(composable).toContain("buildHaze");
+    expect(composable).toMatch(/drawImage\(haze/);
+    // 雾的范围由独立的 halo 弹簧给（会越过常态收小），与亮度节奏分开。
+    expect(composable).toContain("haloVelocity");
+    expect(composable).toContain("POP_HALO_KICK");
+  });
+
+  it("字号会周期性弹性变大再缩回常态（冷却门控，不卡在最大档）", () => {
+    expect(composable).toContain("POP_INTERVAL_MS");
+    expect(composable).toMatch(/now > existing\.nextPop/);
+  });
+
+  it("碰到首屏元素就隐身（留白距离 4px，可配置常量）", () => {
+    expect(composable).toContain("OCCLUDER_PADDING");
+    expect(composable).toMatch(/OCCLUDER_PADDING\s*=\s*4/);
+    expect(composable).toMatch(/isOccluded\(cx, cy, OCCLUDER_PADDING\)/);
   });
 });
 

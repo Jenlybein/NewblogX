@@ -449,7 +449,7 @@ _Avoid_: 叫它"首屏卡片 / hero 卡片"（卡片形态已废）；把它当�
 _Avoid_: 把"尾迹"当成一个具体实现（它现在是可切换的样式；别再说"首屏只可能是墨流"）。
 
 **像素尾迹（pixel trail）**：
-首屏默认的指针尾迹样式：指针划过时按网格坐标「盖章」出一串方块，方块带随机抖动与正弦摆动、按寿命淡出，颜色取自 token `--jelly-yellow`（与首屏黄色色带同一支）。实现是自写的 canvas（`frontend/app/composables/usePixelTrail.ts`），不引第三方包；观感参照 [reactbits.dev/animations/pixel-trail](https://reactbits.dev/animations/pixel-trail)。
+首屏默认的指针尾迹样式：指针划过时按网格坐标「盖章」出一串方块，方块带轻微随机抖动、按寿命淡出，颜色取自 token `--jelly-yellow`（与首屏黄色色带同一支）。实现是自写的 canvas（`frontend/app/composables/usePixelTrail.ts`），不引第三方包：尾巴是一串弹簧结点（头结点弹向指针、后面每节弹向前一节），弹簧参数取 `SPRING_TRAIL` / `SPRING_TRAIL_TAIL`，所以有惯性而不是一阶 lerp 的「延迟感」；观感参照 [reactbits.dev/animations/pixel-trail](https://reactbits.dev/animations/pixel-trail)。
 _Avoid_: 叫它"粒子 / 鼠标拖尾"（它是一层会淡出的网格方块，不是粒子系统）；在组件里写色值（颜色只能来自 token）。
 
 **指针墨流（ink fluid）**：
@@ -476,7 +476,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有两处消费者（标题大纲飞行器、消息中心接缝位移），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前有三处消费者（标题大纲飞行器、消息中心接缝位移、首屏像素尾迹），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
 
 **合集/项目文件夹卡（folder card）**：

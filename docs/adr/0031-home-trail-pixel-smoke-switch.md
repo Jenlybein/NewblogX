@@ -20,7 +20,7 @@ reactbits.dev/animations/pixel-trail 那种**像素方块尾迹**，但不接受
    `pixel` 处理（读者站与后台两侧同样的回落口径），所以老配置（没有这个键）行为不变。
 2. **像素尾迹自己实现，不引第三方包**：
    - 尾巴由若干「追着指针跑」的墨点组成，越靠后跟得越慢；
-   - 每个墨点按网格坐标盖章，位置带正弦摆动与随机抖动 → 方块边缘参差；
+   - 每个结点按网格坐标盖章，位置带轻微随机抖动 → 方块边缘参差；
    - 每格有寿命（约 700ms）逐帧淡出；外圈大而淡 + 内圈小而实两层绘制模拟辉光
      （不用 `shadowBlur`：每格一次模糊在快速甩动时会掉帧）。
 3. **颜色只从 token 读**：默认 `--jelly-yellow`，与首屏黄色色带同一支；组件与合成器里不写任何
@@ -47,6 +47,8 @@ reactbits.dev/animations/pixel-trail 那种**像素方块尾迹**，但不接受
 ## 当前生效约束
 
 - `deco.home_trail` 只接受 `pixel` / `smoke`；其它值一律按 `pixel`，读者站与后台两侧回落口径必须一致。
+- 像素尾迹的跟随必须是弹簧（参数只能来自 `SPRING_TRAIL` / `SPRING_TRAIL_TAIL`），不得退回一阶 lerp
+  （lerp 没有惯性与弹性，快速甩动会顿挫）。
 - 像素尾迹的颜色只能来自 CSS token（默认 `--jelly-yellow`），不得出现色值字面量。
 - 像素尾迹必须是纯装饰：`pointer-events: none`、`aria-hidden`、不进 Tab 序列、不接管任何点击。
 - `prefers-reduced-motion: reduce` 下不得挂监听、不得画帧；隐藏 / 离屏 / 静止时必须停 rAF。

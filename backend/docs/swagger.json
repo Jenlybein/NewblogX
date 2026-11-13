@@ -1207,6 +1207,14 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleReviewTaskContentResponse": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleReviewTaskItem": {
                 "properties": {
                     "article_id": {
@@ -1224,9 +1232,6 @@
                     "compliance": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewCompliance",
                         "description": "Compliance 是第③层模型合规结论（票 312 / ADR-0033）。\n\nnil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），\n与 verdict=clean 的\"判定过且干净\"不是一回事；前端必须能区分这两种形态。"
-                    },
-                    "content": {
-                        "type": "string"
                     },
                     "created_at": {
                         "type": "string"
@@ -5767,6 +5772,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskContentResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewTaskContentResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
                 "properties": {
                     "code": {
@@ -8386,6 +8405,42 @@
                     }
                 },
                 "summary": "批量处理审核任务",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/article-review-tasks/{id}/content": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "任务 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskContentResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "审核任务正文",
                 "tags": [
                     "article"
                 ]

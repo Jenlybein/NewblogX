@@ -113,8 +113,9 @@ type ArticleReviewTaskListRequest struct {
 
 // ArticleReviewTaskItem 审核任务项。
 //
-// content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
-// 不必再跳文章页。文章已被删除时为空串。
+// 2026-11-13 起**不再带正文**：一页 10 条全文可能几百 KB，而审核员多数时候
+// 只看标题、风险与合规结论就够判断。要看全文走
+// `GET /article-review-tasks/{id}/content`（ReviewTaskContentResponse）。
 //
 // risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
 // 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
@@ -128,7 +129,6 @@ type ArticleReviewTaskItem struct {
 	AuthorID      ctype.ID          `json:"author_id"`
 	ArticleTitle  string            `json:"article_title"`
 	AuthorName    string            `json:"author_name"`
-	Content       string            `json:"content"`
 	PublishStatus ArticleStatus     `json:"publish_status"`
 	Stage         ReviewTaskStage   `json:"stage"`
 	Source        ReviewTaskSource  `json:"source"`
@@ -148,6 +148,14 @@ type ArticleReviewTaskItem struct {
 	// nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
 	// 与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
 	Compliance *ArticleReviewCompliance `json:"compliance"`
+}
+
+// ArticleReviewTaskContentResponse 是审核任务正文（按需读取）。
+//
+// content 是文章**当前**正文（不是提交时的快照）；文章已被删除时为空串 ——
+// 任务本身仍然可读，审核员要能凭标题/风险/合规把队列清掉。
+type ArticleReviewTaskContentResponse struct {
+	Content string `json:"content"`
 }
 
 // ArticleReviewCompliance 是模型合规结论的展示形状。

@@ -270,16 +270,16 @@ func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 	}
 }
 
-// ── 审核队列：条目带正文、空队列不是错误 ──
+// ── 审核队列：列表不带正文、正文按需取、空队列不是错误 ──
 //
-// 审核员要在列表里直接判断一篇文章，只有标题远远不够：标题看不出东拼西凑、
-// 通篇 AI 腔或整段复制。所以队列条目必须带正文（#307）。
+// 2026-11-13 起列表**不再带正文**：一页 10 条全文可能几百 KB，而审核员多数时候
+// 只看标题、风险与合规结论就够判断。要看全文走 ReviewTaskContent
+// （`GET /article-review-tasks/{id}/content`），按需取单篇。
 //
-// 正文取的是**文章当前内容**，不是提交时的快照：审核任务表没有正文列
-// （零 DDL 硬约束），提交时也只快照了标题与作者。这个取舍写在
-// ListReviewTasks 的注释里，并由下面第一条用例锁住。
+// 这两条一起锁住：列表里没有正文、按需接口能拿到**文章当前内容**
+// （不是提交时的快照 —— 审核任务表没有正文列，零 DDL 硬约束）。
 
-func TestListReviewTasksIncludesCurrentArticleBody(t *testing.T) {
+func TestReviewTaskContentReturnsCurrentArticleBody(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
@@ -294,15 +294,45 @@ func TestListReviewTasksIncludesCurrentArticleBody(t *testing.T) {
 	repos.FakeArticles().Seed(a)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
+	body, err := svc.ReviewTaskContent(ctx, adminViewer(), ctype.NewID(1))
 	if err != nil {
-		t.Fatalf("列出审核任务失败: %v", err)
+		t.Fatalf("读审核正文失败: %v", err)
 	}
-	if total != 1 || len(views) != 1 {
-		t.Fatalf("应有 1 条任务，实际 total=%d len=%d", total, len(views))
+	if body != a.Content() {
+		t.Fatalf("正文应为文章当前内容 %q，实际 %q", a.Content(), body)
 	}
-	if views[0].Content != a.Content() {
-		t.Fatalf("条目正文应为文章当前内容 %q，实际 %q", a.Content(), views[0].Content)
+}
+
+// 文章已被删除时正文给空串，不报错：任务是历史证据，不能因为文章没了就打不开。
+func TestReviewTaskContentDeletedArticleIsEmptyNotError(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	// 任务指向一个不存在的文章 ID
+	repos.FakeReviews().Seed(apptest.NewTaskForTest(2, ctype.NewID(999), author, review.StatusPending))
+
+	body, err := svc.ReviewTaskContent(ctx, adminViewer(), ctype.NewID(2))
+	if err != nil {
+		t.Fatalf("文章缺失不该报错: %v", err)
+	}
+	if body != "" {
+		t.Fatalf("文章缺失时正文应为空串，实际 %q", body)
+	}
+}
+
+// 非管理员不能读正文。
+func TestReviewTaskContentRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	a := apptest.NewArticle().ID(ctype.NewID(1)).Author(author).Status(domain.StatusExamining).Title("待审稿").Content("正文").Build()
+	repos.FakeArticles().Seed(a)
+	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
+
+	if _, err := svc.ReviewTaskContent(ctx, domain.NormalUser(author), ctype.NewID(1)); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("非管理员应被拒绝，实际 %v", err)
 	}
 }
 
@@ -322,7 +352,8 @@ func TestListReviewTasksEmptyQueueIsNotAnError(t *testing.T) {
 }
 
 // TestListReviewTasksToleratesMissingArticle 任务行指向的文章已被删除时，
-// 整页队列不能因此失败：条目照常出现、正文留空，审核员仍能按标题处理掉它。
+// 整页队列不能因此失败：条目照常出现（正文本来就按需取，这里不受影响），
+// 审核员仍能按标题/风险/合规把它处理掉。
 func TestListReviewTasksToleratesMissingArticle(t *testing.T) {
 	t.Parallel()
 
@@ -338,8 +369,8 @@ func TestListReviewTasksToleratesMissingArticle(t *testing.T) {
 	if total != 1 || len(views) != 1 {
 		t.Fatalf("任务仍应出现，实际 total=%d len=%d", total, len(views))
 	}
-	if views[0].Content != "" {
-		t.Fatalf("文章不存在时正文应为空，实际 %q", views[0].Content)
+	if views[0].Task.ArticleID().String() != ctype.NewID(404).String() {
+		t.Fatalf("任务应指向那篇已删文章，实际 %v", views[0].Task.ArticleID())
 	}
 }
 

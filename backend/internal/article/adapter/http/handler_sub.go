@@ -735,6 +735,27 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 	res.OkWithData(ArticleReviewTaskListResponse{Count: total, List: items}, c)
 }
 
+// ReviewTaskContent 读某条审核任务对应文章的完整正文。
+//
+// 列表不再带正文（2026-11-13），审核员要看全文时点一次这里。
+// 单独一个接口而不是塞进详情：正文可能很大，按需取才不会让列表变成"每次都传全文"。
+// @Summary 审核任务正文
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "任务 ID"
+// @Success 200 {object} kernel.Envelope[ArticleReviewTaskContentResponse]
+// @Router /article-review-tasks/{id}/content [get]
+func (h *Handler) ReviewTaskContent(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+	content, err := h.svc.ReviewTaskContent(c.Request.Context(), h.viewerOf(c), ctype.NewID(uri.ID.Uint64()))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	res.OkWithData(ArticleReviewTaskContentResponse{Content: content}, c)
+}
+
 // HandleReviewTask 处理审核任务。
 //
 // @Summary 处理审核任务

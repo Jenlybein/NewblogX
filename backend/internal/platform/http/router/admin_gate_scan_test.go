@@ -128,6 +128,7 @@ var adminRouteTemplates = []string{
 	"PATCH /api/articles/tags/order",
 	"PUT /api/articles/tags",
 	"GET /api/article-review",
+	"GET /api/article-review-tasks/:id/content",
 	"POST /api/article-review-tasks/:id/review",
 	"POST /api/article-review-tasks/batch-review",
 	// 合集 / 项目（前台读公开，编排与写只给管理员）

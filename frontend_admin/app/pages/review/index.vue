@@ -95,7 +95,7 @@ const columns = [
     key: 'content',
     minWidth: 360,
     // 列表里直接给正文（长稿折叠、可展开）：审核员不跳文章页就能判断（票 307）。
-    render: (row: ArticleReviewTaskItem) => h(ReviewBodyPreview, { content: row.content }),
+    render: (row: ArticleReviewTaskItem) => h(ReviewBodyPreview, { taskId: row.id, articleTitle: row.article_title }),
   },
   { title: '作者', key: 'author_name', width: 120 },
   {

@@ -235,15 +235,14 @@ type DeleteResult struct {
 }
 
 // ReviewTaskView 是审核任务的只读视图。
+//
+// 2026-11-13 起**不带正文**：一页 10 条全文可能几百 KB，而审核员绝大多数时候
+// 只看标题、风险等级与合规结论就够判断了。要看全文走 ReviewTaskContent
+// （`GET /article-review-tasks/{id}/content`），按需取单篇。
+// 正文在服务端仍会读一次 —— 词表风控要扫它（见 ListReviewTasks），
+// 这里省的只是"把它塞进列表响应"。
 type ReviewTaskView struct {
 	Task review.Task
-	// Content 是**文章当前正文**，不是提交那一刻的快照。
-	//
-	// 审核任务表没有正文列（零 DDL 硬约束），提交时只快照了标题与作者，
-	// 所以这里取 article_models 里的当前内容。这正是审核员要判断的东西，
-	// 也比"再存一份快照"更不容易让人读到旧稿。
-	// 文章已被删除时留空，任务条目仍然出现（见 ListReviewTasks）。
-	Content string
 	// Risk 是机审前两层（词表 + 评分派生标签）的结论。
 	//
 	// 不落库、每次读取现算：运营改完词表，下一次请求立即按新词表判（票 311）。

@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/ai/moderation"
 	"myblogx/internal/apperr"
 	articleapp "myblogx/internal/article/app"
+	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
@@ -73,6 +74,12 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
 	relay.On(articleapp.EventArticlePublished, scoreSubscriber(infra))
+
+	// 质量闸门（ADR-0030）：评分先进来（上面的 scoreSubscriber），再做判定，
+	// 最后才是合规判定。订阅者按注册顺序串行执行，所以质量未达标的文章
+	// 会在合规放行之前被退回草稿 —— 读者永远看不到一个没过质量线的稿子。
+	relay.On(articleapp.EventArticleCreated, qualityGateSubscriber(infra))
+	relay.On(articleapp.EventArticlePublished, qualityGateSubscriber(infra))
 
 	// 合规判定（票 312 / ADR-0024）：文章创建与发布各跑一次。
 	// 与评分并列挂在同一批事件上，但**结论落在自己的表**（article_risk_models），
@@ -181,6 +188,105 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 		}
 		return aiService.EnsureScoreIfMissing(ctx, articleID.Uint64())
 	}
+}
+
+// qualityGateSubscriber 在评分之后、合规判定之前做一次质量闸门判定（ADR-0030）。
+//
+// 失败语义：拿不到分数 → 返回 error 交给发件箱重试；重试耗尽进死信，文章继续
+// 停在「已发布待可见」（对读者不可见），不会把没评过的稿子当干净放行。
+func qualityGateSubscriber(infra *Infra) outboxrelay.Subscriber {
+	return func(ctx context.Context, e outboxrelay.Event) error {
+		articleID := e.AggregateID
+		if articleID.IsZero() {
+			return nil
+		}
+		policy := deferredQualityGate(infra)
+		if !policy.Enabled {
+			return nil
+		}
+
+		var article noticeArticleRow
+		err := infra.DB.WithContext(ctx).Table(article.TableName()).
+			Select("id, title, author_id, publish_status, visibility_status").
+			Where("id = ?", articleID).Take(&article).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		// 只判「已发布待可见」：草稿、已拒、已公开的文章不归这条链路管。
+		if article.PublishStatus != int(domain.StatusPublished) ||
+			article.Visibility != string(domain.VisibilityPendingReview) {
+			return nil
+		}
+
+		articleSvc := newArticleService(infra)
+		verdict, err := articleSvc.AssessDeferredQuality(ctx, articleID, policy)
+		if err != nil {
+			return err
+		}
+		if verdict.Passed {
+			return nil
+		}
+
+		if _, err := articleSvc.DemotePendingForQuality(ctx, articleID, "文章质量未达标"); err != nil {
+			return err
+		}
+		return notifyQualityDemoted(ctx, infra, article, verdict)
+	}
+}
+
+// deferredQualityGate 取后台链路的闸门配置（与 HTTP 层同一份站点生效值）。
+func deferredQualityGate(infra *Infra) articleapp.QualityGatePolicy {
+	if infra == nil || infra.Effective == nil {
+		return articleapp.QualityGatePolicy{}
+	}
+	gate := infra.Effective.Article().QualityGate.Effective()
+	return articleapp.QualityGatePolicy{
+		Enabled:            gate.Enabled,
+		Deferred:           true,
+		PassScore:          gate.PassScore,
+		GrayBandWidth:      gate.GrayBandWidth,
+		BandPoorMax:        gate.BandPoorMax,
+		BandUnqualifiedMax: gate.BandUnqualifiedMax,
+		BandNormalMax:      gate.BandNormalMax,
+		BandGoodMax:        gate.BandGoodMax,
+	}
+}
+
+// notifyQualityDemoted 通知作者"评分未达标、已退回草稿"（带分数与放行线）。
+//
+// 去重口径与 notifySubscriber 一致（同接收者 + 同链接 + 同内容）：中继是
+// at-least-once，重放不该让作者收到两条一样的通知。
+func notifyQualityDemoted(
+	ctx context.Context, infra *Infra, article noticeArticleRow, verdict articleapp.QualityAssessment,
+) error {
+	content := fmt.Sprintf(
+		"您的文章《%s》未通过发布质量线：%d 分，放行线 %d 分。已退回草稿，修改后可重新提交。",
+		article.Title, verdict.Score, verdict.Required,
+	)
+	linkHref := fmt.Sprintf("/article/%s", article.ID)
+
+	var exists int64
+	if err := infra.DB.WithContext(ctx).Table(noticeMessageRow{}.TableName()).
+		Where("receiver_id = ? AND link_herf = ? AND content = ?", article.AuthorID, linkHref, content).
+		Count(&exists).Error; err != nil {
+		return err
+	}
+	if exists > 0 {
+		return nil
+	}
+	if notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
+		Receiver:   article.AuthorID.Uint64(),
+		ActionUser: article.AuthorID.Uint64(),
+		Content:    content,
+		LinkTitle:  article.Title,
+		LinkHref:   linkHref,
+	})
 }
 
 // complianceSubscriber 触发一次模型合规判定并落库（票 312 / ADR-0024）。

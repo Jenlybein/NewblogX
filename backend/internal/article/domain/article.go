@@ -539,3 +539,25 @@ func (a *Article) SoftDelete(now time.Time) {
 // 聚合只负责携带，不参与合成。因此这里**没有** AddCounters —— 一旦保留"加一下"
 // 的入口，第二套读口径就会重新长回来。
 func (a *Article) SetCounters(c Counters) { a.counters = c }
+
+// DemoteForQuality 质量闸门异步判定未达标：把「已发布待可见」退回草稿（ADR-0030）。
+//
+// 与 BackToReview 的差别只在落点：质量不达标是"作者改完能立刻重投"的场景，
+// 落草稿比落审核中更贴合作者的下一步动作；合规存疑才交人工。
+// 幂等由调用方兜住：不是「已发布待可见」时返回 ErrInvalidTransition，
+// 发件箱重复投递不会把已经处理过的文章再动一次。
+func (a *Article) DemoteForQuality(now time.Time) error {
+	if a.deleted {
+		return ErrArticleNotFound
+	}
+	if a.status != StatusPublished || a.visibility != VisibilityPendingReview {
+		return ErrInvalidTransition
+	}
+	a.status = StatusDraft
+	a.visibility = VisibilityVisible
+	a.submittedAt = nil
+	a.reviewedAt = nil
+	a.reviewedBy = nil
+	a.updatedAt = now
+	return nil
+}

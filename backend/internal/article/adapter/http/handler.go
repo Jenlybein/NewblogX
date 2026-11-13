@@ -104,7 +104,10 @@ func (h *Handler) writePolicy() domain.WritePolicy {
 func (h *Handler) qualityGate() app.QualityGatePolicy {
 	gate := h.effective.Article().QualityGate.Effective()
 	return app.QualityGatePolicy{
-		Enabled:            gate.Enabled,
+		Enabled: gate.Enabled,
+		// ADR-0030：提交请求里不再同步评分。评分与判定交给发件箱后台链路，
+		// 提交在配额与同步风险扫描之后立刻返回（一次请求 ~50ms，不再 15s 超时）。
+		Deferred:           true,
 		PassScore:          gate.PassScore,
 		GrayBandWidth:      gate.GrayBandWidth,
 		BandPoorMax:        gate.BandPoorMax,

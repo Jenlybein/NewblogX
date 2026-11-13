@@ -192,7 +192,9 @@ export function useStudioPublish(deps: StudioPublishDeps) {
           message.success("草稿已更新");
         } else {
           message.success(
-            form.visibility_status === "user_hidden" ? "文章已提交发布（当前为仅自己可见）" : "文章已提交发布（可能进入审核）",
+            form.visibility_status === "user_hidden"
+            ? "已提交，后台评分与审核中（当前为仅自己可见）"
+            : "已提交，后台评分与审核中，通过后对读者可见",
           );
         }
         await router.push(`/article/${editArticleId.value}`);
@@ -206,11 +208,11 @@ export function useStudioPublish(deps: StudioPublishDeps) {
       } else if (created.publish_status === 3) {
         // 已发布但可能仍处 pending_review：作者立刻拿到"已发布"回执，
         // 对读者可见要等模型判定通过。文案不能承诺"立刻公开"。
-        message.success("文章已发布，内容检查通过后将对读者可见");
+        message.success("已提交，后台评分与审核中，通过后对读者可见");
       } else if (created.publish_status === 2) {
-        message.success("文章已提交审核，审核通过后会公开展示");
+        message.success("已提交，审核通过后会公开展示");
       } else {
-        message.success("文章已提交发布");
+        message.success("已提交，后台评分与审核中");
       }
       await router.push(`/article/${created.id}`);
     } catch (error) {

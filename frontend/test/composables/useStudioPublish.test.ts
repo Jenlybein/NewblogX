@@ -98,9 +98,9 @@ describe("useStudioPublish", () => {
   it("新建 + 发布：按返回的 publish_status 给三种不同提示", async () => {
     const cases = [
       // 票 302：已发布不等于立刻对读者可见，要等内容检查通过。
-      { status: 3, want: "文章已发布，内容检查通过后将对读者可见" },
-      { status: 2, want: "文章已提交审核，审核通过后会公开展示" },
-      { status: 0, want: "文章已提交发布" },
+      { status: 3, want: "已提交，后台评分与审核中，通过后对读者可见" },
+      { status: 2, want: "已提交，审核通过后会公开展示" },
+      { status: 0, want: "已提交，后台评分与审核中" },
     ];
 
     for (const c of cases) {
@@ -129,7 +129,7 @@ describe("useStudioPublish", () => {
 
     await h.publish.submitArticle(2);
 
-    expect(h.message.success).toHaveBeenCalledWith("文章已提交发布（当前为仅自己可见）");
+    expect(h.message.success).toHaveBeenCalledWith("已提交，后台评分与审核中（当前为仅自己可见）");
   });
 
   it("请求失败时提示错误，并且不允许 loading 卡住", async () => {

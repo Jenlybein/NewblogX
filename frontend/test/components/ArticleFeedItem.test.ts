@@ -227,3 +227,52 @@ describe("ArticleFeedItem：列表封面固定居中", () => {
     expect(placeholder.attributes("aria-hidden")).toBe("true");
   });
 });
+/**
+ * 搜索结果高亮（2026-11-13 用户反馈）。
+ *
+ * 后端把命中词同时包进 `highlight.title` 与 `highlight.abstract`。旧实现只处理
+ * 标题，摘要直接插值 —— 页面上原样出现 `<em>循</em><em>环</em>` 这种未转义字符，
+ * 而标题因为 `<mark>` 只有"透明底 + 加粗"，深色页面上看起来像没高亮。
+ *
+ * 这条用例同时钉住三处：标题高亮、摘要高亮、封面 alt 不带标签。
+ */
+
+/**
+ * 搜索结果高亮（2026-11-13 用户反馈）。
+ *
+ * 后端把命中词同时包进 `highlight.title` 与 `highlight.abstract`。旧实现只处理
+ * 标题，摘要直接插值 —— 页面上原样出现 `<em>循</em><em>环</em>` 这种未转义字符；
+ * 而标题的 `<mark>` 只有"透明底 + 加粗"，深色页面上看起来像没高亮。
+ *
+ * 这条用例同时钉住三处：标题高亮、摘要高亮、封面标签不带标记。
+ */
+describe("ArticleFeedItem：搜索命中词高亮", () => {
+  const highlighted: ArticleEntryData = {
+    ...baseEntry,
+    title: "Python 条件与<em>循</em><em>环</em>",
+    abstract: "这一篇把<em>循</em><em>环</em>怎么收尾摊平了说。",
+  };
+
+  it("标题里的命中词渲染成 mark，而不是 <em> 字面量", () => {
+    const wrapper = mountCard({ entry: highlighted, variant: "search" });
+    const title = wrapper.get(".feed-entry__title");
+
+    expect(title.html()).not.toContain("<em>");
+    expect(title.findAll("mark.feed-entry__hit").map(m => m.text())).toEqual(["循", "环"]);
+  });
+
+  it("摘要里的命中词同样渲染成 mark（曾经原样显示 <em> 标签）", () => {
+    const wrapper = mountCard({ entry: highlighted, variant: "search" });
+    const abstract = wrapper.get(".feed-entry__abstract");
+
+    expect(abstract.text()).not.toContain("<em>");
+    expect(abstract.html()).not.toContain("<em>");
+    expect(abstract.findAll("mark.feed-entry__hit").map(m => m.text())).toEqual(["循", "环"]);
+  });
+
+  it("封面的无障碍标签是纯文本标题，不带标记", () => {
+    const wrapper = mountCard({ entry: highlighted, variant: "search" });
+
+    expect(wrapper.get(".feed-entry__cover").attributes("aria-label")).toBe("打开文章：Python 条件与循环");
+  });
+});

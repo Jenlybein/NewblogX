@@ -151,27 +151,28 @@
     @apply rounded-pill border border-line px-1.5 py-0.5 text-[11px] leading-none tracking-dense text-ink-muted;
   }
 
-  /* 搜索命中词：只加粗、不换底色，保持纸面感（原来是未转义的 <em>）。 */
-.feed-entry__hit {
-  background: transparent;
-  color: inherit;
-  font-weight: 700;
-}
+  /* 搜索命中词。
+   *
+   * 底色用语义 token `--color-highlight`（记号笔黄，注释写明"只做底"）——
+   * 直接用原始色相 `--jelly-yellow` 会外溢三色色带，圆角也必须取五档 token，
+   * 所以这里不圆角。
+   *
+   * 原来是"透明底 + 加粗"——深色页面上加粗几乎看不出来，于是看起来像
+   * "标题的高亮没了"（2026-11-13 用户反馈）。高亮就该看得见。
+   */
+  .feed-entry__hit {
+    background: var(--color-highlight);
+    color: inherit;
+    font-weight: 600;
+  }
 
-.feed-entry__title {
+  .feed-entry__title {
     @apply block font-title leading-title tracking-title text-ink;
     font-size: 1.25rem;
   }
 
   .feed-entry--search .feed-entry__title,
-  .feed-entry--shelf /* 搜索命中词：只加粗、不换底色，保持纸面感（原来是未转义的 <em>）。 */
-.feed-entry__hit {
-  background: transparent;
-  color: inherit;
-  font-weight: 700;
-}
-
-.feed-entry__title {
+  .feed-entry--shelf .feed-entry__title {
     @apply text-lg;
   }
 
@@ -379,6 +380,35 @@
    * 搜作者名时只给文章不够 —— 读者真正想去的是作者本人。 */
   .search-user-list {
     @apply mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  /* 结果分类页签（文章 / 用户）。
+     与筛选区的控件同一套观感：未选中是描边，选中用墨色填充 —— 读者一眼能看出
+     "现在看的是哪一类"，而不是靠页签下面内容的变化去猜。 */
+  .search-result-tabs {
+    @apply mb-5 flex flex-wrap items-center gap-2 border-b border-line-faint pb-3;
+  }
+
+  .search-result-tab {
+    @apply inline-flex items-center gap-2 rounded-pill border border-line px-3 py-1.5 text-sm text-ink-muted;
+  }
+
+  .search-result-tab:hover {
+    @apply border-line-strong text-ink;
+  }
+
+  .search-result-tab--active {
+    @apply border-transparent bg-ink text-surface;
+  }
+
+  .search-result-tab__count {
+    @apply rounded-pill px-1.5 text-[11px] leading-none;
+    background: var(--color-bg-subtle);
+  }
+
+  .search-result-tab--active .search-result-tab__count {
+    background: var(--color-on-strong-soft);
+    color: var(--color-on-strong);
   }
 
   .search-user-card {

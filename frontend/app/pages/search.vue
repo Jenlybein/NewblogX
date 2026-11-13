@@ -160,8 +160,26 @@ const { data: userResults } = useAsyncData(
   { watch: [committedQuery] },
 );
 
-const sortOptions = [
-  { label: "综合相关度", value: "1" },  { label: "最新发布", value: "2" },
+/**
+ * 结果区页签：文章 / 用户。
+ *
+ * 以前「相关用户」是结果区上面单独一块卡片，文章结果又在下面另一个面板 ——
+ * 一次搜索被切成两段，读者还得上下扫。现在并成同一区域的两个页签。
+ *
+ * 用户页签只在**真的有用户命中**时出现（AI 模式不查用户）：一个恒为 0 的页签
+ * 只会让人多点一次。
+ */
+const activeTab = shallowRef<"article" | "user">("article");
+const showUserTab = computed(() => (userResults.value?.length ?? 0) > 0);
+
+// 换搜索词后用户栏空了 → 回到文章页签，否则会停在一个空页签上。
+watch(showUserTab, (hasUsers) => {
+  if (!hasUsers && activeTab.value === "user") {
+    activeTab.value = "article";
+  }
+});
+
+const sortOptions = [  { label: "综合相关度", value: "1" },  { label: "最新发布", value: "2" },
   { label: "回复最多", value: "3" },
   { label: "点赞最多", value: "4" },
   { label: "收藏最多", value: "5" },
@@ -366,12 +384,50 @@ useNoIndexPage();
       </div>
     </section>
 
-    <section v-if="userResults?.length" class="blueprint-panel">
-      <div class="eyebrow">Users</div>
-      <h2 class="section-title mt-2">相关用户</h2>
-      <div class="search-user-list">
+    <section class="blueprint-panel">
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="eyebrow">Results</div>
+          <h2 class="section-title mt-2">{{ resultTitle }}</h2>
+        </div>
+        <div class="text-sm text-ink-muted">
+          <template v-if="isAiMode">共 {{ totalResults }} 条结果。</template>
+          <template v-else>
+            共 {{ totalResults }} 条结果，每页 9 篇，当前第 {{ currentSearchPage }} / {{ Math.max(totalPages, 1) }} 页
+          </template>
+        </div>
+      </div>
+
+      <!-- 结果分类：文章 / 用户。
+           以前「相关用户」是结果区上面单独一块，「文章」又在下面另一个面板里——
+           两段式卡片把一页切碎，读者还得上下扫。现在并成同一区域的两个 tab。 -->
+      <div v-if="showUserTab" class="search-result-tabs" role="tablist" aria-label="搜索结果分类">
+        <button
+          type="button"
+          role="tab"
+          class="search-result-tab"
+          :class="{ 'search-result-tab--active': activeTab === 'article' }"
+          :aria-selected="activeTab === 'article'"
+          data-role="search-tab-article"
+          @click="activeTab = 'article'">
+          文章<span class="search-result-tab__count">{{ totalResults }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="search-result-tab"
+          :class="{ 'search-result-tab--active': activeTab === 'user' }"
+          :aria-selected="activeTab === 'user'"
+          data-role="search-tab-user"
+          @click="activeTab = 'user'">
+          用户<span class="search-result-tab__count">{{ userResults?.length ?? 0 }}</span>
+        </button>
+      </div>
+
+      <!-- 用户页签：只列账号，点进去是主页。 -->
+      <div v-if="activeTab === 'user'" class="search-user-list" role="tabpanel">
         <NuxtLink
-          v-for="user in userResults"
+          v-for="user in userResults || []"
           :key="user.id"
           :to="`/users/${user.id}`"
           class="search-user-card"
@@ -392,22 +448,8 @@ useNoIndexPage();
           </span>
         </NuxtLink>
       </div>
-    </section>
 
-    <section class="blueprint-panel">
-      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div class="eyebrow">Results</div>
-          <h2 class="section-title mt-2">{{ resultTitle }}</h2>
-        </div>
-        <div class="text-sm text-ink-muted">
-          <template v-if="isAiMode">共 {{ totalResults }} 条结果。</template>
-          <template v-else>
-            共 {{ totalResults }} 条结果，每页 9 篇，当前第 {{ currentSearchPage }} / {{ Math.max(totalPages, 1) }} 页
-          </template>
-        </div>
-      </div>
-
+      <template v-else>
       <!-- 结果区骨架优先：搜索/标签请求并行跑，结果未到时先出结构占位（不是「加载中…」文案）。 -->
       <div v-if="pending && !articles.length" class="space-y-4">
         <LoadingSkeleton :rows="3" variant="card" label="搜索结果正在加载" />
@@ -472,6 +514,7 @@ useNoIndexPage();
           </NButton>
         </div>
       </div>
+      </template>
     </section>
   </div>
 </template>

@@ -67,6 +67,15 @@ const hasData = computed(() => Boolean(view.value.id) && Boolean(view.value.href
  */
 const titleSegments = computed(() => splitHighlight(view.value.title));
 
+/**
+ * 摘要里的高亮片段。
+ *
+ * 后端把命中词同时包在 `highlight.title` 与 `highlight.abstract` 里。以前只处理了
+ * 标题，摘要直接插值 → 页面上原样出现 `<em>循</em><em>环</em>` 这种未转义字符
+ * （2026-11-13 用户反馈）。两处必须用同一套切分，否则"标题干净、摘要带标签"。
+ */
+const abstractSegments = computed(() => splitHighlight(view.value.abstract));
+
 /** 无障碍标签与 tooltip 用纯文本版本：那里不该出现 <em> 标记。 */
 const plainTitle = computed(() => stripHighlight(view.value.title));
 
@@ -88,7 +97,7 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
       class="feed-entry__cover"
       :aria-label="`打开文章：${plainTitle}`"
     >
-      <ArticleCover :src="view.cover" :title="view.title" />
+      <ArticleCover :src="view.cover" :title="plainTitle" />
     </NuxtLink>
     <span v-else class="feed-entry__cover feed-entry__cover--empty" aria-hidden="true" />
 
@@ -130,7 +139,13 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
         </template>
       </p>
 
-      <p class="feed-entry__abstract">{{ view.abstract }}</p>
+      <!-- 摘要与标题同一套切分：命中词渲染成 <mark>，不再把 <em> 当文字显示。 -->
+      <p class="feed-entry__abstract">
+        <template v-for="(segment, index) in abstractSegments" :key="index">
+          <mark v-if="segment.hit" class="feed-entry__hit">{{ segment.text }}</mark>
+          <template v-else>{{ segment.text }}</template>
+        </template>
+      </p>
 
       <div v-if="view.shelfMeta.length" class="feed-entry__shelf-meta">
         <span v-for="meta in view.shelfMeta" :key="meta">{{ meta }}</span>

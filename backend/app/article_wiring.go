@@ -90,11 +90,17 @@ type articleActivity struct {
 var _ articleapp.ActivityPort = (*articleActivity)(nil)
 
 // DailyActivity 返回最近 days 天里每天成功的创作动作数。
+//
+// 读失败**不返回错误**（上层会把它当成"热力图留空"，整页照常打开），但要留下日志：
+// 之前这条路径把错误整个吞掉，`toDate` 扫不进 string 的 bug 因此安静地活了很久。
 func (a *articleActivity) DailyActivity(
 	_ context.Context, userID domain.UserID, days int,
 ) (map[string]int, error) {
 	items, err := clickhouse.CountDailyStudioActivity(a.opts, userID.Uint64(), days)
 	if err != nil {
+		if a.opts.Logger != nil {
+			a.opts.Logger.Warnf("个人概览：读取每日活跃度失败，热力图留空 user_id=%d err=%v", userID.Uint64(), err)
+		}
 		return nil, err
 	}
 	out := make(map[string]int, len(items))

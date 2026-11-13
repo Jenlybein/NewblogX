@@ -163,6 +163,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 		mw.BindJson[TagOrderRequest], h.ReplaceTagSortOrder)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
+	// 正文按需读（2026-11-13）：列表不再带正文，审核员要看全文时点一次这里。
+	reviewTaskAdminGroup.GET(":id/content", mw.BindUri[kernel.IDRequest], h.ReviewTaskContent)
 	// 批量：与单条同一份用例、同一套原因校验，只是把同一个决定应用到多个任务
 	// （spec 决策 32）。挂在 tasks 前缀下而不是 review 下，因为入参是任务 ID。
 	reviewTaskAdminGroup.POST("batch-review", mw.CaptureLog(mw.ReqBody),

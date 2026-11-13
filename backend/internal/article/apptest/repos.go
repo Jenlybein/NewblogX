@@ -348,15 +348,34 @@ func (t *Tx) Rollbacks() int {
 
 // AuthorStats 是 app.AuthorStatsPort 的可观测 fake。
 type AuthorStats struct {
-	mu     sync.Mutex
-	deltas map[domain.UserID][2]int
-	fault  fault
-	count  counter
+	mu      sync.Mutex
+	deltas  map[domain.UserID][2]int
+	visited map[domain.UserID]int64
+	fault   fault
+	count   counter
 }
 
 // NewAuthorStats 构造空的作者统计 fake。
 func NewAuthorStats() *AuthorStats {
-	return &AuthorStats{deltas: make(map[domain.UserID][2]int)}
+	return &AuthorStats{deltas: make(map[domain.UserID][2]int), visited: make(map[domain.UserID]int64)}
+}
+
+// SeedVisited 预置某作者的累计阅读总数（ArticleVisitedTotal 的返回值）。
+func (s *AuthorStats) SeedVisited(authorID domain.UserID, total int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.visited[authorID] = total
+}
+
+// ArticleVisitedTotal 返回预置的累计阅读数；未预置按 0。
+func (s *AuthorStats) ArticleVisitedTotal(_ context.Context, authorID domain.UserID) (int64, error) {
+	s.count.inc("ArticleVisitedTotal")
+	if err := s.fault.take("ArticleVisitedTotal"); err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.visited[authorID], nil
 }
 
 // FailNext 注入一次性故障。

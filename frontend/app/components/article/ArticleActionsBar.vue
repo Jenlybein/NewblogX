@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { useMagnetButtons } from "~/composables/useMagnetButtons";
 import {
   IconArrowBarToDown,
   IconArrowBarToUp,
@@ -73,6 +74,11 @@ const emit = defineEmits<{
 
 const likeDisabled = computed(() => props.likePending || props.likeDebouncing);
 
+// 磁吸跟随：六个按钮各自吸附指针（不做整组平移），实现见 composables/useMagnetButtons。
+// 触屏 / 减少动态下不挂监听；位移上限 8px，只写 transform。
+const barRef = ref<HTMLElement | null>(null);
+useMagnetButtons(barRef);
+
 const copy = computed(() => ({
   digg: describeArticleAction({ kind: "digg", count: props.diggCount, active: props.isDigged, pending: props.likePending }),
   favor: describeArticleAction({ kind: "favor", count: props.favorCount, active: props.isFavor }),
@@ -93,6 +99,7 @@ function handleLike() {
 
 <template>
   <div
+    ref="barRef"
     class="article-actions-bar"
     :class="`article-actions-bar--${props.variant}`"
     data-role="article-actions-bar"
@@ -101,6 +108,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       :class="{ 'is-active': props.isDigged }"
       data-action="digg"
       :aria-label="copy.digg.label"
@@ -117,6 +125,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       :class="{ 'is-active': props.isFavor }"
       data-action="favor"
       :aria-label="copy.favor.label"
@@ -131,6 +140,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       data-action="comment"
       :aria-label="copy.comment.label"
       :title="copy.comment.title"
@@ -143,6 +153,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       data-action="share"
       :aria-label="copy.share.label"
       :title="copy.share.title"
@@ -155,6 +166,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       data-action="bottom"
       :aria-label="copy.bottom.label"
       :title="copy.bottom.title"
@@ -167,6 +179,7 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-magnet
       data-action="top"
       :aria-label="copy.top.label"
       :title="copy.top.title"

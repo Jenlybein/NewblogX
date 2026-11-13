@@ -730,7 +730,18 @@ func (s *Service) AuthorProfile(ctx context.Context, userID domain.UserID) (Auth
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
 		v, err = r.Users().Profile(ctx, userID)
-		return err
+		if err != nil {
+			return err
+		}
+		// 「阅读」改由文章表实时汇总：user_stat_models.article_visited_count 只有
+		// 创建 / 删除文章时跟着文章数一起改，浏览增量从来没有写进去，线上恒为 0
+		// （2026-11-13 修）。汇总口径与公开主页（user 用例的 AuthorStats）一致。
+		visited, err := r.AuthorStats().ArticleVisitedTotal(ctx, userID)
+		if err != nil {
+			return err
+		}
+		v.ArticleVisitedCount = int(visited)
+		return nil
 	})
 	return v, err
 }

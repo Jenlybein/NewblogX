@@ -12,6 +12,7 @@ import type {
   ArticleReviewBatchResponse,
   ArticleReviewHandleRequest,
   ArticleReviewReasonItem,
+  ArticleReviewTaskContentResponseData,
   ArticleReviewTaskListResponseData,
   ArticleSearchResponseData,
   ArticleYearDataResponseData,
@@ -121,6 +122,16 @@ export function getArticleReviewTasks(query: {
   return api().request<ArticleReviewTaskListResponseData>('/article-review', { query })
 }
 
+/**
+ * 读某条审核任务对应文章的完整正文。
+ *
+ * 列表**不再带正文**（2026-11-13）：一页 10 条全文可能几百 KB，而审核员多数时候
+ * 只看标题、风险与合规结论就够判断。要看全文时点「查看正文」，按需取单篇。
+ * 文章已被删除时后端返回空串（任务本身仍然可读）。
+ */
+export function getReviewTaskContent(taskId: string) {
+  return api().request<ArticleReviewTaskContentResponseData>(`/article-review-tasks/${taskId}/content`)
+}
 export function reviewArticleTask(id: string, payload: ArticleReviewHandleRequest) {
   return api().request<unknown, ArticleReviewHandleRequest>(`/article-review-tasks/${id}/review`, {
     method: 'POST',

@@ -24,8 +24,8 @@ import {
  */
 
 describe("弹簧预设：三组、集中一处、组件改不动", () => {
-  it("预设齐全（飞行器位移 / 转向 / 分段条接缝 / 首屏尾迹头尾两档）", () => {
-    expect(Object.keys(SPRING_PRESETS).sort()).toEqual(["neck", "trail", "trailTail", "travel", "turn"]);
+  it("预设齐全（飞行器位移 / 转向 / 分段条接缝 / 首屏尾迹头尾两档 / 像素激活弹跳）", () => {
+    expect(Object.keys(SPRING_PRESETS).sort()).toEqual(["neck", "pixelGlow", "pixelPop", "trail", "trailTail", "travel", "turn"]);
   });
 
   it("分组名字与预设对象一一对应（不靠调用点各自持有一份副本）", () => {

@@ -198,8 +198,8 @@ export interface SpringPreset {
   mass: number;
 }
 
-/** 预设的名字；`travel` 位移、`turn` 转向、`neck` 分段条接缝、`trail` 首屏尾迹。 */
-export type SpringPresetName = "travel" | "turn" | "neck" | "trail" | "trailTail";
+/** 预设的名字；`travel` 位移、`turn` 转向、`neck` 分段条接缝、`trail`/`trailTail` 首屏尾迹、`pixelPop` 像素激活。 */
+export type SpringPresetName = "travel" | "turn" | "neck" | "trail" | "trailTail" | "pixelPop" | "pixelGlow";
 
 /** 标题大纲飞行器：位移（grill §3.8 登记值）。 */
 export const SPRING_TRAVEL: SpringPreset = Object.freeze({
@@ -225,24 +225,50 @@ export const SPRING_NECK: SpringPreset = Object.freeze({
 /**
  * 首屏像素尾迹：头结点（离指针最近的那一格）。
  *
- * 近乎临界阻尼（ζ ≈ 1.19）：跟得紧、不回弹；尾迹的"丝滑"来自后面的结点逐级
- * 追前一个结点，而不是把刚度调小 —— 调小只会让尾巴拖得又长又软。
+ * 跟得快、且**欠阻尼**（ζ≈0.32，omega≈26 rad/s）：甩过去时会明显冲过指针再
+ * 弹回来 —— 这就是"有弹性"的观感来源，不是靠把尾巴拉长。
  */
 export const SPRING_TRAIL: SpringPreset = Object.freeze({
-  stiffness: 120,
-  damping: 26,
+  stiffness: 700,
+  damping: 17,
   mass: 1,
 });
 
 /**
  * 首屏像素尾迹：后面几节尾巴。
  *
- * 比头结点软一档（ζ ≈ 1.08），越靠后越"慢半拍"，形成一条连续减速度的尾巴；
- * 仍然是接近临界阻尼，不会左右甩。
+ * 每一节都**直接弹向指针**（不再追前一节，所以没有"等前一节走了才起步"的
+ * 累积延迟），只是刚度略低一档（ζ≈0.47）：一起步就动，速度慢半拍、也会回弹，尾巴自然
+ * 落在头结点后面。
  */
 export const SPRING_TRAIL_TAIL: SpringPreset = Object.freeze({
-  stiffness: 70,
-  damping: 18,
+  stiffness: 560,
+  damping: 22,
+  mass: 1,
+});
+
+/**
+ * 首屏像素尾迹：单个方块激活时的「放大 → 弹回」。
+ *
+ * 欠阻尼（ζ≈0.33），所以会先越过目标尺寸再回弹一两次；时间常数短（≈150ms），
+ * 不会和 700ms 的淡出抢戏。
+ */
+export const SPRING_PIXEL_POP: SpringPreset = Object.freeze({
+  stiffness: 520,
+  damping: 15,
+  mass: 1,
+});
+
+/**
+ * 首屏像素尾迹：单格的「亮度 / 雾量」。
+ *
+ * 和尺寸用两组参数是刻意的：尺寸要看得见地弹（欠阻尼、荡一下），而亮度必须
+ * **冲到顶就立刻按下去** —— 过阻尼（ζ≈1.15，omega≈31 rad/s，约 90ms 落回），
+ * 亮得快、压得也快，不会先亮着晃两下再慢慢暗。
+ */
+export const SPRING_PIXEL_GLOW: SpringPreset = Object.freeze({
+  stiffness: 950,
+  damping: 70,
   mass: 1,
 });
 
@@ -256,6 +282,8 @@ export const SPRING_PRESETS: Readonly<Record<SpringPresetName, SpringPreset>> = 
   neck: SPRING_NECK,
   trail: SPRING_TRAIL,
   trailTail: SPRING_TRAIL_TAIL,
+  pixelPop: SPRING_PIXEL_POP,
+  pixelGlow: SPRING_PIXEL_GLOW,
 });
 
 /** 弹簧过渡（motion-v 的 `transition` prop 要吃 `type`）。 */

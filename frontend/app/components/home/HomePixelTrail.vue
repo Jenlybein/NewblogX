@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-import { usePixelTrail } from "~/composables/usePixelTrail";
+import { usePixelTrail, type PixelTrailOptions } from "~/composables/usePixelTrail";
 import { useMotionPreference } from "~/composables/useMotionPreference";
 
 /**
@@ -13,16 +13,12 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
  * 颜色不在组件里写死：尾迹读首屏的 `--jelly-yellow`（与黄色色带同一支），
  * 所以亮/暗主题切换、token 调整都不需要改这里。
  */
-const props = withDefaults(
-  defineProps<{
-    /** 像素格边长（CSS px）。 */
-    cellSize?: number;
-    /** 方块寿命（毫秒）。 */
-    lifeMs?: number;
-  }>(),
-  { cellSize: 14, lifeMs: 700 },
-);
-
+const props = defineProps<{
+  /** 像素格边长（CSS px）。不传就用 composable 的默认值。 */
+  cellSize?: number;
+  /** 方块寿命（毫秒）。不传就用 composable 的默认值。 */
+  lifeMs?: number;
+}>();
 const root = ref<HTMLElement | null>(null);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const { prefersReducedMotion } = useMotionPreference();
@@ -30,7 +26,13 @@ const { prefersReducedMotion } = useMotionPreference();
 usePixelTrail(
   canvas,
   root,
-  () => ({ cellSize: props.cellSize, lifeMs: props.lifeMs }),
+  () => {
+    // 只透传**显式给过**的参数：`undefined` 不能盖掉默认值。
+    const options: PixelTrailOptions = {};
+    if (props.cellSize !== undefined) options.cellSize = props.cellSize;
+    if (props.lifeMs !== undefined) options.lifeMs = props.lifeMs;
+    return options;
+  },
   prefersReducedMotion,
 );
 </script>

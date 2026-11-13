@@ -133,14 +133,20 @@ describe("分层：底图 → 底部渐黑 → 指针墨流 → 色带 → h1 �
   });
 });
 
-describe("首页唯一的 h1 = JELLYBIN + [果冻盒]", () => {
-  it("首页页面源码只有一个 h1，且内容是站名 + 方括号中文副标", () => {
+describe("首页唯一的 h1 = JellyBin.", () => {
+  it("首页页面源码只有一个 h1，字标独占（不再挂方括号中文副标）", () => {
     const h1Count = (indexVue.match(/<h1\b/gu) ?? []).length;
 
     expect(h1Count).toBe(1);
     const h1 = indexVue.slice(indexVue.indexOf("<h1"), indexVue.indexOf("</h1>"));
-    expect(h1).toContain("BRAND.name.en.toUpperCase()");
-    expect(h1).toContain("[{{ BRAND.name.zh }}]");
+    // 2026-11-13：字标只留衬线斜体的品牌名（Playfair Display + 句点），
+    // `[果冻盒]` 方括号退场 —— 中文名由 h1 上方的 eyebrow 承担。
+    expect(h1).toContain("BRAND.name.en");
+    expect(h1).not.toContain("[{{ BRAND.name.zh }}]");
+    expect(h1).not.toContain("home-cover__title-bracket");
+    // 中文名没有丢：eyebrow 仍然是「JellyBin · 果冻盒」。
+    expect(indexVue).toContain("{{ BRAND.name.en }} · {{ BRAND.name.zh }}");
+
     // 原先的小字「JellyBin · 果冻盒」降为普通文本（不再抢 h1）。
     expect(h1).not.toContain("BRAND.name.en }} · {{ BRAND.name.zh");
   });

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -327,7 +327,7 @@ describe("等宽字体键真正生效（prose 代码块 / 行内代码不再掉�
   });
 });
 
-describe("全站无衬线、无 CDN、无未定义的字体 token", () => {
+describe("无衬线主体 + 唯一的衬线例外（首屏字标）、无 CDN、无未定义的字体 token", () => {
   it("两端字体全部本地自托管：src 只指向 node_modules 里的 @fontsource 文件", () => {
     for (const css of [fontsCss, adminFontsCss]) {
       expect(css).not.toMatch(/https?:/u);
@@ -338,7 +338,7 @@ describe("全站无衬线、无 CDN、无未定义的字体 token", () => {
     }
   });
 
-  it("没有任何衬线体声明（全站无衬线）", () => {
+  it("除首屏字标外，没有任何衬线体声明（正文 / UI / 标题仍然全无衬线）", () => {
     const declarations = fontFamilyDeclarations();
 
     expect(declarations.length).toBeGreaterThan(0);
@@ -346,6 +346,39 @@ describe("全站无衬线、无 CDN、无未定义的字体 token", () => {
       expect(family, file).not.toMatch(/(?<!sans-)serif/iu);
       expect(family, file).not.toMatch(/Georgia|Times New Roman|SimSun|Songti/iu);
     }
+  });
+  /**
+   * 例外登记（唯一的衬线字）。
+   *
+   * 首屏大字要"碎玻璃 + 高对比衬线斜体"（首屏封面例外区的延伸），所以允许
+   * Playfair Display 自托管一条 700 italic。例外被三件事夹住，避免它长成全站第二套字体：
+   *   1. 只有 `--font-wordmark` 这个键能指到衬线族（两端 tokens 逐字节一致，后台也声明但不用）；
+   *   2. 全仓只有 GlassHeroTitle.vue 消费这个键；
+   *   3. 组件里写的仍是 token（`font-family: var(--font-wordmark)`），不是族名。
+   * 这把"有没有人偷偷在别处写 serif"从约定变成断言。
+   */
+  it("衬线例外只属于 --font-wordmark，且只被首屏字标组件消费", () => {
+    // 1. token 指向自托管衬线；两端同源（后台声明了同一个键但不消费）
+    for (const [label, css] of [
+      ["读者站", tokensCss],
+      ["后台", adminTokensCss],
+    ] as const) {
+      expect(css, label).toContain('--font-wordmark: "Playfair Display", "Playfair Display Fallback"');
+    }
+
+    // 2. 只有字标组件消费它（注释里的提及不算，扫描器会抹掉注释）
+    const consumers = fontTokenReferences()
+      .filter((reference) => reference.token === "--font-wordmark")
+      .map((reference) => relative(repoRoot, reference.file).split("\\").join("/"));
+
+    expect(new Set(consumers)).toEqual(
+      new Set(["frontend/app/components/brand/GlassHeroTitle.vue"]),
+    );
+
+    // 3. 组件写的是 token，不是族名
+    expect(
+      readFileSync(join(projectDir, "app/components/brand/GlassHeroTitle.vue"), "utf8"),
+    ).toContain("font-family: var(--font-wordmark)");
   });
 
   it("除 fonts.css 外，所有 font-family 都消费 token（没有第二套字体来源）", () => {

@@ -54,6 +54,8 @@ export type ArticleReviewTaskItem = RequiredSchema<"internal_article_adapter_htt
 
 export type ArticleReviewTaskListResponseData = RequiredSchema<"internal_article_adapter_http.ArticleReviewTaskListResponse">;
 
+export type ArticleReviewTaskContentResponseData = RequiredSchema<"internal_article_adapter_http.ArticleReviewTaskContentResponse">;
+
 // 驳回原因的固定词表与驳回请求体：两者都从契约派生，前端不再手写副本
 // （contracts.md §4：请求体用 `Schema<"...">`，响应体用 `RequiredSchema<"...">`）。
 export type ArticleReviewReasonItem = RequiredSchema<"internal_article_adapter_http.ArticleReviewReasonItem">;

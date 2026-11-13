@@ -78,7 +78,7 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     icon: 'article',
     children: [
       { label: '文章列表', path: '/articles', icon: 'article' },
-      // 热门置顶是独立运营位（ADR-0017 决策 5），层级上归到「文章管理」：先选文章，再排序。
+      // 热门置顶是独立运营位（ADR-0015 决策 5），层级上归到「文章管理」：先选文章，再排序。
       { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
       // 合集是"文章的有序集合"，同属文章域的运营产物，挂在同一个父项下。
       { label: '合集管理', path: '/articles/collections', icon: 'article' },
@@ -92,7 +92,7 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   },
   { label: '用户管理', path: '/users', icon: 'users' },
   {
-    // 站点配置：站点段拆成四页后，菜单是三级（ADR-0039）。
+    // 站点配置：站点段拆成四页后，菜单是三级（ADR-0029）。
     //
     // 站点配置（纯分组）→ 站点（纯分组）→ 基础 / 登录与发码 / 发布与审核 / 私信，
     // 其余七个编辑域与「右栏卡片」仍直接挂在站点配置下。
@@ -117,7 +117,7 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     ],
   },
   {
-    // 媒体运营拆成两个互相独立的页（ADR-0039）：轮播运营与图片资源库各拉各的分页。
+    // 媒体运营拆成两个互相独立的页（ADR-0029）：轮播运营与图片资源库各拉各的分页。
     // 父项只分组：`/media` 由一个跳转页承接旧书签，不在这里作为分组自身的页面。
     label: '媒体运营',
     icon: 'photo',
@@ -403,7 +403,7 @@ export interface AdminNavReconcile {
   duplicatePaths: string[]
   /** 不是以 `/` 开头的路由。 */
   nonAbsolutePaths: string[]
-  /** 位置约定（ADR-0017 决策 5）违反说明；通过时为 null。 */
+  /** 位置约定（ADR-0015 决策 5）违反说明；通过时为 null。 */
   hotTopOrder: string | null
 }
 
@@ -417,7 +417,7 @@ function findDuplicates(paths: string[]): string[] {
 }
 
 /**
- * ADR-0017 决策 5：拍平后「热门置顶」必须紧跟在「文章管理」这一组里，且路径固定。
+ * ADR-0015 决策 5：拍平后「热门置顶」必须紧跟在「文章管理」这一组里，且路径固定。
  *
  * 父项本身不可导航，它自己的页面（文章列表）作为组内第一个子项出现，
  * 所以「热门置顶」是组内第二个可导航项 —— 位置判据是"组内顺序"，不是"拍平后相邻"。
@@ -497,7 +497,7 @@ export function reconcileAdminNav(
 /**
  * 不挂在菜单里、但确实存在的页面（旧地址的跳转页）。
  *
- * `/media` 是「媒体运营」拆成两页后留下的旧地址（ADR-0039）：它只做 `navigateTo`
+ * `/media` 是「媒体运营」拆成两页后留下的旧地址（ADR-0029）：它只做 `navigateTo`
  * 跳转到轮播运营，所以不该出现在侧栏，但对账时也不能被当成"忘了加菜单"的孤儿页。
  */
 export const ADMIN_REDIRECT_PAGES: ReadonlySet<string> = new Set(['media/index', 'media'])

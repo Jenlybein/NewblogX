@@ -7,7 +7,7 @@
 | 谁读 | 后端进程，启动时读盘 | 编码 agent（Claude Code / Codex 等） |
 | 内容 | 捏捏的口吻、投稿机审的判定规则 | 本仓库怎么建 issue、怎么写 ADR |
 | 改了影响 | 线上用户看到的话术与判定口径 | 只有 agent 的工作方式 |
-| 位置决定 | 我们自己的选择（ADR-0033） | 各 agent 工具的约定 |
+| 位置决定 | 我们自己的选择（ADR-0021） | 各 agent 工具的约定 |
 
 **格式**遵循 [Agent Skills 开放规范](https://agentskills.io/specification)，所以同一份
 文件脱离本项目也能被任何兼容客户端直接使用；**位置**是本项目自己的选择——目前只有
@@ -69,4 +69,4 @@ node scripts/check-skills.mjs --self-test  # 证明它对人造违规用例真�
 门禁登记在 `scripts/gates/gates.json`（`skills-format`）；改完文案先跑这两条，
 再跑 `go test ./internal/platform/skills/...`。
 
-决定与理由见 [ADR-0033](../docs/adr/0033-runtime-policy-skills.md)。
+决定与理由见 [ADR-0021](../docs/adr/0021-runtime-policy-skills.md)。

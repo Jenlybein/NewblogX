@@ -14,7 +14,7 @@ import (
 	"myblogx/internal/platform/idgen"
 )
 
-// articleRiskRow 对应表 article_risk_models（票 312 / ADR-0033）。
+// articleRiskRow 对应表 article_risk_models（票 312 / ADR-0024）。
 //
 // 这是**新表**：文章表与审核任务表都不加列（零 DDL 硬约束）。一篇文章一行，
 // 唯一键在 article_id 上，随每次判定覆盖写。

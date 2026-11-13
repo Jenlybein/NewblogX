@@ -219,7 +219,7 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_POINTER_OFFSET_Y_MAX).toBe(24);
     expect(CHARM_POINTER_OFFSET_Y_DEFAULT).toBe(3);
     // 下限本身就是负数：这是"允许负数的区间"与"非负区间"的分水岭。
-    // 写成 0 会把负偏移静默夹回边界（ADR-0018 约束 8 点名禁止）。
+    // 写成 0 会把负偏移静默夹回边界（ADR-0014 约束 8 点名禁止）。
     expect(CHARM_POINTER_OFFSET_X_MIN).toBeLessThan(0);
     expect(CHARM_POINTER_OFFSET_Y_MIN).toBeLessThan(0);
   });

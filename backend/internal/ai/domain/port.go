@@ -62,7 +62,7 @@ type ScoreRepository interface {
 	// 用这一个方法而不是"查 + 写"两步，是为了把并发下的"只有一行"收进同一个事务。
 	//
 	// 目标文章**允许尚未落库**：质量闸门要在提交事务之外先评分，那时新建文章的
-	// ID 已经生成、article_models 那一行还没插进去（ADR-0032 决策 5）。实现不得
+	// ID 已经生成、article_models 那一行还没插进去（ADR-0023 决策 5）。实现不得
 	// 因为"查不到文章行"而返回错误 —— 那等于闸门一开，新文章一律提交不了。
 	Upsert(ctx context.Context, record *ScoreRecord) error
 }
@@ -104,7 +104,7 @@ type SceneSkill struct {
 // 业务层不 import 那个平台包，也就不会把"文件怎么读"混进用例逻辑。
 //
 // 读取失败时必须返回错误：配置引用了读不到的 skill 属于配置错误，
-// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0030）。
+// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0021）。
 type SceneSkillReader interface {
 	ReadSceneSkill(name string) (SceneSkill, error)
 }

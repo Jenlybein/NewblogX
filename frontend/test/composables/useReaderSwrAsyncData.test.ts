@@ -76,11 +76,11 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
     expect(source.pending.value).toBe(false);
   });
 
-  it("手工 refresh 必须真发请求：fresh 命中只对 cause=initial 生效（ADR-0024 决策 1）", async () => {
+  it("手工 refresh 必须真发请求：fresh 命中只对 cause=initial 生效（ADR-0016 决策 1）", async () => {
     // Nuxt 4 的 granularCachedData 默认开：refresh() 也会先问 getCachedData。
     // 旧的实现让 fresh 命中在**任何** cause 下都短路 handler —— 于是 hydration 把匿名
     // payload 预热进缓存后，页面 onMounted 的 refreshArticle() 永远不发请求，
-    // ADR-0019 承诺的"客户端补齐用户态"在硬刷新/重进时根本不会发生。
+    // ADR-0016 承诺的"客户端补齐用户态"在硬刷新/重进时根本不会发生。
     //
     // 新口径：只有 cause="initial" 允许复用 fresh；refresh:manual / refresh:hook
     // 一律返回 undefined，让 handler 真取一次（stale 仍然先渲染旧值、后台重取）。
@@ -198,7 +198,7 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
 });
 
 /**
- * `refreshIfNeeded` 是"内部第二波"的入口（ADR-0024 决策 1 / 约束 1）。
+ * `refreshIfNeeded` 是"内部第二波"的入口（ADR-0016 决策 1 / 约束 1）。
  *
  * 为什么不能直接回退到 `refresh()`：新的 SWR 语义里 `refresh()` 必须真发请求，
  * 而 #85 的「30 秒内重进请求数为 0」验收需要作者统计在 fresh 命中时不发请求

@@ -78,7 +78,7 @@ type Charm struct {
 	IdleSwayAmp float64 `yaml:"idle_sway_amp" json:"idle_sway_amp"`
 	// 最高渲染帧率，单位 fps，整数。语义是上限而不是保证：高于显示器刷新率时等价于每帧，高刷屏上的实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定每秒画几次，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。
 	FpsCap float64 `yaml:"fps_cap" json:"fps_cap"`
-	// 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+	// 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0014 决策 8 / 约束 7）。
 	PointerOffsetX float64 `yaml:"pointer_offset_x" json:"pointer_offset_x"`
 	// 指针端偏移的垂直分量，单位 CSS px（向下为正）。
 	PointerOffsetY float64 `yaml:"pointer_offset_y" json:"pointer_offset_y"`

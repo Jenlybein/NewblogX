@@ -6,7 +6,7 @@ package app_test
 // 而点赞的语义值得一组自包含的用例 —— 它们共享同一个背景（唯一索引
 // 不含 deleted_at），拆出来后 service_test.go 只留编排类用例。
 //
-// 2026-11-04（ADR-0024 决策 3）：接口从 toggle 改成**幂等目标态**。
+// 2026-11-04（ADR-0016 决策 3）：接口从 toggle 改成**幂等目标态**。
 // 调用方说的是"我要它处于已赞 / 未赞"，服务端按目标收敛、重复同态即无操作。
 // 这既是数据损坏的解药（陈旧按钮不会再把自己真实的赞取消掉），
 // 也让重试成为安全操作。
@@ -142,7 +142,7 @@ func TestDiggCountOnlyMovesOnRealChange(t *testing.T) {
 	}
 }
 
-// TestDiggIdempotentTargetState 钉住"幂等目标态"（#235 / ADR-0024 决策 3）。
+// TestDiggIdempotentTargetState 钉住"幂等目标态"（#235 / ADR-0016 决策 3）。
 //
 // 危险场景：按钮显示「未赞」时再点一次，旧契约发的是 toggle → 后端发现已存在
 // → Remove，把用户真实的点赞取消掉。新语义下"重复提交同一个目标态"必须无操作：

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useArticleDigg } from "~/composables/useArticleDigg";
 
 /**
- * 点赞状态机的测试（ADR-0024 决策 3/4）。
+ * 点赞状态机的测试（ADR-0016 决策 3/4）。
  *
  * 这块逻辑原本埋在 article/[id].vue（791 行、零测试）里。抽出来的直接原因就是
  * 它有几处"看起来对、用起来错"的地方：乐观更新被刷新覆盖、靠中文文案猜方向、

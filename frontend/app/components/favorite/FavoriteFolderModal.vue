@@ -23,7 +23,7 @@ const { handlePointerMove } = usePointerSpecular();
 const emit = defineEmits<{
   "update:show": [value: boolean];
   /**
-   * 收藏写响应里的权威状态与计数（ADR-0024 决策 4/6）。
+   * 收藏写响应里的权威状态与计数（ADR-0016 决策 4/6）。
    *
    * `null` 表示这次响应**不可用**（没有 data，或字段缺失）：页面据此跳过 patch，
    * 不再让 `payload.is_favor` 直接抛 TypeError（评审票 248 / P0-2）。

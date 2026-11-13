@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
         setAccessToken(response.data)
         const profile = await fetchCurrentUser().catch(() => null)
         // 刷新后同样要判角色：refresh 读的是 session 表、不带 scope，
-        // 拿到的可能是普通用户令牌（ADR-0022 的边界）。
+        // 拿到的可能是普通用户令牌（ADR-0018 的边界）。
         if (!isAdminUser(profile)) {
           clearSession()
           deniedReason.value = 'not-admin'

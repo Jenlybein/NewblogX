@@ -26,7 +26,7 @@ const LEGACY_TEAL_RGB_TRIPLES = ["15, 118, 110", "6, 12, 23", "226, 232, 240"];
 
 // Tailwind 默认色板类名（bg-teal-700 / text-slate-500 …）。阅读站颜色只允许来自
 // 语义 token 的类名（text-ink / border-line / bg-surface …），出现默认色板即漂移。
-// 与后台 frontend_admin/test/unit/legacy-colors.test.ts 同一口径（ADR-0012 决策 11）。
+// 与后台 frontend_admin/test/unit/legacy-colors.test.ts 同一口径（ADR-0011 决策 11）。
 const PALETTE_NAMES = [
   "slate",
   "gray",

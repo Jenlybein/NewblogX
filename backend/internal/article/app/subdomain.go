@@ -43,7 +43,7 @@ func (s *Service) ListCategories(ctx context.Context, viewer domain.Viewer, targ
 // 前端拿不到"名称重复"这个可读提示。
 //
 // **删过的名字可以再用**：新建时若同用户下存在同名软删行，仓储恢复它
-// （保留原 ID）而不是插入一条新的（ADR-0036 决策 1）。所以这里返回的分类
+// （保留原 ID）而不是插入一条新的（ADR-0026 决策 1）。所以这里返回的分类
 // 可能带着"本次生成的 ID"，而库里那条仍是旧 ID —— 调用方不要拿新建时的 ID
 // 做后续写入，建完重拉列表即可（写入接口本来也不返回它）。
 func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id domain.CategoryID, title string) (*taxonomy.Category, error) {
@@ -90,7 +90,7 @@ func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id dom
 //
 // 删除不是"删掉一个词条"：它把挂在该分类下的 N 篇文章改成"未分类"，文章本身还在。
 // 所以它是**两步、同一事务**：先解除文章归属、再软删分类（见
-// CategoryRepository.Delete 的契约；ADR-0036 约束 3 规定顺序不得颠倒）。
+// CategoryRepository.Delete 的契约；ADR-0026 约束 3 规定顺序不得颠倒）。
 // 中途失败整单回滚，不会留下"文章已解绑、分类还在"的半截状态。
 //
 // 别人的分类是**拒绝**而不是静默跳过：批量删除是"一次动作"，删掉一半再返回
@@ -411,12 +411,12 @@ func (s *Service) DeleteFolders(ctx context.Context, viewer domain.Viewer, ids [
 // 需要目标用户允许（当前只允许看本人或默认夹）。
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面：收藏内容属于公开
-// 读面，开关关闭时作者不是管理员的收藏条目不再出现（ADR-0017 决策 4）。
+// 读面，开关关闭时作者不是管理员的收藏条目不再出现（ADR-0015 决策 4）。
 // 过滤下推到查询层（favorite.Repository.ListItems），否则当页条数与 total
 // 会与可见条目对不上。
 //
 // 计数与详情 / 列表同一口径：查询层给的是库内列，这里再批量叠上 Redis 增量
-// （ADR-0025 决策 3）。少了这一步，同一篇文章会出现"详情页 6、收藏列表 5"。
+// （ADR-0016 决策 3）。少了这一步，同一篇文章会出现"详情页 6、收藏列表 5"。
 func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, folderID favorite.ID, page domain.Page, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
 	var (
 		items []*favorite.Item
@@ -561,7 +561,7 @@ func taskArticleIDs(tasks []*review.Task) []domain.ArticleID {
 	return ids
 }
 
-// riskRecords 批量读取第③层模型合规结论（票 312 / ADR-0033）。
+// riskRecords 批量读取第③层模型合规结论（票 312 / ADR-0024）。
 //
 // 缺失的文章不出现在结果里，视图层据此展示"未判定"——这与"判定为干净"不同。
 func riskRecords(ctx context.Context, r Repos, tasks []*review.Task) (map[ctype.ID]*risk.Record, error) {

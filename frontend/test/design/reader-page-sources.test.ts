@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * 页面取数编排门禁（ADR-0019 决策 3 / 约束 6）。
+ * 页面取数编排门禁（ADR-0016 决策 3 / 约束 6）。
  *
  * 页面 setup 不得写成"await useAsyncData → await useAsyncData → …"的串行水车：
  * 每个 await 都把上一段网络往返串进下一步，首屏/切页的总时长等于最慢的接口。
@@ -25,7 +25,7 @@ function serialBlockingFetches(source: string): number {
   return patterns.reduce((count, pattern) => count + (source.match(pattern)?.length ?? 0), 0);
 }
 
-describe("页面取数不得串行阻塞 setup（ADR-0019 约束 6）", () => {
+describe("页面取数不得串行阻塞 setup（ADR-0016 约束 6）", () => {
   it("个人主页：不再有 await useAsyncData / await useArticleSearch 的串行链", () => {
     expect(serialBlockingFetches(usersPage)).toBe(0);
   });

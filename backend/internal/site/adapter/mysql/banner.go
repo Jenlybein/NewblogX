@@ -30,7 +30,7 @@ func (bannerRow) TableName() string { return "banner_models" }
 
 // BannerRepo 实现轮播图持久化端口。
 //
-// 封面图在上传前就已按 16:9 定形（ADR-0015），所以本仓储只读写 banner_models
+// 封面图在上传前就已按 16:9 定形（ADR-0013），所以本仓储只读写 banner_models
 // 一张表：没有第二张取景表，也没有"删轮播时清取景孤儿行"的额外路径。
 type BannerRepo struct {
 	db *gorm.DB

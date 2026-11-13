@@ -122,7 +122,7 @@ export function seamSegmentMotion(
  * 段位的过渡：要么 `SPRING_NECK`，要么「减少动态」下的落位。
  *
  * 直接复用 `motion.ts` 的 `resolveSpringMotion`：reduce 时给的是时长 0 的 tween
- * （**落位，不是放慢的弹簧**），与 ADR-0012 后续修订（2026-11-07）的口径一致。
+ * （**落位，不是放慢的弹簧**），与 ADR-0011 后续修订（2026-11-07）的口径一致。
  */
 export function seamTransition(prefersReducedMotion: boolean): SpringOrJumpTransition {
   return resolveSpringMotion(SPRING_NECK, prefersReducedMotion);

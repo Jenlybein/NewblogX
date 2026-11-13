@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -23,7 +23,7 @@
 | R3 | 禁止 `type Deps struct` | 类型检查 | 32 |
 | R4 | `domain` 不得 import gin/gorm/redis/es | import 图 | 迁移中 |
 | R5 | 模块之间不得互相 import | import 图 | 迁移中 |
-| R6 | 单文件 ≤ 800 行 | 行数 | 4 |
+| R6 | 单文件 ≤ 2200 行 | 行数 | 4 |
 | R7 | `enter.go` ≤ 50 行 | 行数 | 65 |
 | R8 | `adapter` 之外不得调用 `Begin` / `Commit` | 调用图 | 12 |
 
@@ -51,7 +51,8 @@
 1. 双轨运行：`--all --warn` 输出债务基线不阻断，`--changed-since=origin/main --error` 只拦新增，逐模块清零后转全量 `--error`；
 2. **规则自检是地基**：`TestEveryRuleDetectsViolation`（对人造违规必须报错）+ `TestEveryRulePassesCleanCode`（干净代码不得误报），两条测试缺一不可；
 3. 逃生口 `//nolint:archcheck R2`；
-4. 规则数量控制在 8–12 条，每加一条都要问"它会误伤什么"。
+4. 规则数量控制在 8–12 条，每加一条都要问"它会误伤什么"；
+5. R6「单文件行数上限」阈值为 2200 行（`rules.go` 判定、`rules_test.go` 自检用例、两端 `eslint.config.mjs` 的 `max-lines` 及架构文档口径一致），只拦真正失控的巨型文件，职责边界仍靠 review 判断。
 
 ## 相关代码与文档
 
@@ -59,10 +60,3 @@
 - 代码：[tools/archcheck/rules_test.go](../../backend/tools/archcheck/rules_test.go)（规则自检）
 - 代码：[tools/archcheck/rules_id.go](../../backend/tools/archcheck/rules_id.go)（R12 `id-must-be-ctype`，见 [ADR-0007](./0007-id-string-type-as-truth.md)）
 - 文档：[治理与质量 · 架构守卫](../architecture/governance.md)
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)
-
-## 后续修订（2026-11-06，用户指令）
-
-- R6「单文件行数上限」阈值由 **800 行改为 2200 行**；`rules.go` 判定、`rules_test.go` 自检用例、两端 `eslint.config.mjs` 的 `max-lines`、`governance.md` / `overview.md` 口径同批对齐。
-- 本 ADR 正文与「当前生效约束」原文不动（已交付 ADR 不改结论，只追加后续修订）；`archive/v1` 与 `notes/memory` 里的 800 行记录属历史账，保留。
-- 动机：只拦真正失控的巨型文件，不再因为稍长的测试 / 聚合文件就逼着拆文件；职责边界仍靠 review 判断，不靠行数。

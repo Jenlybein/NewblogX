@@ -54,7 +54,7 @@ export default {
         },
       },
       borderRadius: {
-        // 圆角阶梯（ADR-0012 决策 4）：控件 / 输入 / 卡片 / 浮层 / 胶囊。
+        // 圆角阶梯（ADR-0011 决策 4）：控件 / 输入 / 卡片 / 浮层 / 胶囊。
         control: "var(--radius-sm)",
         field: "var(--radius-md)",
         card: "var(--radius-lg)",

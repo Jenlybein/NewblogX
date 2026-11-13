@@ -64,7 +64,7 @@ const { prefersReducedMotion } = useMotionPreference();
 const { target: revealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
 
-// 文章页取数编排（ADR-0019 决策 3）：正文 / 评论 / 评分在 composable 里同时发起，
+// 文章页取数编排（ADR-0016 决策 3）：正文 / 评论 / 评分在 composable 里同时发起，
 // 作者资料依赖正文里的 author_id、作为第二波；客户端跳转不等数据，先出骨架。
 const {
   article,
@@ -84,7 +84,7 @@ const {
 } = await useArticlePageSources({ articleId: () => articleId.value });
 
 // 阅读页左栏目录树（票 220 / 决定清单 A9–A11）：从 `?from=<kind>:<id>` 找回读者
-// 点进来的那棵树。树**只在客户端取数**（SSR 阶段不发请求，ADR-0019 的渲染边界与
+// 点进来的那棵树。树**只在客户端取数**（SSR 阶段不发请求，ADR-0016 的渲染边界与
 // 匿名缓存策略不变），站内跳转先出与真实三栏版式同构的骨架；没有归属树时整栏
 // 不出现，右栏标题大纲与阅读进度保持原样。
 const outlineFrom = computed(() => String(route.query.from ?? ""));
@@ -221,7 +221,7 @@ const {
   snapshot: () => ({ isDigg: article.value?.is_digg, diggCount: article.value?.digg_count }),
   patchArticle: (isDigg, diggCount) => {
     // 页面只上报「读者做了什么」：写响应回填权威计数 / 清客户端 30s SWR /
-    // 私有态覆盖 / 缓存键拼接已收进阅读页取数模块（票 282、ADR-0024 决策 4）。
+    // 私有态覆盖 / 缓存键拼接已收进阅读页取数模块（票 282、ADR-0016 决策 4）。
     reportArticleWrite({ kind: "digg", result: { is_digg: isDigg, digg_count: diggCount } });
   },
   // 点赞/收藏是写操作：用**目标态**接口（不是 toggle），写响应带回权威计数。
@@ -240,7 +240,7 @@ const articlePrivateSession = useArticlePrivateSession({
   isLoggedIn: () => authStore.isLoggedIn,
   initializeSession: () => authStore.initializeSession(),
   refreshPrivate: () => refreshArticlePrivate(),
-  // 用户已经手动点过赞时不覆盖乐观结果（ADR-0024 约束 3）。
+  // 用户已经手动点过赞时不覆盖乐观结果（ADR-0016 约束 3）。
   shouldSkip: () => articleDiggTouched.value,
 });
 
@@ -308,7 +308,7 @@ async function handleShare() {
 
 function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
   // 页面只上报收藏写响应（含空值）：权威计数回填、空值防御与客户端 30s SWR
-  // 主动失效都由阅读页取数模块统一管（票 282、ADR-0024 决策 4/6）。
+  // 主动失效都由阅读页取数模块统一管（票 282、ADR-0016 决策 4/6）。
   reportArticleWrite({ kind: "favorite", result: payload });
 }
 
@@ -404,8 +404,8 @@ async function handleNextCommentPage() {
 
 onMounted(() => {
   markArticleViewed(articleId.value).catch(() => undefined);
-  // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0019 约束 2）。
-  // 登录初始化完成后必须补一次用户态请求（ADR-0024 决策 2/6），否则硬刷新后
+  // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0016 约束 2）。
+  // 登录初始化完成后必须补一次用户态请求（ADR-0016 决策 2/6），否则硬刷新后
   // 按钮永远显示"未赞"。这条请求不走 SWR、只投影私有字段，不污染共享缓存。
   // 页内登录成功那一路由 `useArticlePrivateSession` 的 watch 兜住（单飞去重）。
   void articlePrivateSession.initialize();

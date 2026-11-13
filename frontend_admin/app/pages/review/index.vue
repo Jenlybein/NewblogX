@@ -76,7 +76,7 @@ const columns = [
     title: '合规（模型）',
     key: 'compliance',
     minWidth: 180,
-    // 第③层模型结论（票 312 / ADR-0033）。
+    // 第③层模型结论（票 312 / ADR-0024）。
     //
     // null 与 clean 必须显示成两件不同的事：null 是"还没判定"（AI 关闭 /
     // 调用失败 / 任务刚建），clean 是"判定过且没问题"。合并成"无风险"会让

@@ -1,7 +1,7 @@
 import type { SiteRuntimeConfig } from "~/types/api";
 
 /**
- * 「发布与展示」两个写作开关在读者站的投影（#64 / ADR-0017 决策 2）。
+ * 「发布与展示」两个写作开关在读者站的投影（#64 / ADR-0015 决策 2）。
  *
  * 服务端判定是唯一边界（`internal/article/app/create.go` / `update.go`），
  * 这里只负责"让界面说与服务端一致的话"：
@@ -58,7 +58,7 @@ export function articleWritePolicy(
   };
 }
 
-/** 「写文章」入口是否展示：发布开关关闭时隐藏（ADR-0017 决策 2）。 */
+/** 「写文章」入口是否展示：发布开关关闭时隐藏（ADR-0015 决策 2）。 */
 export function writeEntryVisible(policy: ArticleWritePolicy): boolean {
   return policy.allowPublish;
 }

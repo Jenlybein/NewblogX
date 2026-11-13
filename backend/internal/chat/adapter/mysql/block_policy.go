@@ -10,7 +10,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// chatBlockRow 对应 chat_block_models（ADR-0026 唯一获准新增的私信表）。
+// chatBlockRow 对应 chat_block_models（ADR-0018 唯一获准新增的私信表）。
 type chatBlockRow struct {
 	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time

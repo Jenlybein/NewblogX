@@ -3,7 +3,7 @@
 // 与「热门置顶」是两套数据、两套规则，不要混用：
 //   - 热门置顶：首页运营位，上限 12 条，表 article_hot_top_models；
 //   - 合集：有标题/描述/封面/展示开关的编排实体，主表 collection_models；
-//     收录关系与层次由目录树（outline）承载（ADR-0023）。
+//     收录关系与层次由目录树（outline）承载（ADR-0019）。
 //
 // 合集是**管理员专属**的运营产物：作者不参与创建，读者只读。
 // 本包只放"什么是合法合集"的纯规则与读模型，不含 SQL 也不认识 gin。
@@ -289,7 +289,7 @@ type Repository interface {
 	//
 	// onlyAdminAuthors 为真时，把"一篇公开文章都没有"（或文章作者
 	// 全是非管理员）的合集也过滤掉——站点「显示非管理员发布文章」开关关闭时，
-	// 合集是读者端公开读面，与首页列表、详情同一口径（ADR-0017 决策 4）。
+	// 合集是读者端公开读面，与首页列表、详情同一口径（ADR-0015 决策 4）。
 	ListCards(ctx context.Context, onlyAdminAuthors bool, p domain.Page) ([]Card, int64, error)
 
 	// ListAdminCards 列出全部合集（含未展示），后台列表用。

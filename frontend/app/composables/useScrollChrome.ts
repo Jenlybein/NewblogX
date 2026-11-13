@@ -50,7 +50,7 @@ function defaultTarget(): ScrollChromeTarget | null {
 }
 
 /**
- * 吸顶页头的滚动方向 / 阈值接线（替代 ADR-0012 之前 layouts/default.vue 的
+ * 吸顶页头的滚动方向 / 阈值接线（替代 ADR-0011 之前 layouts/default.vue 的
  * "页头不是 sticky"注释）。
  *
  * 判定逻辑在 utils/scrollChrome（纯函数 + 单测），这里只负责：监听 scroll、

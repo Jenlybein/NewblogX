@@ -32,7 +32,7 @@ useSeoMeta({
 });
 
 // 票 314 交付 6：站点声明 + 站内搜索（WebSite + SearchAction）。首页是 SSR 白名单里
-// 唯一的另一个页面（ADR-0019 决策 1），所以这条 JSON-LD 一定出现在爬虫拿到的 HTML 里。
+// 唯一的另一个页面（ADR-0016 决策 1），所以这条 JSON-LD 一定出现在爬虫拿到的 HTML 里。
 // SearchAction 的参数名必须是搜索页**真的读**的那一个（`/search?key=`）——写错不报错，
 // 只会让"在搜索结果里再搜一次"跳到一页空结果。
 const siteUrl = String(useRuntimeConfig().public.siteUrl || "");
@@ -62,14 +62,14 @@ const latestHasNext = computed(() => latestPager.hasNextPage.value);
 const siteBootstrapPending = computed(() => !siteStore.fetched);
 const latestFailed = computed(() => Boolean(latestRequestError.value));
 
-// 首屏封面的分层动效（ADR-0013 决策 9，全部归口 #23 的同一份预算）：
+// 首屏封面的分层动效（ADR-0011 决策 9，全部归口 #23 的同一份预算）：
 //   · 装饰层（色带）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
 //   · 文字层（h1/记号）**不做入场动画** —— 关键内容必须常显（详见模板里的注释）；
 //   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零；
 //   · 指针墨流是独立的 RAF（composables/useInkFluid），reduce 下只画一帧静帧。
 // 首屏不自己写关键帧动画，也不对布局属性做过渡。
 // 2026-11-03 后续修订：右栏线条场（15 条横条 + 两段式入场）已退役，
-// 改为「标题下发丝基线」的编辑部网格语言（见 ADR-0013 后续修订）。
+// 改为「标题下发丝基线」的编辑部网格语言（见 ADR-0011 后续修订）。
 const { target: coverRevealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
 
@@ -89,7 +89,7 @@ async function handleRetryLatest() {
 <template>
   <div class="page-stack" data-page="home">
     <!--
-      首屏封面（ADR-0013）：全站唯一的编辑部式例外区。
+      首屏封面（ADR-0011）：全站唯一的编辑部式例外区。
       色带 / 下沿刻度 / 方括号与箭头记号 / 胶囊小签 / 发丝基线 / 指针墨流
        只允许在这里出现（有设计测试锁住），装饰层都 aria-hidden。
       图层自下而上：底图（BannerCarousel 的媒体层）→ 指针墨流 → 色带 →
@@ -160,7 +160,7 @@ async function handleRetryLatest() {
     <!-- 右栏没有启用卡片时整块不渲染，同时把栅格收成单列，避免右侧留下空列。 -->
     <div class="hero-grid" :class="{ 'lg:grid-cols-1': !sidebarCards.length }">
       <div class="page-stack">
-        <!-- 热门置顶运营位（ADR-0017）：无数据 / 加载中 / 失败都整块不渲染，组件内部控制。 -->
+        <!-- 热门置顶运营位（ADR-0015）：无数据 / 加载中 / 失败都整块不渲染，组件内部控制。 -->
         <HomePinnedSection :articles="hotTopArticles" />
 
         <HomeFeedSection
@@ -204,7 +204,7 @@ async function handleRetryLatest() {
 
 <style scoped>
 /*
- * 首屏封面样式集中在同一个文件里（ADR-0013 约束 1/3）。
+ * 首屏封面样式集中在同一个文件里（ADR-0011 约束 1/3）。
  *
  * 满幅实现：width:100vw + margin-inline:calc(50% - 50vw) 让封面脱离 page-shell 的
  * max-width/px 内边距；1px 的视口溢出不在这里自裁，而是由布局层（site-layout）
@@ -298,7 +298,7 @@ async function handleRetryLatest() {
 /* 左栏：轮播面板，位于大字下方并整体右移一点（margin 让它不贴左沿）。
    它同时是 .banner-stage（absolute inset: 0）的定位上下文 —— 给 relative + 固定比例，
    内部底图 / 罩层 / 玻璃控件就自然填满面板。
-   比例锁死 16:9（ADR-0015 决策 3）：所有断点同一比例，不用高度档 ——
+   比例锁死 16:9（ADR-0013 决策 3）：所有断点同一比例，不用高度档 ——
    固定高度会随屏宽变化，同一张图在手机和显示器上就被裁成两种形状。 */
 .home-cover__panel {
   position: relative;
@@ -324,7 +324,7 @@ async function handleRetryLatest() {
 
 /* ---- 2026-11-03 编辑部网格语言：标题下发丝基线 ----
     取代已退役的右栏线条场。基线只用中性反白色，
-    黄 / 功能蓝 / 珊瑚三色仍然只属于色带（ADR-0012 约束 1、ADR-0013 约束 2）。 */
+    黄 / 功能蓝 / 珊瑚三色仍然只属于色带（ADR-0011 约束 1、ADR-0011 约束 2）。 */
 
 /* 基线只跨左栏（与轮播面板同宽、左缘对齐），落在标题与面板的栅格间隙中线。
    用 grid 定位而不是 JS 量坐标：它是 inner 里的一个 1px 网格项，
@@ -513,7 +513,7 @@ async function handleRetryLatest() {
   }
 
   /* 窄屏：顺序仍是大字 → 面板 → 记号；面板铺满整行、不再右移。
-     比例不在这里改 —— 16:9 是所有断点同一份定义（ADR-0015）。 */
+     比例不在这里改 —— 16:9 是所有断点同一份定义（ADR-0013）。 */
   .home-cover__panel {
     grid-column: 1;
     grid-row: 2;

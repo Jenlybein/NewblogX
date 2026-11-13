@@ -52,7 +52,7 @@ type Service struct {
 //
 // aiReady 是「AI 现在能不能真的用」的现读判定（总闸开着且至少有一条启用的模型
 // 配置）。它只用于保存前的校验：开「发布质量闸门」这个动作本身要求 AI 可用，
-// 否则新站点上线第一天就是"所有投稿都被拒"（票 306 / ADR-0032）。
+// 否则新站点上线第一天就是"所有投稿都被拒"（票 306 / ADR-0023）。
 // 传 nil 表示不校验（只有测试会这样），生产装配必须给真实现。
 func New(
 	banners domain.BannerRepository,
@@ -124,7 +124,7 @@ func (s *Service) AdminAI() conf.AI { return s.runtime.AI() }
 
 // UpdateSite 覆盖站点配置。
 //
-// 「开质量闸门」这个动作本身要求 AI 可用（票 306 / ADR-0032）：闸门是失败关闭的，
+// 「开质量闸门」这个动作本身要求 AI 可用（票 306 / ADR-0023）：闸门是失败关闭的，
 // 而 AI 默认是关闭的，两者叠在一起就是"新站点上线第一天所有投稿都被拒"。
 // 因此把失败面从运行期挪到配置期——保存不了，这个状态就不存在。
 func (s *Service) UpdateSite(site conf.Site) error {
@@ -139,7 +139,7 @@ func (s *Service) UpdateSite(site conf.Site) error {
 
 // UpdateAI 覆盖站点级 AI 设置。
 //
-// 每日上限在保存时校验（ADR-0038）：0 是合法值（不限），负数与超过上界的值
+// 每日上限在保存时校验（ADR-0028）：0 是合法值（不限），负数与超过上界的值
 // 一律拒绝。这里的拒绝是**否决保存**而不是静默回落 —— 后台是唯一写入口，
 // 悄悄改掉管理员填的数字只会让人以为改成功了。
 func (s *Service) UpdateAI(ai conf.AI) error {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 私信：站点级陌生人策略与按对限流（ADR-0026 / ADR-0039 拆页后的第四页）。
+// 私信：站点级陌生人策略与按对限流（ADR-0018 / ADR-0029 拆页后的第四页）。
 import { NAlert, NButton, NCard, NForm, NFormItem, NInputNumber, NSwitch, useMessage } from 'naive-ui'
 
 import { getSiteRuntimeConfig, updateSiteRuntimeConfig } from '~/services/admin'

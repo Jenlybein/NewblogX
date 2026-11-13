@@ -4,7 +4,7 @@
  * 「定形」是文件级改动：把任意比例的图片**居中**裁成目标比例，
  * 再降采样到目标像素尺寸，原图不参与上传；显示侧不再有第二套几何。
  *
- * 为什么把画布与图像构造做成注入点：测试环境没有 canvas 实现（ADR-0016），
+ * 为什么把画布与图像构造做成注入点：测试环境没有 canvas 实现（ADR-0014），
  * 定形又必须能在 vitest / SSR 里安全 import。所以本模块只做**纯计算 + 编排**，
  * 所有浏览器 API（decode / createCanvas / encode）都在 `deps` 后面，默认实现
  * 也只在真正调用时才碰 `document` / `Image`，模块加载期没有任何全局副作用。
@@ -51,7 +51,7 @@ export const SHAPE_FRAMING_ZOOM_STEP = 0.1;
 export const DEFAULT_SHAPE_FRAMING: ShapeFramingState = { zoom: 1, centerX: 0.5, centerY: 0.5 };
 
 /**
- * 与目标比例的相对偏差容差：±1%（票 215 / ADR-0015 后续修订）。
+ * 与目标比例的相对偏差容差：±1%（票 215 / ADR-0013 后续修订）。
  * 偏差按目标比例归一化，因此 16:9 与 1:1 两个目标共用同一个阈值。
  */
 export const SHAPE_ASPECT_TOLERANCE = 0.01;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 站点基础：备案号与 SEO（ADR-0039 拆页后的第一页）。
+// 站点基础：备案号与 SEO（ADR-0029 拆页后的第一页）。
 //
 // 与其它三个站点子页共用 `site` 段的一对整段端点，所以保存走
 // 「取最新整段 → 只覆盖本页的 site_info/seo → 写回」（utils/siteSectionSave）。

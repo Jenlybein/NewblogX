@@ -57,7 +57,7 @@ import type {
   GroupTreeData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十段一一对应（ADR-0029）。 */
+/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十段一一对应（ADR-0020）。 */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
@@ -254,7 +254,7 @@ export function replaceAdminTagOrder(tagIds: string[]) {
   })
 }
 
-// ── 热门置顶（运营位，ADR-0017 决策 5）────────────────────────
+// ── 热门置顶（运营位，ADR-0015 决策 5）────────────────────────
 //
 // 唯一真相是 `article_hot_top_models`，与 ES 无关。后台两处消费：
 // 文章管理列表的行内开关、热门置顶页的排序 / 清理。
@@ -558,7 +558,7 @@ export function getReplayLogs(query: { page?: number; limit?: number; stream?: s
 // ── 其余配置段 ────────────────────────────────────────────────
 //
 // 九段各有具名端点（`GET /site/admin/<段名>` / `PUT /site/<段名>`），
-// 请求体与响应形状按段固定（ADR-0029）。这里仍用泛型包一层再给出具名包装，
+// 请求体与响应形状按段固定（ADR-0020）。这里仍用泛型包一层再给出具名包装，
 // 让页面里的调用点能一眼看出在读写哪一段；类型由生成的 openapi.d.ts 派生。
 
 export function getRuntimeSection<T>(name: RuntimeSectionName) {
@@ -626,7 +626,7 @@ export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
   return updateRuntimeSection('deco', payload)
 }
 
-// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+// ── 合集 / 项目分组（ADR-0019）─────────────────────────────────
 //
 // 两个实体的分组端点完全同构，只是路径前缀不同。函数按 kind 分派而不是
 // 各写一份：语义一致，写两份只会让"删分组时把条目退回未分组"这类差异只修一边。

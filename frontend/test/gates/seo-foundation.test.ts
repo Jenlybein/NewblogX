@@ -12,7 +12,7 @@ import { ROBOTS_ALLOW_PATHS, ROBOTS_DISALLOW_PATHS, ROBOTS_SITEMAP_PATH, buildRo
  * `server/routes/robots.txt.get.ts` 按运行时 `siteUrl` 现拼，因为生产域名来自
  * 环境变量（local / test / production 三个域名），静态文件写不出正确的那一个。
  *
- * 关键取舍（见 docs/notes/2026-11-07-publish-gate-and-moderation-grill.md §6.2③）：
+ * 关键取舍（发布闸门与机审设计口径 §6.2③）：
  * 私密**页面**用页面级 `noindex`，而**不**在这里 Disallow —— 被 Disallow 的页面
  * 爬虫根本进不去，也就读不到页面里的 noindex；若别处有链接指向它，它仍可能以
  * "裸 URL 无标题"出现在结果里。所以 robots 只挡"没有页面形态、没有标签可看"的

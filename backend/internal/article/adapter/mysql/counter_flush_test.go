@@ -12,7 +12,7 @@ import (
 // 本文件是包内测试：直接用 row 结构建表，不经过 models，
 // 与 adapter 内部使用的是同一份表定义。
 //
-// 并账有两种写库方式（ADR-0025 决策 1）：
+// 并账有两种写库方式（ADR-0016 决策 1）：
 //   - `digg_count` / `favor_count`：按关系行 `COUNT` **重算覆盖**，不看增量；
 //   - `view_count` / `comment_count`：没有等价关系行，仍是 `列 += 增量`。
 

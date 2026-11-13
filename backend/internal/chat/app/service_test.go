@@ -382,7 +382,7 @@ func TestSend_未配置图片校验时失败关闭(t *testing.T) {
 	}
 }
 
-// 票 268 / ADR-0026：屏蔽 / 拉黑在发送与会话列表两处生效，且方向独立。
+// 票 268 / ADR-0018：屏蔽 / 拉黑在发送与会话列表两处生效，且方向独立。
 func TestSend_屏蔽或拉黑后双方都不能发(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

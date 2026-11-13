@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分（原文完整保留，v1 未在其他文档展开）
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -108,4 +108,3 @@ pending ──重投失败──> pending（retry_count+1、error_code/error_msg
 - 代码：[cdc/outboxrelay/replay.go](../../backend/internal/platform/cdc/outboxrelay/replay.go)、[cdc/imageref/replay.go](../../backend/internal/platform/cdc/imageref/replay.go)（另两条流的执行器）
 - 代码：[kernel/envelope.go](../../backend/internal/kernel/envelope.go)、[platform/http/router/contract_routes_test.go](../../backend/internal/platform/http/router/contract_routes_test.go)（`Envelope` 与路由契约校验）
 - 文档：[契约：单一来源、生成流水线与类型真相](../architecture/contracts.md)
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)

@@ -37,7 +37,7 @@ definePageMeta({
 const router = useRouter();
 const authStore = useAuthStore();
 const message = useMessage();
-// 站点「发布与展示」开关（ADR-0017 决策 2）。服务端判定是唯一边界，
+// 站点「发布与展示」开关（ADR-0015 决策 2）。服务端判定是唯一边界，
 // 这里只做体验：发布关闭时说明原因、草稿关闭时编辑器只读。
 const {
   policy: writePolicy,

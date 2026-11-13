@@ -40,7 +40,7 @@ var ErrUnsupported = errors.New("deadletter: replay unsupported")
 // 只有两个状态是刻意的：
 //   - 不设 `replaying` 中间态。重投是人工、低频、单实例操作，两个执行器都幂等
 //     （ES 按文档 id index/delete；outbox 重置是纯状态写），重复执行无害。
-//     中间态反而要额外写"僵尸 replaying 的恢复逻辑"，不划算。见 ADR-008。
+//     中间态反而要额外写"僵尸 replaying 的恢复逻辑"，不划算。见 ADR-0008。
 //   - 不设 `gave_up`。放弃是人的判断，不是系统能决定的事；真要放弃就把记录留着，
 //     它本来就不会再被自动处理。
 //

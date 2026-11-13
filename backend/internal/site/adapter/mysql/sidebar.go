@@ -15,7 +15,7 @@ import (
 //
 // 这张表是右栏卡片的唯一配置源：种类、标题、排序、启用状态各占一列。
 // 零列变更口径下，富文本正文放进同模块的 sidebar_card_body_models 表
-// （新增表、零列变更，见 ADR-0020 对零 DDL 的口径），不给这里加列。
+// （新增表、零列变更，零 DDL 口径见 docs/architecture/overview.md §六 A1），不给这里加列。
 type sidebarCardRow struct {
 	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time

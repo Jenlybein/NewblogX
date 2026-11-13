@@ -2,7 +2,7 @@
  * 六个评分维度的中文名（唯一一处映射）。
  *
  * 维度键由后端评分侧定义（clarity / structure / completeness / readability /
- * persuasiveness / language），中文名只在这里，后端不重复维护一份（ADR-0040）。
+ * persuasiveness / language），中文名只在这里，后端不重复维护一份（ADR-0023）。
  * 评分弹窗与「质量不达标」的驳回卡片都消费它，避免同一维度在两处叫不同名字。
  */
 export const SCORE_DIMENSION_LABELS: Record<string, string> = {

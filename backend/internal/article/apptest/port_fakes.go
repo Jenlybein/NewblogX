@@ -339,7 +339,7 @@ func (d *Diggs) Events() []string {
 	return append([]string(nil), d.events...)
 }
 
-// QualityGate 是 app.QualityGatePort 的内存实现（发布质量闸门，票 306 / ADR-0032）。
+// QualityGate 是 app.QualityGatePort 的内存实现（发布质量闸门，票 306 / ADR-0023）。
 //
 // 只返回"给定分数"这一个结论，不模拟模型：spec 的测试决定明确要求用假实现
 // 给定分数，测"我们拿这个分数做了什么决定"。
@@ -411,7 +411,7 @@ func (g *QualityGate) Evaluate(_ context.Context, in app.QualityGateInput) (app.
 	return score, nil
 }
 
-// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0031）。
+// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0022）。
 //
 // 有状态而不是"第 N 次返回 false"：额度是累计量，"释放后能不能再预占"
 // 只有在真的记账之后才断言得出来。

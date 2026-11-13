@@ -325,7 +325,7 @@ type Repository interface {
 	//
 	// onlyAdminAuthors 为真时，把"一篇公开文章都没有"（或收录文章的作者
 	// 全是非管理员）的项目也过滤掉——站点「显示非管理员发布文章」开关关闭时，
-	// 项目是读者端公开读面，与首页列表、详情同一口径（ADR-0017 决策 4）。
+	// 项目是读者端公开读面，与首页列表、详情同一口径（ADR-0015 决策 4）。
 	ListCards(ctx context.Context, onlyAdminAuthors bool, p domain.Page) ([]Card, int64, error)
 
 	// ListAdminCards 列出全部项目（含未展示），后台列表用。

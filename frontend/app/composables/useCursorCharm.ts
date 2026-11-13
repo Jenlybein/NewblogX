@@ -99,7 +99,7 @@ export interface CursorCharm {
    * 指针热点当前视口坐标（**不含**指针端偏移）；首移之前是原点。
    *
    * 指针端节点是 `charmPointerAnchor(pointer, config)` —— 偏移只在那一处加一次，
-   * 渲染不再单独偏（ADR-0018 约束 7）。
+   * 渲染不再单独偏（ADR-0014 约束 7）。
    */
   pointer: Ref<CharmPoint>;
   /** 挂绳路径（SVG 的 `d`）；每帧只写这一个字符串。 */
@@ -226,7 +226,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   /**
    * 这一帧该不该发布：`now - lastPublishAt >= 1000 / fps_cap - 4`。
    *
-   * 未到点就**直接返回**：不推进物理、不发布（ADR-0018 决策 3 选的是
+   * 未到点就**直接返回**：不推进物理、不发布（ADR-0014 决策 3 选的是
    * "早退不算"而不是"算了不画"）。循环启动时 `lastPublishAt` 是 null =
    * 视为已到点 —— 那是初值，不是给事件开的例外口子。
    */
@@ -396,7 +396,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     const deltaSeconds = lastFrameTime === null ? 0 : Math.max(0, time - lastFrameTime) / 1000;
     lastFrameTime = time;
 
-    // 指针端 = 指针热点 + 偏移：**唯一**一处换算（ADR-0018 决策 8 / 约束 7）。
+    // 指针端 = 指针热点 + 偏移：**唯一**一处换算（ADR-0014 决策 8 / 约束 7）。
     // 链的头节点与渲染的中心线首点都从它来，渲染层不得再单独偏一次。
     const head = charmPointerAnchor(pointer.value, config);
     const state = ensureRope(head, config);
@@ -429,7 +429,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     applyVisibility(charmVisibilityEnter(visibilityState, now(), visibilityOptions()));
     const point = eventPoint(event);
     pointer.value = point;
-    // 事件里只写坐标与可见性：**唯一的发布口是门控帧**（ADR-0018 决策 5）。
+    // 事件里只写坐标与可见性：**唯一的发布口是门控帧**（ADR-0014 决策 5）。
     // 拖动时最多有 1000/fps_cap 的随手延迟（60 档 ≈ 16.7ms），挂件本身有
     // 200ms 淡入，看不出来；而给拖动开例外会让"帧率上限"名不副实。
     startLoop();

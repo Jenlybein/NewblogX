@@ -45,7 +45,7 @@ export const CHARM_POINTER_FOLLOW_MAX_LAG_PX = 16;
  * 吸附阈值（px）：间隙小于它就**精确**落到锚点上。
  *
  * 一阶跟随是指数逼近，永远差一点点；而静止姿态必须严格等于「指针 + 指针端偏移」
- * （ADR-0018 约束 7），否则渲染出来的指针端会长期浮在偏移之外。它同时是
+ * （ADR-0014 约束 7），否则渲染出来的指针端会长期浮在偏移之外。它同时是
  * `charmRopeSettled` 的第二个条件 —— 指针端还在往锚点爬的时候不许停帧。
  */
 export const CHARM_POINTER_FOLLOW_SNAP_PX = 0.01;

@@ -26,7 +26,7 @@
     text-decoration: none;
   }
 
-  /* 焦点环是功能蓝（ADR-0012 允许它承担的第二个角色）：键盘用户在任何底色上都能看到自己停在哪。
+  /* 焦点环是功能蓝（ADR-0011 允许它承担的第二个角色）：键盘用户在任何底色上都能看到自己停在哪。
    * 全文件只在这里消费 --color-focus —— 它不当按钮底色、不当悬停字色。 */
   :where(a, button, [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 2px solid var(--color-focus);
@@ -44,7 +44,7 @@
     min-height: 100vh;
   }
 
-  /* 后台不做玻璃（ADR-0012 约束 6：密集信息面以对比度为先）。侧栏是不透明纸面。 */
+  /* 后台不做玻璃（ADR-0011 约束 6：密集信息面以对比度为先）。侧栏是不透明纸面。 */
   .admin-sider {
     background: var(--color-surface);
   }

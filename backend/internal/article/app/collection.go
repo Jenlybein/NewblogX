@@ -128,7 +128,7 @@ func (s *Service) SetCollectionDisplay(ctx context.Context, cmd SetCollectionDis
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面，由 adapter 每请求
 // 从站点运行时配置现读后传入：开关关闭时，一篇公开文章都凑不出的合集
-// 同样不出现（合集是读者端公开读面，ADR-0017 决策 4）。
+// 同样不出现（合集是读者端公开读面，ADR-0015 决策 4）。
 func (s *Service) ListCollectionCards(
 	ctx context.Context, onlyAdminAuthors bool, p domain.Page,
 ) ([]collection.Card, int64, error) {

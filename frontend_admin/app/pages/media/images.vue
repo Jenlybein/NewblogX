@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 图片资源库（`/media/images`）：列出站内上传的图片并支持删除。
 //
-// 拆页后本页只拉图片分页；轮播运营（`/media/banners`）有自己的列表与加载（ADR-0039）。
+// 拆页后本页只拉图片分页；轮播运营（`/media/banners`）有自己的列表与加载（ADR-0029）。
 // `/images` 是 page/count 分页（后端 `res.OkWithList` → `{list, count}`），没有 has_more，
 // 所以"下一页"要按总数自己算。
 import { h } from 'vue'

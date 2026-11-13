@@ -74,7 +74,7 @@ func ChatWithLimit(ctx context.Context, aiConf conf.AI, msgList []Message, maxTo
 	if maxTokens > 0 {
 		spec.MaxTokens = maxTokens
 	}
-	// 每日额度：出站口是唯一的收费点，业务侧不需要各写一遍（ADR-0038）。
+	// 每日额度：出站口是唯一的收费点，业务侧不需要各写一遍（ADR-0028）。
 	lease, err := chargeCall(ctx, aiConf)
 	if err != nil {
 		// 被额度挡住同样要留一条调用日志：否则后台只能听用户说"我用不了"，

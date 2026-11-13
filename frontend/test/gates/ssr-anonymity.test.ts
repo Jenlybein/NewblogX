@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { READER_PRIVATE_FIELDS } from "~/utils/readerPrivateFields";
 
 /**
- * "SSR 输出不得含用户态"门禁（ADR-0019 约束 2）。
+ * "SSR 输出不得含用户态"门禁（ADR-0016 约束 2）。
  *
  * 服务端缓存的键只有 URL（约束 3）：同一份 HTML 会发给所有读者，登录态由客户端补齐。
  * 所以文章页与评论区的 SSR 输出里不能出现 `is_digg` / `is_favor` / `relation` 这类
@@ -30,7 +30,7 @@ function privateViewStateKeysInSerialized(serialized: string): string[] {
   return PRIVATE_VIEW_STATE_KEYS.filter((key) => new RegExp(`"${key}"\\s*:`, "u").test(serialized));
 }
 
-describe("SSR 输出不得含用户态（ADR-0019 约束 2）", () => {
+describe("SSR 输出不得含用户态（ADR-0016 约束 2）", () => {
   it("私有字段清单只有一份（readerPrivateFields），且覆盖点赞 / 收藏 / 关注关系", () => {
     // 客户端 30s 缓存（#85）与服务端剔除（#86）必须共用同一张表，否则会漏掉一半。
     expect([...READER_PRIVATE_FIELDS].sort()).toEqual(["is_digg", "is_favor", "relation"]);

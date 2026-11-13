@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { blockAfter, collectFiles, extensionFilter, stripComments } from "../helpers/designFiles";
 
 /**
- * 首屏编辑部式封面（ADR-0013）的静态设计契约。
+ * 首屏编辑部式封面（ADR-0011）的静态设计契约。
  *
  * 首屏是全站唯一的"编辑部式例外区"：满幅色带、超大 h1、指针墨流、方括号/箭头记号
  * 只允许长在这一个文件里。例外区最危险的退化是"被复制到列表页"，所以这里的断言

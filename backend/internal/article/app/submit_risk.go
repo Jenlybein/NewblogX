@@ -65,7 +65,7 @@ func (s *Service) scanSubmitRisk(ctx context.Context, title, content string, art
 // newRiskRejection 把同步扫描的结论包成带错误码的错误。
 //
 // 作者侧只拿到一条固定文案（apperr 的 code 映射），命中词、维度、等级都
-// 不进响应 —— 这与"作者永远看不到模型判定细节"是同一条边界（ADR-0033 决策 7）。
+// 不进响应 —— 这与"作者永远看不到模型判定细节"是同一条边界（ADR-0024 决策 7）。
 func newRiskRejection() error {
 	return apperr.New(apperr.CodeArticleRiskRejected)
 }

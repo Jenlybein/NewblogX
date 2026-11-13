@@ -1,5 +1,5 @@
 // 报告格式的单元测试：聚合结果、判定、JSON/Markdown 渲染、以及"两次运行可直接 diff"。
-// 所有期望值来自设计口径（ADR-0019 预算 + 实测笔记的测法），手算写死；不调用被测代码反推。
+// 所有期望值来自设计口径（ADR-0016 预算 + 实测笔记的测法），手算写死；不调用被测代码反推。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildReport, renderMarkdown, renderJson, BUDGETS } from "../lib/report.mjs";
@@ -98,7 +98,7 @@ test("聚合：中位/最差/不可测次数按 3 次运行如实计算", () => 
   assert.deepEqual(articleCold.aggregates.contentVisibleMs, { measured: 3, unmeasured: 0, median: 1900, worst: 2211 });
 });
 
-test("判定：按 ADR-0019 预算给 pass / fail / unmeasurable", () => {
+test("判定：按 ADR-0016 预算给 pass / fail / unmeasurable", () => {
   assert.equal(report.scenarios["firstScreen.home"].modes.cold.verdicts.contentVisibleMs, "fail");   // 1644 > 800
   assert.equal(report.scenarios["firstScreen.home"].modes.warm.verdicts.contentVisibleMs, "pass");   // 299 < 800
   assert.equal(report.fonts.home.cold.verdicts.totalBytes, "fail");                                  // 2.4 MB > 100 KB

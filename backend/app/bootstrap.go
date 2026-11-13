@@ -70,7 +70,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	//
 	// 放在最前面是有意的：它不依赖数据库、也不需要任何外部服务，
 	// 排版错一个字段就能在连库之前失败，错误里直接点名是哪一份文件。
-	// 这正是"读不到就不启动"的落点 —— 不存在代码内兜底文本（ADR-0030）。
+	// 这正是"读不到就不启动"的落点 —— 不存在代码内兜底文本（ADR-0021）。
 	catalog, err := LoadSkills(cfg)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func InitRuntimeServices(infra *Infra) error {
 	infra.Effective = sitecfg.NewEffectiveConfig(runtimeSite)
 
 	// 场景 → skill 的引用在启动期一次查清：引用不存在的 skill 是**配置错误**，
-	// 不能等到第一个用户提问时才失败（ADR-0030：读不到就不启动）。
+	// 不能等到第一个用户提问时才失败（ADR-0021：读不到就不启动）。
 	if err := ValidateSceneSkillBindings(runtimeSite.GetRuntimeAI(), infra.Skills); err != nil {
 		return err
 	}

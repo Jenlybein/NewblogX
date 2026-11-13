@@ -409,7 +409,7 @@ func TestSaveCategoryRecreatesAfterSoftDelete(t *testing.T) {
 	}
 }
 
-// TestRenameCategoryIntoSoftDeletedNameStillDuplicates 钉住 ADR-0036 的「已知限制」。
+// TestRenameCategoryIntoSoftDeletedNameStillDuplicates 钉住 ADR-0026 的「已知限制」。
 //
 // 恢复只发生在**新建**路径。改名走 UPDATE：目标名字如果只被一条软删行占着，
 // 唯一索引照样拒绝——用户看到「名称重复」，而列表里根本看不到那个名字。
@@ -477,7 +477,7 @@ func TestSaveCategoryUnchangedUpdateIsNotADuplicate(t *testing.T) {
 	}
 }
 
-// TestDeleteCategoryDetachesArticlesBeforeSoftDelete 钉住删除的两步语义（ADR-0036 约束 3）：
+// TestDeleteCategoryDetachesArticlesBeforeSoftDelete 钉住删除的两步语义（ADR-0026 约束 3）：
 // 先把挂在该分类下的文章置空、再软删分类；文章本身不消失，别的分类不受影响。
 //
 // article_models.category_id 上有外键指向分类表，但删除是软删，外键永远不触发，
@@ -538,7 +538,7 @@ func TestDeleteCategoryDetachesArticlesBeforeSoftDelete(t *testing.T) {
 		}
 	}
 
-	// 决策（ADR-0036）：回收站里的文章**保留**分类归属。删除是软删、重建同名分类
+	// 决策（ADR-0026）：回收站里的文章**保留**分类归属。删除是软删、重建同名分类
 	// 会恢复同一行，归属随之回来；这里顺手清掉反而丢掉了一条能回来的信息。
 	var trashedCategory *ctype.ID
 	if err := db.Unscoped().Model(&articleRow{}).Select("category_id").

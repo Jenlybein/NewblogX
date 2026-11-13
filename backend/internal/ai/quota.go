@@ -8,7 +8,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 每日额度（ADR-0038）。
+// 每日额度（ADR-0028）。
 //
 // 收费点是**唯一真正发模型请求的那两个函数**（Chat / ChatStream）：业务侧看不到
 // 计数，新增调用点自动被覆盖。归属信息来自 ctx 上的 CallMeta（场景 + 用户），
@@ -87,7 +87,7 @@ func chargeCall(ctx context.Context, aiConf conf.AI) (QuotaLease, error) {
 //
 // 用于一次动作内部会多次调用模型的场景（目前只有评分：长文按段落分块，
 // 一次投稿可能顺序调 2..N 次）。入口预扣一次，并把 ctx 标成预扣态，
-// 内部分块子调用看到标记就不再重复扣（ADR-0038 决策）。
+// 内部分块子调用看到标记就不再重复扣（ADR-0028 决策）。
 //
 // 返回 (nil, nil) 表示本次不需要计数（管理员 / 无归属 / 该场景不限）。
 func BuyActionQuota(ctx context.Context, aiConf conf.AI, scene string, userID ctype.ID, isAdmin bool) (QuotaLease, error) {

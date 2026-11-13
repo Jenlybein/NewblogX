@@ -12,7 +12,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 投稿配额（票 304 / ADR-0031）在用例层的可观察行为。
+// 投稿配额（票 304 / ADR-0022）在用例层的可观察行为。
 //
 // 只断言"文章最终落在哪个状态、返回哪个错误码、额度有没有被归还"，
 // 不进 Redis、也不断言适配器内部动作（spec 的 Testing Decisions）。

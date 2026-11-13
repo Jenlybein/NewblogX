@@ -14,7 +14,7 @@ import (
 //   - 显式要求提交 → 进审核队列；
 //   - 改的是实质内容且当前已发布/审核中 → 自动重新送审（可见性变更不算）。
 //
-// 质量闸门开启时，评分调用必须发生在数据库事务之外（票 306 / ADR-0032）：
+// 质量闸门开启时，评分调用必须发生在数据库事务之外（票 306 / ADR-0023）：
 // 因此先用一次**只读预演**（previewUpdate，事务内只读、不写库）算出"这次到底
 // 会不会提交"以及"提交的标题/正文是什么"，然后预占配额、在事务外评分，
 // 最后才进写事务（写事务会重新读一遍文章，以它读到的状态为准）。
@@ -22,7 +22,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	var result *UpdateResult
 	// 投稿配额的预占点在这里而不是事务之前：这次更新到底会不会"提交"，
 	// 要读到文章当前状态才知道（草稿提交 vs 已发布文章编辑后自动送审）。
-	// 失败时在函数末尾归还（票 304 / ADR-0031）。
+	// 失败时在函数末尾归还（票 304 / ADR-0022）。
 	var reservation SubmitQuotaReservation
 	gateRejected := false
 	var verdict qualityVerdict
@@ -30,7 +30,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 	// 只读预演 + **事务外**的同步风险扫描与评分。两者都必须在 WithinTx 之外：
 	// 风险扫描要读已有评分记录，评分是一次 5–30 秒的模型调用，占着事务等于
-	// 钉死连接池（ADR-0032 硬纪律、ADR-0035 决策 1）。写事务会重新读一遍
+	// 钉死连接池（ADR-0023 硬纪律、ADR-0025 决策 1）。写事务会重新读一遍
 	// 文章，以它读到的状态为准。
 	var preview updatePreview
 	if err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
@@ -89,7 +89,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			return domain.ErrArticleNotFound
 		}
 
-		// 站点「发布与展示」开关（ADR-0017 决策 2）：
+		// 站点「发布与展示」开关（ADR-0015 决策 2）：
 		//   - 关闭发布 → 不能更新已发布/审核中的文章、不能发布自己的草稿；
 		//   - 关闭草稿 → 存量草稿可打开可删除，但保存（含退回草稿）会被拒。
 		// 判定必须在 ApplyEdit 之前：先改内存再报错会让聚合带上"被拒绝的修改"。
@@ -152,7 +152,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		case idempotentSubmit:
 			// 什么都不做：文章已经是发布态，内容由 ApplyEdit 写过了。
 		case explicitSubmit || autoResubmit:
-			// 系统直接拒是终局（票 302 / ADR-0035「不给改」）：同步风险命中与
+			// 系统直接拒是终局（票 302 / ADR-0025「不给改」）：同步风险命中与
 			// 合规自动拒都留了一条待处理复盘任务，按来源认。人工驳回的
 			// StatusRejected 不在此列——#303 允许作者改稿后重投。
 			if err := rejectSystemRejectedResubmit(ctx, r, a.ID()); err != nil {

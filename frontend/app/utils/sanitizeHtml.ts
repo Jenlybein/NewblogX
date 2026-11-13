@@ -11,7 +11,7 @@ import DOMPurify from "isomorphic-dompurify";
  * 补了漏洞另一边没补。所以这里保留 DOMPurify 自带的、由上游维护的 HTML/SVG 允许
  * 清单，只按档位**收窄**，不另起一份手写白名单。
  *
- * - `article`：正文档。放行内联 SVG（ADR-0021），只禁掉 SVG 里能装 HTML、能加载
+ * - `article`：正文档。放行内联 SVG（ADR-0017），只禁掉 SVG 里能装 HTML、能加载
  *   外部资源、能跑动画的那批标签。
  * - `rich_text`：右栏富文本档。只走 HTML 档、不放 SVG；脚本 / 内联事件 / iframe /
  *   表单 / 媒体 / `data:` 伪协议一律剥离。运营只需要基础排版（标题、粗斜体、列表、

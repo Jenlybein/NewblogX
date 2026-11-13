@@ -53,7 +53,7 @@ export default {
         },
         focus: "var(--color-focus)",
         shadow: "var(--color-shadow)",
-        // 玻璃层填充/边缘（ADR-0012 决策 5；实现留给批次 3）
+        // 玻璃层填充/边缘（ADR-0011 决策 5；实现留给批次 3）
         glass: {
           thin: "var(--glass-thin-fill)",
           thick: "var(--glass-thick-fill)",
@@ -62,7 +62,7 @@ export default {
         },
       },
       borderRadius: {
-        // 圆角阶梯（ADR-0012 决策 4）：控件 / 输入 / 卡片 / 浮层 / 胶囊。
+        // 圆角阶梯（ADR-0011 决策 4）：控件 / 输入 / 卡片 / 浮层 / 胶囊。
         // 刻意不复用 Tailwind 默认的 sm/md/lg 键名，避免本票顺带把旧圆角改掉。
         control: "var(--radius-sm)",
         field: "var(--radius-md)",

@@ -115,7 +115,7 @@ func (r *Repos) NamedOutlineFor(_ context.Context, _ outline.OwnerKind) outline.
 	return r.outlineRepo
 }
 
-// FakeGroups 返回分组 fake（ADR-0041）。
+// FakeGroups 返回分组 fake（ADR-0019）。
 func (r *Repos) FakeGroups() *FakeGroups { return r.groupRepo }
 
 // FakeCounters 返回计数 fake。
@@ -156,7 +156,7 @@ func (r *Repos) ViewHistory() viewhistory.Repository { return r.historyRepo }
 // Reviews 返回审核任务仓储。
 func (r *Repos) Reviews() review.Repository { return r.reviewRepo }
 
-// Risks 返回合规判定记录仓储（票 312 / ADR-0033）。
+// Risks 返回合规判定记录仓储（票 312 / ADR-0024）。
 func (r *Repos) Risks() risk.Repository { return r.riskRepo }
 
 // FakeRisks 返回风险记录 fake 本身（测试断言其内部状态时用）。
@@ -275,7 +275,7 @@ func NewTx(repos *Repos) *Tx { return &Tx{repos: repos} }
 // WithinTx 执行 fn；出错则回滚全部 fake 仓储。
 func (t *Tx) WithinTx(ctx context.Context, fn func(ctx context.Context, r app.Repos) error) error {
 	// active 记录"此刻是否有一个事务正在执行"。发布质量闸门的用例测试用它
-	// 断言评分调用没有发生在事务内（票 306 / ADR-0032）。
+	// 断言评分调用没有发生在事务内（票 306 / ADR-0023）。
 	t.mu.Lock()
 	t.calls++
 	t.active++
@@ -522,7 +522,7 @@ func (g *IDGen) NextProjectID() project.ID {
 	return ctype.NewID(g.article)
 }
 
-// NextGroupID 返回下一个分组 ID（ADR-0041）。
+// NextGroupID 返回下一个分组 ID（ADR-0019）。
 func (g *IDGen) NextGroupID() grouping.ID {
 	g.mu.Lock()
 	defer g.mu.Unlock()

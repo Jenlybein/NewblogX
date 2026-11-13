@@ -30,7 +30,7 @@ import (
 // 表示会话行不存在或已软删（此时不写、也不报错）。
 //
 // 导出供 cron 任务调用；它是**覆盖写**而不是 `unread_count -= n`，所以历史漂移
-// 在本轮自愈。与 ADR-0025 的差别只在于触发方式：文章计数由"哪篇文章有 Redis
+// 在本轮自愈。与 ADR-0016 的差别只在于触发方式：文章计数由"哪篇文章有 Redis
 // 增量"驱动，私信没有 Redis 增量源，改为每轮扫描全部活跃会话（量级是用户会话数，
 // 不是消息行数）。
 func ReconcileChatUnread(ctx context.Context, db *gorm.DB, sessionID string, userID uint64) (bool, error) {
@@ -90,7 +90,7 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB, sessionID string, use
 // 会把同一会话的另一行漏掉 —— 那个用户的角度就永远不被重算。
 //
 // 这也是为什么它挂在既有 30 分钟 tick 上而不是新开调度器：与文章计数并账
-// 同一个节奏，不新增定时任务（ADR-0025 的约束）。
+// 同一个节奏，不新增定时任务（ADR-0016 的约束）。
 func ReconcileAllChatUnread(ctx context.Context, db *gorm.DB, batch int) (int, error) {
 	if db == nil {
 		return 0, nil

@@ -28,7 +28,7 @@ export function getArticleDetail(id: string | number) {
 }
 
 /**
- * 文章详情的**匿名**取数（ADR-0019 决策 5 / 约束 2）。
+ * 文章详情的**匿名**取数（ADR-0016 决策 5 / 约束 2）。
  *
  * 返回体里可能带 `is_digg`（"我有没有点过赞"）。服务端渲染的 HTML 要进按 URL 键的
  * 共享缓存，所以 SSR 取数必须显式匿名（`auth: false`），再叠加
@@ -40,7 +40,7 @@ export function getArticleDetailAnonymous(id: string | number) {
 }
 
 /**
- * 文章页的**用户私有态**取数（ADR-0024 决策 2）。
+ * 文章页的**用户私有态**取数（ADR-0016 决策 2）。
  *
  * 复用带鉴权的详情接口，但只投影 `is_digg` / `is_favor`：
  * - 显式调用 `getArticleDetail`（默认 auth，不传 `auth: false`），否则匿名视角会
@@ -71,7 +71,7 @@ export function markArticleViewed(id: string | number) {
 }
 
 /**
- * 设置点赞目标态（ADR-0024 决策 3）。
+ * 设置点赞目标态（ADR-0016 决策 3）。
  *
  * 旧接口是 toggle（不带请求体）：按钮显示"未赞"时再点一次会把真实点赞取消掉。
  * 现在传 `{liked}`，服务端按目标收敛、重复同态无操作；响应带回权威 `digg_count`，
@@ -85,7 +85,7 @@ export function setArticleDigg(id: string | number, liked: boolean) {
 }
 
 /**
- * 收藏文章（写响应回填权威 `favor_count` / `is_favor`，见 ADR-0024 决策 4）。
+ * 收藏文章（写响应回填权威 `favor_count` / `is_favor`，见 ADR-0016 决策 4）。
  */
 export function favoriteArticle(articleId: string | number, favorId?: string | number) {
   return useNuxtApp().$api.request<ArticleFavoriteResult>("/api/articles/favorite", {

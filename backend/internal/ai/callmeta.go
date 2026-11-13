@@ -26,7 +26,7 @@ type CallMeta struct {
 	// SKILL.md 字节哈希前 12 位）。空值表示这次调用没有绑定策略文本。
 	//
 	// 它来自内容哈希而不是手写常量：运营改文案时版本自动变，调用记录与
-	// 文件内容不会各说各话（#310 / ADR-0030）。
+	// 文件内容不会各说各话（#310 / ADR-0021）。
 	PromptVersion string
 
 	// IsAdmin 表示触发者拥有管理员身份；为真时这次调用不占每日额度。
@@ -64,7 +64,7 @@ const (
 	SceneDiagnose      = "diagnose"
 	SceneSearchRewrite = "search_rewrite"
 	SceneSearchAnswer  = "search_answer"
-	// SceneModeration 是投稿的**合规判定**（票 312 / ADR-0033）。
+	// SceneModeration 是投稿的**合规判定**（票 312 / ADR-0024）。
 	//
 	// 单开一个场景而不是并进 scoring：两者判的是不同的问题（写得好不好 vs
 	// 能不能发），成本、失败率与超时都要分开统计；混在一起就没法回答

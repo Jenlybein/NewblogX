@@ -15,7 +15,7 @@ import type {
 import type { RequiredSchema } from "~/types/contract";
 
 /**
- * 后台「站点」配置的编译期契约对账（#60 / #192 / #202 / ADR-0017 / ADR-0026；#283 改写）。
+ * 后台「站点」配置的编译期契约对账（#60 / #192 / #202 / ADR-0015 / ADR-0018；#283 改写）。
  *
  * #283 前这一层是「逐字段解析 `app/types/api.ts` 里手写视图模型 + .vue 模板字符串」的
  * 源码文本断言。九段具名进契约（开放接口契约）之后，手写视图模型整体退场、两端类型都从
@@ -105,7 +105,7 @@ describe("站点标题与 Logo 自定义已删除（#192）", () => {
   });
 });
 
-describe("「发布与展示」三开关（#60 / ADR-0017 决策 2）", () => {
+describe("「发布与展示」三开关（#60 / ADR-0015 决策 2）", () => {
   it("article 具名形状声明三个布尔", () => {
     expectTypeOf<ArticleShape["allow_non_admin_publish"]>().toEqualTypeOf<boolean>();
     expectTypeOf<ArticleShape["allow_non_admin_draft"]>().toEqualTypeOf<boolean>();
@@ -129,7 +129,7 @@ describe("私信的陌生人开关（#202）", () => {
     expectTypeOf<SiteRuntimeConfig["chat"]["stranger_msg_enabled"]>().toEqualTypeOf<boolean>();
   });
 
-  it("私信限流参数在具名契约里同名且是数值（ADR-0026）", () => {
+  it("私信限流参数在具名契约里同名且是数值（ADR-0018）", () => {
     expectTypeOf<ChatShape["rate_window_sec"]>().toEqualTypeOf<number>();
     expectTypeOf<ChatShape["rate_daily_max"]>().toEqualTypeOf<number>();
     expectTypeOf<SiteRuntimeConfig["chat"]["rate_window_sec"]>().toEqualTypeOf<number>();

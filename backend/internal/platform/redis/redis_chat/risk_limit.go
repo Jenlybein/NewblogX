@@ -14,7 +14,7 @@ import (
 	redis_service "myblogx/internal/platform/redis"
 )
 
-// 发送限流口径（spec 269 / D-4，票 268，ADR-0026）。
+// 发送限流口径（spec 269 / D-4，票 268，ADR-0018）。
 //
 // 参数由后台「站点 → 私信」经生效值模块现读下发（默认 1 条 / 窗口、N 条 / 自然日，
 // 默认窗口与额度只在 platform/config 的生效值模块声明一次）。

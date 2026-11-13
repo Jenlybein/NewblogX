@@ -101,7 +101,7 @@ function fakeHost(initialHidden = false) {
  * 留一个空槽只会让人以为它还在。
  *
  * `frameDelayMs` 可调：默认就是"60Hz 显示器"，而要验证帧率门控的容差
- * （ADR-0018 决策 3）就得喂一个**略小于 `1000/60`** 的刷新间隔。
+ * （ADR-0014 决策 3）就得喂一个**略小于 `1000/60`** 的刷新间隔。
  */
 function fakeFrames(frameDelayMs: number = RAF_DELAY_MS) {
   interface Scheduled {
@@ -525,7 +525,7 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
 
   /**
    * 决议要求门控写成 `now - lastPublishAt >= 1000/fps_cap - CHARM_FRAME_GATE_TOLERANCE_MS`
-   * （ADR-0018 决策 3，"不许删"）。但 60Hz 的 16.667ms 与 `1000/60` 差得只有
+   * （ADR-0014 决策 3，"不许删"）。但 60Hz 的 16.667ms 与 `1000/60` 差得只有
    * 0.0003ms —— 把容差改成 0，上面那条用例照样全绿，等于这条约束没被锁住。
    *
    * 这里把刷新间隔压到 `1000/60` 以下 0.07ms：只有容差真的存在，每帧才会都判成

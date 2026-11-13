@@ -108,7 +108,7 @@ export function getFavoriteFolderArticles(payload: {
 }
 
 /**
- * 从收藏夹移除文章（ADR-0024 决策 6；评审票 248 的 P0-2 / P0-3）。
+ * 从收藏夹移除文章（ADR-0016 决策 6；评审票 248 的 P0-2 / P0-3）。
  *
  * 「已收藏 → 移除」必须走 DELETE：旧实现误发 POST，后端发现关系已存在后返回
  * `ErrItemExists`（"已收藏该文章"），用户点"移出"反而失败、关系也没动。

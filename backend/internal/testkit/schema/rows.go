@@ -263,7 +263,7 @@ type ChatMsgRow struct {
 	//      "先建会话行、再插消息行"，这条外键让第一步必然失败
 	//      （Error 1452）；删消息也会被它拦住；
 	//   3. chat_msg_models.session_id 不是唯一键，本来就不该被引用。
-	// 见 docs/archive/v1/05-baseline-and-process.md §三（M6 决策留档）「chat 假外键」条。
+	// 见 M6 决策留档「chat 假外键」条。
 }
 
 // TableName 固定表名。
@@ -280,7 +280,7 @@ type ChatMsgUserStateRow struct {
 // TableName 固定表名。
 func (ChatMsgUserStateRow) TableName() string { return "chat_msg_user_state_models" }
 
-// ChatBlockRow 对应表 chat_block_models（ADR-0026 批准新增的私信屏蔽 / 拉黑表）。
+// ChatBlockRow 对应表 chat_block_models（ADR-0018 批准新增的私信屏蔽 / 拉黑表）。
 // level: 1=屏蔽 2=拉黑；方向性记录，软删表示解除。
 type ChatBlockRow struct {
 	BaseRow
@@ -774,7 +774,7 @@ type CollectionRow struct {
 // TableName 固定表名。
 func (CollectionRow) TableName() string { return "collection_models" }
 
-// ArticleRiskRow 对应表 article_risk_models（ADR-0033 / 票 312）。
+// ArticleRiskRow 对应表 article_risk_models（ADR-0024 / 票 312）。
 //
 // 一篇文章一行、随提交覆盖、不存历史。文章表与审核任务表都不加列，
 // 合规结论只能落在这张经 ADR 指名的新表上。
@@ -792,7 +792,7 @@ type ArticleRiskRow struct {
 
 func (ArticleRiskRow) TableName() string { return "article_risk_models" }
 
-// CollectionGroupRow 对应表 collection_group_models（ADR-0041）。
+// CollectionGroupRow 对应表 collection_group_models（ADR-0019）。
 type CollectionGroupRow struct {
 	BaseRow
 	Title string `gorm:"type:varchar(128);not null" json:"title"`
@@ -818,7 +818,7 @@ type CollectionGroupItemRow struct {
 // TableName 固定表名。
 func (CollectionGroupItemRow) TableName() string { return "collection_group_item_models" }
 
-// ProjectGroupRow 对应表 project_group_models（ADR-0041）。
+// ProjectGroupRow 对应表 project_group_models（ADR-0019）。
 type ProjectGroupRow struct {
 	BaseRow
 	Title     string `gorm:"type:varchar(128);not null" json:"title"`

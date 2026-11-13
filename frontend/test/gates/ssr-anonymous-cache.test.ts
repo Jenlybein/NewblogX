@@ -20,7 +20,7 @@ import {
 } from "../../server/utils/ssrAnonymousCache";
 
 /**
- * 匿名 SSR 缓存门禁（ADR-0019 决策 5 / 约束 2、3）。
+ * 匿名 SSR 缓存门禁（ADR-0016 决策 5 / 约束 2、3）。
  *
  * 缓存是**按 URL 键**的共享缓存：同一份 HTML 会发给所有读者。所以这张票有两条
  * 不能松的约束，这里逐条钉住：
@@ -63,7 +63,7 @@ type SsrAnonymousCachePolicyViolation =
   | { kind: "key-varies-by-request-identity"; pathname: string };
 
 /**
- * 缓存策略判据：返回全部违规（空数组 = 策略符合 ADR-0019 决策 5 / 约束 3）。
+ * 缓存策略判据：返回全部违规（空数组 = 策略符合 ADR-0016 决策 5 / 约束 3）。
  * 判据里包含两条"人造"检查：不同请求身份必须拿到同一个键、非白名单路由必须被拒绝。
  * 只断言当前实现的门禁是恒绿的，判据被改坏时没人会发现。
  */
@@ -119,7 +119,7 @@ function routeRulesOf(config: { routeRules?: unknown }): Record<string, Record<s
   return rules;
 }
 
-describe("匿名 SSR 缓存：TTL 与路由边界（ADR-0019 决策 5）", () => {
+describe("匿名 SSR 缓存：TTL 与路由边界（ADR-0016 决策 5）", () => {
   it("TTL 是 30 秒", () => {
     expect(SSR_ANONYMOUS_CACHE_TTL_MS).toBe(30_000);
   });
@@ -162,7 +162,7 @@ describe("匿名 SSR 缓存：TTL 与路由边界（ADR-0019 决策 5）", () =>
   });
 });
 
-describe("匿名 SSR 缓存：键只由 URL 决定（ADR-0019 约束 3）", () => {
+describe("匿名 SSR 缓存：键只由 URL 决定（ADR-0016 约束 3）", () => {
   it("换 cookie / Authorization / UA 拿到的缓存键相同", () => {
     // 这正是"不按用户区分键"的判据：请求身份压根不参与 key。
     const anonymous = { pathname: "/article/a1", search: "" };

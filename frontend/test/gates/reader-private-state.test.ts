@@ -10,9 +10,9 @@ import { createReaderSwrCache } from "~/utils/readerSwrCache";
 import { installAwaitableAsyncData, installFakeNuxtApp } from "../mocks/awaitableAsyncData";
 
 /**
- * 「hydration 后必须发出一次带鉴权的用户态请求」门禁（ADR-0024 决策 2 / 票 #235 第 6 项）。
+ * 「hydration 后必须发出一次带鉴权的用户态请求」门禁（ADR-0016 决策 2 / 票 #235 第 6 项）。
  *
- * 背景：点赞态不进 SSR payload（ADR-0019 约束 2），必须先由匿名 HTML 渲染，
+ * 背景：点赞态不进 SSR payload（ADR-0016 约束 2），必须先由匿名 HTML 渲染，
  * 再在客户端补齐。修复前有两条路同时失效：
  *   1. `useReaderSwrAsyncData` 对任何 cause 的 fresh 命中都短路 → 页面 onMounted 的
  *      `refreshArticle()` 永远不发请求；
@@ -118,7 +118,7 @@ function privateSessionViolations(source: string): string[] {
   return violations;
 }
 
-describe("用户私有态取数契约（ADR-0024 / 票 #235）", () => {
+describe("用户私有态取数契约（ADR-0016 / 票 #235）", () => {
   it("私有态缓存键独立成 article-private-<id>，不与正文共用", () => {
     expect(cacheKeysSource).toContain("readerArticlePrivateCacheKey");
     const block = cacheKeysSource.slice(cacheKeysSource.indexOf("export function readerArticlePrivateCacheKey"));
@@ -155,7 +155,7 @@ describe("用户私有态取数契约（ADR-0024 / 票 #235）", () => {
   });
 
   /**
-   * 回填计数（ADR-0024「后续修订（2026-11-04）」）：
+   * 回填计数（ADR-0016「后续修订（2026-11-04）」）：
    *
    * 硬刷新命中的是 30 秒匿名 SSR HTML，payload 里的计数是写之前的快照；私有态请求
    * 本来就在响应里带着权威计数。只投影两个布尔会留下「按钮已赞、数字没变」，

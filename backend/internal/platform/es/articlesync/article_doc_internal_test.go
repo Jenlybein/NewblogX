@@ -8,7 +8,7 @@ package articlesync
 //
 // 盯的是"文档长什么样"——最容易被重构悄悄改掉、改错了还不报错的东西：
 // content 不该同步、content_parts 必须是纯文本、tags/category/author 的嵌套形状，
-// 以及 author_is_admin 必须来自作者角色（ADR-0017 决策 6 要求删掉三个置顶派生字段）。
+// 以及 author_is_admin 必须来自作者角色（ADR-0015 决策 6 要求删掉三个置顶派生字段）。
 
 import (
 	"strings"
@@ -86,7 +86,7 @@ func TestArticleDocumentShape(t *testing.T) {
 	if got, ok := doc["author_is_admin"].(bool); !ok || !got {
 		t.Fatalf("author_is_admin 应由作者角色投影为 true, got=%#v", doc["author_is_admin"])
 	}
-	// ADR-0017 决策 6：置顶派生字段全部删除（作者置顶功能保留，只是不再进 ES）。
+	// ADR-0015 决策 6：置顶派生字段全部删除（作者置顶功能保留，只是不再进 ES）。
 	for _, key := range []string{"top", "admin_top", "author_top"} {
 		if _, ok := doc[key]; ok {
 			t.Fatalf("ES 文档不应再出现置顶字段 %q, got=%#v", key, doc[key])

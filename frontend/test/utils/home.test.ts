@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { homeSearchLocation, pinnedArticleView, resolveHomeSectionState } from "~/utils/home";
 
 // 这组降级态只属于首页「最新文章」区块：热门置顶是运营位，
-// 无数据 / 加载中 / 失败都整块不渲染（ADR-0017 决策 5），没有可测的降级态。
+// 无数据 / 加载中 / 失败都整块不渲染（ADR-0015 决策 5），没有可测的降级态。
 //
 // 右栏不再有纯函数级的"分区开关"可测：它由 `sidebarCardViews` 的卡片数据驱动，
 // 可见性判定已随旧配置一起下线（见 `test/utils/sidebarCards.test.ts` 与

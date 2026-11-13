@@ -16,7 +16,7 @@ import (
 	"myblogx/internal/testkit/schema"
 )
 
-// 本文件守 ADR-0025 的三条并账约束，用的是**真实的任务体**
+// 本文件守 ADR-0016 的三条并账约束，用的是**真实的任务体**
 // （app.FlushArticleCounters）+ sqlite + miniredis：
 //
 //  1. digg / favor 按关系行 COUNT 重算覆盖，历史漂移本轮自愈；
@@ -109,7 +109,7 @@ func TestFlushArticleCountersRecomputesFromRelations(t *testing.T) {
 // TestFlushArticleCountersKeepsReadValueStable 正常批次里并账不改变读到的数字。
 //
 // 场景：库内列 2、关系行 2（一致），用户又点了一次赞（关系行 3 + 增量 +1）。
-// 读路径是「列 + 增量」：并账前 2+1=3，并账后 3+0=3。这就是 ADR-0025 说的
+// 读路径是「列 + 增量」：并账前 2+1=3，并账后 3+0=3。这就是 ADR-0016 说的
 // 「用户看到的数字永不等并账」——并账只是把同一个数从增量搬到列上。
 func TestFlushArticleCountersKeepsReadValueStable(t *testing.T) {
 	db := newCounterTestDB(t)

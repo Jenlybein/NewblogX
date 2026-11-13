@@ -265,7 +265,7 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 新手最少要做的：填备案号与 SEO，按需打开「文章免审核」。邮箱 / QQ 登录留到后面配完服务再开。
 
-> 「发布与展示」是这次（ADR-0017）替换掉旧「站点模式」的那张卡：站点模式从未被任何代码读取，已删除；想要"单人博客"就把前两个开关关掉。
+> 「发布与展示」是这次（ADR-0015）替换掉旧「站点模式」的那张卡：站点模式从未被任何代码读取，已删除；想要"单人博客"就把前两个开关关掉。
 
 ### 2.3 AI 助手（「AI 助手」页）
 
@@ -303,7 +303,7 @@ AI 是**两层开关**，只开一层不生效：
 
 保存即生效（运行时配置现读，不用重启）。验证：后台「媒体运营」上传一张图，能显示且直链能打开就通了；文章封面 / 配图走同一条链路。
 
-> **封面在上传前就定形**：轮播、文章、合集封面在后台选完图后先按 **16:9 居中裁切并降采样**，预览确认后才上传**定形后的新文件**；原图不上传、不入库。读者端固定居中渲染，没有"焦点 / 缩放 / 取景"可调（详见 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md)）。头像同理，按 1:1、256 边长、PNG 定形后上传。
+> **封面在上传前就定形**：轮播、文章、合集封面在后台选完图后先按 **16:9 居中裁切并降采样**，预览确认后才上传**定形后的新文件**；原图不上传、不入库。读者端固定居中渲染，没有"焦点 / 缩放 / 取景"可调（详见 [ADR-0013](docs/adr/0013-banner-framing-as-parameters.md)）。头像同理，按 1:1、256 边长、PNG 定形后上传。
 
 #### 2.4.1 七牛云域名配置 HTTPS
 
@@ -692,7 +692,7 @@ go run ./cmd/server -f config/settings.yaml -es -s ensure # 只建索引/流水�
 ```
 
 > **策略文本目录**：进程启动时会读仓库根的 `skills/`（捏捏的口吻、投稿机审规则），
-> 读不到或格式不合规就**不启动**，错误里会点名具体文件（ADR-0030）。
+> 读不到或格式不合规就**不启动**，错误里会点名具体文件（ADR-0021）。
 > 你在 `backend/` 里启动，所以 `.envrc.example` 里给的是 `BLOGX_SKILLS_DIRS='../skills'`——
 > 从旧 `.envrc` 升级时补上这一条，否则第一步就会撞上"目录读不到"。
 > 改完文案先跑 `node scripts/check-skills.mjs`，它和启动时的校验是同一套规则。
@@ -977,7 +977,7 @@ docker compose up -d --build
 - **表不存在** → 自动执行建表，等 ES 就绪，再 `-es -s ensure`，然后才真正启动服务；
 - **表已存在** → 跳过初始化，直接启动。
 
-这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体），以及拆树 expand 批（#274）逐张指名立项的 `collection_outline_node_models`（合集目录树）与 `project_outline_node_models`（项目目录树）四张表，都走这条路；#274 的手动 `-db` 步骤见 [发布说明](docs/notes/2026-11-05-outline-tree-expand-release-notes.md)。#277 收缩后旧共用树表 `content_outline_node_models` 已从建表脚本与 testkit 登记中移除，生产库由**部署时手工 DROP**；`-db` 不会替你 DROP 任何表，步骤见 [收缩发布说明](docs/notes/2026-11-05-outline-tree-contract-release-notes.md)。
+这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体），以及拆树 expand 批（#274）逐张指名立项的 `collection_outline_node_models`（合集目录树）与 `project_outline_node_models`（项目目录树）四张表，都走这条路；相关的一次性部署步骤见 [11.4](#114-更新版本)。#277 收缩后旧共用树表 `content_outline_node_models` 已从建表脚本与 testkit 登记中移除，生产库由**部署时手工 DROP**；`-db` 不会替你 DROP 任何表。
 
 **启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
 
@@ -1037,7 +1037,7 @@ docker compose up -d --build          # 只重建有变化的镜像
 docker compose ps                     # 确认 healthy
 ```
 
-数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**只做加法**（允许新增表、允许给既有表补列），**不做改名、改类型、删列**，也不会替你 DROP 任何表。曾经作为零 DDL 唯一登记例外的通用取景表 `picture_crop_models` 已随取景体系退场（[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）；**当前没有任何登记例外**，再开例外须另开 ADR。它的物理下线是一次性现场操作，见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
+数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**只做加法**（允许新增表、允许给既有表补列），**不做改名、改类型、删列**，也不会替你 DROP 任何表。曾经作为零 DDL 唯一登记例外的通用取景表 `picture_crop_models` 已随取景体系退场；**当前没有任何登记例外**，再开例外须另开 ADR。口径出处见 [`docs/architecture/overview.md` §六 A1](docs/architecture/overview.md)。它的物理下线是一次性现场操作，见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
 #### 构建一定要先 `down`、再**串行**重建
 
@@ -1097,7 +1097,7 @@ docker compose restart nginx
 
 ### 11.4.1 升级到带索引变更的版本：重建 ES + 全量回填
 
-ES 改不了既有字段的映射（ADR-0017 给文章文档加了 `author_is_admin`，删了 `admin_top` / `author_top` / `top`），只能**先删后建索引再回填**。
+ES 改不了既有字段的映射（ADR-0015 给文章文档加了 `author_is_admin`，删了 `admin_top` / `author_top` / `top`），只能**先删后建索引再回填**。
 
 索引映射是**编译进镜像**的，所以这两条命令必须跑在**新镜像**上——先构建、先重建，最后才切换正在跑的容器：
 
@@ -1137,7 +1137,7 @@ docker compose exec blogx_server /app/server \
 
 它仍然只做加法：不改列名、不改类型、不删列，也不 DROP 任何表。那几类动作会让 CDC（ES 文章投影与 image-ref 两条链路）按列名解析静默错位，必须另开 ADR 且由人工现场执行。
 
-ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与 #189 的 `project_models`（项目实体）属于「新表」这一类；手机号登录这一批给 `user_models` 补了 `phone` 列与 `uk_user_phone`，属于「新列」这一类。漏了这一步的症状分两种：新表对应的接口报「表不存在」，或者登录 / 资料接口报 `Unknown column 'phone'`——其它功能照常，很容易被当成"代码没生效"。
+ADR-0015 引入的 `article_hot_top_models`（热门置顶运营位）与 #189 的 `project_models`（项目实体）属于「新表」这一类；手机号登录这一批给 `user_models` 补了 `phone` 列与 `uk_user_phone`，属于「新列」这一类。漏了这一步的症状分两种：新表对应的接口报「表不存在」，或者登录 / 资料接口报 `Unknown column 'phone'`——其它功能照常，很容易被当成"代码没生效"。
 
 一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。本批（#189）另有"物理下线取景表"这一步，完整序列见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
@@ -1145,7 +1145,7 @@ ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与 #189 �
 
 这一批（#189 合批：项目实体、站点配置瘦身、删除文章索引一致性、封面定形、头像定形、浏览历史、私信重构）横跨契约重生成、新建表、物理删表、CDC 监听变更与索引映射变更，**整体只能整包回滚**。部署按下面的顺序一次走完，每一步都不可省。
 
-> 历史说明：上一轮"轮播表重建 + 通用取景表合并"（#118 / #119）是一次已经执行完的现场操作，步骤不再需要重跑，也不再保留在本文；需要回看时查 git 历史与 [ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 的「实施记录」。
+> 历史说明：上一轮"轮播表重建 + 通用取景表合并"（#118 / #119）是一次已经执行完的现场操作，步骤不再需要重跑，也不再保留在本文；需要回看时查 git 历史。
 
 **0. 备份（必做，物理删表不可逆）**
 
@@ -1297,13 +1297,13 @@ curl -sk https://127.0.0.1/health | head -1
 
 **5. 冒烟与已知限制**
 
-目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及「DNS 已恢复（2026-11-04）、上传闭环与比例校验待部署后复验」等已知限制与复验步骤，见 [2026-11-04 目录树批次发布说明](docs/notes/2026-11-04-outline-tree-release-notes.md)。
+目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及「DNS 已恢复（2026-11-04）、上传闭环与比例校验待部署后复验」等已知限制，以 `docs/adr/` 与 `docs/architecture/` 的现行口径为准。
 
-> 本节记录的是 **#221 当时**的一次性部署序列（产出 `content_outline_node_models`）。#274 expand 之后两张具名树表取而代之，#277 收缩把旧共用表从建表脚本与 testkit 登记中移除；当前手动 `-db` 与部署时手工 DROP 旧表的顺序以 [收缩发布说明](docs/notes/2026-11-05-outline-tree-contract-release-notes.md) 为准。历史步骤不回头改写。
+> 本节记录的是 **#221 当时**的一次性部署序列（产出 `content_outline_node_models`）。两张具名树表取而代之，旧共用表已从建表脚本与 testkit 登记中移除；当前手动 `-db` 与部署时手工 DROP 旧表的顺序以现行目录树 ADR 为准。历史步骤不回头改写。
 
 ### 11.4.5 本批（#234 合批：阅读互动、消息中心与历史记录）的一次性部署序列
 
-本批（#234 合批：#235 点赞/收藏真相、#236 右栏互动条、#237 右栏高度、#238 评论区、#239 消息中心、#240 私信并入、#241 历史独立页、#242 裁剪窗、#243 陌生人开关、#244 正文色板、#245 文档收口；收尾 #247）**不改表结构**：没有新表、没有列变更，`-db` 不需要再跑。要动的是**契约与前端**，且三端必须同批上线——本批有破坏性 API 变更（完整清单见[发布说明](docs/notes/2026-11-04-reading-interactions-release-notes.md)）：
+本批（#234 合批：#235 点赞/收藏真相、#236 右栏互动条、#237 右栏高度、#238 评论区、#239 消息中心、#240 私信并入、#241 历史独立页、#242 裁剪窗、#243 陌生人开关、#244 正文色板、#245 文档收口；收尾 #247）**不改表结构**：没有新表、没有列变更，`-db` 不需要再跑。要动的是**契约与前端**，且三端必须同批上线——本批有破坏性 API 变更：
 
 **1. 备份与串行重建三镜像**
 
@@ -1324,12 +1324,12 @@ curl -sk https://127.0.0.1/health | head -1
 
 **4. 冒烟与数据策略**
 
-- 逐项验收、破坏性变更对照与已知限制见 [2026-11-04 阅读互动与消息中心批次发布说明](docs/notes/2026-11-04-reading-interactions-release-notes.md)。
+- 逐项验收与已知限制以 `docs/adr/` 相应条目的「当前生效约束」为准。
 - 浏览历史保留 **90 天**（软删 + 每日 04:10 cron）：上线后第一次清理在次日凌晨执行，不会立刻删数据；`-role` 不含 `cron` 的进程不会跑它。
 
 ### 11.4.6 本批（#269 合批：后台加固与私信风控）的一次性部署序列
 
-本批**新增一张表** `chat_block_models`（私信屏蔽 / 拉黑，[ADR-0026](docs/adr/0026-chat-send-side-risk-control.md)），既有三张私信表不加列；契约 `swagger.json` 无变化。串行部署，顺序不可省：
+本批**新增一张表** `chat_block_models`（私信屏蔽 / 拉黑，[ADR-0018](docs/adr/0018-chat-dual-channel-http-write-ws-notify.md)），既有三张私信表不加列；契约 `swagger.json` 无变化。串行部署，顺序不可省：
 
 **1. 部署代码（后端 → 读者站 → 后台，逐层验证）**
 
@@ -1459,7 +1459,7 @@ docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD"
 
 **背景**：修复前「取消点赞」走软删，行留在 `article_digg_models` 里、占着唯一键
 `uk_article_digg (article_id, user_id)`（该索引不含 `deleted_at`），于是
-「点赞 → 取消 → 再点赞」必然撞键（见 `docs/notes/2026-11-02-grill-session.md` ⑳-B）。
+「点赞 → 取消 → 再点赞」必然撞键。
 
 **修复之后残行不再阻断再次点赞**——`Add` 会把软删行恢复成活行。所以下面的对账
 **不是必须跑的修复步骤**，而是用来：看清线上到底积了多少残行、按需回收磁盘。
@@ -1599,7 +1599,7 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 
 这几条不是风格偏好，是有守卫脚本兜底的硬约束。违反了门禁会红，或者更糟——**不红但线上出错**。
 
-1. **零 DDL。** 口径是**只做加法**：允许新增表（`CREATE TABLE IF NOT EXISTS` 登记）、允许给既有表**补列**（必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行）；**改名、改类型、删列一律禁止**。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表曾是首个也是唯一一个，已随取景退场物理下线，[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
+1. **零 DDL。** 口径是**只做加法**：允许新增表（`CREATE TABLE IF NOT EXISTS` 登记）、允许给既有表**补列**（必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行）；**改名、改类型、删列一律禁止**。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表曾是首个也是唯一一个，已随取景退场物理下线；口径出处见 [`docs/architecture/overview.md` §六 A1](docs/architecture/overview.md)）。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
 2. **ID 语义字段必须用 `ctype.ID`**，禁止裸整型。守卫规则 R12 兜底，基线 0。
 3. **不要拿 ID 比大小。** `ctype.ID` 底层是字符串，`"10" < "9"` 成立。要比较先 `.Uint64()`。
 4. **不要用 `ID(123)` 构造 ID**，用 `NewID`。`go vet` 的 `stringintconv` 只抓这一种写法。

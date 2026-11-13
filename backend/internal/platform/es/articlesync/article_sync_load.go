@@ -527,7 +527,7 @@ func loadCategoryTitleMap(db *gorm.DB, categoryIDs []ctype.ID) (map[ctype.ID]str
 // authorSnapshot 是文档里的作者快照。
 //
 // IsAdmin 是作者角色的投影（`user_models.role == 管理员`），不是"这条文章被谁置顶"：
-// 公开读面在「显示非管理员文章」关掉时按它过滤（ADR-0017 决策 4）。
+// 公开读面在「显示非管理员文章」关掉时按它过滤（ADR-0015 决策 4）。
 // 用户角色变更是靠"用户行 → 重算文章文档"这条既有分支刷新的，见 SyncESDocsByAuthorIDs。
 type authorSnapshot struct {
 	Nickname string

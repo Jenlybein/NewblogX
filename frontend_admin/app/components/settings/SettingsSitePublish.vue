@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 发布与审核：发布/展示开关、审核开关、投稿配额、质量闸门、机审词表（ADR-0039 拆页后的第三页）。
+// 发布与审核：发布/展示开关、审核开关、投稿配额、质量闸门、机审词表（ADR-0029 拆页后的第三页）。
 import {
   NAlert,
   NButton,
@@ -227,7 +227,7 @@ onMounted(load)
       </NCard>
 
       <!-- 发布质量闸门（票 306）：开启后提交前先评分，不达标不放行。
-           ADR-0040 起是**木桶**判定：总分与六个维度都要过线。 -->
+           ADR-0023 起是**木桶**判定：总分与六个维度都要过线。 -->
       <NCard class="admin-card mb-4" title="发布质量闸门" size="small">
         <NAlert type="warning" :bordered="false" class="mb-4">
           开启前必须先让 AI 可用（总闸打开且至少配置了一条启用模型），否则保存会被拒绝——

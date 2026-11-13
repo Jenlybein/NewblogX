@@ -44,7 +44,7 @@ func (s *Service) readerOutline(
 	profiles := make(map[domain.UserID]AuthorView)
 	if onlyAdminAuthors {
 		// 「显示非管理员发布文章」开关关闭时，作者不是管理员的文章不算公开：
-		// 与首页列表、搜索、详情同一口径（ADR-0017 决策 4）。
+		// 与首页列表、搜索、详情同一口径（ADR-0015 决策 4）。
 		authorIDs := make([]domain.UserID, 0)
 		seen := make(map[domain.UserID]bool)
 		for _, n := range nodes {

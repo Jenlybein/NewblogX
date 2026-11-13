@@ -57,7 +57,7 @@ export function riskLabelText(code: string): string {
   return RISK_LABEL_TEXT[code] ?? code;
 }
 
-/** 第③层模型合规结论的档位（票 312 / ADR-0033）。*/
+/** 第③层模型合规结论的档位（票 312 / ADR-0024）。*/
 export type ReviewComplianceVerdict = "clean" | "suspect" | "violation";
 
 interface ComplianceMeta {
@@ -75,7 +75,7 @@ const COMPLIANCE_META: Record<ReviewComplianceVerdict, ComplianceMeta> = {
  * 模型结论 → 中文标签 + 颜色。
  *
  * 未知值一律按"可疑"：归到合规等于静默放行，归到违规等于静默拒绝，
- * 两者都比"交人看"更糟（ADR-0033 决策 3）。
+ * 两者都比"交人看"更糟（ADR-0024 决策 3）。
  */
 export function complianceVerdictMeta(verdict: string | undefined | null): ComplianceMeta {
   const normalized = (verdict ?? "") as ReviewComplianceVerdict;

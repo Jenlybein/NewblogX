@@ -47,7 +47,7 @@ const RADIUS_VARS: Record<keyof ReaderThemeScale, string> = {
   pill: "--radius-pill",
 };
 
-/** 英文正文字体 Inter + 中文系统字体栈（顺序有意义；中文不再自托管，见 ADR-0019）。 */
+/** 英文正文字体 Inter + 中文系统字体栈（顺序有意义；中文不再自托管，见 ADR-0016）。 */
 export const READER_FONT_STACK =
   '"Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 

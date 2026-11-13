@@ -137,7 +137,7 @@ type Service struct{ cfg func() conf.Mail }
 ## 五、十个配置段
 
 十段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
-补种、全量解码、缓存应用与写入校验都从它派生，**漏登记在写库前直接失败**（不再「警告后缓存不更新」）。理由与否决链见 [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)。
+补种、全量解码、缓存应用与写入校验都从它派生，**漏登记在写库前直接失败**（不再「警告后缓存不更新」）。理由与否决链见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
 | --- | --- | --- | --- |
@@ -157,7 +157,7 @@ type Service struct{ cfg func() conf.Mail }
 补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（现在是第十段：
 `sms` 由手机号登录那一批插在 `oauth` 之后），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
 
-`ai` 段的每日额度（`daily_limits`，ADR-0038）是**唯一一处保存期拒绝非法值**的配置：
+`ai` 段的每日额度（`daily_limits`，ADR-0028）是**唯一一处保存期拒绝非法值**的配置：
 它七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」；其余数值配置（私信限流、
 投稿配额）沿用「越界回落到默认值」的口径。理由是 0 在这里有明确的业务含义，静默
 回落会把"我不想限制这个场景"改写成"给它一个数字"。本票只有挂件子块 `deco.charm`：总开关 `enable`，
@@ -233,7 +233,7 @@ type Service struct{ cfg func() conf.Mail }
 放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
 
-请求/响应形状（十段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)）：
+请求/响应形状（十段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
 
 | 方向 | 形状 | 契约里是什么 |
 | --- | --- | --- |
@@ -291,7 +291,7 @@ const loaded = ref(false)
    （`backend/docs/swagger.json` 与两个 app 的 `app/types/openapi.d.ts`）由生成器同批产出，
    条目数基线按实测登记在 `scripts/contract-structures.json`（当前 158/202/369），
    判据四文件零改动。当初「拆成八组路由 + 八个 DTO」的否决理由与推翻经过见
-   [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)。
+   [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 2. **密钥明文入库**（§3.4）。它不会比 `.env` 更安全，只换来"改完即生效"。
 3. **有些字段提交了也不生效**。`log.app` / `log.dir` / `log.wal_dir` / `log.stdout_format`
    是进程级配置，`UpdateLog` 会把它们**覆盖回当前值**。UI 上必须做成只读并写明原因，
@@ -308,7 +308,7 @@ const loaded = ref(false)
 | `settings.yaml` 删掉的业务段 | 4（`upload` / `email` / `qq` / `qiniu`） |
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
-| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是 9 段，见 §五 / [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md) |
+| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是十段，见 §五 / [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md) |
 | 新增接口 | 2 个 setup 接口；配置读写现为十段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 

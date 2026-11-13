@@ -18,7 +18,7 @@ import { bannerTitleCell, bannerTitleText } from '~/utils/bannerTitle'
  * 更新走完整表单的整体替换。所以这里不再断言 `saveBannerTitle`。
  */
 
-// 拆页后轮播列表搬到 `/media/banners`（ADR-0039）；`/media` 只剩旧地址跳转页。
+// 拆页后轮播列表搬到 `/media/banners`（ADR-0029）；`/media` 只剩旧地址跳转页。
 const pageSource = readFileSync(join(process.cwd(), 'app/pages/media/banners.vue'), 'utf8')
 const modalSource = readFileSync(
   join(process.cwd(), 'app/components/media/BannerFormModal.vue'),

@@ -53,7 +53,7 @@ func TestSitemapListsOnlyPublicArticles(t *testing.T) {
 	}
 
 	// 开关关闭（只出管理员作者）时，非管理员作者的文章必须落榜——与详情页 404
-	// 是同一条规则（ADR-0017 决策 4），不是第二套可见性判定。
+	// 是同一条规则（ADR-0015 决策 4），不是第二套可见性判定。
 	entries, err = svc.Sitemap(ctx, true)
 	if err != nil {
 		t.Fatalf("生成站点地图失败: %v", err)

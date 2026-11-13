@@ -30,7 +30,7 @@ var (
 	// ErrPublishDisabledBySite 站点策略关闭了非管理员的发布能力。
 	//
 	// 与 ErrForbidden 分开：后者是"你无权"，前者是"站点当前不允许发布"，
-	// 文案里要能看出该找管理员改开关（ADR-0017 决策 2）。
+	// 文案里要能看出该找管理员改开关（ADR-0015 决策 2）。
 	ErrPublishDisabledBySite = apperr.New(apperr.CodeArticlePublishDisabled)
 	// ErrDraftDisabledBySite 站点策略关闭了非管理员的存草稿能力。
 	ErrDraftDisabledBySite = apperr.New(apperr.CodeArticleDraftDisabled)
@@ -51,6 +51,6 @@ var (
 	// ErrSubmitQuotaExceeded 「投稿配额」用完：当天已提交的次数达到上限。
 	//
 	// 与 ErrForbidden / ErrPublishDisabledBySite 分开：那两个要用户改账号或找管理员，
-	// 这个只需要等到明天（配额按自然日重置，ADR-0031）。
+	// 这个只需要等到明天（配额按自然日重置，ADR-0022）。
 	ErrSubmitQuotaExceeded = apperr.New(apperr.CodeArticleSubmitQuotaExceeded)
 )

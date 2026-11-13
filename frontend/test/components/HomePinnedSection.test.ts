@@ -50,14 +50,14 @@ describe("HomePinnedSection：热门置顶运营位", () => {
     expect(tiles[0]?.text()).toContain("置顶文章");
     expect(tiles[0]?.text()).toContain("作者甲");
     expect(tiles[0]?.text()).toContain("120 阅读");
-    // 顺序就是管理员排的顺序：渲染层不重排（ADR-0017 决策 5）。
+    // 顺序就是管理员排的顺序：渲染层不重排（ADR-0015 决策 5）。
     expect(tiles[1]?.text()).toContain("02");
     expect(tiles[1]?.text()).toContain("第二篇置顶");
     expect(wrapper.get('[data-role="pinned-badge"]').text()).toBe("2 篇");
     expect(wrapper.findAll(".home-pinned-card__title")[0]?.attributes("href") ?? "").toContain("/article/a1");
   });
 
-  it("无数据：整块不渲染 —— 标题、徽标、空态文案都不出现（ADR-0017 决策 5）", () => {
+  it("无数据：整块不渲染 —— 标题、徽标、空态文案都不出现（ADR-0015 决策 5）", () => {
     const wrapper = mountPinned({ articles: [] });
 
     expect(wrapper.find('[data-home-section="pinned"]').exists()).toBe(false);

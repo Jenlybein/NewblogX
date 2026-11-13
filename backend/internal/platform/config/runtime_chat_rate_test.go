@@ -10,7 +10,7 @@ import (
 // 后台「站点 → 私信」的两个限流参数必须有服务端兜底：配置里删键、填 0、填负数
 // 时，GetRuntimeChat 仍要给出可用的 10 秒 / 99 条，而不是让限流静默失效。
 func TestGetRuntimeChatRateDefaultsAndNormalization(t *testing.T) {
-	t.Run("配置缺省时回落到 ADR-0026 默认", func(t *testing.T) {
+	t.Run("配置缺省时回落到 ADR-0018 默认", func(t *testing.T) {
 		svc := NewRuntimeConfigService(conf.RuntimeDefaults{}, quietLogger(), nil)
 		chat := svc.GetRuntimeChat()
 		w, d := NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax).Pair()

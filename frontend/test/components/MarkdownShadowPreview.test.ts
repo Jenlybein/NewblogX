@@ -131,7 +131,7 @@ describe("MarkdownShadowPreview", () => {
     expect(getShadowRoot(wrapper)?.querySelectorAll("article.markdown-body").length).toBe(1);
   });
 
-  // ADR-0012 决策 #11：图表配色也走 token。这条链路上最容易断的环是"组件有没有真的
+  // ADR-0011 决策 #11：图表配色也走 token。这条链路上最容易断的环是"组件有没有真的
   // 把 themeVariables 传下去" —— 上面的单测只覆盖 buildMermaidConfig，这里补连线。
   it("mermaid 初始化带 token 派生的 themeVariables（不是第三方默认配色）", async () => {
     const MarkdownShadowPreview = await loadComponent();

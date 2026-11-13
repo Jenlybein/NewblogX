@@ -1,5 +1,5 @@
 /**
- * 匿名 SSR 的 30s 内存缓存策略与实现（ADR-0019 决策 5 / 约束 2、3）。
+ * 匿名 SSR 的 30s 内存缓存策略与实现（ADR-0016 决策 5 / 约束 2、3）。
  *
  * 为什么不用 routeRules 的 swr：Nitro 只按**注册 handler 的 route** 给 handler 套
  * cachedEventHandler（匹配时把动态段与通配段换成下划线），而 Nuxt 渲染器注册在
@@ -21,7 +21,7 @@
 
 import { isSsrPagePath } from "../../shared/readerRenderingBoundary";
 
-/** 缓存 TTL：ADR-0019 决策 5 写死的 30 秒（内容最多滞后 30 秒，这是已知代价）。 */
+/** 缓存 TTL：ADR-0016 决策 5 写死的 30 秒（内容最多滞后 30 秒，这是已知代价）。 */
 export const SSR_ANONYMOUS_CACHE_TTL_MS = 30_000;
 
 /** 内存表条数上限：爬虫可能带来无数个文章 id，过期条目又只在读时清理，必须封顶。 */

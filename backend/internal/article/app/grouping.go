@@ -12,7 +12,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 本文件是合集 / 项目分组的用例（ADR-0041）。
+// 本文件是合集 / 项目分组的用例（ADR-0019）。
 //
 // 两个实体的分组语义完全一致，差异只在仓储指向哪一对表，所以用例只写一份：
 // 调用方给出 OwnerKind，由 repos 决定用哪份 GroupRepository。

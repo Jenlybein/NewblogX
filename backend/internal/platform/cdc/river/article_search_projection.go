@@ -66,7 +66,7 @@ func (r *River) syncArticleDocsByUserRows(e *canal.RowsEvent) error {
 		return nil
 	}
 	// 一次事件只发一个投影事件：用户行影响的就是"作者快照"，
-	// 而角色变化投影成的 author_is_admin 也在同一条快照里（ADR-0017 决策 4）。
+	// 而角色变化投影成的 author_is_admin 也在同一条快照里（ADR-0015 决策 4）。
 	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
 		Type: articlesync.ArticleSearchProjectionAuthorSnapshot,
 		IDs:  userIDs,

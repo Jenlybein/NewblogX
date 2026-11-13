@@ -6,7 +6,7 @@ import {
   withoutPrivateFieldsFromItems,
 } from "~/utils/readerPrivateFields";
 
-describe("readerPrivateFields：写缓存前剔除用户私有字段（ADR-0019 约束 2 / 票 #85）", () => {
+describe("readerPrivateFields：写缓存前剔除用户私有字段（ADR-0016 约束 2 / 票 #85）", () => {
   it("锁定需要剔除的字段：点赞 / 收藏 / 关注关系", () => {
     expect(READER_PRIVATE_FIELDS).toEqual(["is_digg", "is_favor", "relation"]);
   });
@@ -57,7 +57,7 @@ describe("readerPrivateFields：写缓存前剔除用户私有字段（ADR-0019 
   });
 });
 
-describe("pickArticlePrivateState：私有态 + 权威计数（ADR-0024 后续修订）", () => {
+describe("pickArticlePrivateState：私有态 + 权威计数（ADR-0016 后续修订）", () => {
   it("只取四个字段：正文与作者资料不进来，计数原样带出", () => {
     const detail = {
       id: "a1",

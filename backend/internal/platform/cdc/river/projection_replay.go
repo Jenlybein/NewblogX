@@ -124,7 +124,7 @@ func (r *ProjectionReplayer) Replay(ctx context.Context, record deadletter.Recor
 //
 // 用户行现在只对应一个事件：作者快照（昵称/头像/角色投影成的 author_is_admin）。
 // 以前还要连发"置顶用户变化"，那是因为 admin_top 由置顶人的角色推导；
-// ADR-0017 决策 6 删掉置顶派生字段后，这条就不再需要了。
+// ADR-0015 决策 6 删掉置顶派生字段后，这条就不再需要了。
 //
 // 文章表的 insert/update 都归一到 article_upsert：按 ID 重读整篇。
 // 只有 delete 需要区分——它要把文档从索引里删掉，用 upsert 会重新建出来。
@@ -156,7 +156,7 @@ func projectionReplayEvents(table, action string) ([]articlesync.ArticleSearchPr
 			articlesync.ArticleSearchProjectionArticleTagsChanged,
 		}, nil
 	case "user_top_article_models":
-		// 这张表已不再走进 ES 投影（ADR-0017 决策 6），但历史死信里可能还留着它的行。
+		// 这张表已不再走进 ES 投影（ADR-0015 决策 6），但历史死信里可能还留着它的行。
 		// 它影响的只是"这几篇文章的文档是否过期"，按文章 ID 整体重算一次即可；
 		// 注意不能用 delete（那会把文章文档删掉——置顶关系与文章本体是两件事）。
 		return []articlesync.ArticleSearchProjectionEventType{

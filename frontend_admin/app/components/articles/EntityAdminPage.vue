@@ -6,7 +6,7 @@
  * useEntityGroups 的防抖保存、把分组 CRUD 立刻提交、把编辑弹窗打开。
  * 网格本身（分组标题 + 卡片 + 拖拽）在 GroupedEntityGrid，两页共用。
  *
- * 为什么两页共用一份实现：合集与项目的分组语义完全一致（ADR-0041），
+ * 为什么两页共用一份实现：合集与项目的分组语义完全一致（ADR-0019），
  * 复制一份的话"删分组要把条目退回未分组"这类差异只会修在一边。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'

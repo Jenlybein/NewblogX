@@ -8,7 +8,7 @@ import (
 	"myblogx/internal/kernel/enum/article_review_enum"
 )
 
-// 系统直接拒是终局（票 302 / ADR-0035「REJECTED，不给改」）。
+// 系统直接拒是终局（票 302 / ADR-0025「REJECTED，不给改」）。
 //
 // 人工驳回的 StatusRejected 允许作者改稿重投（#303），所以要按**复盘任务的
 // 来源**区分，而不是只认文章状态：同步风险命中留 risk_check、合规自动拒留

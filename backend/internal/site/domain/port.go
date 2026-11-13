@@ -19,7 +19,7 @@ type BannerRepository interface {
 	// 标题走整体替换：传空串就是清空（后台要能把误填的标题改掉），
 	// 调用方在不改标题时也必须把原值带上。
 	//
-	// 封面图在上传前就按 16:9 定形（ADR-0015），本接口只接收定形后的 URL，
+	// 封面图在上传前就按 16:9 定形（ADR-0013），本接口只接收定形后的 URL，
 	// 没有焦点/缩放一类的参数。
 	Update(ctx context.Context, id uint64, title, cover, href string, show bool) error
 	// Delete 批量删除，返回实际删除条数。

@@ -61,7 +61,7 @@ export type PendingState = {
 /**
  * 上传前定形器（可注入）：默认把选中的图定形成目标比例（16:9 / 1600×900）。
  * `framing` 存在时按作者在裁剪窗里选定的区域取景（票 215），缺省为自动居中。
- * 单元测试注入替身即可驱动"定形成功 / 定形失败"两条路径，不需要真实画布（ADR-0016）。
+ * 单元测试注入替身即可驱动"定形成功 / 定形失败"两条路径，不需要真实画布（ADR-0014）。
  */
 export type CoverShaper = (file: File, framing?: ShapeFramingState) => Promise<ShapedUploadFile>;
 

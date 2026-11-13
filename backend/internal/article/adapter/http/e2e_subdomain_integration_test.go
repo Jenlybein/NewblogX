@@ -114,7 +114,7 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 		[]byte(`{"title":"端到端文章","content":"正文","status":2}`))
 	respCode(t, created, "建文章")
 	articleID := dataOf(t, created)["id"].(string)
-	// create 的 status=2 在新发布口径下会落「已发布 + pending_review」（票 302/ADR-0035）：
+	// create 的 status=2 在新发布口径下会落「已发布 + pending_review」（票 302/ADR-0025）：
 	// 干净文章立刻发布、但等模型判定通过才对读者可见。这里专注验证子域端点，
 	// 所以把可见性一并清成 visible，模拟"模型已放行"之后的真发布态。
 	if err := db.Exec("UPDATE article_models SET publish_status = 3, visibility_status = 'visible' WHERE id = ?", articleID).Error; err != nil {
@@ -183,7 +183,7 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	}
 
 	// ── 审核任务：列表 → 通过 ──
-	// 票 302/ADR-0035 新规则下，status=2 的干净提交不再进人工队列（落
+	// 票 302/ADR-0025 新规则下，status=2 的干净提交不再进人工队列（落
 	// Published + pending_review），人工任务只由异步模型副作用产生。
 	// 这个 e2e 专注验证审核端点，所以显式模拟一次"模型存疑转人工"：
 	// 把文章改回审核中，并插一条 pending 任务。

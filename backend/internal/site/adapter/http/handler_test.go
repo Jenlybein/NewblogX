@@ -48,7 +48,7 @@ func TestPublicSiteRecordsVisit(t *testing.T) {
 	})
 }
 
-// 公开站点配置的形状：不再有站点模式，但有发布/展示三开关（#60 / ADR-0017）。
+// 公开站点配置的形状：不再有站点模式，但有发布/展示三开关（#60 / ADR-0015）。
 func TestPublicSiteConfigSwitches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

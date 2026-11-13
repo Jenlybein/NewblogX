@@ -44,7 +44,7 @@ export interface Parallax {
 }
 
 /**
- * 视差 ≤10px（ADR-0012 决策 7）。
+ * 视差 ≤10px（ADR-0011 决策 7）。
  *
  * 用 motion-v 的 `useScroll`（与区块进场的 `useInView` 同一条依赖链，不引新库），
  * 只把滚动量映射成一次 `translateY`，并在两处钳位：换算后钳 ±10px、减少动态归零。

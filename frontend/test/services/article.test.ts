@@ -22,7 +22,7 @@ describe("article service：首页热门置顶", () => {
   });
 });
 
-describe("article service：文章详情有两种取数口径（ADR-0019 约束 2）", () => {
+describe("article service：文章详情有两种取数口径（ADR-0016 约束 2）", () => {
   beforeEach(() => {
     vi.stubGlobal("__useNuxtAppMock", () => ({
       $api: {

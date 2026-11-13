@@ -138,7 +138,7 @@ const articleQuery = computed(() => ({
   ...(articleKeyword.value ? { key: articleKeyword.value } : {}),
 }));
 
-// 文章流与下面几个源一起在 setup 里**并行发起**（ADR-0019 约束 6：不得串行 await）：
+// 文章流与下面几个源一起在 setup 里**并行发起**（ADR-0016 约束 6：不得串行 await）：
 // `useArticleSearch` 内部已经开始取数，这里只把它的句柄等回来，不阻塞 setup。
 const articleSearchPromise = useArticleSearch(articleQuery, {
   key: computed(() => `user-articles:${userId.value}`),
@@ -445,7 +445,7 @@ useSeoMeta({
   <div class="page-stack">
     <div class="content-grid">
       <div class="page-stack">
-        <!-- 骨架优先（ADR-0019 约束 6）：所有源并行发起、setup 不等待；资料未到时先占位。 -->
+        <!-- 骨架优先（ADR-0016 约束 6）：所有源并行发起、setup 不等待；资料未到时先占位。 -->
         <ProfileHeroCard
           v-if="profile"
           :profile="profile"

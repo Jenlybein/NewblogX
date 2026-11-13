@@ -85,7 +85,7 @@ type ArticleDetailResponse struct {
 	IsFavor             bool              `json:"is_favor"`
 }
 
-// ArticleDiggRequest 点赞目标态（ADR-0024 决策 3）。
+// ArticleDiggRequest 点赞目标态（ADR-0016 决策 3）。
 //
 // 旧契约没有请求体（toggle）。现在必须显式说"我要它处于已赞还是未赞"：
 // `Liked=true` 是确保已赞，`Liked=false` 是确保未赞；重复提交同态即无操作。
@@ -143,7 +143,7 @@ type ArticleReviewTaskItem struct {
 	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
 	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
 	RiskLabels []string `json:"risk_labels"`
-	// Compliance 是第③层模型合规结论（票 312 / ADR-0033）。
+	// Compliance 是第③层模型合规结论（票 312 / ADR-0024）。
 	//
 	// nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
 	// 与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
@@ -317,7 +317,7 @@ type ArticleTopListRequest struct {
 // ArticleHotTopOrderRequest 热门置顶的全量顺序替换。
 //
 // 传的是"完整的有序列表"而不是"把 A 移到 B 前面"：后台只有 12 条，
-// 整表替换让服务端不必推断意图，也让并发下的结果可预测（ADR-0017 决策 5）。
+// 整表替换让服务端不必推断意图，也让并发下的结果可预测（ADR-0015 决策 5）。
 type ArticleHotTopOrderRequest struct {
 	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
 }
@@ -453,7 +453,7 @@ type ArticleTopCardResponse struct {
 // ArticleDiggResponse 点赞结果。
 //
 // 除了收敛后的状态，还回填**权威计数**（库内快照 + 缓存增量）：
-// 前端直接 patch，不再本地 +1、也不再为等数字而重新取整篇正文（ADR-0024 决策 4）。
+// 前端直接 patch，不再本地 +1、也不再为等数字而重新取整篇正文（ADR-0016 决策 4）。
 type ArticleDiggResponse struct {
 	IsDigg    bool `json:"is_digg"`
 	DiggCount int  `json:"digg_count"`
@@ -461,7 +461,7 @@ type ArticleDiggResponse struct {
 
 // ArticleFavoriteResponse 收藏/取消收藏结果。
 //
-// 与点赞同理：写响应回填权威 `favor_count` / `is_favor`（ADR-0024 决策 4/6）。
+// 与点赞同理：写响应回填权威 `favor_count` / `is_favor`（ADR-0016 决策 4/6）。
 type ArticleFavoriteResponse struct {
 	IsFavor    bool `json:"is_favor"`
 	FavorCount int  `json:"favor_count"`

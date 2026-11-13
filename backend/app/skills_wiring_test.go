@@ -94,7 +94,7 @@ func TestLoadSkills(t *testing.T) {
 	})
 }
 
-// 场景引用一份不存在的 skill 必须在启动期就失败（ADR-0030）。
+// 场景引用一份不存在的 skill 必须在启动期就失败（ADR-0021）。
 //
 // 这条防的是"配置写错但进程照常起来"：线上表现是那个场景第一次被调用时
 // 报 ai.policy_skill_missing，而那时用户已经在等回答。

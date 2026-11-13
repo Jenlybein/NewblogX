@@ -19,6 +19,6 @@ type Config struct {
 	ImageRefRiver ImageRefRiver `yaml:"image_ref_river"`
 	Outbox        Outbox        `yaml:"outbox"`
 	Replay        Replay        `yaml:"replay"`
-	// Skills 是运行时策略文本的目录（读不到就不启动，见 ADR-0030）。
+	// Skills 是运行时策略文本的目录（读不到就不启动，见 ADR-0021）。
 	Skills Skills `yaml:"skills"`
 }

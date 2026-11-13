@@ -51,7 +51,7 @@ const (
 // Replayer 是某一类死信的重投执行器。
 //
 // 实现必须是**幂等**的：同一条死信被重投两次不应该产生第二次副作用。
-// 这是本包不引入互斥/中间态的前提（见 ADR-008「状态机」一节）。
+// 这是本包不引入互斥/中间态的前提（见 ADR-0008「状态机」一节）。
 type Replayer interface {
 	// Streams 声明它能处理哪些 stream 值（死信表里的 stream 列）。
 	Streams() []string

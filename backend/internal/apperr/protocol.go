@@ -63,7 +63,7 @@ var protocols = map[Code]ProtocolKind{
 	// 不做顺手改判，免得同一批接口的行为在无关改动里漂移。
 	CodeFollowFanNotFound: ProtocolValidation,
 
-	// 合集 / 项目分组（ADR-0041）：四条都是调用方能看懂并放弃 / 修正的失败，
+	// 合集 / 项目分组（ADR-0019）：四条都是调用方能看懂并放弃 / 修正的失败，
 	// 归 1001 而不是 1002（后者会让前端以为后端坏了）。
 	// order_mismatch 是"你手上的列表过期了，刷新后重排"，属于可恢复的校验失败。
 	CodeGroupTitleRequired: ProtocolValidation,

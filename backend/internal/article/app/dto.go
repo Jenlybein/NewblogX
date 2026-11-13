@@ -43,9 +43,9 @@ type CreateArticleCmd struct {
 	// Policy 是站点「发布与展示」两个写作开关的取值快照。
 	//
 	// 由 adapter 从运行时配置的现读闭包取值，判定在 app/domain 层完成
-	// （ADR-0017 当前生效约束 2）。零值 = 两项都关，所以调用方必须显式给出。
+	// （ADR-0015 当前生效约束 2）。零值 = 两项都关，所以调用方必须显式给出。
 	Policy domain.WritePolicy
-	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0023）。
 	//
 	// 零值 = 闸门关闭，提交路径与引入闸门之前完全一致。由 adapter 每请求
 	// 从运行时配置现读，收紧 / 放宽在下一次提交即生效，不需要重启。
@@ -76,7 +76,7 @@ type UpdateArticleCmd struct {
 	// 语义注意：这里同时决定"能不能更新这篇文章"——关闭发布开关时，
 	// 更新已发布（或审核中）的文章会被拒；关闭草稿开关时，保存草稿会被拒。
 	Policy domain.WritePolicy
-	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0023）。
 	// 零值 = 闸门关闭，更新路径与引入闸门之前完全一致。
 	QualityGate QualityGatePolicy
 }
@@ -122,7 +122,7 @@ type AuthorView struct {
 	// Admin 表示作者是不是管理员（来自 user_models.role）。
 	//
 	// 读面过滤要用它：「显示非管理员发布文章」开关关闭时，非管理员作者的文章
-	// 在详情页按 404 处理（ADR-0017 决策 4）。放在作者视图里而不是让 handler
+	// 在详情页按 404 处理（ADR-0015 决策 4）。放在作者视图里而不是让 handler
 	// 自己 join，是为了让 article 模块仍然只通过 UserPort 认识用户模块。
 	Admin bool
 
@@ -161,7 +161,7 @@ type FavoriteCmd struct {
 	FolderID favorite.ID
 }
 
-// FavoriteResult 是收藏/取消收藏后的权威状态与计数（ADR-0024 决策 4/6）。
+// FavoriteResult 是收藏/取消收藏后的权威状态与计数（ADR-0016 决策 4/6）。
 //
 // 前端拿到它就直接 patch 界面、主动失效客户端缓存，不再为一次收藏重取整篇正文。
 // 计数是**文章级**绝对值（库内快照 + 缓存增量），不是"这次 +1 / -1"。
@@ -172,7 +172,7 @@ type FavoriteResult struct {
 	FavorCount int
 }
 
-// DiggCmd 是设置点赞目标态的输入（ADR-0024 决策 3）。
+// DiggCmd 是设置点赞目标态的输入（ADR-0016 决策 3）。
 //
 // 与旧 toggle 的区别：调用方说的是"我要它处于已赞 / 未赞"，服务端按目标收敛。
 // 重复提交同一个目标态就是无操作 —— 这消除了"按钮显示未赞、实际已赞，再点一下
@@ -249,7 +249,7 @@ type ReviewTaskView struct {
 	// 不落库、每次读取现算：运营改完词表，下一次请求立即按新词表判（票 311）。
 	// 文章没有评分记录时只算词表层，Risk.Level 仍可能是 none，不是错误。
 	Risk moderation.Result
-	// Compliance 是第③层模型合规结论（票 312 / ADR-0033）；nil 表示"未判定"。
+	// Compliance 是第③层模型合规结论（票 312 / ADR-0024）；nil 表示"未判定"。
 	//
 	// **未判定与判定为干净必须区分**：前者是"模型没给出结论"（AI 关闭、调用失败、
 	// 还没跑），后者是"模型看过且没发现问题"。合并展示会让审核员把没检查过的

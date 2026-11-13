@@ -46,7 +46,7 @@ type SidebarCardView struct {
 // PublicCards 返回读者侧要渲染的卡片：只含启用中的，按运营顺序，各自带数据。
 //
 // 取数失败只清空那张卡的数据，不影响其它卡、也不让接口报错 ——
-// 与首页其它数据源同一条口径（ADR-0017 决策 5）。
+// 与首页其它数据源同一条口径（ADR-0015 决策 5）。
 func (s *SidebarService) PublicCards(ctx context.Context) ([]SidebarCardView, error) {
 	rows, err := s.cards.ListEnabled(ctx)
 	if err != nil {

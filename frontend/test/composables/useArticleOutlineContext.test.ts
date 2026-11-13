@@ -74,7 +74,7 @@ describe("useArticleOutlineContext：阅读页左栏取数时序", () => {
     expect(wrapper.vm.context?.owner_id).toBe("375");
   });
 
-  it("服务端渲染模式完全不取数（SSR 边界与匿名缓存不被左栏污染，ADR-0019）", async () => {
+  it("服务端渲染模式完全不取数（SSR 边界与匿名缓存不被左栏污染，ADR-0016）", async () => {
     const fetchOutline = vi.fn(async () => makeContext());
     const wrapper = mountContext({ mode: "server", fetch: fetchOutline });
 

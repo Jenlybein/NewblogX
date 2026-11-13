@@ -2,7 +2,7 @@
 // 轮播运营（`/media/banners`）：首屏轮播的列表、筛选、删除与新增/编辑弹窗。
 //
 // 拆页后本页只拉轮播分页；图片资源库（`/media/images`）有自己的分页与加载，
-// 两页互不牵连（ADR-0039）。新增与编辑复用同一个 BannerFormModal——字段一致、
+// 两页互不牵连（ADR-0029）。新增与编辑复用同一个 BannerFormModal——字段一致、
 // 封面流程一致，差别只有标题与提交到的接口。
 import { h } from 'vue'
 import { NButton, NCard, NDataTable, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'

@@ -10,7 +10,7 @@ import {
 } from "./springAudit";
 
 /**
- * 弹簧动效的两条结构门禁（ADR-0012 后续修订 2026-11-07，grill §三 3.9）。
+ * 弹簧动效的两条结构门禁（ADR-0011 后续修订 2026-11-07，grill §三 3.9）。
  *
  * 为什么需要它们：`reduced-motion.test.ts` 只扫 CSS 的 `@keyframes` / `animation:`，
  * JS 弹簧完全在既有门禁视野之外 —— 这是本批新开的一个动效入口。所以这里补两条

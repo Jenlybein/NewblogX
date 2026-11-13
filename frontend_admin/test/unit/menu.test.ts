@@ -51,9 +51,9 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 /**
  * 可导航项的冻结清单：拍平视图不许改动任何一项的标题 / 路由 / 图标 / 顺序。
  *
- * 「站点配置」是纯分组（没有自身页面），下挂「站点」分组（站点四页，ADR-0039）、
+ * 「站点配置」是纯分组（没有自身页面），下挂「站点」分组（站点四页，ADR-0029）、
  * 七个配置编辑域与「右栏卡片」；「媒体运营」同样只分组，下挂轮播运营与图片资源库。
- * `image_gc` 暂无编辑页（ADR-0029），`/media` 是旧地址跳转页（不在菜单里）。
+ * `image_gc` 暂无编辑页（ADR-0020），`/media` 是旧地址跳转页（不在菜单里）。
  */
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
@@ -529,7 +529,7 @@ describe('后台菜单对账', () => {
     expect(report.nonAbsolutePaths).toEqual([])
   })
 
-  it('「热门置顶」紧跟「文章管理」（ADR-0017 决策 5 规定的位置）', () => {
+  it('「热门置顶」紧跟「文章管理」（ADR-0015 决策 5 规定的位置）', () => {
     const report = reconcileAdminNav(FLAT_NAV, pageFiles)
     expect(report.hotTopOrder).toBeNull()
 

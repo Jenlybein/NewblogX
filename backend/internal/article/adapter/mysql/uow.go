@@ -100,7 +100,7 @@ func (r *repos) AuthorStats() app.AuthorStatsPort {
 	return &authorStats{db: r.db, apply: r.authorStats}
 }
 
-// Risks 现场构造合规记录仓储（票 312 / ADR-0033），与其它 Getter 同一做法。
+// Risks 现场构造合规记录仓储（票 312 / ADR-0024），与其它 Getter 同一做法。
 func (r *repos) Risks() risk.Repository { return NewRiskRepo(r.db) }
 
 // Outbox 用当前事务句柄构造写入器：事件行写进本事务，随业务一起提交/回滚。
@@ -130,7 +130,7 @@ func (r *repos) NamedOutlineFor(_ context.Context, kind outline.OwnerKind) outli
 	return NewCollectionOutlineRepo(r.db)
 }
 
-// GroupsFor 按实体返回自己的分组仓储（ADR-0041）。
+// GroupsFor 按实体返回自己的分组仓储（ADR-0019）。
 //
 // 实现的是 app.GroupRepositoryFor（端口由使用方定义）。少了这个方法，
 // 分组端点会在**生产**装配下走"端口不满足"的分支、全部返回 not_found ——

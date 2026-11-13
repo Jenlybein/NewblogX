@@ -86,7 +86,7 @@ describe("私信子项：/messages/chat 的右内容", () => {
   });
 });
 
-describe("排序 / 已读 / 分页的契约门禁（ADR-0027）", () => {
+describe("排序 / 已读 / 分页的契约门禁（ADR-0018）", () => {
   it("后端直接给升序（最旧在前），前端不再反转任何一页", () => {
     const timeline = read("app/utils/chatTimeline.ts");
     const panel = read("app/components/inbox/InboxChatPanel.vue");

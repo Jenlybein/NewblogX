@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-10（v1 归档期）
-- 来源：从 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md) 拆分
+- 来源：v1 归档期决策
 
 ## 背景与问题
 
@@ -39,13 +39,10 @@
 1. 禁止新增 `type Deps struct`；
 2. `*gorm.DB` 只能出现在 `*/adapter/` 与 `platform/mysql/`，其余层出现数为 0；
 3. 端口接口定义在使用方包内，实现方不得反向定义；
-4. 模块之间不得互相 import，跨模块依赖一律通过消费方窄接口 + 合成根连线。
-
-**适用范围（2026-11-06 补充）**：
-
-- R2 禁止的是**跨模块依赖打包**（`Deps` / `XxxDeps` struct），不是模块内部把自己的协作者收成私有字段或私有类型。深模块内部可以用 unexported 结构承载自己的判定协作（如 `chat/app.sendGuard`），它们不是端口、不出现在模块对外接口上。
-- 私信模块（#280）把九个协作者收进 `internal/chat.New` 的**显式窄参数**，没有引入依赖打包结构体；合成根只交出基础设施与跨模块适配器。
-- "端口定义在使用方"与"模块间零 import"不因局部装配上移而放宽：`internal/chat` 不 import social / user / auth，跨模块能力仍以消费方窄接口传入。
+4. 模块之间不得互相 import，跨模块依赖一律通过消费方窄接口 + 合成根连线；
+5. R2 管的是跨模块依赖打包（`Deps` / `XxxDeps` struct），不禁止模块内部把协作者收成私有字段或私有类型；深模块内部可以用 unexported 结构承载判定协作（如 `chat/app.sendGuard`），它们不是端口，不出现在模块对外接口上；
+6. 协作者以显式窄参数传入构造函数（如 `internal/chat.New` 的九个协作者），不引入依赖打包结构体；合成根只交出基础设施与跨模块适配器；
+7. "端口定义在使用方"与"模块间零 import"不因局部装配上移而放宽：`internal/chat` 不 import social / user / auth，跨模块能力仍以消费方窄接口传入。
 
 
 ## 相关代码与文档
@@ -53,4 +50,3 @@
 - 代码：[article/app/port.go](../../backend/internal/article/app/port.go)（端口定义在使用方包内）
 - 代码：[tools/archcheck/rules.go](../../backend/tools/archcheck/rules.go)（禁止新增 `Deps`、`*gorm.DB` 只允许落在 adapter/platform 的守卫）
 - 文档：[架构总纲 · 端口与能力接口](../architecture/overview.md)
-- 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)

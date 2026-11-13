@@ -10,7 +10,7 @@ import (
 	gast "github.com/yuin/goldmark/ast"
 )
 
-// svgDrawingElements 是放行的 SVG 绘图元素（#135 / ADR-0021）。
+// svgDrawingElements 是放行的 SVG 绘图元素（#135 / ADR-0017）。
 //
 // 只到"画图"为止：能表达流程图、架构图、示意图。刻意**不含**
 // script / foreignObject / animate* —— 它们是可执行或可装载任意 HTML 的面。
@@ -54,7 +54,7 @@ func sanitizeSafeHTMLFragment(raw string) string {
 	p.AllowStyles("zoom").Matching(reZoomValue).OnElements("img")
 
 	// 放行 SVG 绘图元素与属性。UGCPolicy 本身不含 svg，这也是此前
-	// <svg> 在入库时被整块删除的原因（#135 / ADR-0021）。
+	// <svg> 在入库时被整块删除的原因（#135 / ADR-0017）。
 	p.AllowElements(svgDrawingElements...)
 	p.AllowAttrs(svgDrawingAttrs...).OnElements(svgDrawingElements...)
 

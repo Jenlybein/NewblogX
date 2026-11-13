@@ -101,7 +101,7 @@ func TestSearchDSLGolden(t *testing.T) {
 			req:    domain.Request{Type: 5, Sort: 4, PageMode: domain.PageModeCount, Status: domain.StatusDraft},
 			viewer: admin,
 		},
-		// ── 显示开关关闭（ADR-0017 决策 4）：公开读面加 author_is_admin 过滤 ──
+		// ── 显示开关关闭（ADR-0015 决策 4）：公开读面加 author_is_admin 过滤 ──
 		{
 			name:             "type1-公共搜索-显示开关关闭（只出管理员作者）",
 			req:              domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, Key: "golang"},

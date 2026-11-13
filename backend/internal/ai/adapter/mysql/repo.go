@@ -126,7 +126,7 @@ func (r *Repo) Latest(ctx context.Context, articleID uint64) (*domain.ScoreRecor
 // # 文章行还不存在时为什么照写
 //
 // 质量闸门在提交事务**之前**评分，新建文章的 ID 已经生成、但 article_models 那一行
-// 要到本次请求的写事务里才插进去（ADR-0032 决策 5）。这时锁的目标行不存在，见
+// 要到本次请求的写事务里才插进去（ADR-0023 决策 5）。这时锁的目标行不存在，见
 // lockArticle 的说明：那不是错误，也不需要排队，照常写评分行即可 —— 文章落库后
 // 这一行就归它。把它当成失败，等于"闸门一开，新文章永远提交不了"。
 //
@@ -206,7 +206,7 @@ func (r *Repo) Upsert(ctx context.Context, record *domain.ScoreRecord) error {
 // 直接跳过：它本身就是单写者，而且 testkit 的连接池只开一条连接。
 //
 // "查不到那一行"不是错误，按**没有可锁的行**继续：
-//   - 质量闸门路径：新文章 ID 已生成、行还没插（ADR-0032 决策 5）。这把锁的作用是让
+//   - 质量闸门路径：新文章 ID 已生成、行还没插（ADR-0023 决策 5）。这把锁的作用是让
 //     "同一篇文章"的并发评分排队（评分表在 article_id 上没有唯一索引），而一个刚生成、
 //     还没入库的 ID 不可能被第二个写者拿去评分，所以不需要锁；
 //   - 已删文章：Rescore / EnsureScoreIfMissing 这类调用方在 Article() 那里就提前返回了，

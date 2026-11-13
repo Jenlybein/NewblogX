@@ -8,7 +8,7 @@ import { collectionCardView } from "~/utils/collection";
 /**
  * 合集列表（读者站顶栏第四项的落地页）。
  *
- * 渲染边界：本页与详情页都**不进 SSR 白名单**（与搜索页一致，ADR-0019），
+ * 渲染边界：本页与详情页都**不进 SSR 白名单**（与搜索页一致，ADR-0016），
  * 由 shared/readerRenderingBoundary.ts 的 CLIENT_ONLY_PATTERNS 声明。
  *
  * 可见性完全由后端决定：只返回"展示中"的合集，且已过滤掉没有公开文章的合集。

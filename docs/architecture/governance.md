@@ -510,5 +510,5 @@ func Strs(k string, v []string) Field // 有长度上限
 - 日志现状六病灶 L1–L6（反射序列化、同步写文件、雪花 ID、`SetReportCaller(true)`、fluent-bit 采集侧）与"2MB 响应 → 8 档 leaf 截断"的爆炸路径推演 —— 对应的旧代码（`service/log_service`、`utils/logsafe`、`init_logrus.go` 两个 Hook）已在 L3 阶段拆除，留着只是解释"为什么当初这么定"。
 - archcheck 违规基线的完整演进链与"上线时必须报出 150+ 处真实违规"这个一次性判断标准 —— v2 只需知道**当前基线是 0、只准减不准增**。
 - `frontend_admin` 覆盖率从 0 到 23/27/35/39 个用例的爬坡过程、Kafka 清零的具体文件清单、MySQL 5.7→8.0 的三处废弃参数与复制语法改动细节。
-- `EmitReplayEvent` 与死信重投的方案选择过程——结论已落地为 ADR-008，见 [ADR-008](../adr/0008-dead-letter-replay.md)。
+- `EmitReplayEvent` 与死信重投的方案选择过程——结论已落地为 ADR-0008，见 [ADR-0008](../adr/0008-dead-letter-replay.md)。
 - 06 号文档里的 R1–R10 是**早期草案编号**，与实现不一致（本文已按 `rules.go` 实际定义纠正）；"CI 三档流水线（fast/full/nightly）"是未落地的方案，实际仓库只有单档 9 job。

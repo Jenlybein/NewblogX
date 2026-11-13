@@ -338,7 +338,7 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   for app in frontend frontend_admin; do
     run_contract_types "$app"
   done
-  # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0012 约束 14 / #22；
+  # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0011 约束 14 / #22；
   # 两端 imageShaping 定形工具与裁剪窗四份组件逐字节同源 = #200 / #225）。
   # 命令登记在门禁清单里，CI 的 frontend-lint job 与门禁自检读同一份。
   run "仓库级门禁（两端 token / 同源副本）" \

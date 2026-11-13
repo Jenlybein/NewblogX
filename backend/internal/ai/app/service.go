@@ -95,7 +95,7 @@ func (s *Service) config() (conf.AI, error) {
 // Ready 报告 AI 现在能不能真的被调用：总闸开着、且至少有一条启用的模型配置。
 //
 // 口径与 specFromConfig 一致（它就是按这两条判失败的）。调用方是「开质量闸门」
-// 这类"保存前先确认前提"的校验（票 306 / ADR-0032）：把失败面从运行期挪到
+// 这类"保存前先确认前提"的校验（票 306 / ADR-0023）：把失败面从运行期挪到
 // 配置期，避免出现"闸门开着而 AI 关着"这种把所有投稿都拒掉的组合。
 func (s *Service) Ready() bool {
 	if s == nil {
@@ -299,7 +299,7 @@ type ScoreView struct {
 	CreatedAt      time.Time
 }
 
-// GateScoreInput 是一次「发布质量闸门」的评分请求（票 306 / ADR-0032）。
+// GateScoreInput 是一次「发布质量闸门」的评分请求（票 306 / ADR-0023）。
 //
 // 它与 RescoreInput 的区别是**不要求文章已经落库**：闸门在提交事务之外跑，
 // 那时新建的文章还不存在（ID 已经生成）。因此这里自带标题、正文与作者，
@@ -311,20 +311,20 @@ type GateScoreInput struct {
 	Content   string
 	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
 	UpdatedAt time.Time
-	// AuthorIsAdmin 表示提交者拥有管理员身份：为真时不占每日评分额度（ADR-0038）。
+	// AuthorIsAdmin 表示提交者拥有管理员身份：为真时不占每日评分额度（ADR-0028）。
 	AuthorIsAdmin bool
 }
 
 // GateScoreResult 是闸门拿到的一次可用评分结论。
 type GateScoreResult struct {
 	TotalScore int
-	// Dimensions 是六个维度的得分（ADR-0040）。闸门要做**木桶判定**——任何一项
+	// Dimensions 是六个维度的得分（ADR-0023）。闸门要做**木桶判定**——任何一项
 	// 低于及格线都不能发布——所以维度分必须一起返回，不能只给总分。
 	Dimensions []ScoreDimension
 	Issues     []scoring.ArticleScoreIssue
 }
 
-// ComplianceResult 是一次「投稿合规判定」的结果（票 312 / ADR-0033）。
+// ComplianceResult 是一次「投稿合规判定」的结果（票 312 / ADR-0024）。
 type ComplianceResult struct {
 	Verdict    string
 	RiskLevel  int
@@ -391,7 +391,7 @@ func (s *Service) CheckTextCompliance(ctx context.Context, in TextCheckInput) (*
 	}, nil
 }
 
-// CheckArticleCompliance 对一篇文章做合规判定（票 312 / ADR-0033）。
+// CheckArticleCompliance 对一篇文章做合规判定（票 312 / ADR-0024）。
 //
 // 它读文章快照、注入 moderation 场景的策略文本、调模型，并把结论原样返回；
 // **落库由调用方负责**（文章模块拥有风险记录表，AI 模块不跨模块写别人的表）。
@@ -447,7 +447,7 @@ func (s *Service) CheckArticleCompliance(ctx context.Context, articleID uint64) 
 //
 // 为什么落库：作者被拒时看到的分数、以及审核列表里的风险标签，都从这一份
 // 记录读；不落库的话，同一次提交会被异步补评分再评一次，等于一次提交烧两次
-// 模型调用（ADR-0032「代价」一节）。
+// 模型调用（ADR-0023「代价」一节）。
 //
 // 拿不到可用分数一律返回 error（失败关闭），由用例层翻成
 // article.score_unavailable；拿到分数就返回结果，哪怕只有 23 分。
@@ -466,14 +466,14 @@ func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScor
 		return GateScoreResult{}, apperr.New(apperr.CodeAIArticleMissing)
 	}
 
-	// 评分按「动作」计额度（ADR-0038）：一次提交内部会按段落分块、顺序调 2..N 次，
+	// 评分按「动作」计额度（ADR-0028）：一次提交内部会按段落分块、顺序调 2..N 次，
 	// 在这里预扣一次并给 ctx 打上预扣标记，分块子调用看到标记就不再重复扣。
 	lease, err := aipkg.BuyActionQuota(ctx, aiConf, aipkg.SceneScoring, in.AuthorID, in.AuthorIsAdmin)
 	if err != nil {
 		return GateScoreResult{}, err
 	}
 
-	// 评分口径来自运行时策略文本（skills/scoring/SKILL.md，ADR-0040）：绑定被摘掉时
+	// 评分口径来自运行时策略文本（skills/scoring/SKILL.md，ADR-0023）：绑定被摘掉时
 	// policy 为空，只靠内置判据与形态封顶，不报错——评分是发布链路上的必经步骤，
 	// 让它因为"少绑一份文案"整站发不出文章，代价远大于收益。
 	policy, policyVersion, err := s.scenePolicy(aiConf, aipkg.SceneScoring)
@@ -647,7 +647,7 @@ func (s *Service) EnsureScoreIfMissing(ctx context.Context, articleID uint64) er
 	content := strings.TrimSpace(article.Content)
 	// 这条 ctx 来自 outbox 中继而不是 HTTP 请求。作者归属仍然补上（日志要能回答
 	// "这篇补评分是谁的文章"），但计费档位是"只记日志不计费"：它不是作者主动
-	// 触发的动作，而且与闸门评分存在竞态，重复计量没有意义（ADR-0038）。
+	// 触发的动作，而且与闸门评分存在竞态，重复计量没有意义（ADR-0028）。
 	policy, policyVersion, err := s.scenePolicy(aiConf, aipkg.SceneScoring)
 	if err != nil {
 		return err

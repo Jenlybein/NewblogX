@@ -46,12 +46,6 @@ declare module "#markdown-it" {
   export { default } from "markdown-it";
 }
 
-declare module "markdown-it-katex" {
-  import type MarkdownIt from "markdown-it";
-
-  export default function markdownItKatex(md: MarkdownIt, ...params: unknown[]): void;
-}
-
 declare module "markdown-it-ins" {
   import type MarkdownIt from "markdown-it";
 

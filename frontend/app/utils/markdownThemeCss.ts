@@ -551,6 +551,29 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   color: var(--color-ink);
 }
 
+/*
+ * 公式解析失败的降级标记：保留作者写的源码，但用虚线 + 等宽字体标出来。
+ * 之前失败时是把源码当正文原样吐出，读者与作者都看不出"这是渲染器的锅还是稿子的锅"。
+ */
+.markdown-body .math-error {
+  display: inline-block;
+  padding: 0 0.25em;
+  border-bottom: 1px dashed var(--color-line-strong);
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono, ui-monospace, "SFMono-Regular", monospace);
+  font-size: 0.92em;
+  white-space: pre-wrap;
+  cursor: help;
+}
+
+.markdown-body .math-error--display {
+  display: block;
+  margin: 1.25em 0;
+  padding: 0.5em 0.75em;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-sm);
+}
+
 /* ---- 图片 / mermaid / 细节块 ---- */
 .markdown-body img {
   max-width: 100%;

@@ -103,10 +103,16 @@ const RICH_TEXT_FORBIDDEN_TAGS = [
  */
 const RICH_TEXT_ALLOWED_URI = /^(?:(?:(?:f|ht)tps?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/iu;
 
-/** 正文档清洗：行为与既有的 `sanitizeArticleHtml` 完全一致。 */
+/**
+ * 正文档清洗：行为与既有的 `sanitizeArticleHtml` 完全一致。
+ *
+ * `mathMl` 档是给 KaTeX 用的：它把公式产出成"MathML + 一份 aria-hidden 的视觉副本"，
+ * 只放行 html 档会把 `<math>` 整棵剥掉，于是公式**只剩视觉副本**——屏幕阅读器什么也读不到。
+ * MathML 的允许清单同样由 DOMPurify 上游维护，且不含任何可执行面。
+ */
 function sanitizeArticleHtmlImpl(html: string): string {
   return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true, svg: true, svgFilters: false },
+    USE_PROFILES: { html: true, svg: true, svgFilters: false, mathMl: true },
     FORBID_TAGS: ARTICLE_FORBIDDEN_TAGS,
   });
 }

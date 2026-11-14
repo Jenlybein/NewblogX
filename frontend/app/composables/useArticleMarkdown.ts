@@ -1,5 +1,5 @@
 import MarkdownIt from "#markdown-it";
-import markdownItKatex from "markdown-it-katex";
+import { markdownMath, normalizeMathBlocks } from "~/utils/markdownMath";
 import markdownItIns from "#markdown-it-ins";
 import hljs from "highlight.js/lib/core";
 import bash from "highlight.js/lib/languages/bash";
@@ -91,7 +91,7 @@ const markdown = new MarkdownIt({
     return `<pre><code class="hljs">${highlighted}</code></pre>`;
   },
 });
-markdown.use(markdownItKatex);
+markdown.use(markdownMath);
 markdown.use(markdownItIns);
 const markdownRuntime = markdown as MarkdownIt & {
   parse: (source: string, env: Record<string, unknown>) => Array<{
@@ -209,7 +209,11 @@ export function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
     };
   }
 
-  const normalizedSource = source.replace(/<u>([\s\S]*?)<\/u>/gi, "++$1++");
+  // 先把 `$$…$$` 归一成单行：正文里"开在引用里、闭在行首"的写法会让 Markdown
+  // 的容器语义把中间整段当成公式内容（详见 markdownMath 里的说明）。
+  const normalizedSource = normalizeMathBlocks(
+    source.replace(/<u>([\s\S]*?)<\/u>/gi, "++$1++"),
+  );
   const state: RenderState = {
     headings: [],
     usedIds: new Map<string, number>(),

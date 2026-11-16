@@ -7,6 +7,9 @@ import (
 
 	"myblogx/conf"
 	"myblogx/core"
+	articleapp "myblogx/internal/article/app"
+	commentapp "myblogx/internal/comment/app"
+	userapp "myblogx/internal/user/app"
 	filterapp "myblogx/internal/filter/app"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/contentfilter"
@@ -70,6 +73,15 @@ type Infra struct {
 	// Filter 是命中记录与「关键词风险」读面的用例服务（评论接入、后续五个文本面、
 	// 存量清洗都复用它）。
 	Filter *filterapp.Service
+
+	// ── 处置动作（票 398）要删的实体所在模块的用例服务 ──
+	//
+	// 挂在这里而不是让内容过滤自己再构造一份：处置属于"跨模块写"，必须复用各模块
+	// 自己那份装配（删除要经过它们的状态机与副作用）。三个字段由各自的 Wire 函数
+	// 填，WireFilterDisposer 在它们之后读。
+	ArticleService *articleapp.Service
+	CommentService *commentapp.Service
+	UserService    *userapp.Service
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。
@@ -249,3 +261,4 @@ func validateInfra(infra *Infra) error {
 	}
 	return nil
 }
+

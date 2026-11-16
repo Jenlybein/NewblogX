@@ -43,6 +43,8 @@ func WireComment(infra *Infra) {
 		commentIDs{},
 		infra.Logger,
 	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter})
+	// 挂到 Infra：关键词风险页的处置动作要复用**这一份**装配（票 398）。
+	infra.CommentService = svc
 	router.SetCommentHandler(commenthttp.NewHandler(svc))
 }
 
@@ -296,3 +298,4 @@ func toCtypeIDs(ids []uint64) []ctype.ID {
 	}
 	return out
 }
+

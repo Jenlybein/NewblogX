@@ -77,6 +77,16 @@ var protocols = map[Code]ProtocolKind{
 	// 换个值就能过，同属调用方能修正的失败。
 	CodeFilterSurfaceInvalid: ProtocolValidation,
 	CodeFilterStatusInvalid:  ProtocolValidation,
+
+	// 关键词风险的处置动作（ADR-0032 决策 7 / 票 398）：记录不存在、动作写错、
+	// 备注超长、批量没选、私信面没内容 —— 都是后台换一下操作就能过的失败，归 1001。
+	CodeFilterHitNotFound:      ProtocolValidation,
+	CodeFilterActionInvalid:    ProtocolValidation,
+	CodeFilterNoteTooLong:      ProtocolValidation,
+	CodeFilterBatchEmpty:       ProtocolValidation,
+	CodeFilterSurfaceNoContent: ProtocolValidation,
+	// 处置端口没装配（filter.dispose_unavailable）**不**登记在这里：它明确属于
+	// 服务异常，按仓库约定登记在 protocol_test.go 的 serviceFallbackCodes 并写明理由。
 }
 
 // ProtocolOf 从错误值取协议类别。
@@ -93,3 +103,4 @@ func ProtocolOf(err error) ProtocolKind {
 	}
 	return ProtocolService
 }
+

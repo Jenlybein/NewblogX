@@ -28,7 +28,10 @@ type Service struct {
 	// nil 表示装配遗漏：Filter 退化成"原样返回"，不让整站不可用。
 	engine *contentfilter.Engine
 	hits   domain.Repository
-	logger domain.Logger
+	// disposer 是处置动作（票 398）对内容模块的写端口，装配层在内容模块
+	// 就绪后通过 WithDisposer 注入；nil 表示这一进程没有处置能力。
+	disposer domain.Disposer
+	logger   domain.Logger
 }
 
 // New 构造内容过滤服务。

@@ -426,6 +426,19 @@ const (
 	CodeFilterSurfaceInvalid Code = "filter.surface_invalid"
 	CodeFilterStatusInvalid  Code = "filter.status_invalid"
 
+	// 关键词风险的处置动作（ADR-0032 决策 7 / 票 398）。
+	//
+	// 前五个都是"后台能自己修正"的失败：记录不存在（刷新列表就能看到最新状态）、
+	// 动作写错、备注超长、批量没选、私信面没有可删内容。它们归 1001。
+	CodeFilterHitNotFound    Code = "filter.hit_not_found"
+	CodeFilterActionInvalid  Code = "filter.action_invalid"
+	CodeFilterNoteTooLong    Code = "filter.note_too_long"
+	CodeFilterBatchEmpty     Code = "filter.batch_empty"
+	CodeFilterSurfaceNoContent Code = "filter.surface_no_content"
+	// CodeFilterDisposeUnavailable 不是调用方的问题：处置端口没装配说明
+	// 这条进程的装配漏了一步，属于服务异常（不吞、也不让后台误以为是自己传错了）。
+	CodeFilterDisposeUnavailable Code = "filter.dispose_unavailable"
+
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
 	CodeSetupAlreadyDone          Code = "setup.already_done"
@@ -757,6 +770,12 @@ var messages = map[Code]string{
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
 	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted）",
+	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",
+	CodeFilterActionInvalid:            "处置动作不存在（可选：delete / ignore）",
+	CodeFilterNoteTooLong:              "处置备注最多 200 字",
+	CodeFilterBatchEmpty:               "批量处置至少需要选择一条记录",
+	CodeFilterSurfaceNoContent:         "该文本面没有可删除的内容（私信命中只能忽略）",
+	CodeFilterDisposeUnavailable:       "处置能力未装配，请检查服务启动装配",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",

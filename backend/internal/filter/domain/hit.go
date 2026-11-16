@@ -191,6 +191,14 @@ type Repository interface {
 	List(ctx context.Context, q Query) ([]Hit, int64, error)
 	// TopUsers 返回 since 之后命中处数最多的前 limit 个用户。
 	TopUsers(ctx context.Context, since time.Time, limit int) ([]TopUser, error)
+	// FindByID 按 ID 查一条命中记录；不存在时返回 CodeFilterHitNotFound。
+	FindByID(ctx context.Context, id ctype.ID) (Hit, error)
+	// MarkHandled 把一条**待处理**记录改写成已处置（状态 / 处理人 / 时间 / 备注）。
+	//
+	// 只在 status = pending 时更新（条件更新），返回是否真的改写了：
+	// 并发下两个管理员同时点处置，第二个会拿到 false，应用层据此重读当前状态
+	// 并幂等返回 —— 而不是覆盖第一个人的处理痕迹。
+	MarkHandled(ctx context.Context, id ctype.ID, h Handle) (bool, error)
 }
 
 // Logger 是窄日志接口。

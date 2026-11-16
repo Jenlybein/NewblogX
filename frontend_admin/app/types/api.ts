@@ -398,3 +398,17 @@ export type GroupOrderPayload = Required<Schema<"internal_article_adapter_http.G
  * 而不是自己再推一遍时间。
  */
 export type OverviewData = RequiredSchema<"internal_analytics_adapter_http.OverviewResponse">;
+/** 处置动作的请求体（`POST /content-filter/hits/{id}/handle`）。 */
+export type ContentFilterHandleRequest = RequiredSchema<"internal_filter_adapter_http.HandleHitRequest">
+
+/** 单条处置的 data 载荷：处置后的记录 + 是否本来就已处置。 */
+export type ContentFilterHandleResult = RequiredSchema<"internal_filter_adapter_http.HandleHitResponse">
+
+/** 批量处置的请求体（`POST /content-filter/hits/handle-batch`）。 */
+export type ContentFilterHandleBatchRequest = RequiredSchema<"internal_filter_adapter_http.HandleBatchRequest">
+
+/** 批量处置的一条逐条结果。 */
+export type ContentFilterHandleBatchItem = RequiredSchema<"internal_filter_adapter_http.HandleBatchItem">
+
+/** 批量处置的 data 载荷：`{results}`。 */
+export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_adapter_http.HandleBatchResponse">

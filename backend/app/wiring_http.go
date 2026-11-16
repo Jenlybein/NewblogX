@@ -60,6 +60,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// comment 链路：路由改由 internal/comment 提供。
 	WireComment(infra)
 
+	// 关键词风险的处置写端口（票 398）：必须在文章 / 评论 / 用户三个模块装配
+	// **之后** —— 处置要复用它们各自那一份用例服务，不能另建一份。
+	WireFilterDisposer(infra)
+
 	// notification 链路：站内信与全局公告改由 internal/notification 提供。
 	// 必须早于 outbox：中继的订阅者要靠它发通知。
 	WireNotification(infra)

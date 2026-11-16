@@ -164,6 +164,8 @@ func WireUser(infra *Infra) {
 	authService = authSvc
 	userService = userSvc
 	router.SetAuthHandler(h)
+	// 挂到 Infra：关键词风险页的处置动作要复用**这一份**装配（票 398）。
+	infra.UserService = userSvc
 	router.SetUserHandler(userhttp.NewHandler(userSvc))
 }
 
@@ -747,3 +749,4 @@ func (b abstractTextFilterBridge) FilterAbstractText(ctx context.Context, in use
 	}
 	return userapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }
+

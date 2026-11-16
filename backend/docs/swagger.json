@@ -2980,6 +2980,97 @@
                 },
                 "type": "object"
             },
+            "internal_filter_adapter_http.HandleBatchItem": {
+                "properties": {
+                    "already_handled": {
+                        "description": "AlreadyHandled 与单条处置同义。",
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "description": "Message 是失败原因的中文提示（成功时为空串）。",
+                        "type": "string"
+                    },
+                    "ok": {
+                        "description": "Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。",
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "description": "Status 是处置后的状态；失败且拿不到记录时为空串。",
+                        "enum": [
+                            "pending",
+                            "ignored",
+                            "deleted"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleBatchRequest": {
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "delete",
+                            "ignore"
+                        ],
+                        "type": "string"
+                    },
+                    "ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "note": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleBatchResponse": {
+                "properties": {
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleHitRequest": {
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "delete",
+                            "ignore"
+                        ],
+                        "type": "string"
+                    },
+                    "note": {
+                        "description": "Note 是可选备注（≤200 字，服务端按 rune 计数）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleHitResponse": {
+                "properties": {
+                    "already_handled": {
+                        "description": "AlreadyHandled 表示这条记录之前已被处置，本次只是返回当前状态（幂等）。",
+                        "type": "boolean"
+                    },
+                    "hit": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HitItem"
+                    }
+                },
+                "type": "object"
+            },
             "internal_filter_adapter_http.HitItem": {
                 "properties": {
                     "content_id": {
@@ -6211,6 +6302,34 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_comment_adapter_http.ReplyListResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HandleHitResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -11211,6 +11330,93 @@
                     }
                 ],
                 "summary": "关键词风险列表（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/hits/handle-batch": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchRequest",
+                                "summary": "payload",
+                                "description": "记录 ID、动作与备注"
+                            }
+                        }
+                    },
+                    "description": "记录 ID、动作与备注",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "批量处置关键词风险记录（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/hits/{id}/handle": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "命中记录 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_filter_adapter_http.HandleHitRequest",
+                                "summary": "payload",
+                                "description": "处置动作与备注"
+                            }
+                        }
+                    },
+                    "description": "处置动作与备注",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "处置一条关键词风险记录（管理员）",
                 "tags": [
                     "content-filter"
                 ]

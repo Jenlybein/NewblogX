@@ -24,8 +24,12 @@ func mustFilterHandler() *filterhttp.Handler {
 
 // ContentFilterRouter 注册关键词风险路由（ADR-0032 决策 7）。
 //
-// 整段只给管理员：看得到的是"谁发了什么命中词"，本身就是敏感信息；读者站与任何
-// 登录用户都拿不到。这一票只有只读列表，处置动作是 #398。
+// 整段只给管理员：看得到的是"谁发了什么命中词"，本身就是敏感信息；处置动作
+// 还会软删内容 / 重置资料，读者站与任何登录用户都拿不到。
+//
+// `hits/handle-batch`（静态段）与 `hits/:id/handle`（参数段）是同一位置上的
+// 两个子节点：gin 会优先匹配静态段，所以批量端点不会被 `:id = "handle-batch"`
+// 吃掉。这里仍把批量写在前面，纯粹是让"两个处置端点"读起来成对。
 func ContentFilterRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	app := mustFilterHandler()
 
@@ -34,4 +38,6 @@ func ContentFilterRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
 	adminGroup.GET("hits", app.ListHits)
+	adminGroup.POST("hits/handle-batch", app.HandleBatchHits)
+	adminGroup.POST("hits/:id/handle", app.HandleHit)
 }

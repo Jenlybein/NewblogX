@@ -30,6 +30,10 @@ type FlagOptions struct {
 	Apply bool
 	// EncryptConfig 把库里已存的明文密钥一次性加密（票 359）。
 	EncryptConfig bool
+	// FilterImport 是初始词表导入文件（TSV/NDJSON，票 395）。
+	FilterImport string
+	// FilterImportApply 才真正写库；默认 dry-run 只报告。
+	FilterImportApply bool
 }
 
 type Options struct {
@@ -62,6 +66,8 @@ func Parse() *FlagOptions {
 	flag.BoolVar(&Flags.UserNoPrompt, "user-no-prompt", false, "创建用户时禁用交互输入(参数不完整则直接失败)")
 	flag.BoolVar(&Flags.Apply, "apply", false, "对账类子命令真正落库(默认只读，只统计不改)")
 	flag.BoolVar(&Flags.EncryptConfig, "encrypt-config", false, "把已存的明文密钥加密(需要环境变量 BLOGX_CONFIG_SECRET_KEY)")
+	flag.StringVar(&Flags.FilterImport, "filter-import", "", "从文件导入初始词表(TSV: 词<TAB>档位<TAB>类目，或 NDJSON)，默认只报告不写库")
+	flag.BoolVar(&Flags.FilterImportApply, "filter-import-apply", false, "初始词表导入真正写库(默认 dry-run)")
 
 	flag.Parse()
 
@@ -79,6 +85,18 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 
 	if op.EncryptConfig {
 		if err := FlagEncryptConfig(deps.DB, deps.Logger); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
+	}
+
+	if op.FilterImport != "" || op.FilterImportApply {
+		// 初始词表导入（#395）：不给文件就等于没指定要导入什么，宁可报错也不要
+		// 静默继续启动 —— 那会让人误以为词表已经导进去了。
+		if op.FilterImport == "" {
+			return RunResult{}, fmt.Errorf("-filter-import-apply 需要配合 -filter-import <file> 使用")
+		}
+		if err := FlagFilterImport(deps.DB, deps.Logger, op.File, op.FilterImport, op.FilterImportApply); err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{ContinueStartup: false}, nil

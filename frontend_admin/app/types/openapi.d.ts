@@ -2850,42 +2850,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/man": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 评论管理列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/comments/replies": {
         parameters: {
             query?: never;
@@ -9503,30 +9467,7 @@ export interface components {
             stranger_msg_enabled?: boolean;
         };
         "myblogx_conf_site.Comment": {
-            /** @description AI 是评论的 AI 合规判定（票 359）。 */
-            ai?: components["schemas"]["myblogx_conf_site.CommentAI"];
-            /** @description Moderation 是评论的机审词表（与文章同构）。 */
             moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
-            /** @description 免审核（机器+AI 都通过时直发） */
-            skip_examining?: boolean;
-        };
-        "myblogx_conf_site.CommentAI": {
-            /** @description Enabled 打开后，评论在发布前会过一遍 AI 合规判定。 */
-            enabled?: boolean;
-            /**
-             * @description MaxTokens 是单次判定的输出上限，默认 1000。
-             *
-             *     结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本
-             *     控制在可预期量级。
-             */
-            max_tokens?: number;
-            /**
-             * @description TimeoutSec 是单次判定的超时秒数，默认 8。
-             *
-             *     评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求
-             *     挂到分钟级。超时按"未判定"处理（留待人工），不按"通过"处理。
-             */
-            timeout_sec?: number;
         };
         "myblogx_conf_site.Login": {
             captcha?: boolean;
@@ -9856,20 +9797,6 @@ export interface components {
             reply_id?: string;
             root_id?: string;
             status?: number;
-        };
-        "myblogx_internal_comment_app.ManageItem": {
-            article_cover?: string;
-            article_id?: string;
-            article_title?: string;
-            content?: string;
-            created_at?: string;
-            digg_count?: number;
-            id?: string;
-            relation?: number;
-            reply_count?: number;
-            user_avatar?: string;
-            user_id?: string;
-            user_nickname?: string;
         };
         "myblogx_internal_comment_app.ReplyItem": {
             content?: string;
@@ -10412,11 +10339,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_search_domain.Response"];
@@ -10571,10 +10493,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem": {
             count?: number;
             list?: components["schemas"]["myblogx_internal_chat_domain.SessionItem"][];
-        };
-        "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
-            count?: number;
-            list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
         };
         /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;

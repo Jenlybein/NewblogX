@@ -2,13 +2,10 @@ package app
 
 import (
 	"context"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
-	aiapp "myblogx/internal/ai/app"
-	"myblogx/internal/apperr"
 	commenthttp "myblogx/internal/comment/adapter/http"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
@@ -45,22 +42,29 @@ func WireComment(infra *Infra) {
 		notifierBridge{},
 		commentIDs{},
 		infra.Logger,
-		func() bool { return infra.RuntimeSite.GetRuntimeComment().SkipExamining },
-	).WithModeration(
-		// 策略现读：运营改完词表或开关，下一条评论立即按新口径判定（不需要重启）。
-		func() commentapp.ModerationPolicy {
-			c := infra.RuntimeSite.GetRuntimeComment()
-			return commentapp.ModerationPolicy{
-				BlockWords:  c.Moderation.BlockWords,
-				WatchWords:  c.Moderation.WatchWords,
-				AIEnabled:   c.AI.Enabled,
-				AIMaxTokens: c.AI.MaxTokens,
-				AITimeout:   time.Duration(c.AI.TimeoutSec) * time.Second,
-			}
-		},
-		&commentComplianceBridge{},
 	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter})
 	router.SetCommentHandler(commenthttp.NewHandler(svc))
+}
+
+// RetireCommentExamining 把存量「审核中」评论一次性转成已删除（票 400）。
+//
+// 放在启动路径上而不是做一个 CLI：退场是**代码与数据同时生效**的一件事 ——
+// 代码上线后已经没有任何地方会把评论置为「审核中」，如果存量还留着 status=1，
+// 它们就会永远停在一个没有任何入口能处理的状态。迁移本身幂等（只命中 status=1），
+// 所以每个进程角色启动时都可以跑一遍，跑第二遍命中 0 行、不写库。
+func RetireCommentExamining(infra *Infra) error {
+	if infra == nil || infra.DB == nil {
+		return nil
+	}
+	retired, err := commentmysql.New(infra.DB).RetireExamining(context.Background())
+	if err != nil {
+		return err
+	}
+	if infra.Logger != nil {
+		// 条数一定要记：这是唯一能回答"上线后到底有多少条评论被这条迁移删掉"的线索。
+		infra.Logger.Infof("评论「审核中」状态退场：%d 条存量评论转为已删除", retired)
+	}
+	return nil
 }
 
 // commentContentFilterBridge 把内容过滤服务接成评论模块的端口（票 396）。
@@ -88,35 +92,6 @@ func (b commentContentFilterBridge) Filter(ctx context.Context, in domain.Filter
 		return domain.FilterResult{}, err
 	}
 	return domain.FilterResult{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
-}
-
-// commentComplianceBridge 把 AI 模块的合规判定接成评论模块的端口（票 359）。
-//
-// 判定逻辑与文章共用同一套策略文本与结论结构：站内"能不能发"的判据只能有一份，
-// 否则同一条内容在评论与文章上会得出互相矛盾的结论。
-type commentComplianceBridge struct{}
-
-// CheckComment 对一条评论做合规判定。
-func (commentComplianceBridge) CheckComment(ctx context.Context, in commentapp.ComplianceInput) (*commentapp.ComplianceResult, error) {
-	if aiService == nil {
-		return nil, apperr.New(apperr.CodeAIServiceOff)
-	}
-	got, err := aiService.CheckTextCompliance(ctx, aiapp.TextCheckInput{
-		Title:     in.ArticleTitle,
-		Content:   in.Content,
-		MaxTokens: in.MaxTokens,
-	})
-	if err != nil {
-		return nil, err
-	}
-	result := &commentapp.ComplianceResult{
-		Verdict:    commentapp.Verdict(got.Verdict),
-		Categories: got.Categories,
-	}
-	if len(got.Reasons) > 0 {
-		result.Reason = got.Reasons[0]
-	}
-	return result, nil
 }
 
 // commentIDs 用雪花生成评论 ID。
@@ -220,38 +195,6 @@ func (b *articleBridge) ByID(_ context.Context, id uint64) (domain.Article, erro
 		return domain.Article{}, err
 	}
 	return toArticle(row), nil
-}
-
-// BaseMap 批量查文章。
-func (b *articleBridge) BaseMap(_ context.Context, ids []uint64) (map[uint64]domain.Article, error) {
-	out := make(map[uint64]domain.Article, len(ids))
-	if len(ids) == 0 {
-		return out, nil
-	}
-	var rows []articleRow
-	if err := b.db.Where("id IN ?", ids).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		out[row.ID.Uint64()] = toArticle(row)
-	}
-	return out, nil
-}
-
-// IDsByAuthor 查某作者的文章 ID 列表。
-func (b *articleBridge) IDsByAuthor(_ context.Context, authorID, articleID ctype.ID) ([]ctype.ID, error) {
-	if authorID.IsZero() {
-		return nil, nil
-	}
-	tx := b.db.Model(&articleRow{}).Select("id").Where("author_id = ?", authorID)
-	if !articleID.IsZero() {
-		tx = tx.Where("id = ?", articleID)
-	}
-	var ids []ctype.ID
-	if err := tx.Order("id asc").Pluck("id", &ids).Error; err != nil {
-		return nil, err
-	}
-	return ids, nil
 }
 
 // cacheBridge 回写计数缓存。

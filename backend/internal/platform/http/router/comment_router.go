@@ -25,7 +25,6 @@ func CommentRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 
 	Group.GET("", app.ListRoot)
 	Group.GET("replies", app.ListReplies)
-	authGroup.GET("man", app.ListManaged)
 	authGroup.POST("", app.Create)
 	authGroup.POST(":id/digg", app.Digg)
 	authGroup.DELETE(":id", app.Remove)

@@ -234,16 +234,16 @@ describe("评论区：提交", () => {
     expect(section.replyTarget.value).toBeNull();
   });
 
-  it("评论停在审核中时，提示不能是「已发送」（票 359）", async () => {
-    // 机审观察词命中或 AI 判可疑时，后端返回 status=1（审核中）。
-    // 这时列表里看不到这条评论，说"已发送"会让人以为丢了。
+  it("回复根评论文案是「回复已发送」，不再有「审核通过后显示」那一支（票 400）", async () => {
+    // 评论一律直接发布：后端已没有「审核中」，前端也就不该再有按 status 分叉的提示。
     const { section, createComment, notify } = harness();
-    createComment.mockResolvedValueOnce({ status: 1 });
+    section.handleReply("c1");
+    createComment.mockResolvedValueOnce({ status: 2 });
 
-    await section.handleCreateComment("加微信聊");
+    await section.handleCreateComment("回复楼主");
 
-    expect(notify.success).toHaveBeenCalledWith("评论已提交，审核通过后显示");
-    expect(notify.success).not.toHaveBeenCalledWith("评论已发送");
+    expect(notify.success).toHaveBeenCalledWith("回复已发送");
+    expect(notify.success).not.toHaveBeenCalledWith("回复已提交，审核通过后显示");
   });
 
   it("回复根评论：reply_id 是该根评论的 id（落到它的楼层），刷新后清空回复目标", async () => {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
 	"myblogx/internal/kernel/ctype"
 )
@@ -36,10 +35,10 @@ func (f *fakeFilterer) Filter(_ context.Context, in domain.FilterRequest) (domai
 	return domain.FilterResult{Masked: f.masked, FilteredCount: f.count}, nil
 }
 
-// newFilteredFixture 构造一个"已接入过滤、未接入审核"的评论服务。
+// newFilteredFixture 构造一个"已接入过滤"的评论服务。
 func newFilteredFixture(t *testing.T, filter domain.ContentFilterer) *fixture {
 	t.Helper()
-	f := newFixture(t, nil, nil, true)
+	f := newFixture(t)
 	if filter != nil {
 		f.svc = f.svc.WithContentFilter(filter)
 	}
@@ -132,19 +131,22 @@ func TestCreateWithoutFilterKeepsOldBehaviour(t *testing.T) {
 	}
 }
 
-// TestCreateModerationReadsMaskedText 钉住顺序：先替换、再判定。
-//
-// 词表机审读的是替换后的文本，所以经过过滤层的评论不会因为"原文里的词"
-// 再次被拒 —— 这正是 #396 要的"命中即替换并发布"。
-func TestCreateModerationReadsMaskedText(t *testing.T) {
-	f := newFixture(t, &app.ModerationPolicy{BlockWords: []string{"代开发票"}}, nil, true)
-	f.svc = f.svc.WithContentFilter(&fakeFilterer{masked: "需要****", count: 1})
+// TestCreateFilteredTextIsStillPublished 钉住 #396 的顺序在新形态下没变：
+// 先替换、再落库，替换后的文本照常发布 —— 没有任何东西会因为它命中了词而被拦。
+func TestCreateFilteredTextIsStillPublished(t *testing.T) {
+	f := newFilteredFixture(t, &fakeFilterer{masked: "需要****", count: 1})
 
 	result, err := f.create(t, "需要代开发票")
 	if err != nil {
-		t.Fatalf("替换后的文本不该再命中阻断词（判定读的是替换后文本）: %v", err)
+		t.Fatalf("命中词只替换、不该被拦: %v", err)
 	}
 	if result.Content != "需要****" {
 		t.Fatalf("入库应是替换后的文本，实际 %q", result.Content)
+	}
+	if result.Status != int8(domain.StatusPublished) {
+		t.Fatalf("过滤后的评论应立即发布，实际状态 %d", result.Status)
+	}
+	if f.cache.added != 1 || f.notifier.count != 1 {
+		t.Fatal("过滤后的评论同样要计数、要通知")
 	}
 }

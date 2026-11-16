@@ -148,7 +148,7 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
   it("站点四页各自声明自己拥有的 site 段顶层块，且互不重叠", () => {
     const owned = SITE_SETTINGS_PAGES.flatMap((section) => section.blocks);
     expect(new Set(owned).size).toBe(owned.length);
-    expect(owned.sort()).toEqual(["article", "chat", "comment", "login", "seo", "site_info"]);
+    expect(owned.sort()).toEqual(["article", "chat", "login", "seo", "site_info"]);
 
     for (const section of SITE_SETTINGS_PAGES) {
       expect(section.blocks.length, section.key).toBeGreaterThan(0);

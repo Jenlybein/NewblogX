@@ -1379,10 +1379,6 @@
     @apply text-sm text-ink-muted;
   }
 
-  .comment__status {
-    @apply border border-danger-line bg-danger-soft px-1.5 text-xs text-danger-ink;
-  }
-
   .comment__body {
     @apply mt-3 flex-1;
   }

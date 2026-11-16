@@ -266,20 +266,14 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
 
     const target = replyTarget.value;
     try {
-      const created = await deps.createComment({
+      await deps.createComment({
         article_id: deps.articleId(),
         content: trimmed,
         ...(target ? { reply_id: target.id } : {}),
       });
-      // 票 359：评论要过机审 + AI 判定，未通过的那条会停在「审核中」。
-      // 这时说"已发送"而列表里看不到，正是最让人困惑的组合（同 #344 收藏那类问题），
-      // 所以按返回的状态分开提示。
-      const pending = created?.status === 1;
-      if (pending) {
-        deps.notify.success(target ? "回复已提交，审核通过后显示" : "评论已提交，审核通过后显示");
-      } else {
-        deps.notify.success(target ? "回复已发送" : "评论已发送");
-      }
+      // 评论一律直接发布（票 400）：不再按返回状态区分「已发送 / 待审核」，
+      // 也不再为「审核中」留任何提示分支 —— 那个状态在后端已经不存在。
+      deps.notify.success(target ? "回复已发送" : "评论已发送");
       replyTarget.value = null;
       deps.pager.reset(1);
       await deps.pager.loadPage(1, true);

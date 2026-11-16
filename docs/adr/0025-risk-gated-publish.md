@@ -1,12 +1,17 @@
 # ADR-0025：按风险分流的发布口径（标红直接拒、干净文章自动发）
 
+> **部分被取代（2026-11-17）**：本文的第①层「词表机审」已随 [ADR-0032](./0032-content-filter.md) 退场，
+> 词面命中改由「内容过滤」在落库前替换成 `*`、不再参与「拒 / 放 / 待可见」的判定。
+> 本文的**机制**（同步扫描 → `REJECTED` / 已发布待可见 / 回审核中）全部保留，只是①层只剩评分派生标签。
+> 下面受影响的句子已就地标注，未改动的段落与当时的判断一致。
+
 - 状态：已交付
 - 日期：2026-11-09
 - 来源：2026-11-09 的发布治理设计评审 · 关联 [ADR-0022](./0022-submit-quota.md)（配额）· [ADR-0023](./0023-quality-gate.md)（同步端口）· [ADR-0024](./0024-risk-models.md)（第③层）
 
 ## 背景与问题
 
-提交那一刻只能拿到前两层机审（词表 + 评分派生标签）的结论，第③层模型判定是异步的，因此"干净文章自动发"与"模型审核通过之后才可见"之间存在时间差：文章必须先在作者侧显示为已发布，又不能立刻对读者公开。
+提交那一刻只能拿到同步扫描（评分派生标签）的结论，第③层模型判定是异步的，因此"干净文章自动发"与"模型审核通过之后才可见"之间存在时间差：文章必须先在作者侧显示为已发布，又不能立刻对读者公开。
 
 由此要一次定清楚五件事：
 
@@ -18,7 +23,7 @@
 
 ## 决策
 
-1. **同步风险扫描**：提交时（事务外）把第①层词表与第②层评分派生标签合并跑一次 `moderation.Evaluate`——与审核列表标红用**同一份**规则。新建文章通常还没有评分记录，此时只跑词表层、不报错。
+1. **同步风险扫描**：提交时（事务外）跑一次 `moderation.Evaluate`，输入只有评分派生标签（低分 / 维度塌陷 / 篇幅异常）——与审核列表标红用**同一份**规则。~~第①层词表~~已退场（ADR-0032）：词面命中改由内容过滤在落库前替换成 `*`，不参与本判定。新建文章通常还没有评分记录，此时不给风险标签、不报错。
 2. **命中 `medium` 及以上（含 `high`）→ 直接 `REJECTED`**，不给改；留一条 `source=risk_check` 待处理任务供管理员复盘。作者只拿到固定文案（`article.risk_rejected` / 枚举 `risk_check`），命中的词、维度、等级一律不外泄。词表命中即拒。
 3. **`none` / `low` → 立刻以 `StatusPublished + VisibilityPendingReview` 落库**。作者立刻拿到"已发布"回执，但匿名访客读不到：`IsPubliclyVisible()` 与公开读面 SQL 都只认 `published + visible`。
 4. **新可见性取值 `pending_review`**：是 `visibility_status`（varchar 32）的新取值，**不是第五个状态、不是新列**，满足零 DDL 约束。`pending_review` 只能由系统写入，且必须由异步判定或审核通过转成终态；作者与管理员都不能用"改可见性"接口提前放行（`CanSetVisibility` 双向拦截）。
@@ -54,7 +59,7 @@
 
 ## 代价 / 不做什么
 
-- **词表误报现在直接压到作者身上**：字符串匹配没有语境（"六四"命中"六十四位"），且 `REJECTED` 不给改、不可申诉。因此固定文案与 `risk_check` 复盘任务必须保留，管理员要能看见误判。
+- ~~**词表误报现在直接压到作者身上**~~（已随 ADR-0032 消失）：词面误报不再拒稿，只在文本里留 `*` 并由后台处置；代价转成「误报不可恢复」，见 ADR-0032。`REJECTED` 的固定文案与 `risk_check` 复盘任务仍保留——低分误判同样不给改、不可申诉。
 - **存在"已发布但暂不可见"窗口**：期间作者本人与管理员可见，其他读者不可见。任何把 `pending_review` 转成终态的路径都必须存在（clean → visible、suspect/失败 → EXAMINING、violation → REJECTED），不允许新增一条"留在 pending_review 不动"的成功出口。
 - **人工队列性质**：里面不再是全部投稿，而是模型存疑、判定失败与系统直接拒的复盘任务；批量审核 UI 仍可用，但队列会小很多。自动拒的复盘任务是待处理状态、对应文章状态是已拒绝，管理员点"通过"会撞上状态机（只有审核中可审），实际处置是"看一眼、删掉/关闭"，不是真正的审核队列。
 - **误判不可申诉、通知是固定文案**：作者只能知道"不合规"，不知道为什么。
@@ -87,5 +92,5 @@
 - 枚举：`backend/internal/kernel/enum/article_visibility_status.go` · `article_review_enum/article_review.go`（`SourceCompliance`）· `backend/internal/article/adapter/http/enums.go`
 - 测试：`backend/internal/article/app/submit_risk_test.go` · `service_test.go`
 - 前端：发布弹窗的待可见提示 `frontend/app/components/studio/StudioWritePublishDialog.vue` · 后台来源文案 `frontend_admin/app/pages/review/index.vue` · `frontend_admin/app/utils/reviewRisk.ts`
-- 术语：[GLOSSARY · 三层机审 / 待可见 / 阻断级·观察级词表](../../GLOSSARY.md)
+- 术语：[GLOSSARY · 机审 / 待可见 / 拦截词·观察词 / 内容过滤](../../GLOSSARY.md)
 - 相邻决策：[ADR-0022](./0022-submit-quota.md) · [ADR-0023](./0023-quality-gate.md) · [ADR-0024](./0024-risk-models.md)

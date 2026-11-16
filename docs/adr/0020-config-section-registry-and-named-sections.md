@@ -1,4 +1,4 @@
-# ADR-0020：配置段注册表与十段（含 `sms`）具名化
+# ADR-0020：配置段注册表与十段（含 `sms`）具名化（2026-11 增补第 11 段 `content_filter`，见文末）
 
 - 状态：已交付
 - 日期：2026-11-06
@@ -51,13 +51,13 @@
 
 ## 当前生效约束
 
-1. 运行时配置恰好十段（含 `sms`）：`site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。
+1. 运行时配置恰好**十一**段（含 `sms` 与 `content_filter`）：`site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。
 2. `sms` 段只放发送凭证（`access_key_id` / `access_key_secret` / `endpoint` / `sign_name` / `template_code` / `timeout_sec`），`access_key_secret` 必须经 `sealForStore` 加密落库；所有登录策略与限流留在 `site.login`，`email_register` 与 `email_login` 分开。
-3. 对外只留十段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点；`site` 的公开端点不得承载任何密钥。
+3. 对外只留十一（`content_filter` 无公开读，见 ADR-0032）段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点；`site` 的公开端点不得承载任何密钥。
 4. 每段一对具名响应/请求形状，字段只有 `conf` 包一份定义（新类型而非真别名）；两端类型一律从各自生成的 `openapi.d.ts` 派生，不得手写配置视图模型、不得维护第三份字段清单、不得新增解析 Go tag / TS 键的源码文本断言。
 5. 三份契约产物（`backend/docs/swagger.json` + 两个 app 的 `app/types/openapi.d.ts`）必须同批由生成器产出；`minimumEntries` 以 `scripts/contract-structures.json` 的实测为独立事实源，`addedIn` 记录的各批结构（含手机号登录那批的结构）必须在产物中在场；判据四文件不得为绕开条目变动而改，`tool-versions.env` 是唯一版本来源。
 6. 审计口径不变（`runtime_config_update` + `TargetID=段名`），`TargetID` 由具名 handler 写死；右栏卡片是独立运营位，不属于十段注册表。
-7. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写十段（含 `sms`）现状，否决理由链到本 ADR；不得出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类旧口径。
+7. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写十一段（含 `sms`、`content_filter`）现状，否决理由链到本 ADR；不得出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类旧口径。
 8. 零 DDL：`-db` 只做加法（建表 + 按 `columnAdditions` 补列），不改名、不改类型、不删列，也不 DROP 任何表；`user_models.phone` 补列通道见 `docs/architecture/overview.md` §六 A1，零 DDL 口径见 `docs/architecture/overview.md` §六 A1。
 9. 本条与 [ADR-0019](./0019-named-outline-trees-as-the-only-shape.md) 各自独立、互不引用为替代。
 
@@ -70,3 +70,13 @@
 - 段形状与消费方：`backend/conf/conf_sms.go`（`access_key_secret` / `endpoint` / `sign_name` / `template_code` / `timeout_sec`）、`backend/conf/site/enter.go`（`email_register` / `email_login` / `phone_login`）、[`platform/sms`](../../backend/internal/platform/sms/sms.go)（阿里云 PNVS 适配器）、`backend/app/user_wiring.go` 的 `smsCodeBridge`、`backend/internal/platform/redis/redis_user`（发码限流）
 - 前端与门禁：`frontend/app/types/api.ts`、`frontend/test/gates/site-runtime-config-parity.test.ts`、`frontend_admin/app/types/api.ts`、`frontend_admin/app/services/admin.ts`、两个 app 的 `app/types/openapi.d.ts`
 - 契约与守卫：`backend/docs/swagger.json`、`scripts/contract-structures.json`、`scripts/check-contract-freshness.mjs`、`scripts/test-contract-freshness.mjs`、`scripts/verify-gates.sh`、`scripts/tool-versions.env`
+
+## 增补：第 11 段 `content_filter`（2026-11-17）
+
+本 ADR 的**机制**没有被推翻：段仍是一份注册表、仍全部具名进契约、仍「漏登记即测试失败」。变的只是段的数量。
+
+为什么另开一段而不是塞进 `site`：词表是**不能公开读**的数据，而 `site` 段有匿名可读的 `GET /site/site`，
+且「公开读与同段具名响应同形」会让每次给 `site` 加字段都要重新判断敏感性。单开一段一次解决（见 [ADR-0032](./0032-content-filter.md) 决策 3）。
+
+边界差异只有一条：`content_filter` **没有**公开读端点，只有 `GET /site/admin/content_filter` 与 `PUT /site/content_filter`（管理员）。
+这是一次「登记表多一行」的增补，不是对「自由键值块退场」的否定。

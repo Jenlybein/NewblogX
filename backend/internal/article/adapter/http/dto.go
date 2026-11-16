@@ -131,7 +131,7 @@ type ArticleReviewTaskListRequest struct {
 // 只看标题、风险与合规结论就够判断。要看全文走
 // `GET /article-review-tasks/{id}/content`（ReviewTaskContentResponse）。
 //
-// risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
+// risk_level / risk_labels 是评分派生层（低分 / 维度塌陷 / 篇幅异常）的结论，
 // 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
 // reason_code / reason 是驳回原因的**两个部分**：reason_code 是固定枚举值
 // （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
@@ -155,7 +155,7 @@ type ArticleReviewTaskItem struct {
 	// RiskLevel 是风险等级：none / low / medium / high。
 	RiskLevel ReviewRiskLevel `json:"risk_level" enums:"none,low,medium,high"`
 	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
-	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+	// low_score / dimension_collapse / length_abnormal。
 	RiskLabels []string `json:"risk_labels"`
 	// Compliance 是第③层模型合规结论（票 312 / ADR-0024）。
 	//

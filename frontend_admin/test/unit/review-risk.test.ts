@@ -35,11 +35,15 @@ describe("审核风险等级映射", () => {
   });
 
   it("风险标签 code 映射成中文，未知 code 原样返回", () => {
-    expect(riskLabelText("block_word")).toBe("阻断级词");
-    expect(riskLabelText("watch_word")).toBe("观察级词");
     expect(riskLabelText("low_score")).toBe("低分");
     expect(riskLabelText("dimension_collapse")).toBe("维度塌陷");
     expect(riskLabelText("length_abnormal")).toBe("篇幅异常");
     expect(riskLabelText("future_code")).toBe("future_code");
+  });
+
+  it("词表信号已退场：block_word / watch_word 不再有中文映射", () => {
+    // 后端不再产生这两个 code（ADR-0032 决策 6），映射留着只会误导运营。
+    expect(riskLabelText("block_word")).toBe("block_word");
+    expect(riskLabelText("watch_word")).toBe("watch_word");
   });
 });

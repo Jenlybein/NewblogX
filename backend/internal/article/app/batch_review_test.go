@@ -12,7 +12,7 @@ import (
 func TestBatchHandleReviewTasksReportsPartialSuccess(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 
 	// 一条真实存在的待处理任务 + 一条不存在的 ID。
@@ -43,7 +43,7 @@ func TestBatchHandleReviewTasksReportsPartialSuccess(t *testing.T) {
 func TestBatchRejectRequiresReasonCode(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 	seedReviewedArticle(t, repos, 1, 11, "正文甲")
 
@@ -58,7 +58,7 @@ func TestBatchRejectRequiresReasonCode(t *testing.T) {
 func TestBatchHandleReviewTasksRequiresAdmin(t *testing.T) {
 	t.Parallel()
 
-	svc, _ := newModerationService(t, nil, nil)
+	svc, _ := newModerationService(t, nil)
 	_, err := svc.BatchHandleReviewTasks(context.Background(), authorViewer(),
 		[]ctype.ID{ctype.NewID(11)}, true, "", "")
 	if err == nil {

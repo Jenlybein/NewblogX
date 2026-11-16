@@ -20,7 +20,7 @@ func TestAuthorProfileReadsVisitedTotalFromArticles(t *testing.T) {
 	userID := domain.UserID(ctype.NewID(100))
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, nil, nil, nil)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, nil, nil)
 
 	repos.FakeUsers().Seed(app.AuthorView{
 		ID:       userID,

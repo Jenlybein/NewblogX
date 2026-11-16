@@ -13,7 +13,7 @@ import (
 func TestSaveComplianceResultOverwritesSingleRow(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 	articleID := ctype.NewID(7001)
 
@@ -50,7 +50,7 @@ func TestSaveComplianceResultOverwritesSingleRow(t *testing.T) {
 func TestSaveComplianceResultNormalizesUnknownVerdict(t *testing.T) {
 	t.Parallel()
 
-	svc, _ := newModerationService(t, nil, nil)
+	svc, _ := newModerationService(t, nil)
 	ctx := context.Background()
 	articleID := ctype.NewID(7002)
 
@@ -77,7 +77,7 @@ func TestSaveComplianceResultNormalizesUnknownVerdict(t *testing.T) {
 func TestListReviewTasksDistinguishesUncheckedFromClean(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 
 	// 两篇文章：一篇判定过且干净，一篇从未判定。

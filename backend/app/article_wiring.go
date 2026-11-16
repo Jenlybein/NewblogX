@@ -75,7 +75,6 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		snowflakeIDs{},
 		quota,
 		newArticleModerationScores(infra.DB),
-		articleModerationWords(infra.Effective),
 		qualityGatePort{},
 	).
 		// 内容过滤（票 397 / ADR-0032）：两个面各自一个 bridge，面枚举钉死在装配层。

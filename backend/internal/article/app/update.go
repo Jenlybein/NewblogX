@@ -71,7 +71,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		// 站点「文章免审核」开启时全部直接真发布，同步风险扫描也不拦。
 		if !cmd.SkipExamining {
-			risk, err := s.scanSubmitRisk(ctx, preview.Title, preview.Content, cmd.ArticleID)
+			risk, err := s.scanSubmitRisk(ctx, cmd.ArticleID)
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
 				return nil, err

@@ -253,14 +253,13 @@ type DeleteResult struct {
 // 2026-11-13 起**不带正文**：一页 10 条全文可能几百 KB，而审核员绝大多数时候
 // 只看标题、风险等级与合规结论就够判断了。要看全文走 ReviewTaskContent
 // （`GET /article-review-tasks/{id}/content`），按需取单篇。
-// 正文在服务端仍会读一次 —— 词表风控要扫它（见 ListReviewTasks），
-// 这里省的只是"把它塞进列表响应"。
+// 列表也不再为风险扫描读正文：词表层已退场（票 401），评分派生层只读评分记录。
 type ReviewTaskView struct {
 	Task review.Task
-	// Risk 是机审前两层（词表 + 评分派生标签）的结论。
+	// Risk 是评分派生层（低分 / 维度塌陷 / 篇幅异常）的结论。
 	//
-	// 不落库、每次读取现算：运营改完词表，下一次请求立即按新词表判（票 311）。
-	// 文章没有评分记录时只算词表层，Risk.Level 仍可能是 none，不是错误。
+	// 不落库、每次读取现算：新一轮评分产生后，下一次请求立即按新评分判（票 311）。
+	// 文章没有评分记录时不产生任何信号，Risk.Level 是 none，不是错误。
 	Risk moderation.Result
 	// Compliance 是第③层模型合规结论（票 312 / ADR-0024）；nil 表示"未判定"。
 	//

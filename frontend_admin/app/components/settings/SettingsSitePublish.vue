@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// 发布与审核：发布/展示开关、审核开关、投稿配额、质量闸门、机审词表（ADR-0029 拆页后的第三页）。
+// 发布与审核：发布/展示开关、审核开关、投稿配额、质量闸门（ADR-0029 拆页后的第三页）。
+//
+// 词表（阻断级 / 观察级）已随「文章词表机审退场」摘除（票 401 / ADR-0032 决策 1）：
+// 命中词在落库前被全站内容过滤替换成 `*`，词表只归「站点 → 内容过滤」一页维护。
 import {
   NAlert,
   NButton,
   NCard,
   NForm,
   NFormItem,
-  NInput,
   NInputNumber,
   NSwitch,
   useMessage,
@@ -23,39 +25,6 @@ const config = ref({} as SiteRuntimeConfig)
 const loaded = ref(false)
 
 const OWNED_BLOCKS = ['article'] as const
-
-// 词表在界面上是"一行一个词"的文本，配置里是字符串数组：转换只在这里做一次。
-// 空行与首尾空白一律丢掉，运营从聊天窗口复制过来的词不会带进一个空格条目。
-function wordListToText(list: string[] | undefined): string {
-  return (list ?? []).join('\n')
-}
-
-function textToWordList(text: string): string[] {
-  return text
-    .split(/\r?\n/u)
-    .map((word) => word.trim())
-    .filter((word) => word !== '')
-}
-
-// setter 走可选赋值：旧库合并默认值之前 article.moderation 可能整块缺失，
-// 直接写 config.value.article.moderation.block_words 会在编辑时抛异常（摘页前就有的坑）。
-const blockWordsText = computed({
-  get: () => wordListToText(config.value.article?.moderation?.block_words),
-  set: (value: string) => {
-    const article = config.value.article
-    if (!article) return
-    ;(article.moderation ??= { block_words: [], watch_words: [] }).block_words = textToWordList(value)
-  },
-})
-
-const watchWordsText = computed({
-  get: () => wordListToText(config.value.article?.moderation?.watch_words),
-  set: (value: string) => {
-    const article = config.value.article
-    if (!article) return
-    ;(article.moderation ??= { block_words: [], watch_words: [] }).watch_words = textToWordList(value)
-  },
-})
 
 // 闸门默认值与后端 site_default_settings.yaml 一致：管理后台只负责改，
 // 不发明第二套默认值。实际放行线 = pass_score + gray_band_width。
@@ -116,7 +85,7 @@ onMounted(load)
 <template>
   <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
-      这一页管「发布治理」：谁能发布、什么内容能过、投稿与评分的价格。五个卡片同属一段配置，
+      这一页管「发布治理」：谁能发布、什么内容能过、投稿与评分的价格。四个卡片同属一段配置，
       改完点一次保存即可。
     </NAlert>
 
@@ -191,33 +160,6 @@ onMounted(load)
         </NFormItem>
         <NFormItem label="档界：优质上限">
           <NInputNumber v-model:value="qualityGate.band_good_max" class="admin-field--number" :min="0" :max="100" />
-        </NFormItem>
-      </NCard>
-
-      <!-- 机审前两层的高危词表（票 311）。词表是运行期数据，保存后下一次读取立即按新词表判。 -->
-      <NCard class="admin-card mb-4" title="机审词表" size="small">
-        <NAlert type="info" :bordered="false" class="mb-4">
-          一行一个词，空行忽略。「阻断级」命中会直接拒绝投稿；「观察级」命中也会拒，
-          分档只为让审核列表能分清命中了哪类词。词表只做字符串匹配：英文不区分大小写，
-          中文按字面命中，短词可能出现在更长的词里（已知误报，靠分档与人工兜底）。
-        </NAlert>
-        <NFormItem label="阻断级词表">
-          <NInput
-            v-model:value="blockWordsText"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            class="admin-field--long"
-            placeholder="例如：代开发票"
-            data-role="site-moderation-block-words" />
-        </NFormItem>
-        <NFormItem label="观察级词表">
-          <NInput
-            v-model:value="watchWordsText"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            class="admin-field--long"
-            placeholder="例如：加微信"
-            data-role="site-moderation-watch-words" />
         </NFormItem>
       </NCard>
 

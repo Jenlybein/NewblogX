@@ -14,66 +14,101 @@ import (
 	"myblogx/internal/kernel/enum/article_review_enum"
 )
 
-// 票 302 新规则：提交时同步风险扫描命中 medium 及以上 → 直接 REJECTED，
-// 不给改；作者只拿到固定文案，命中词不外泄。
-func TestCreateMediumRiskIsRejected(t *testing.T) {
+// seedDraftArticle 预置一篇作者自己的草稿（提交时才有评分记录可读）。
+func seedDraftArticle(t *testing.T, repos *apptest.Repos, articleID uint64) domain.ArticleID {
+	t.Helper()
+	a := apptest.NewArticle().
+		ID(ctype.NewID(articleID)).
+		Author(author).
+		Status(domain.StatusDraft).
+		Title("草稿").
+		Content("正文").
+		Build()
+	repos.FakeArticles().Seed(a)
+	return a.ID()
+}
+
+// 票 302 新规则 / ADR-0032 决策 6：同步风险扫描只由评分派生层驱动，
+// 低分（medium）在提交时直接 REJECTED，不给改；作者只拿到固定文案。
+func TestUpdateLowScoreIsRejected(t *testing.T) {
 	t.Parallel()
 
-	// 观察级词命中 = medium；阻断级词命中 = high，两者都该拒。
-	for _, tc := range []struct {
-		name    string
-		lists   moderation.WordLists
-		content string
-	}{
-		{"观察级词命中", moderation.WordLists{Watch: []string{"加微信"}}, "欢迎加微信"},
-		{"阻断级词命中", moderation.WordLists{Block: []string{"代开发票"}}, "代开发票"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			svc, repos := newModerationService(t, nil, func() moderation.WordLists { return tc.lists })
-			ctx := context.Background()
+	scores := newFakeScores().Seed(ctype.NewID(1), moderation.ScoreFacts{
+		TotalScore:    40,
+		ContentLength: 1000,
+	})
+	svc, repos := newModerationService(t, scores)
+	ctx := context.Background()
+	articleID := seedDraftArticle(t, repos, 1)
 
-			res, err := svc.Create(ctx, app.CreateArticleCmd{
-				Actor:         authorViewer(),
-				Policy:        domain.OpenWritePolicy(),
-				Title:         "投稿",
-				Content:       tc.content,
-				TargetStatus:  domain.StatusExamining,
-				SkipExamining: false,
-			})
-			var a *domain.Article
-			if res != nil {
-				a = res.Article
-			}
-			if err == nil {
-				t.Fatal("命中 medium 及以上风险应直接拒绝提交")
-			}
-			if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
-				t.Fatalf("错误码应为 article.risk_rejected，实际 %v", err)
-			}
-			// 业务拒绝是"带数据的拒绝"：文章仍以 REJECTED 落库，不给改。
-			if a != nil {
-				t.Fatal("拒绝时不应返回文章实体")
-			}
-			all, _, err := repos.FakeArticles().List(ctx, domain.Filter{}, domain.Page{Limit: 10})
-			if err != nil || len(all) != 1 {
-				t.Fatalf("文章应已落库且只有 1 篇: n=%d err=%v", len(all), err)
-			}
-			stored := all[0]
-			if stored.Status() != domain.StatusRejected {
-				t.Fatalf("应落 REJECTED，实际 %s", stored.Status())
-			}
-			if stored.IsPubliclyVisible() {
-				t.Fatal("被拒文章不该对读者可见")
-			}
+	content := "改过的正文"
+	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
+		ArticleID:     articleID,
+		Content:       &content,
+		TargetStatus:  statusPtr(domain.StatusExamining),
+		SkipExamining: false,
+	})
+	if err == nil {
+		t.Fatal("低分（medium）应直接拒绝提交")
+	}
+	if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
+		t.Fatalf("错误码应为 article.risk_rejected，实际 %v", err)
+	}
+	if res != nil {
+		t.Fatal("拒绝时不应返回文章实体")
+	}
 
-			tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, stored.ID())
-			if len(tasks) != 1 || tasks[0].Source() != review.Source(article_review_enum.SourceRiskCheck) {
-				t.Fatalf("应留 1 条 risk_check 复盘任务，实际 %d 条", len(tasks))
-			}
-			if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleRejected {
-				t.Fatalf("直接拒应发 rejected 事件（触发通知），实际 %v", names)
-			}
-		})
+	// 业务拒绝是"带数据的拒绝"：文章仍以 REJECTED 落库，不给改。
+	stored, err := repos.FakeArticles().Find(ctx, articleID)
+	if err != nil {
+		t.Fatalf("读文章失败: %v", err)
+	}
+	if stored.Status() != domain.StatusRejected {
+		t.Fatalf("应落 REJECTED，实际 %s", stored.Status())
+	}
+	if stored.IsPubliclyVisible() {
+		t.Fatal("被拒文章不该对读者可见")
+	}
+
+	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, stored.ID())
+	if len(tasks) != 1 || tasks[0].Source() != review.Source(article_review_enum.SourceRiskCheck) {
+		t.Fatalf("应留 1 条 risk_check 复盘任务，实际 %d 条", len(tasks))
+	}
+	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleRejected {
+		t.Fatalf("直接拒应发 rejected 事件（触发通知），实际 %v", names)
+	}
+}
+
+// 维度塌陷与篇幅异常只给 low：它们不该拦人，仍按"已发布待可见"放行。
+func TestUpdateLowScoreSignalsStillPublishesPendingReview(t *testing.T) {
+	t.Parallel()
+
+	scores := newFakeScores().Seed(ctype.NewID(2), moderation.ScoreFacts{
+		TotalScore:     80,
+		DimensionsJSON: `[{"name":"clarity","score":10}]`,
+		ContentLength:  100,
+	})
+	svc, repos := newModerationService(t, scores)
+	ctx := context.Background()
+	articleID := seedDraftArticle(t, repos, 2)
+
+	content := "改过的正文"
+	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
+		ArticleID:     articleID,
+		Content:       &content,
+		TargetStatus:  statusPtr(domain.StatusExamining),
+		SkipExamining: false,
+	})
+	if err != nil {
+		t.Fatalf("low 风险不该拦人: %v", err)
+	}
+	a := res.Article
+	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityPendingReview {
+		t.Fatalf("应落 Published + pending_review，实际 %s / %s", a.Status(), a.Visibility())
 	}
 }
 
@@ -81,9 +116,8 @@ func TestCreateMediumRiskIsRejected(t *testing.T) {
 func TestCreateLowRiskStillPublishesPendingReview(t *testing.T) {
 	t.Parallel()
 
-	// 评分派生只给 low 的组合：总分略高但篇幅偏短等不构成 medium。
-	// 这里用空词表 + 无评分记录，等价于 none。
-	svc, _ := newModerationService(t, nil, nil)
+	// 新建文章没有评分记录，等价于 none。
+	svc, _ := newModerationService(t, nil)
 	res, err := svc.Create(context.Background(), app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
@@ -105,14 +139,21 @@ func TestCreateLowRiskStillPublishesPendingReview(t *testing.T) {
 func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 	t.Parallel()
 
-	lists := moderation.WordLists{Block: []string{"代开发票"}}
-	svc, repos := newModerationService(t, nil, func() moderation.WordLists { return lists })
-	res, err := svc.Create(context.Background(), app.CreateArticleCmd{
+	scores := newFakeScores().Seed(ctype.NewID(3), moderation.ScoreFacts{
+		TotalScore:    40,
+		ContentLength: 1000,
+	})
+	svc, repos := newModerationService(t, scores)
+	ctx := context.Background()
+	articleID := seedDraftArticle(t, repos, 3)
+
+	content := "改过的正文"
+	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
-		Title:         "投稿",
-		Content:       "代开发票",
-		TargetStatus:  domain.StatusExamining,
+		ArticleID:     articleID,
+		Content:       &content,
+		TargetStatus:  statusPtr(domain.StatusExamining),
 		SkipExamining: true,
 	})
 	if err != nil {
@@ -122,7 +163,7 @@ func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityVisible {
 		t.Fatalf("免审核应真发布且可见，实际 %s / %s", a.Status(), a.Visibility())
 	}
-	tasks, _ := repos.FakeReviews().ListPendingByArticle(context.Background(), a.ID())
+	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, a.ID())
 	if len(tasks) != 0 {
 		t.Fatalf("免审核直发不该建任务，实际 %d 条", len(tasks))
 	}
@@ -132,7 +173,7 @@ func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 	a := apptest.NewArticle().
 		ID(ctype.NewID(7)).Author(author).
@@ -158,7 +199,7 @@ func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 func TestDeferForComplianceCreatesNoManualTask(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 	a := apptest.NewArticle().
 		ID(ctype.NewID(9)).Author(author).
@@ -197,7 +238,7 @@ func TestBackToReviewForCompliance(t *testing.T) {
 		article_review_enum.SourceModelFailure,
 	} {
 		t.Run(string(src), func(t *testing.T) {
-			svc, repos := newModerationService(t, nil, nil)
+			svc, repos := newModerationService(t, nil)
 			ctx := context.Background()
 			a := apptest.NewArticle().
 				ID(ctype.NewID(7)).Author(author).
@@ -282,7 +323,7 @@ func TestSystemRejectedCannotResubmit(t *testing.T) {
 		article_review_enum.SourceCompliance,
 	} {
 		t.Run(string(src), func(t *testing.T) {
-			svc, repos := newModerationService(t, nil, nil)
+			svc, repos := newModerationService(t, nil)
 			ctx := context.Background()
 			id := ctype.NewID(21)
 			a := apptest.NewArticle().ID(id).Author(author).

@@ -99,7 +99,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，
 		// 同步风险扫描也不拦（异步合规判定仍作事后兜底）。
 		if !cmd.SkipExamining {
-			risk, err := s.scanSubmitRisk(ctx, texts.Title, texts.Content, domain.ArticleID(""))
+			risk, err := s.scanSubmitRisk(ctx, domain.ArticleID(""))
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
 				return nil, err

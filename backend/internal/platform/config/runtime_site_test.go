@@ -61,62 +61,80 @@ func TestDefaultSettingsYaml_站点段不再有mode(t *testing.T) {
 	}
 }
 
-// 机审词表（票 311）的默认值只写在 site_default_settings.yaml，代码里没有第二份
-// 字面清单。这条用例钉住"默认值真的存在且两档都非空"：清单为空等于机审第①层
-// 默认关闭，运营会以为功能没上线。
-func TestDefaultSettingsYaml_机审词表两档都有默认值(t *testing.T) {
+// ── 文章词表机审退场（票 401 / ADR-0032 决策 1、6）──
+//
+// site.article.moderation 与 site.comment.moderation 两段运行期配置随文章词表层一起
+// 删除（词表归 content_filter 段，只服务替换与关键词风险页）。这里钉住**存储形状**：
+// 默认值文件与序列化后的 site 段都不得再出现 moderation 键，否则"删了配置"只在
+// 代码里成立、老部署升级后又会把死配置种回库里。
+
+func TestSiteSection_序列化后不再有moderation(t *testing.T) {
+	raw, err := json.Marshal(conf.Site{})
+	if err != nil {
+		t.Fatalf("site 段无法序列化: %v", err)
+	}
+	var sections map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		t.Fatalf("site 段无法反序列化: %v", err)
+	}
+	if _, has := sections["comment"]; has {
+		t.Fatal("site 段不得再序列化出 comment 块（评论段只剩旧词表，已随票 401 删除）")
+	}
+	if _, has := sections["article"]["moderation"]; has {
+		t.Fatal("site.article 不得再序列化出 moderation 块（词表机审已退场）")
+	}
+}
+
+func TestDefaultSettingsYaml_站点段不再有moderation(t *testing.T) {
 	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
 	if err != nil {
 		t.Fatalf("读取默认值文件失败: %v", err)
 	}
 	var file struct {
-		Site struct {
-			Article struct {
-				Moderation struct {
-					BlockWords []string `yaml:"block_words"`
-					WatchWords []string `yaml:"watch_words"`
-				} `yaml:"moderation"`
-			} `yaml:"article"`
-		} `yaml:"site"`
+		Site map[string]any `yaml:"site"`
 	}
 	if err := yaml.Unmarshal(raw, &file); err != nil {
 		t.Fatalf("解析默认值文件失败: %v", err)
 	}
-	if len(file.Site.Article.Moderation.BlockWords) == 0 {
-		t.Fatal("site_default_settings.yaml 的 site.article.moderation.block_words 不能为空")
+	if _, has := file.Site["comment"]; has {
+		t.Fatalf("site_default_settings.yaml 的 site 段不得再写 comment，实际 %v", file.Site)
 	}
-	if len(file.Site.Article.Moderation.WatchWords) == 0 {
-		t.Fatal("site_default_settings.yaml 的 site.article.moderation.watch_words 不能为空")
+	article, _ := file.Site["article"].(map[string]any)
+	if _, has := article["moderation"]; has {
+		t.Fatalf("site_default_settings.yaml 的 site.article 不得再写 moderation，实际 %v", article)
 	}
 }
 
-// 老部署的 site 段 JSON 里没有 moderation 键：深度合并必须把默认词表补进来，
-// 否则升级后运营看到的是"词表丢了"、机审第①层静默关闭（零 DDL、不做数据迁移）。
-func TestRuntimeConfig_旧站点载荷缺机审词表时按默认值补齐(t *testing.T) {
-	want := siteconf.Moderation{
-		BlockWords: []string{"代开发票"},
-		WatchWords: []string{"加微信"},
-	}
+// 老部署的 site 段 JSON 里还留着 moderation 键：读取必须容忍（未知键被 JSON 解码忽略），
+// 管理员下次保存整段时残留键被挤出类型、自然消失 —— 不做数据迁移、不需要 DDL。
+func TestUpdateSite_旧moderation残留不报错且保存后消失(t *testing.T) {
 	defaults := conf.RuntimeDefaults{
-		Site: conf.Site{Article: siteconf.Article{Moderation: want}},
+		Site: conf.Site{SiteInfo: siteconf.SiteInfo{Beian: "默认备案号"}},
 	}
 	svc, db := newTestService(t, defaults)
 
-	// 旧载荷只有 article 的既有开关，没有 moderation 子块。
-	legacy := `{"article":{"skip_examining":true,"allow_non_admin_publish":true}}`
+	legacy := `{"site_info":{"beian":"老备案号"},"article":{"skip_examining":true,"moderation":{"block_words":["代开发票"],"watch_words":["加微信"]}},"comment":{"moderation":{"block_words":["刷单返利"]}}}`
 	if err := upsertPayload(db, SectionSite, legacy); err != nil {
 		t.Fatalf("预置老载荷失败: %v", err)
 	}
 	if err := svc.InitRuntimeConfig(); err != nil {
-		t.Fatalf("加载老站点载荷失败: %v", err)
+		t.Fatalf("带残留 moderation 的老载荷必须能正常加载，实际报错: %v", err)
+	}
+	if got := svc.GetRuntimeSite().SiteInfo.Beian; got != "老备案号" {
+		t.Fatalf("载荷里的备案号应生效，实际 %q", got)
 	}
 
-	got := svc.GetRuntimeArticle().Moderation
-	if len(got.BlockWords) != len(want.BlockWords) || got.BlockWords[0] != want.BlockWords[0] {
-		t.Fatalf("阻断级词表应按默认值补齐，实际 %v", got.BlockWords)
+	site := svc.GetRuntimeSite()
+	site.Article.SubmitDailyMax = 15
+	if err := svc.UpdateSite(site); err != nil {
+		t.Fatalf("保存站点配置失败: %v", err)
 	}
-	if len(got.WatchWords) != len(want.WatchWords) || got.WatchWords[0] != want.WatchWords[0] {
-		t.Fatalf("观察级词表应按默认值补齐，实际 %v", got.WatchWords)
+	payload := readPayload(t, db, SectionSite)
+	if strings.Contains(payload, "moderation") {
+		t.Fatalf("管理员保存一次后 site 段不应再含 moderation，实际 %s", payload)
+	}
+	if strings.Contains(payload, `"comment"`) {
+		t.Fatalf("管理员保存一次后 site 段不应再含 comment，实际 %s", payload)
 	}
 }
 

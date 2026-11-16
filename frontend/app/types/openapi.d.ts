@@ -8172,7 +8172,7 @@ export interface components {
             reviewed_by?: string;
             /**
              * @description RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
-             *     block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+             *     low_score / dimension_collapse / length_abnormal。
              */
             risk_labels?: string[];
             /** @description RiskLevel 是风险等级：none / low / medium / high。 */
@@ -9233,7 +9233,6 @@ export interface components {
             about?: components["schemas"]["myblogx_conf_site.About"];
             article?: components["schemas"]["myblogx_conf_site.Article"];
             chat?: components["schemas"]["myblogx_conf_site.Chat"];
-            comment?: components["schemas"]["myblogx_conf_site.Comment"];
             login?: components["schemas"]["myblogx_conf_site.Login"];
             project?: components["schemas"]["myblogx_conf_site.Project"];
             /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
@@ -9245,7 +9244,6 @@ export interface components {
             about?: components["schemas"]["myblogx_conf_site.About"];
             article?: components["schemas"]["myblogx_conf_site.Article"];
             chat?: components["schemas"]["myblogx_conf_site.Chat"];
-            comment?: components["schemas"]["myblogx_conf_site.Comment"];
             login?: components["schemas"]["myblogx_conf_site.Login"];
             project?: components["schemas"]["myblogx_conf_site.Project"];
             /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
@@ -9450,17 +9448,8 @@ export interface components {
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
              */
             allow_non_admin_publish?: boolean;
-            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
             /**
-             * @description Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
-             *
-             *     词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
-             *     internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
-             *     自动拒（本票只标红），观察级只标红、处置权交人。
-             *
-             *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
-             *     这里不写第二份字面默认值。
-             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
+             * @description QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
              *
              *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
              *     自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
@@ -9498,9 +9487,6 @@ export interface components {
             rate_window_sec?: number;
             /** @description 允许陌生人发私信 */
             stranger_msg_enabled?: boolean;
-        };
-        "myblogx_conf_site.Comment": {
-            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
         };
         "myblogx_conf_site.Login": {
             captcha?: boolean;
@@ -9542,12 +9528,6 @@ export interface components {
              */
             sms_send_window_second?: number;
             username_pwd_login?: boolean;
-        };
-        "myblogx_conf_site.Moderation": {
-            /** @description BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。 */
-            block_words?: string[];
-            /** @description WatchWords 观察级词表：命中只标红，处置权在人。 */
-            watch_words?: string[];
         };
         "myblogx_conf_site.Project": {
             icon?: string;

@@ -60,11 +60,13 @@ func (s Surface) Valid() bool {
 
 // Status 是命中记录的处理状态。
 //
-// 三个取值对应风险页的三种归宿：还没人看（待处理）、看了判定为误报（已忽略）、
-// 内容已被删除（已删除内容）。处置动作本身是 #398 的活，这里只定义状态。
+// 四个取值对应风险页的四种归宿：还没人看（待处理）、看了判定为误报（已忽略）、
+// 内容已被删除（已删除内容）、账号已被处置（封禁 / 禁言后内容保留）。
+// "账号已处置"是票 399 新增的：封禁与禁言不删内容，但记录必须从待处理里退场，
+// 否则管理员会反复看到同一条已经处理过的风险。
 type Status string
 
-// 三种状态。
+// 四种状态。
 const (
 	// StatusPending 待处理：命中后默认落在这里。
 	StatusPending Status = "pending"
@@ -72,6 +74,8 @@ const (
 	StatusIgnored Status = "ignored"
 	// StatusDeleted 已删除内容：命中的内容已被处置删除。
 	StatusDeleted Status = "deleted"
+	// StatusAccount 账号已处置：对命中用户做了封禁或禁言，内容本身保留。
+	StatusAccount Status = "account"
 )
 
 // ParseStatus 把外部字符串解析成状态；不认识返回 false。
@@ -83,11 +87,13 @@ func ParseStatus(raw string) (Status, bool) {
 		return StatusIgnored, true
 	case StatusDeleted:
 		return StatusDeleted, true
+	case StatusAccount:
+		return StatusAccount, true
 	}
 	return "", false
 }
 
-// Valid 判断状态是否是登记过的三个之一。
+// Valid 判断状态是否是登记过的四个之一。
 func (s Status) Valid() bool {
 	_, ok := ParseStatus(string(s))
 	return ok

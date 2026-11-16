@@ -82,6 +82,11 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		handlers.Chat = chatModule.Handler
 	}
 
+	// 发布闸门（票 399 / ADR-0032 决策 8）：被禁言者的发布类动作在各模块入口
+	// 拒绝。必须排在 user / article / comment / chat 装配之后 —— 闸门接的是
+	// 它们各自那一份服务实例。
+	WirePublishGate(infra, chatModule)
+
 	// ai 链路：AI 能力改由 internal/ai 提供。
 	WireAI(infra)
 

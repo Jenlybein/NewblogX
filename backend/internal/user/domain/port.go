@@ -101,6 +101,13 @@ type Repository interface {
 	UpdateProfile(ctx context.Context, id UserID, update ProfileUpdate, updatedUsernameAt *time.Time) error
 	// UpdateStatus 只更新账号状态。
 	UpdateStatus(ctx context.Context, id UserID, status Status) error
+	// SetMuteUntil 写禁言到期时间（票 399）；at 为 nil 表示解除禁言（清空列）。
+	SetMuteUntil(ctx context.Context, id UserID, at *time.Time) error
+	// ClearExpiredMutes 把已到期（mute_until <= now）的禁言列清空，返回清掉的条数。
+	//
+	// 幂等：没有到期行时返回 0，不写库。判定口径与 User.IsMuted 一致 ——
+	// 对账只做收尾，不决定"能不能发布"。
+	ClearExpiredMutes(ctx context.Context, now time.Time) (int64, error)
 	// UpdatePassword 改写密码哈希与令牌版本（版本 +1 让旧令牌立即失效）。
 	UpdatePassword(ctx context.Context, id UserID, hash string, tokenVersion uint32) error
 	// UpdateEmail 绑定或换绑邮箱。

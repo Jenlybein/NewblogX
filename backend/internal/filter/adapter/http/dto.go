@@ -15,7 +15,7 @@ type HitListRequest struct {
 	Page    int      `form:"page"`
 	Limit   int      `form:"limit"`
 	Surface string   `form:"surface" enums:"article,comment,nickname,abstract,chat,collection"`
-	Status  string   `form:"status" enums:"pending,ignored,deleted"`
+	Status  string   `form:"status" enums:"pending,ignored,deleted,account"`
 	UserID  ctype.ID `form:"user_id"`
 }
 
@@ -46,7 +46,7 @@ type HitItem struct {
 	UserID    ctype.ID `json:"user_id"`
 	// UserNickname 是读面现查的展示名，不落库（昵称会变）。
 	UserNickname string `json:"user_nickname"`
-	Status       string `json:"status" enums:"pending,ignored,deleted"`
+	Status       string `json:"status" enums:"pending,ignored,deleted,account"`
 	// HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。
 	HitCount int `json:"hit_count"`
 	// Words 是命中明细：词 / 档位 / 类目 / ±20 字上下文。
@@ -80,8 +80,17 @@ type HitListResponse struct {
 //
 // 动作与备注都在服务端校验（不靠 binding tag）：非法动作、超长备注要给出
 // 明确的中文提示，而 gin 的 binding 只能回一个笼统的 400。
+//
+// 四个动作（票 398 的内容动作 + 票 399 的账号动作）：
+//   - delete：删除命中的内容；
+//   - ignore：忽略误报；
+//   - ban：封禁账号（账号禁用，登录与发布都被拦）；
+//   - mute：禁言账号，时长见 MuteDays。
 type HandleHitRequest struct {
-	Action string `json:"action" enums:"delete,ignore"`
+	Action string `json:"action" enums:"delete,ignore,ban,mute"`
+	// MuteDays 是禁言天数，只有 mute 动作读它：1–365，缺省（0）按 7 天。
+	// 越界由服务端拒绝（user.mute_days_invalid）。
+	MuteDays int `json:"mute_days"`
 	// Note 是可选备注（≤200 字，服务端按 rune 计数）。
 	Note string `json:"note"`
 }
@@ -96,8 +105,10 @@ type HandleHitResponse struct {
 // HandleBatchRequest 是批量处置的请求体。
 type HandleBatchRequest struct {
 	IDs    []ctype.ID `json:"ids"`
-	Action string     `json:"action" enums:"delete,ignore"`
-	Note   string     `json:"note"`
+	Action string     `json:"action" enums:"delete,ignore,ban,mute"`
+	// MuteDays 与单条处置同义（只有 mute 动作读它）。
+	MuteDays int    `json:"mute_days"`
+	Note     string `json:"note"`
 }
 
 // HandleBatchItem 是批量处置里的一条结果。
@@ -109,7 +120,7 @@ type HandleBatchItem struct {
 	// Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。
 	Ok bool `json:"ok"`
 	// Status 是处置后的状态；失败且拿不到记录时为空串。
-	Status string `json:"status" enums:"pending,ignored,deleted"`
+	Status string `json:"status" enums:"pending,ignored,deleted,account"`
 	// Message 是失败原因的中文提示（成功时为空串）。
 	Message string `json:"message"`
 	// AlreadyHandled 与单条处置同义。

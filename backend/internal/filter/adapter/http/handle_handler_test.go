@@ -58,8 +58,31 @@ func (d *handleDisposer) ResetProfile(_ context.Context, _, _ ctype.ID, _ string
 	return nil
 }
 
+// handleAccountDisposer 只记录账号动作的作用对象与天数（票 399）。
+type handleAccountDisposer struct {
+	banned   []ctype.ID
+	muteDays []int
+}
+
+func (d *handleAccountDisposer) BanUser(_ context.Context, _, userID ctype.ID) error {
+	d.banned = append(d.banned, userID)
+	return nil
+}
+
+func (d *handleAccountDisposer) MuteUser(_ context.Context, _, userID ctype.ID, days int) error {
+	d.muteDays = append(d.muteDays, days)
+	return nil
+}
+
 // newHandleHandler 构造一个带处置端口的处理器。
 func newHandleHandler(t *testing.T) (*filterhttp.Handler, *handleRepo) {
+	t.Helper()
+	h, repo, _ := newHandleHandlerWithAccount(t)
+	return h, repo
+}
+
+// newHandleHandlerWithAccount 与 newHandleHandler 相同，并返回账号处置替身。
+func newHandleHandlerWithAccount(t *testing.T) (*filterhttp.Handler, *handleRepo, *handleAccountDisposer) {
 	t.Helper()
 	repo := &handleRepo{
 		fakeRepo: fakeRepo{},
@@ -73,8 +96,11 @@ func newHandleHandler(t *testing.T) (*filterhttp.Handler, *handleRepo) {
 		found:   true,
 		updated: true,
 	}
-	svc := app.New(nil, repo, nil).WithDisposer(&handleDisposer{})
-	return filterhttp.NewHandler(svc), repo
+	account := &handleAccountDisposer{}
+	svc := app.New(nil, repo, nil).
+		WithDisposer(&handleDisposer{}).
+		WithAccountDisposer(account)
+	return filterhttp.NewHandler(svc), repo, account
 }
 
 // post 发一次 POST 并解析成统一外壳；adminID 为零表示不带登录主体。
@@ -135,7 +161,7 @@ func TestHandleHitRejectsUnknownAction(t *testing.T) {
 
 	h, _ := newHandleHandler(t)
 	body := post(t, h, true, "/content-filter/hits/11/handle",
-		map[string]any{"action": "ban"}, 1)
+		map[string]any{"action": "banish"}, 1)
 	if code := body["code"].(float64); code == 0 {
 		t.Fatalf("未知动作应被拒: %v", body)
 	}
@@ -185,3 +211,45 @@ func TestHandleBatchReturnsPerItemResults(t *testing.T) {
 }
 
 
+
+// TestHandleHitMutePassesDaysAndMarksAccount 禁言动作：天数透传给账号端口，
+// 记录状态是「账号已处置」（票 399）。
+func TestHandleHitMutePassesDaysAndMarksAccount(t *testing.T) {
+	t.Parallel()
+
+	h, _, account := newHandleHandlerWithAccount(t)
+	body := post(t, h, true, "/content-filter/hits/11/handle",
+		map[string]any{"action": "mute", "mute_days": 30, "note": "先禁言"}, 1)
+	if code := body["code"].(float64); code != 0 {
+		t.Fatalf("禁言处置应成功: %v", body)
+	}
+	if len(account.muteDays) != 1 || account.muteDays[0] != 30 {
+		t.Fatalf("mute_days 应从请求体透传给账号端口，实际 %v", account.muteDays)
+	}
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("响应缺少 data: %v", body)
+	}
+	hit, ok := data["hit"].(map[string]any)
+	if !ok {
+		t.Fatalf("响应缺少 hit: %v", data)
+	}
+	if hit["status"] != string(domain.StatusAccount) {
+		t.Fatalf("记录状态应为 %q，实际 %v", domain.StatusAccount, hit["status"])
+	}
+}
+
+// TestHandleHitBanMarksAccount 封禁动作：不删内容，记录状态是「账号已处置」。
+func TestHandleHitBanMarksAccount(t *testing.T) {
+	t.Parallel()
+
+	h, _, account := newHandleHandlerWithAccount(t)
+	body := post(t, h, true, "/content-filter/hits/11/handle",
+		map[string]any{"action": "ban"}, 1)
+	if code := body["code"].(float64); code != 0 {
+		t.Fatalf("封禁处置应成功: %v", body)
+	}
+	if len(account.banned) != 1 {
+		t.Fatalf("应对命中记录作者执行封禁，实际 %v", account.banned)
+	}
+}

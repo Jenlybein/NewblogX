@@ -298,6 +298,49 @@ func (u *Users) UpdateStatus(_ context.Context, id domain.UserID, status domain.
 	return nil
 }
 
+// SetMuteUntil 实现 domain.Repository。
+func (u *Users) SetMuteUntil(_ context.Context, id domain.UserID, at *time.Time) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return err
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	if at == nil {
+		user.MuteUntil = nil
+	} else {
+		value := *at
+		user.MuteUntil = &value
+	}
+	u.byID[id] = user
+	return nil
+}
+
+// ClearExpiredMutes 实现 domain.Repository。
+func (u *Users) ClearExpiredMutes(_ context.Context, now time.Time) (int64, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return 0, err
+	}
+	var cleared int64
+	for id, user := range u.byID {
+		if user.MuteUntil == nil || user.MuteUntil.IsZero() {
+			continue
+		}
+		if now.Before(*user.MuteUntil) {
+			continue
+		}
+		user.MuteUntil = nil
+		u.byID[id] = user
+		cleared++
+	}
+	return cleared, nil
+}
+
 // UpdatePassword 实现 domain.Repository。
 func (u *Users) UpdatePassword(_ context.Context, id domain.UserID, hash string, tokenVersion uint32) error {
 	u.mu.Lock()

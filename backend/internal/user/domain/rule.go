@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -104,6 +105,101 @@ func ValidateStatus(s Status) error {
 	default:
 		return apperr.New(apperr.CodeUserStatusInvalid)
 	}
+}
+
+// 禁言时长的边界（票 399 / ADR-0032 决策 8）。
+//
+// 上限 365 天不是拍脑袋：禁言是"带时长的临时处罚"，再长就该走封禁（账号禁用），
+// 而封禁不经过禁言通道。下限 1 天避免"0 天禁言"这种看起来执行了、实际没生效的输入。
+const (
+	// DefaultMuteDays 是未指定时长时的默认天数（spec 的"默认 7 天"）。
+	DefaultMuteDays = 7
+	// MinMuteDays 是最短禁言天数。
+	MinMuteDays = 1
+	// MaxMuteDays 是最长禁言天数。
+	MaxMuteDays = 365
+)
+
+// NormalizeMuteDays 校验并收敛禁言天数：0 表示"没传"，按默认 7 天；越界报错。
+//
+// 缺省值放在领域层而不是 HTTP 层：风险页的单条处置与批量处置都必须拿到同一份
+func NormalizeMuteDays(raw int) (int, error) {
+	if raw == 0 {
+		return DefaultMuteDays, nil
+	}
+	if raw < MinMuteDays || raw > MaxMuteDays {
+		return 0, apperr.New(apperr.CodeUserMuteDaysInvalid)
+	}
+	return raw, nil
+}
+
+// MuteUntilAt 返回从 now 起 days 天的禁言到期时间。
+func MuteUntilAt(now time.Time, days int) time.Time {
+	return now.Add(time.Duration(days) * 24 * time.Hour)
+}
+
+// MuteError 是"账号处于禁言期，发布类动作被拒"。
+//
+// 为什么不用 apperr.New 的固定文案：用户要知道**什么时候恢复**，只给一句
+// "已被禁言"会让人反复重试或去问管理员。错误码仍然只有一个
+// （apperr.CodeUserMuted），前端按码分支、按文案展示。
+type MuteError struct {
+	// Until 是禁言到期时间。
+	Until time.Time
+	// Now 是判定时的时间（文案里算剩余天数用），零值时按 Until 前 1 秒处理。
+	Now time.Time
+}
+
+// NewMuteError 构造禁言错误。
+func NewMuteError(until, now time.Time) *MuteError {
+	return &MuteError{Until: until, Now: now}
+}
+
+// Error 返回面向用户的文案（含到期时间与剩余天数）。
+func (e *MuteError) Error() string {
+	remaining := e.remainingDays()
+	return fmt.Sprintf(
+		"账号已被禁言，禁言至 %s（还有 %d 天），期间不能发布、评论、私信或修改资料",
+		e.Until.Format("2006-01-02 15:04"),
+		remaining,
+	)
+}
+
+// Unwrap 让 errors.Is / apperr.CodeOf 能拿到错误码（文案由 Error 覆盖）。
+func (e *MuteError) Unwrap() error { return apperr.New(apperr.CodeUserMuted) }
+
+func (e *MuteError) remainingDays() int {
+	now := e.Now
+	if now.IsZero() {
+		now = e.Until.Add(-time.Second)
+	}
+	remaining := e.Until.Sub(now)
+	if remaining <= 0 {
+		return 0
+	}
+	days := int(remaining/(24*time.Hour)) + 1
+	if remaining%(24*time.Hour) == 0 {
+		days = int(remaining / (24 * time.Hour))
+	}
+	return days
+}
+
+// CanPublish 判断账号此刻能否执行发布类动作（票 399 / ADR-0032 决策 8）。
+//
+// 生效范围只有发布类动作：文章创建 / 投稿 / 更新、评论、私信、昵称与简介修改。
+// 登录、浏览、点赞、收藏一律不看这一条 —— 禁言的目的是"停止输出"，
+// 不是"把人赶出站点"。
+//
+// 账号状态（禁用 / 封禁）优先于禁言：一个被封禁的账号先拿到"账号已被封禁"，
+// 而不是"你被禁言到某天"（后者会让人误以为到期就能恢复）。
+func CanPublish(u User, now time.Time) error {
+	if err := CanLogin(u); err != nil {
+		return err
+	}
+	if u.IsMuted(now) {
+		return NewMuteError(*u.MuteUntil, now)
+	}
+	return nil
 }
 
 // CanLogin 判断账号能否登录，并把状态翻译成具体原因。

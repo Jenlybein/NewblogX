@@ -31,7 +31,10 @@ type Service struct {
 	// disposer 是处置动作（票 398）对内容模块的写端口，装配层在内容模块
 	// 就绪后通过 WithDisposer 注入；nil 表示这一进程没有处置能力。
 	disposer domain.Disposer
-	logger   domain.Logger
+	// accountDisposer 是封禁 / 禁言动作（票 399）对账号模块的写端口，
+	// 同样由装配层注入；nil 表示这一进程没有账号处置能力（失败关闭）。
+	accountDisposer domain.AccountDisposer
+	logger          domain.Logger
 }
 
 // New 构造内容过滤服务。

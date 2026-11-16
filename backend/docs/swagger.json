@@ -3002,7 +3002,8 @@
                         "enum": [
                             "pending",
                             "ignored",
-                            "deleted"
+                            "deleted",
+                            "account"
                         ],
                         "type": "string"
                     }
@@ -3014,7 +3015,9 @@
                     "action": {
                         "enum": [
                             "delete",
-                            "ignore"
+                            "ignore",
+                            "ban",
+                            "mute"
                         ],
                         "type": "string"
                     },
@@ -3024,6 +3027,10 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "mute_days": {
+                        "description": "MuteDays 与单条处置同义（只有 mute 动作读它）。",
+                        "type": "integer"
                     },
                     "note": {
                         "type": "string"
@@ -3048,9 +3055,15 @@
                     "action": {
                         "enum": [
                             "delete",
-                            "ignore"
+                            "ignore",
+                            "ban",
+                            "mute"
                         ],
                         "type": "string"
+                    },
+                    "mute_days": {
+                        "description": "MuteDays 是禁言天数，只有 mute 动作读它：1–365，缺省（0）按 7 天。\n越界由服务端拒绝（user.mute_days_invalid）。",
+                        "type": "integer"
                     },
                     "note": {
                         "description": "Note 是可选备注（≤200 字，服务端按 rune 计数）。",
@@ -3100,7 +3113,8 @@
                         "enum": [
                             "pending",
                             "ignored",
-                            "deleted"
+                            "deleted",
+                            "account"
                         ],
                         "type": "string"
                     },
@@ -4615,6 +4629,17 @@
                 },
                 "type": "object"
             },
+            "internal_user_adapter_http.AdminUnmuteRequest": {
+                "properties": {
+                    "user_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "user_id"
+                ],
+                "type": "object"
+            },
             "internal_user_adapter_http.AdminUpdateRequest": {
                 "properties": {
                     "abstract": {
@@ -4662,6 +4687,10 @@
                         "type": "string"
                     },
                     "last_login_at": {
+                        "type": "string"
+                    },
+                    "mute_until": {
+                        "description": "MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。\n\n账号管理页据此展示\"禁言至 X（还有 N 天）\"并给出「解除禁言」按钮。",
                         "type": "string"
                     },
                     "nickname": {
@@ -8199,6 +8228,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "mute_until": {
+                        "description": "MuteUntil 是禁言到期时间（票 399）；nil / 缺省表示未禁言。\n\n只出现在\"我自己\"的详情里：读者设置页据此展示剩余时间，\n发布动作被拒时后端文案也会带上同一个时间点。",
+                        "type": "string"
+                    },
                     "nickname": {
                         "type": "string"
                     },
@@ -11392,11 +11425,11 @@
                             "schema": {
                                 "$ref": "#/components/schemas/internal_filter_adapter_http.HandleHitRequest",
                                 "summary": "payload",
-                                "description": "处置动作与备注"
+                                "description": "处置动作、禁言天数与备注"
                             }
                         }
                     },
-                    "description": "处置动作与备注",
+                    "description": "处置动作、禁言天数与备注",
                     "required": true
                 },
                 "responses": {
@@ -15596,6 +15629,44 @@
                     }
                 ],
                 "summary": "用户列表",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/admin/unmute": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_user_adapter_http.AdminUnmuteRequest",
+                                "summary": "body",
+                                "description": "目标用户"
+                            }
+                        }
+                    },
+                    "description": "目标用户",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "管理员解除禁言",
                 "tags": [
                     "user"
                 ]

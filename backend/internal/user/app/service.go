@@ -65,6 +65,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 		LikeTagIDs:               settings.LikeTagIDs,
 		LikeTagItems:             []LikeTagItem{},
 		UpdatedUsernameDate:      settings.UpdatedUsernameAt,
+		MuteUntil:                u.MuteUntil,
 		FavoritesVisibility:      settings.FavoritesVisibility,
 		FollowVisibility:         settings.FollowVisibility,
 		FansVisibility:           settings.FansVisibility,
@@ -162,6 +163,16 @@ func (s *Service) Update(ctx context.Context, viewer domain.Viewer, target domai
 	}
 	if err := domain.CanUpdateProfile(u, viewer); err != nil {
 		return nil, err
+	}
+
+	// 禁言（票 399 / ADR-0032 决策 8）：昵称与简介修改属于发布类动作。
+	// 只拦这两个字段 —— 头像 / 用户名不在禁言范围内（spec 的生效范围逐条列举）。
+	// 管理员豁免：风险页处置昵称 / 简介时要重置资料（走同一个 Update），
+	// 不能被"被处置人正被禁言"挡住。
+	if !viewer.IsAdmin() && (update.Nickname != nil || update.Abstract != nil) {
+		if err := domain.CanPublish(u, s.clock.Now()); err != nil {
+			return nil, err
+		}
 	}
 
 	// 内容过滤（票 397 / ADR-0032）：昵称与简介落库前把命中词替换成等长 `*`。

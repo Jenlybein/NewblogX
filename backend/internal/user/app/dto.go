@@ -45,9 +45,14 @@ type DetailView struct {
 	LikeTagIDs          []ctype.ID    `json:"like_tag_ids"`
 	LikeTagItems        []LikeTagItem `json:"like_tag_items"`
 	UpdatedUsernameDate *time.Time    `json:"updated_username_date"`
-	FavoritesVisibility bool          `json:"favorites_visibility"`
-	FollowVisibility    bool          `json:"followers_visibility"`
-	FansVisibility      bool          `json:"fans_visibility"`
+	// MuteUntil 是禁言到期时间（票 399）；nil / 缺省表示未禁言。
+	//
+	// 只出现在"我自己"的详情里：读者设置页据此展示剩余时间，
+	// 发布动作被拒时后端文案也会带上同一个时间点。
+	MuteUntil           *time.Time `json:"mute_until"`
+	FavoritesVisibility bool       `json:"favorites_visibility"`
+	FollowVisibility    bool       `json:"followers_visibility"`
+	FansVisibility      bool       `json:"fans_visibility"`
 
 	DiggNoticeEnabled        bool `json:"digg_notice_enabled"`
 	CommentNoticeEnabled     bool `json:"comment_notice_enabled"`

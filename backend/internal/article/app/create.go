@@ -50,6 +50,15 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		return nil, domain.ErrForbidden
 	}
 
+	// 账号闸门（票 399 / ADR-0032 决策 8）：被禁言 / 禁用 / 封禁的账号不能发文
+	// （草稿也算 —— 草稿同样是"输出"的前一步，spec 的生效范围是"创建"）。
+	// 放在所有校验之前：被禁言的人不该因为"标题没填"之类的原因先看到别的错误。
+	if s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, cmd.Actor.UserID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 只允许草稿或提交审核；不允许直接指定"已发布"绕过审核。
 	target := cmd.TargetStatus
 	if target != domain.StatusDraft && target != domain.StatusExamining {

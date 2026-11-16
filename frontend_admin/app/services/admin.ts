@@ -715,14 +715,15 @@ export function getContentFilterHits(query: {
   return api().request<ContentFilterHitListData>('/content-filter/hits', { query })
 }
 /**
- * 处置一条命中记录（票 398）：删除命中的内容，或忽略误报。
+ * 处置一条命中记录（票 398 / 399）：内容动作（删除 / 忽略）或账号动作（封禁 / 禁言）。
  *
  * 语义与后端一致：已处置的记录幂等返回当前状态；`delete` 对私信面会明确失败
  * （私信没有可删的实体），所以调用方要按业务错误提示而不是当成成功。
+ * `mute` 用 `mute_days` 指定天数（1–365，缺省 7 天由后端补齐）。
  */
 export function handleContentFilterHit(
   id: string,
-  payload: { action: "delete" | "ignore"; note?: string },
+  payload: { action: 'delete' | 'ignore' | 'ban' | 'mute'; mute_days?: number; note?: string },
 ) {
   return api().request<ContentFilterHandleResult>(`/content-filter/hits/${id}/handle`, {
     method: 'POST',
@@ -735,13 +736,28 @@ export function handleContentFilterHit(
  *
  * 一批里可能混着文章与私信面，也可能有条目刚被别人处置过；调用方要按
  * `results[].ok` 汇总"成功 N 条、失败 M 条"，并把失败原因展示出来。
+ * 批量只做内容动作：账号动作针对"某个人的全部风险"，一次批量封禁/禁言
+ * 会把不同用户的处罚混在一起，不适合作为运营动作。
  */
 export function handleContentFilterHits(
-  payload: { ids: string[]; action: "delete" | "ignore"; note?: string },
+  payload: { ids: string[]; action: 'delete' | 'ignore'; note?: string },
 ) {
   return api().request<ContentFilterHandleBatchResult>('/content-filter/hits/handle-batch', {
     method: 'POST',
     body: payload,
+  })
+}
+
+/**
+ * 提前解除禁言（票 399）。
+ *
+ * 与"到期自动恢复"是两条路：到期不需要任何操作，这个入口只用于管理员提前放人。
+ * 幂等：本来没禁言也返回成功。
+ */
+export function unmuteAdminUser(userId: string) {
+  return api().request<unknown, { user_id: string }>('/users/admin/unmute', {
+    method: 'POST',
+    body: { user_id: userId },
   })
 }
 

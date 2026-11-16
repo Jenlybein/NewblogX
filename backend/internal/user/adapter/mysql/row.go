@@ -55,9 +55,11 @@ type UserRow struct {
 	Status                int8    `gorm:"default:1;index"`
 	TokenVersion          uint32  `gorm:"default:1"`
 	LastPasswordChangedAt *time.Time
-	Role                  int8   `gorm:"default:0"`
-	IP                    string `gorm:"size:64"`
-	Addr                  string `gorm:"size:256"`
+	// MuteUntil 是禁言到期时间（票 399）；NULL 表示未禁言。
+	MuteUntil *time.Time
+	Role      int8   `gorm:"default:0"`
+	IP        string `gorm:"size:64"`
+	Addr      string `gorm:"size:256"`
 }
 
 // TableName 固定表名，避免 GORM 命名策略变化导致查错表。

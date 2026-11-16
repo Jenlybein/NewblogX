@@ -81,6 +81,8 @@ func WireFilterDisposer(infra *Infra) {
 		comments: infra.CommentService,
 		users:    infra.UserService,
 	})
+	// 账号处置（封禁 / 禁言，票 399）：与内容处置共用同一份 user 用例服务。
+	infra.Filter.WithAccountDisposer(accountDisposerBridge{users: infra.UserService})
 }
 
 // disposerBridge 是 Disposer 的实现：把"删除某类内容"翻译成对应模块的软删用例。
@@ -147,8 +149,47 @@ func (d disposerBridge) ResetProfile(ctx context.Context, actor, userID ctype.ID
 	return err
 }
 
-// contentFilterWords 把配置段的词条转成引擎形状。
+// accountDisposerBridge 是 AccountDisposer 的实现：把"封禁 / 禁言"翻译成
+// user 模块的账号用例（票 399）。
 //
+// 两个动作都走 user 模块已经有权限判定与会话处理的用例，而不是直接写 SQL：
+//   - 封禁 = AdminUpdate(status=3)：与后台账号页的「封禁」同一口径，
+//     会把令牌版本 +1 并吊销全部会话（被封的人手里那张未过期令牌立即失效）；
+//   - 禁言 = Mute(days)：只写 mute_until，不动会话（禁言不拦登录）。
+//
+// 时长校验（1–365 / 缺省 7）也由 user 模块做：内容过滤只负责传原始天数。
+type accountDisposerBridge struct {
+	users *userapp.Service
+}
+
+var _ filterdomain.AccountDisposer = accountDisposerBridge{}
+
+// BanUser 封禁账号（账号禁用，不可自助恢复）。
+func (d accountDisposerBridge) BanUser(ctx context.Context, actor, userID ctype.ID) error {
+	if d.users == nil {
+		return apperr.New(apperr.CodeFilterDisposeUnavailable)
+	}
+	banned := userdomain.StatusBanned
+	return d.users.AdminUpdate(ctx,
+		userdomain.Viewer{ID: userdomain.UserID(actor), Role: userdomain.RoleAdmin},
+		userdomain.UserID(userID),
+		userapp.AdminPatchInput{Status: &banned},
+	)
+}
+
+// MuteUser 禁言账号 days 天（0 表示没传，user 模块按默认 7 天处理）。
+func (d accountDisposerBridge) MuteUser(ctx context.Context, actor, userID ctype.ID, days int) error {
+	if d.users == nil {
+		return apperr.New(apperr.CodeFilterDisposeUnavailable)
+	}
+	_, err := d.users.Mute(ctx,
+		userdomain.Viewer{ID: userdomain.UserID(actor), Role: userdomain.RoleAdmin},
+		userdomain.UserID(userID),
+		days)
+	return err
+}
+
+// contentFilterWords 把配置段的词条转成引擎形状。
 // 只做形状转换，不做校验：合法性已在保存用例（siteapp.UpdateContentFilter）与
 // 初始词表导入命令里各过一次，这里再校验一遍只会让"坏数据"的来源变得难查。
 func contentFilterWords(contentFilter conf.ContentFilter) []contentfilter.Word {

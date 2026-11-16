@@ -3072,7 +3072,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            /** @description 处置动作与备注 */
+            /** @description 处置动作、禁言天数与备注 */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_filter_adapter_http.HandleHitRequest"];
@@ -6918,6 +6918,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/admin/unmute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员解除禁言 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 目标用户 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_user_adapter_http.AdminUnmuteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/base": {
         parameters: {
             query?: never;
@@ -8807,12 +8848,14 @@ export interface components {
              * @description Status 是处置后的状态；失败且拿不到记录时为空串。
              * @enum {string}
              */
-            status?: "pending" | "ignored" | "deleted";
+            status?: "pending" | "ignored" | "deleted" | "account";
         };
         "internal_filter_adapter_http.HandleBatchRequest": {
             /** @enum {string} */
-            action?: "delete" | "ignore";
+            action?: "delete" | "ignore" | "ban" | "mute";
             ids?: string[];
+            /** @description MuteDays 与单条处置同义（只有 mute 动作读它）。 */
+            mute_days?: number;
             note?: string;
         };
         "internal_filter_adapter_http.HandleBatchResponse": {
@@ -8820,7 +8863,12 @@ export interface components {
         };
         "internal_filter_adapter_http.HandleHitRequest": {
             /** @enum {string} */
-            action?: "delete" | "ignore";
+            action?: "delete" | "ignore" | "ban" | "mute";
+            /**
+             * @description MuteDays 是禁言天数，只有 mute 动作读它：1–365，缺省（0）按 7 天。
+             *     越界由服务端拒绝（user.mute_days_invalid）。
+             */
+            mute_days?: number;
             /** @description Note 是可选备注（≤200 字，服务端按 rune 计数）。 */
             note?: string;
         };
@@ -8840,7 +8888,7 @@ export interface components {
             id?: string;
             note?: string;
             /** @enum {string} */
-            status?: "pending" | "ignored" | "deleted";
+            status?: "pending" | "ignored" | "deleted" | "account";
             /** @enum {string} */
             surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
             user_id?: string;
@@ -9461,6 +9509,9 @@ export interface components {
             status?: number;
             username?: string;
         };
+        "internal_user_adapter_http.AdminUnmuteRequest": {
+            user_id: string;
+        };
         "internal_user_adapter_http.AdminUpdateRequest": {
             abstract?: string;
             avatar_image_id?: string;
@@ -9477,6 +9528,12 @@ export interface components {
             id?: string;
             ip?: string;
             last_login_at?: string;
+            /**
+             * @description MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
+             *
+             *     账号管理页据此展示"禁言至 X（还有 N 天）"并给出「解除禁言」按钮。
+             */
+            mute_until?: string;
             nickname?: string;
             /**
              * @description 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
@@ -10728,6 +10785,13 @@ export interface components {
             id?: string;
             like_tag_ids?: string[];
             like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];
+            /**
+             * @description MuteUntil 是禁言到期时间（票 399）；nil / 缺省表示未禁言。
+             *
+             *     只出现在"我自己"的详情里：读者设置页据此展示剩余时间，
+             *     发布动作被拒时后端文案也会带上同一个时间点。
+             */
+            mute_until?: string;
             nickname?: string;
             /**
              * @description Phone 是当前用户自己绑定的手机号（完整号码）。

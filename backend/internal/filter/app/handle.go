@@ -26,6 +26,9 @@ type HandleInput struct {
 	ID ctype.ID
 	// Action 是处置动作；非法值在用例层被拒（不静默当成 ignore）。
 	Action domain.Action
+	// MuteDays 是禁言天数（只有 mute 动作读它）：1–365，0 表示"没传"按默认 7 天。
+	// 越界由 user 模块校验并返回 user.mute_days_invalid（单一来源）。
+	MuteDays int
 	// Note 是可选备注（≤ domain.MaxNoteLen 字）。
 	Note string
 	// HandlerID 是发起处置的管理员 ID，写进记录行的处理人。
@@ -67,7 +70,11 @@ func (s *Service) Handle(ctx context.Context, in HandleInput) (HandleResult, err
 		return HandleResult{Hit: hit, AlreadyHandled: true}, nil
 	}
 
-	if action == domain.ActionDelete {
+	if action.IsAccountAction() {
+		if err := s.disposeAccount(ctx, hit, action, in.HandlerID, in.MuteDays); err != nil {
+			return HandleResult{}, err
+		}
+	} else if action == domain.ActionDelete {
 		if err := s.dispose(ctx, hit, in.HandlerID); err != nil {
 			return HandleResult{}, err
 		}
@@ -103,8 +110,9 @@ func (s *Service) Handle(ctx context.Context, in HandleInput) (HandleResult, err
 type BatchHandleInput struct {
 	// IDs 是要处置的命中记录 ID。
 	IDs []ctype.ID
-	// Action / Note / HandlerID 与单条处置同一口径。
+	// Action / MuteDays / Note / HandlerID 与单条处置同一口径。
 	Action    domain.Action
+	MuteDays  int
 	Note      string
 	HandlerID ctype.ID
 }
@@ -147,6 +155,7 @@ func (s *Service) HandleBatch(ctx context.Context, in BatchHandleInput) (BatchHa
 		got, handleErr := s.Handle(ctx, HandleInput{
 			ID:        id,
 			Action:    action,
+			MuteDays:  in.MuteDays,
 			Note:      note,
 			HandlerID: in.HandlerID,
 		})
@@ -168,6 +177,31 @@ func (s *Service) HandleBatch(ctx context.Context, in BatchHandleInput) (BatchHa
 func (s *Service) WithDisposer(disposer domain.Disposer) *Service {
 	s.disposer = disposer
 	return s
+}
+
+// WithAccountDisposer 注入账号处置端口（封禁 / 禁言，票 399）。
+func (s *Service) WithAccountDisposer(disposer domain.AccountDisposer) *Service {
+	s.accountDisposer = disposer
+	return s
+}
+
+// disposeAccount 按动作分派账号处置（封禁 / 禁言）。
+//
+// 与 dispose 同一顺序口径：先动账号、再改记录状态（改状态放在 Handle 里）。
+// 账号动失败时记录仍是待处理，管理员重试即可；反过来会留下"记录说已处置、
+// 账号其实没被处罚"的错位。
+func (s *Service) disposeAccount(ctx context.Context, hit domain.Hit, action domain.Action, actor ctype.ID, muteDays int) error {
+	if s.accountDisposer == nil {
+		return apperr.New(apperr.CodeFilterDisposeUnavailable)
+	}
+	switch action {
+	case domain.ActionBan:
+		return s.accountDisposer.BanUser(ctx, actor, hit.UserID)
+	case domain.ActionMute:
+		return s.accountDisposer.MuteUser(ctx, actor, hit.UserID, muteDays)
+	default:
+		return apperr.New(apperr.CodeFilterActionInvalid)
+	}
 }
 
 // dispose 按文本面分派删除动作。

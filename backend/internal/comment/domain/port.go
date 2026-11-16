@@ -58,6 +58,15 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []uint64) (map[uint64]Display, error)
 }
 
+// PublishGate 是发布类动作前的账号闸门（票 399 / ADR-0032 决策 8）。
+//
+// 实现由 user 模块提供、装配层注入（app/publish_gate_wiring.go）：评论模块
+// 只负责在 Create 的最前面调一次，错误原样向上返回（含禁言到期时间的文案）。
+// nil 表示未接入（那些不服务用户请求的进程角色），行为与改造前一致。
+type PublishGate interface {
+	EnsureCanPublish(ctx context.Context, userID ctype.ID) error
+}
+
 // Display 是评论列表需要的用户展示信息。
 type Display struct {
 	Nickname string

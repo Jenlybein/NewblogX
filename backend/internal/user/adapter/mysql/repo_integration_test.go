@@ -350,3 +350,97 @@ func TestSyncDisplay(t *testing.T) {
 		t.Fatalf("评论里的昵称未刷新: %q", afterNickname)
 	}
 }
+
+// TestRepoMuteUntilRoundTrip 禁言列在真 MySQL 上的读写（票 399）。
+//
+// 内存 fake 无法证明"列名写错 / NULL 语义不生效 / 条件更新在 MySQL 上不成立"
+// 这三类问题，而它们恰好决定"到期自动恢复"能不能成立。
+func TestRepoMuteUntilRoundTrip(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	repo, ctx := e.repo, e.ctx
+
+	u := newUser("muted")
+	if err := repo.Create(ctx, &u); err != nil {
+		t.Fatalf("创建失败: %v", err)
+	}
+
+	until := time.Now().Add(7 * 24 * time.Hour)
+	if err := repo.SetMuteUntil(ctx, u.ID, &until); err != nil {
+		t.Fatalf("写禁言失败: %v", err)
+	}
+	got, err := repo.FindByID(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("查询失败: %v", err)
+	}
+	if got.MuteUntil == nil || !got.MuteUntil.Equal(until) {
+		t.Fatalf("禁言时间往返不一致: got=%v want=%v", got.MuteUntil, until)
+	}
+
+	// 解除禁言必须写成 NULL（不是零值时间）。
+	if err := repo.SetMuteUntil(ctx, u.ID, nil); err != nil {
+		t.Fatalf("解除禁言失败: %v", err)
+	}
+	got, err = repo.FindByID(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("查询失败: %v", err)
+	}
+	if got.MuteUntil != nil {
+		t.Fatalf("解除禁言后应为 NULL，实际 %v", got.MuteUntil)
+	}
+	if err := repo.SetMuteUntil(ctx, ctype.NewID(999999), nil); !apperr.IsCode(err, apperr.CodeUserNotFound) {
+		t.Fatalf("对不存在的账号解除应返回 user.not_found，实际 %v", err)
+	}
+}
+
+// TestRepoClearExpiredMutes 对账的条件更新口径（票 399）。
+func TestRepoClearExpiredMutes(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	repo, ctx := e.repo, e.ctx
+
+	expiredUser := newUser("expired")
+	if err := repo.Create(ctx, &expiredUser); err != nil {
+		t.Fatalf("创建失败: %v", err)
+	}
+	futureUser := newUser("future")
+	if err := repo.Create(ctx, &futureUser); err != nil {
+		t.Fatalf("创建失败: %v", err)
+	}
+
+	expired := time.Now().Add(-time.Hour)
+	future := time.Now().Add(48 * time.Hour)
+	if err := repo.SetMuteUntil(ctx, expiredUser.ID, &expired); err != nil {
+		t.Fatalf("写禁言失败: %v", err)
+	}
+	if err := repo.SetMuteUntil(ctx, futureUser.ID, &future); err != nil {
+		t.Fatalf("写禁言失败: %v", err)
+	}
+
+	// 到期账号 ID 列表：对账日志要能点名"哪些账号被自动恢复"（AC：到期也留记录）。
+	ids, err := mysql.ExpiredMuteUserIDs(ctx, e.db, time.Now())
+	if err != nil {
+		t.Fatalf("读到期禁言账号失败: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != expiredUser.ID.Uint64() {
+		t.Fatalf("到期账号应为 %d，实际 %v", expiredUser.ID.Uint64(), ids)
+	}
+
+	cleared, err := repo.ClearExpiredMutes(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("对账失败: %v", err)
+	}
+	if cleared != 1 {
+		t.Fatalf("应只清空已到期的那一个，实际 %d", cleared)
+	}
+	if got, _ := repo.FindByID(ctx, expiredUser.ID); got.MuteUntil != nil {
+		t.Fatalf("已到期账号的禁言应被清空，实际 %v", got.MuteUntil)
+	}
+	if got, _ := repo.FindByID(ctx, futureUser.ID); got.MuteUntil == nil {
+		t.Fatal("未到期账号的禁言不应被清空")
+	}
+	again, err := repo.ClearExpiredMutes(ctx, time.Now())
+	if err != nil || again != 0 {
+		t.Fatalf("重跑对账应幂等（0 行），实际 %d, %v", again, err)
+	}
+}

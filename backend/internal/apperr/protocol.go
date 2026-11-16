@@ -27,6 +27,13 @@ var protocols = map[Code]ProtocolKind{
 	CodeUserTokenInvalid:   ProtocolAuth,
 	CodeUserSessionExpired: ProtocolAuth,
 
+	// 禁言（票 399 / ADR-0032 决策 8）：被禁言者账号仍然有效（能登录、浏览、
+	// 点赞、收藏），只是发布类动作被拒；到期自动恢复，不做任何人工动作。
+	// 这是调用方看得懂、等得到的业务校验失败，归 1001 而不是 1002（后者会让
+	// 前端以为后端坏了、反复重试）。
+	CodeUserMuted:           ProtocolValidation,
+	CodeUserMuteDaysInvalid: ProtocolValidation,
+
 	// 通知与站内信：调用方能修正的失败。
 	CodeCommonInvalidOrder:    ProtocolValidation,
 	CodeCommonInvalidArgument: ProtocolValidation,

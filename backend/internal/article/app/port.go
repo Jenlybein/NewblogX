@@ -113,6 +113,18 @@ type UserPort interface {
 	Profiles(ctx context.Context, ids []domain.UserID) (map[domain.UserID]AuthorView, error)
 }
 
+// PublishGate 是发布类动作前的账号闸门（票 399 / ADR-0032 决策 8）。
+//
+// 账号状态（禁用 / 封禁）与禁言期的判定都在 user 模块的一处实现里
+// （user/app.Service.EnsureCanPublish）；article 只知道自己"要写文章"，
+// 不知道 `mute_until` 这列怎么读。
+//
+// 为 nil 表示这个进程不服务用户的发布请求（cron / worker / outbox 中继只做
+// 系统动作），因此不需要闸门；api 角色的装配必然注入（app/publish_gate_wiring.go）。
+type PublishGate interface {
+	EnsureCanPublish(ctx context.Context, userID domain.UserID) error
+}
+
 // TxManager 划定事务边界。
 //
 // 实现放在 adapter（用 platform/mysql 的句柄开事务，
@@ -326,6 +338,17 @@ type Service struct {
 	filter ArticleTextFilterer
 	// collectionFilter 过滤合集标题 / 描述（票 397）。nil 同 filter。
 	collectionFilter CollectionTextFilterer
+	// publishGate 是发布类动作前的账号闸门（票 399）。nil 表示未接入（系统动作）。
+	publishGate PublishGate
+}
+
+// WithPublishGate 注入发布闸门（票 399）。
+//
+// 与内容过滤同一形状的可选注入：New 的参数表已经很长，闸门是"多出来的一道
+// 检查"，没注入的进程角色（系统动作）保持原有行为。
+func (s *Service) WithPublishGate(g PublishGate) *Service {
+	s.publishGate = g
+	return s
 }
 
 // WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。

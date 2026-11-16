@@ -115,6 +115,15 @@ type AdminUserItemResponse struct {
 	// swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。
 	Role   int8 `json:"role" swaggertype:"integer"`
 	Status int8 `json:"status" swaggertype:"integer"`
+	// MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
+	//
+	// 账号管理页据此展示"禁言至 X（还有 N 天）"并给出「解除禁言」按钮。
+	MuteUntil *time.Time `json:"mute_until"`
+}
+
+// AdminUnmuteRequest 是提前解除禁言的请求体。管理员操作，不需要备注以外的参数。
+type AdminUnmuteRequest struct {
+	UserID ctype.ID `json:"user_id" binding:"required"`
 }
 
 // AdminCreateResponse 管理员创建用户的返回（旧契约字段名）。

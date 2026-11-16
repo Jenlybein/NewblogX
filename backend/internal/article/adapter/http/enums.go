@@ -81,7 +81,7 @@ const (
 	ReviewTaskSortRisk ReviewTaskSort = "risk"
 )
 
-// ReviewRiskLevel 是机审前两层给出的风险等级（票 311）。
+// ReviewRiskLevel 是评分派生层给出的风险等级（票 311 / 票 401）。
 //
 // 与 domain/moderation 的 Level 取值一致；这里复制一份是 HTTP 层的惯例
 // （见本文件顶部说明），转换只在 handler 里做一次。

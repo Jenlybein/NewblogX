@@ -139,40 +139,36 @@ func TestScoreSignalsLengthAbnormal(t *testing.T) {
 	}
 }
 
-// 没有评分记录的文章：只有词表层的结果，不报错（票 311 验收标准 5）。
+// 没有评分记录的文章：不产生任何信号，不报错（票 311 验收标准 5）。
 func TestEvaluateWithoutScoreRecord(t *testing.T) {
 	t.Parallel()
 
-	got := moderation.Evaluate("一段普通正文", moderation.WordLists{}, nil)
+	got := moderation.Evaluate(nil)
 	if got.Level != moderation.LevelNone {
-		t.Fatalf("无词表命中、无评分时应为 none，实际 %s", got.Level)
+		t.Fatalf("无评分时应为 none，实际 %s", got.Level)
 	}
 	if len(got.Signals) != 0 || len(got.Labels()) != 0 {
 		t.Fatalf("不应有任何信号，实际 %+v", got.Signals)
 	}
 }
 
-// 两层同时命中时取最严重等级，标签按首次出现顺序去重。
+// 三条评分派生信号同时出现时取最严重等级（低分是 medium，其余是 low），
+// 标签按首次出现顺序去重。词表信号（block_word / watch_word）已随
+// 「文章词表机审退场」删除（ADR-0032 决策 6），本层不再有任何字符串匹配。
 func TestEvaluateTakesHighestLevelAndDeduplicatesLabels(t *testing.T) {
 	t.Parallel()
 
-	lists := moderation.WordLists{
-		Block: []string{"代开发票"},
-		Watch: []string{"加微信", "私聊"},
-	}
 	score := &moderation.ScoreFacts{
 		TotalScore:     45,
 		DimensionsJSON: `[{"name":"clarity","score":10},{"name":"structure","score":70}]`,
 		ContentLength:  120,
 	}
-	got := moderation.Evaluate("代开发票请加微信，也欢迎私聊。", lists, score)
+	got := moderation.Evaluate(score)
 
-	if got.Level != moderation.LevelHigh {
-		t.Fatalf("阻断级命中应把整体风险抬到 high，实际 %s", got.Level)
+	if got.Level != moderation.LevelMedium {
+		t.Fatalf("低分应把整体风险抬到 medium，实际 %s", got.Level)
 	}
 	want := []string{
-		"block_word",
-		"watch_word",
 		"low_score",
 		"dimension_collapse",
 		"length_abnormal",
@@ -184,6 +180,26 @@ func TestEvaluateTakesHighestLevelAndDeduplicatesLabels(t *testing.T) {
 	for i := range want {
 		if labels[i] != want[i] {
 			t.Fatalf("标签应为 %v，实际 %v", want, labels)
+		}
+	}
+}
+
+// 评分派生层不产生 high：high 只留给契约和人工处置（词表信号退场后没有 high 来源）。
+func TestScoreSignalsNeverReachHigh(t *testing.T) {
+	t.Parallel()
+
+	worst := &moderation.ScoreFacts{
+		TotalScore:     0,
+		DimensionsJSON: `[{"name":"clarity","score":0},{"name":"language","score":0}]`,
+		ContentLength:  10,
+	}
+	got := moderation.Evaluate(worst)
+	if got.Level.Rank() >= moderation.LevelHigh.Rank() {
+		t.Fatalf("评分派生层最高只到 medium，实际 %s", got.Level)
+	}
+	for _, s := range got.Signals {
+		if s.Level == moderation.LevelHigh {
+			t.Fatalf("评分派生信号不该是 high，实际 %+v", s)
 		}
 	}
 }

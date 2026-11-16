@@ -1,9 +1,10 @@
 /**
- * 审核列表的风险文案与颜色（票 311）。
+ * 审核列表的风险文案与颜色（票 311 / 票 401）。
  *
  * 后端契约下发的是稳定 code：`risk_level` 是 none / low / medium / high，
- * `risk_labels` 是 block_word / watch_word / low_score / dimension_collapse /
- * length_abnormal。中文与颜色只在前端这一处映射，运营改措辞不必重新生成
+ * `risk_labels` 是 low_score / dimension_collapse / length_abnormal。
+ * 词表信号（block_word / watch_word）已随文章词表机审退场删除（ADR-0032 决策 6）。
+ * 中文与颜色只在前端这一处映射，运营改措辞不必重新生成
  * OpenAPI，排序也只看等级高低。
  */
 
@@ -28,8 +29,6 @@ const RISK_META: Record<ReviewRiskLevel, RiskMeta> = {
 };
 
 const RISK_LABEL_TEXT: Record<string, string> = {
-  block_word: "阻断级词",
-  watch_word: "观察级词",
   low_score: "低分",
   dimension_collapse: "维度塌陷",
   length_abnormal: "篇幅异常",

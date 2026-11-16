@@ -39,7 +39,7 @@ func TestAssessDeferredQualityReadsExistingScore(t *testing.T) {
 		apptest.NewTx(apptest.NewRepos()),
 		apptest.NewClock(apptest.DefaultTime),
 		apptest.NewIDGen(1000),
-		nil, scores, nil, nil,
+		nil, scores, nil,
 	)
 
 	got, err := svc.AssessDeferredQuality(context.Background(), articleID, deferredPolicy())
@@ -65,7 +65,7 @@ func TestAssessDeferredQualityPassesWhenScoreReachesLine(t *testing.T) {
 		apptest.NewTx(apptest.NewRepos()),
 		apptest.NewClock(apptest.DefaultTime),
 		apptest.NewIDGen(1000),
-		nil, scores, nil, nil,
+		nil, scores, nil,
 	)
 
 	got, err := svc.AssessDeferredQuality(context.Background(), articleID, deferredPolicy())
@@ -84,7 +84,7 @@ func TestAssessDeferredQualityWithoutScoreFailsClosed(t *testing.T) {
 		apptest.NewTx(apptest.NewRepos()),
 		apptest.NewClock(apptest.DefaultTime),
 		apptest.NewIDGen(1000),
-		nil, newFakeScores(), nil, nil,
+		nil, newFakeScores(), nil,
 	)
 
 	_, err := svc.AssessDeferredQuality(context.Background(), domain.ArticleID(ctype.NewID(5003)), deferredPolicy())
@@ -117,7 +117,7 @@ func TestDemotePendingForQualityReturnsDraft(t *testing.T) {
 		apptest.NewTx(repos),
 		apptest.NewClock(time.Time(now)),
 		apptest.NewIDGen(1000),
-		nil, nil, nil, nil,
+		nil, nil, nil,
 	)
 
 	demoted, err := svc.DemotePendingForQuality(context.Background(), articleID, "文章质量未达标")

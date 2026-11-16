@@ -1,12 +1,13 @@
-// Package moderation 是「三层机审」的前两层（票 311 / spec #302 决策 20–24）。
+// Package moderation 是「三层机审」的第②层：从**已有评分记录**派生的风险标签
+// （低分 / 维度塌陷 / 篇幅异常），不重新调用模型。
 //
-// 第①层是纯代码高危词匹配：给同一份正文与同一份词表，永远得到同一个结论；
-// 第②层是从**已有评分记录**派生的风险标签（低分 / 维度塌陷 / 篇幅异常），
-// 不重新调用模型。两层都不落库，所以运营改完词表，下一次读取立即按新词表判。
+// 第①层（纯代码高危词匹配）已整体退场（ADR-0032 决策 6 / 票 401）：命中词在落库前
+// 就被全站内容过滤替换成 `*`，词表归一到了运行期配置的 content_filter 段、只服务
+// 替换与关键词风险页。所以本包不再持有任何词表数据、也不做字符串匹配 ——
+// "哪些词"是运营数据，"怎么判"才是本包的规则。质量闸门、第③层模型合规判定、
+// 发布分流与 pending_review 可见性都不受这次退场影响。
 //
-// 分档的理由：字符串匹配没有语境。阻断级是"命中即自动拒"的小而准清单，
-// 观察级只标红、把处置权交给人（spec #302 决策 22）。本票只做**标记**，
-// 自动拒绝是后续票，因此这里没有任何改文章状态或写库的能力。
+// 本层不落库，所以评分记录一更新，下一次读取立即按新评分判。
 //
 // 与第三层（模型合规判定）的分工：第三层花钱、有延迟、落风险记录表；
 // 本包不 import 任何 AI 包，也不会发起模型调用。
@@ -16,18 +17,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 )
 
-// 第②层风险标签的规则阈值（规则结构在代码里；词表数据在运行期配置里）。
+// 第②层风险标签的规则阈值（规则结构在代码里，没有词表数据）。
 //
-// 这些数字只在这一处声明：审核列表的标签与将来的自动处置都从同一份规则派生，
+// 这些数字只在这一处声明：审核列表的标签与提交时的同步风险扫描都从同一份规则派生，
 // 不在 handler / 前端再抄一份。
 const (
 	// LowScoreThreshold 是"低分"的及格线：总分低于它标 low_score。
 	//
 	// 与评分记录既有的分档一致（"较差文章"0–30、"不合格文章"31–59），
-	// 因此 60 分起不再标低分。质量闸门的及格线是另一个可配值（后续票），
+	// 因此 60 分起不再标低分。质量闸门的及格线是另一个可配值，
 	// 它不是这个告警阈值的来源：这里的标签只用于排序与标红，不构成放行结论。
 	LowScoreThreshold = 60
 	// CollapsedDimensionScore 是维度塌陷阈值：任一维度低于它即点名。
@@ -49,9 +49,12 @@ const (
 	LevelNone Level = "none"
 	// LevelLow 低风险：只提示，不影响人工判断的主次。
 	LevelLow Level = "low"
-	// LevelMedium 中风险：值得优先看一眼，例如观察级词命中或分数不合格。
+	// LevelMedium 中风险：值得优先看一眼，例如分数不合格。
 	LevelMedium Level = "medium"
-	// LevelHigh 高风险：阻断级词命中，人工应先处理。
+	// LevelHigh 高风险：按严重性排在队列最前。
+	//
+	// 评分派生层不产生 high（低分是 medium，维度塌陷与篇幅异常是 low），
+	// 这个取值随契约保留，供人工处置与将来更严的规则使用。
 	LevelHigh Level = "high"
 )
 
@@ -79,10 +82,6 @@ func (l Level) Rank() int {
 type SignalCode string
 
 const (
-	// CodeBlockWord 阻断级词命中（命中即自动拒的那一档，本票只标红）。
-	CodeBlockWord SignalCode = "block_word"
-	// CodeWatchWord 观察级词命中（只标红、交人）。
-	CodeWatchWord SignalCode = "watch_word"
 	// CodeLowScore 评分总分低于及格线。
 	CodeLowScore SignalCode = "low_score"
 	// CodeDimensionCollapse 有一个或多个评分维度塌陷。
@@ -91,122 +90,15 @@ const (
 	CodeLengthAbnormal SignalCode = "length_abnormal"
 )
 
-// WordLists 是两档高危词表，内容来自运行期配置（运营热改，不发版）。
-//
-// 这里只声明形状；字面默认值只写在 backend/config/site_default_settings.yaml，
-// 代码里不再抄一份（"每个清单只有一个定义点"）。
-type WordLists struct {
-	// Block 阻断级：命中即高风险。
-	Block []string
-	// Watch 观察级：命中即中风险。
-	Watch []string
-}
-
 // Signal 是一条风险信号。
 type Signal struct {
 	// Code 是稳定标识。
 	Code SignalCode
 	// Level 是这条信号建议的风险等级。
 	Level Level
-	// Detail 是给人看的命中细节（词 / 维度名 / 分数与篇幅），
+	// Detail 是给人看的命中细节（维度名 / 分数与篇幅），
 	// 不进对外契约；审核列表只下发 code。
 	Detail string
-}
-
-// MatchWords 用两档词表扫描正文，返回命中的词表信号。
-//
-// 规则结构（在代码里）：
-//   - 大小写不敏感（英文/拉丁字母），中文本来就没有大小写；
-//   - 以 ASCII 字母或数字开头/结尾的词要求词边界，避免 "64" 命中 "1648"、
-//     "cat" 命中 "concat"。这是**已知误报类**里唯一能廉价消除的一类；
-//   - 中日韩文字没有词分隔符，按字面子串命中。已知误报：短词出现在更长的
-//     人名、成语、数字串里无法在这一层消除，靠分档与人工兜底——这不是遗漏，
-//     是选中字符串匹配时接受的代价；
-//   - 同一个词在正文命中多次只报一条；同时出现在两档时按阻断级报（更严重者优先）。
-func MatchWords(text string, lists WordLists) []Signal {
-	lowerText := strings.ToLower(text)
-	seen := make(map[string]bool)
-
-	matched := make([]Signal, 0, len(lists.Block)+len(lists.Watch))
-	appendTier := func(words []string, code SignalCode, level Level) {
-		for _, raw := range words {
-			word := strings.TrimSpace(raw)
-			if word == "" {
-				continue
-			}
-			key := strings.ToLower(word)
-			if seen[key] {
-				continue
-			}
-			if !containsWord(lowerText, key) {
-				continue
-			}
-			seen[key] = true
-			matched = append(matched, Signal{Code: code, Level: level, Detail: word})
-		}
-	}
-
-	appendTier(lists.Block, CodeBlockWord, LevelHigh)
-	appendTier(lists.Watch, CodeWatchWord, LevelMedium)
-	return matched
-}
-
-// containsWord 判断 word 是否作为独立词出现在已转小写的 text 里。
-//
-// word 也必须是已转小写的。边界规则只看两侧字符：词首/词尾是 ASCII 字母或数字时，
-// 紧邻的那个字符不能也是 ASCII 字母或数字；中文词不做边界判断。
-func containsWord(text, word string) bool {
-	needStartBoundary := startsWithASCIIAlnum(word)
-	needEndBoundary := endsWithASCIIAlnum(word)
-
-	offset := 0
-	for {
-		pos := strings.Index(text[offset:], word)
-		if pos < 0 {
-			return false
-		}
-		start := offset + pos
-		end := start + len(word)
-
-		if needStartBoundary && start > 0 {
-			if prev, _ := utf8.DecodeLastRuneInString(text[:start]); isASCIIAlnum(prev) {
-				offset = start + 1
-				continue
-			}
-		}
-		if needEndBoundary && end < len(text) {
-			if next, _ := utf8.DecodeRuneInString(text[end:]); isASCIIAlnum(next) {
-				offset = start + 1
-				continue
-			}
-		}
-		return true
-	}
-}
-
-// startsWithASCIIAlnum 判断词首是否是 ASCII 字母或数字。
-func startsWithASCIIAlnum(word string) bool {
-	if word == "" {
-		return false
-	}
-	r, _ := utf8.DecodeRuneInString(word)
-	return isASCIIAlnum(r)
-}
-
-// endsWithASCIIAlnum 判断词尾是否是 ASCII 字母或数字。
-func endsWithASCIIAlnum(word string) bool {
-	if word == "" {
-		return false
-	}
-	r, _ := utf8.DecodeLastRuneInString(word)
-	return isASCIIAlnum(r)
-}
-
-// isASCIIAlnum 判断 r 是否是 ASCII 字母或数字。
-//
-// 只处理 ASCII：中文、全角字符相邻时不应触发边界限制（它们本来就不是词边界）。
-func isASCIIAlnum(r rune) bool {
-	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 }
 
 // ── 第②层：从已有评分记录派生风险标签 ──
@@ -306,17 +198,17 @@ func collapsedDimensions(raw string) []string {
 	return collapsed
 }
 
-// Result 是一次机审前两层的结论。
+// Result 是一次机审判定的结论。
 type Result struct {
 	// Level 是最严重的信号等级；没有任何信号时为 LevelNone。
 	Level Level
-	// Signals 按"词表层（阻断级 → 观察级）→ 评分层"的顺序给出，便于展示。
+	// Signals 按评分层的顺序给出（低分 → 维度塌陷 → 篇幅异常），便于展示。
 	Signals []Signal
 }
 
 // Labels 返回去重后的风险标签 code（按首次出现顺序）。
 //
-// 契约下发的是这一份：同一档命中多个词只给一个 label，标签数量不随词表长度膨胀。
+// 契约下发的是这一份：同一 code 只给一个 label，标签数量不随信号条数膨胀。
 func (r Result) Labels() []string {
 	if len(r.Signals) == 0 {
 		return nil
@@ -333,13 +225,12 @@ func (r Result) Labels() []string {
 	return labels
 }
 
-// Evaluate 合并两层机审：词表命中与从已有评分派生的标签。
+// Evaluate 汇总本层的结论：只有从已有评分派生的标签。
 //
-// score 为 nil 表示这篇文章还没有评分记录（或评分端口不可用），此时只算词表层，
-// 不报错（票 311 验收标准 5）。文本通常是"标题 + 正文"。
-func Evaluate(text string, lists WordLists, score *ScoreFacts) Result {
-	signals := MatchWords(text, lists)
-	signals = append(signals, ScoreSignals(score)...)
+// score 为 nil 表示这篇文章还没有评分记录（或评分端口不可用），此时不产生任何
+// 信号、不报错（票 311 验收标准 5）。
+func Evaluate(score *ScoreFacts) Result {
+	signals := ScoreSignals(score)
 
 	level := LevelNone
 	for _, s := range signals {

@@ -57,7 +57,7 @@ func (f fakeCollectionTextFilter) FilterCollectionText(_ context.Context, in app
 // newFilteredService 构造接入内容过滤的文章服务。
 func newFilteredService(t *testing.T, filter *fakeTextFilter) (*app.Service, *apptest.Repos) {
 	t.Helper()
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	svc.WithContentFilter(fakeArticleTextFilter{inner: filter}).
 		WithCollectionContentFilter(fakeCollectionTextFilter{inner: filter})
 	return svc, repos
@@ -89,6 +89,53 @@ func TestCreateMasksTitleAndContent(t *testing.T) {
 	}
 	if created.Article.Content() != "本文讨论**成瘾" {
 		t.Fatalf("正文应为替换后文本，实际 %q", created.Article.Content())
+	}
+}
+
+// TestCreateMaskedWordsStillPassesSubmit 命中词不影响投稿：词表层已随「文章词表机审
+// 退场」删除（ADR-0032 决策 1），正文里的命中词被内容过滤替换成等长 `*` 之后照常
+// 进入风险扫描与发布分流 —— 不会因为"命中过词"被拒。
+func TestCreateMaskedWordsStillPassesSubmit(t *testing.T) {
+	t.Parallel()
+
+	filter := &fakeTextFilter{words: []string{"代开发票"}}
+	svc, repos := newFilteredService(t, filter)
+
+	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
+		Title:         "关于代开发票的科普",
+		Content:       "代开发票是违法行为，请勿尝试",
+		TargetStatus:  domain.StatusExamining,
+		SkipExamining: false,
+	})
+	if err != nil {
+		t.Fatalf("命中词经替换后应照常提交成功: %v", err)
+	}
+	if created.FilteredCount != 2 {
+		t.Fatalf("标题与正文各命中一处，filtered_count 应为 2，实际 %d", created.FilteredCount)
+	}
+	if got := created.Article.Title(); got != "关于****的科普" {
+		t.Fatalf("标题应为替换后文本，实际 %q", got)
+	}
+	if got := created.Article.Content(); got != "****是违法行为，请勿尝试" {
+		t.Fatalf("正文应为替换后文本，实际 %q", got)
+	}
+
+	// 落库的是替换后文本，并按常规分流进「已发布待可见」。
+	stored, err := repos.FakeArticles().Find(context.Background(), created.Article.ID())
+	if err != nil {
+		t.Fatalf("读文章失败: %v", err)
+	}
+	if stored.Status() != domain.StatusPublished || stored.Visibility() != domain.VisibilityPendingReview {
+		t.Fatalf("应落 Published + pending_review，实际 %s / %s", stored.Status(), stored.Visibility())
+	}
+	if stored.Title() != "关于****的科普" || stored.Content() != "****是违法行为，请勿尝试" {
+		t.Fatalf("落库文本应为替换后版本，实际 %q / %q", stored.Title(), stored.Content())
+	}
+	tasks, _ := repos.FakeReviews().ListPendingByArticle(context.Background(), stored.ID())
+	if len(tasks) != 0 {
+		t.Fatalf("干净（已替换）文章不该在同步路径建人工任务，实际 %d 条", len(tasks))
 	}
 }
 

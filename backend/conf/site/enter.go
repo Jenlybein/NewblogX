@@ -96,14 +96,6 @@ type Article struct {
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
 
-	// Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
-	//
-	// 词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
-	// internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
-	// 自动拒（本票只标红），观察级只标红、处置权交人。
-	//
-	// 缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
-	// 这里不写第二份字面默认值。
 	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
 	//
 	// 它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
@@ -113,33 +105,6 @@ type Article struct {
 	// 缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective
 	// 一处收敛，不在用例层与 adapter 各抄一份。
 	QualityGate QualityGate `yaml:"quality_gate" json:"quality_gate"`
-
-	Moderation Moderation `yaml:"moderation" json:"moderation"`
-}
-
-// Moderation 是机审词表的运行期配置形状。
-//
-// 两个清单都整段替换（不做逐元素合并）：删掉一个词必须真的删掉，不能因为
-// 默认值里还留着而"删了没反应"（合并语义见 internal/platform/config/merge.go）。
-type Moderation struct {
-	// BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。
-	BlockWords []string `yaml:"block_words" json:"block_words"`
-	// WatchWords 观察级词表：命中只标红，处置权在人。
-	WatchWords []string `yaml:"watch_words" json:"watch_words"`
-}
-
-// Comment 是评论段**仅存的**运行期配置：旧机审词表。
-//
-// 评论审核整体退场（票 400 / ADR-0032 决策 5）：评论一律发布，不再有免审核开关、
-// 不再过词表机审、不再过 AI 合规判定 —— 命中词由全站内容过滤替换成 `*` 并进
-// 关键词风险页。于是这里只剩一个问题：**旧词表还在库里**。
-//
-// 这一项因此只作**迁移来源**保留：启动时 content_filter 段首次出现，会把这里的
-// 词合并进新段（见 internal/platform/config 的 mergeLegacyModerationWords）。
-// 评论模块自己不再读它，后台也没有它的编辑入口 —— 词表归「站点 → 内容过滤」。
-// 字段本身等收口票统一删除，届时 migration 的来源也随之失效。
-type Comment struct {
-	Moderation Moderation `yaml:"moderation" json:"moderation"`
 }
 
 // Chat 是私信的站点级策略（#202）。

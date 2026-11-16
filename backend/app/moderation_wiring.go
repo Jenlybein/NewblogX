@@ -1,8 +1,10 @@
-// 机审前两层的装配（票 311）。
+// 机审评分派生层的装配（票 311）。
 //
-// 合成根只做跨模块接线：article 用例层定义端口，这里把它们接到 ai 模块的评分
-// 仓储与平台层的运行时配置。article 模块本身不认识 AI 模块的实体，也不 import
-// 平台配置（R11）。
+// 合成根只做跨模块接线：article 用例层定义端口，这里把它接到 ai 模块的评分仓储。
+// article 模块本身不认识 AI 模块的实体（R11）。
+//
+// 词表那一层已随「文章词表机审退场」删除（票 401 / ADR-0032 决策 6），所以这里
+// 不再有"现读词表闭包"的接线。
 package app
 
 import (
@@ -15,7 +17,6 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/moderation"
-	"myblogx/internal/platform/config"
 )
 
 // newArticleModerationScores 把 ai 模块的评分仓储接成 article 的只读端口。
@@ -59,18 +60,4 @@ func (s articleModerationScores) LatestScores(ctx context.Context, articleIDs []
 		}
 	}
 	return out, nil
-}
-
-// articleModerationWords 返回现读词表的闭包。
-//
-// 每次调用都回到运行时配置的现读快照：运营改完词表，下一次列表请求立即生效，
-// 不需要重启，也不需要把旧结论回填（票 311 验收标准 2）。
-func articleModerationWords(effective *config.EffectiveConfig) articleapp.ModerationWordProvider {
-	return func() moderation.WordLists {
-		article := effective.Article()
-		return moderation.WordLists{
-			Block: article.Moderation.BlockWords,
-			Watch: article.Moderation.WatchWords,
-		}
-	}
 }

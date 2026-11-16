@@ -232,32 +232,21 @@ func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	}
 
 	var loaded *RuntimeConfig
-	// contentFilterMissing：库里还没有第 11 段。这是判断"新段为空"的唯一可靠依据 ——
-	// 默认值文件里本来就有一批非涉政种子词，按字面"词表为空"判会让合并永远不触发。
-	contentFilterMissing := false
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		payloads, err := loadPayloads(tx)
 		if err != nil {
 			return err
 		}
 		loaded = s.decodeAll(payloads)
-		if _, ok := payloads[string(SectionContentFilter)]; !ok {
-			contentFilterMissing = true
-		}
 		return s.seedMissing(tx, payloads)
 	}); err != nil {
 		return err
 	}
 
 	s.setCache(loaded)
-
-	// 首次上线本段时合并旧的两份词表（ADR-0032 决策 12）。只在这个窗口发生一次：
-	// 段存在之后（哪怕运营把词删空）就不再合并，否则删掉的词每次重启都会复活。
-	if contentFilterMissing {
-		if err := s.mergeLegacyModerationWords(); err != nil {
-			return err
-		}
-	}
+	// 第 11 段 content_filter 的旧词合并（首启时把 site.article.moderation /
+	// site.comment.moderation 并进新段）已随词表机审退场删除（票 401）：旧的两段
+	// 配置结构不再存在，合并的来源与目标都没有了。
 	return nil
 }
 

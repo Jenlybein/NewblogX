@@ -209,10 +209,10 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	for _, task := range listOf(t, do(t, admin, http.MethodGet, "/api/article-review", nil)) {
 		if task["article_id"] == reviewArticleID {
 			taskID, _ = task["id"].(string)
-			// 机审前两层的字段必须出现在每一条任务上（票 311）：端到端装配没有
-			// 注入评分/词表，所以这里是 none + 空数组，但形状不能缺。
+			// 风险字段必须出现在每一条任务上（票 311）：端到端装配没有
+			// 注入评分，所以这里是 none + 空数组，但形状不能缺。
 			if task["risk_level"] != "none" {
-				t.Fatalf("无词表、无评分时风险等级应为 none，实际 %v", task["risk_level"])
+				t.Fatalf("无评分时风险等级应为 none，实际 %v", task["risk_level"])
 			}
 			if _, ok := task["risk_labels"].([]any); !ok {
 				t.Fatalf("risk_labels 应是数组，实际 %T", task["risk_labels"])

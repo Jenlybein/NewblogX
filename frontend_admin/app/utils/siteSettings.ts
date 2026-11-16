@@ -80,8 +80,8 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
     label: '发布与审核',
     path: '/site/publish',
     component: 'SettingsSitePublish',
-    // 评论段不再由这一页编辑（票 400：评论审核退场）。它仍留在 site 段里当作
-    // 旧词表的迁移来源，本页既不展示也不覆盖它 —— 由读-改-写原样往返。
+    // 词表已随「文章词表机审退场」从这一页摘除（票 401），发布治理只剩 article 一块；
+    // 词表归「站点 → 内容过滤」（content_filter 段，自己的整段端点）。
     blocks: ['article'],
   },
   {

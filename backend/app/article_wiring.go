@@ -20,6 +20,8 @@ import (
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/article/domain/grouping"
+	filterapp "myblogx/internal/filter/app"
+	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
@@ -75,7 +77,59 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		newArticleModerationScores(infra.DB),
 		articleModerationWords(infra.Effective),
 		qualityGatePort{},
-	).WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
+	).
+		// 内容过滤（票 397 / ADR-0032）：两个面各自一个 bridge，面枚举钉死在装配层。
+		WithContentFilter(articleTextFilterBridge{svc: infra.Filter}).
+		WithCollectionContentFilter(collectionTextFilterBridge{svc: infra.Filter}).
+		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
+}
+
+// articleTextFilterBridge 把内容过滤服务接成 article 模块的文章面端口（票 397）。
+//
+// 与评论面同构：文章模块的端口不带 surface（它只知道"这是我的标题 / 正文"），
+// 面枚举由装配层决定。分成文章与合集两个类型而不是一个带参数的实现，是为了让
+// "把合集桥接给文章"变成编译错误，而不是一条悄悄写错面的命中记录。
+type articleTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterArticleText 替换文章文本里的命中词并记一条关键词风险。
+func (b articleTextFilterBridge) FilterArticleText(ctx context.Context, in articleapp.FilterText) (articleapp.FilteredText, error) {
+	if b.svc == nil {
+		return articleapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceArticle,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return articleapp.FilteredText{}, err
+	}
+	return articleapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
+}
+
+// collectionTextFilterBridge 把内容过滤服务接成合集面端口（票 397）。
+type collectionTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterCollectionText 替换合集标题 / 描述里的命中词并记一条关键词风险。
+func (b collectionTextFilterBridge) FilterCollectionText(ctx context.Context, in articleapp.FilterText) (articleapp.FilteredText, error) {
+	if b.svc == nil {
+		return articleapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceCollection,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return articleapp.FilteredText{}, err
+	}
+	return articleapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }
 
 // articleActivity 用分析模块的 ClickHouse 读面实现 article 的活动端口（票 354）。

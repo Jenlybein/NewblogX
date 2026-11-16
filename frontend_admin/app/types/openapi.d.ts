@@ -1681,7 +1681,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse"];
                     };
                 };
             };
@@ -8033,6 +8033,7 @@ export interface components {
             category_id?: string;
             comments_toggle?: boolean;
             cover_image_id?: string;
+            filtered_count?: number;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
@@ -8210,6 +8211,38 @@ export interface components {
             title?: string;
             /** @enum {string} */
             visibility_status?: "visible" | "user_hidden";
+        };
+        "internal_article_adapter_http.ArticleUpdateResponse": {
+            abstract?: string;
+            author_abstract?: string;
+            author_avatar?: string;
+            author_avatar_image_id?: string;
+            author_created_time?: string;
+            author_id?: string;
+            author_name?: string;
+            author_username?: string;
+            category_id?: string;
+            category_name?: string;
+            comment_count?: number;
+            comments_toggle?: boolean;
+            content?: string;
+            cover?: string;
+            cover_image_id?: string;
+            created_at?: string;
+            digg_count?: number;
+            favor_count?: number;
+            filtered_count?: number;
+            id?: string;
+            is_digg?: boolean;
+            is_favor?: boolean;
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            tag_ids?: string[];
+            tags?: string[];
+            title?: string;
+            updated_at?: string;
+            view_count?: number;
+            visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
         "internal_article_adapter_http.ArticleViewCountRequest": {
             article_id: string;
@@ -9917,6 +9950,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleUpdateResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {

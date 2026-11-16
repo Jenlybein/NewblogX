@@ -40,7 +40,12 @@ const (
 //  1. 校验分类归属、标签可用（脏输入整单失败，而不是静默丢弃）；
 //  2. 按站点配置把"提交"解析成 审核中 或 已发布；
 //  3. 同一事务内：写文章 + 写标签关系 +（需审核时）建审核任务 + 作者文章数 +1。
-func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Article, error) {
+//
+// 内容过滤（票 397 / ADR-0032）在**配额预占之后、风险扫描与评分之前**：
+// 替换后的文本才是入库、进 ES、进通知的唯一版本，所以闸门与同步风险扫描也必须
+// 读替换后的文本。放在配额之后是刻意的 —— 被配额挡下的提交一个字节都不该落库，
+// 包括关键词风险记录。
+func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResult, error) {
 	if !cmd.Actor.IsLoggedIn() {
 		return nil, domain.ErrForbidden
 	}
@@ -62,25 +67,39 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 	// 预占放在事务之前——超限时一个字节都不该落库；闸门落地后评分调用也要排在
 	// 预占之后，否则"评分成功才发现超限"会白烧一次模型调用。
 	var reservation SubmitQuotaReservation
-	gateRejected := false
-	var verdict qualityVerdict
 	// riskRejected 是提交时同步风险扫描命中 medium 及以上的结论（票 302 新规则）。
 	// 它与 gateRejected 的落点不同：质量不达标落草稿可改，风险命中直接 REJECTED。
-	riskRejected := false
+	var riskRejected bool
+	var verdict qualityVerdict
+	gateRejected := false
 	// 新建文章在评分时还没有落库，但评分记录要按真实的 article_id 写，
 	// 所以闸门开启时先在事务外生成 ID，写事务复用它。
-	var articleID domain.ArticleID
+	//
+	// 现在无条件先取：内容过滤的命中记录也要指回真实文章 ID（票 397），
+	// 而过滤发生在闸门之前。雪花 ID 不占事务、也不依赖落库，提前取没有代价。
+	articleID := s.ids.NextArticleID()
 	if target == domain.StatusExamining {
 		res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
 		if err != nil {
 			return nil, err
 		}
 		reservation = res
+	}
 
+	// 内容过滤（票 397 / ADR-0032 决策 5/6）：落库前把标题 / 摘要 / 正文里的
+	// 命中词替换成等长 `*`。替换后的文本是后面所有步骤（同步风险扫描、质量闸门、
+	// 落库、ES 投影、通知）唯一读到的版本。
+	texts, filteredCount := s.filterArticle(ctx, cmd.Actor.UserID, articleID, articleTexts{
+		Title:    cmd.Title,
+		Abstract: cmd.Abstract,
+		Content:  cmd.Content,
+	})
+
+	if target == domain.StatusExamining {
 		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，
 		// 同步风险扫描也不拦（异步合规判定仍作事后兜底）。
 		if !cmd.SkipExamining {
-			risk, err := s.scanSubmitRisk(ctx, cmd.Title, cmd.Content, domain.ArticleID(""))
+			risk, err := s.scanSubmitRisk(ctx, texts.Title, texts.Content, domain.ArticleID(""))
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
 				return nil, err
@@ -92,12 +111,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 			// 评分必须在数据库事务之外（票 306 / ADR-0023）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
-			articleID = s.ids.NextArticleID()
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
 				ArticleID:     articleID,
 				AuthorID:      cmd.Actor.UserID,
-				Title:         cmd.Title,
-				Content:       cmd.Content,
+				Title:         texts.Title,
+				Content:       texts.Content,
 				UpdatedAt:     s.clock.Now(),
 				AuthorIsAdmin: cmd.Actor.IsAdmin(),
 			})
@@ -135,16 +153,13 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 			t := now
 			submittedAt = &t
 		}
-		if articleID.IsZero() {
-			articleID = s.ids.NextArticleID()
-		}
 
 		article, err := domain.NewArticle(domain.NewArticleParams{
 			ID:             articleID,
 			AuthorID:       cmd.Actor.UserID,
-			Title:          cmd.Title,
-			Abstract:       cmd.Abstract,
-			Content:        cmd.Content,
+			Title:          texts.Title,
+			Abstract:       texts.Abstract,
+			Content:        texts.Content,
 			CategoryID:     cmd.CategoryID,
 			Cover:          cmd.Cover,
 			CommentsToggle: cmd.CommentsToggle,
@@ -202,7 +217,9 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		// 命中词、维度、等级都不带给作者。
 		return nil, newRiskRejection()
 	}
-	return created, nil
+	// FilteredCount 只回答"这次写入被替换了几处"：前端据此提示「已过滤 N 处」，
+	// 永不回显命中词（ADR-0032 决策 4）。
+	return &CreateResult{Article: created, FilteredCount: filteredCount}, nil
 }
 
 // ensureCategoryOwned 校验分类存在且属于该用户。

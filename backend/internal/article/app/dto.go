@@ -81,6 +81,18 @@ type UpdateArticleCmd struct {
 	QualityGate QualityGatePolicy
 }
 
+// CreateResult 是创建结果。
+//
+// 与 UpdateResult 对称：文章实体之外还带上"这次写入过滤了几处"（票 397）。
+// 那个数字只属于这一次写入，不是文章的一部分 —— 详情接口不该带它，
+// 命中词本身则永远不出后端（ADR-0032 决策 4）。
+type CreateResult struct {
+	// Article 新建的聚合。
+	Article *domain.Article
+	// FilteredCount 是内容过滤实际替换的处数（只用于「已过滤 N 处」的提示）。
+	FilteredCount int
+}
+
 // UpdateResult 是更新结果。
 type UpdateResult struct {
 	// Article 变更后的聚合。
@@ -91,6 +103,8 @@ type UpdateResult struct {
 	Resubmitted bool
 	// TagsReplaced 标签是否被替换（adapter 需要同步 ES 投影）。
 	TagsReplaced bool
+	// FilteredCount 是内容过滤实际替换的处数（票 397，与 CreateResult 同义）。
+	FilteredCount int
 }
 
 // ArticleView 是聚合的只读快照，供 adapter 构造响应。

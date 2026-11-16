@@ -188,7 +188,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	article, err := h.svc.Create(c.Request.Context(), app.CreateArticleCmd{
+	created, err := h.svc.Create(c.Request.Context(), app.CreateArticleCmd{
 		Actor:          v,
 		Title:          cr.Title,
 		Abstract:       abstract,
@@ -208,11 +208,12 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
+	article := created.Article
 	h.audit(c, "article_create", article.ID(), true, "创建文章")
 	res.OkWithData(toCreateResponse(app.ArticleView{
 		Article: *article,
 		Tags:    nil,
-	}, coverImageID), c)
+	}, coverImageID, created.FilteredCount), c)
 }
 
 // ── 更新 ──
@@ -226,7 +227,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
 // @Param body body ArticleUpdateRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[ArticleDetailResponse]
+// @Success 200 {object} kernel.Envelope[ArticleUpdateResponse]
 // @Router /articles/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
@@ -275,7 +276,7 @@ func (h *Handler) Update(c *gin.Context) {
 		visibility = &vv
 	}
 
-	_, err := h.svc.Update(c.Request.Context(), app.UpdateArticleCmd{
+	updated, err := h.svc.Update(c.Request.Context(), app.UpdateArticleCmd{
 		Actor:          h.viewerOf(c),
 		ArticleID:      uri.ID,
 		Title:          cr.Title,
@@ -305,7 +306,10 @@ func (h *Handler) Update(c *gin.Context) {
 		res.OkWithMsg("更新成功", c)
 		return
 	}
-	res.OkWithData(h.toDetailResponse(c.Request.Context(), view), c)
+	res.OkWithData(ArticleUpdateResponse{
+		ArticleDetailResponse: h.toDetailResponse(c.Request.Context(), view),
+		FilteredCount:         updated.FilteredCount,
+	}, c)
 }
 
 // ── 删除 ──

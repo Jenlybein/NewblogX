@@ -17,6 +17,8 @@ import (
 	authsec "myblogx/internal/auth/adapter/security"
 	authapp "myblogx/internal/auth/app"
 	authdomain "myblogx/internal/auth/domain"
+	filterapp "myblogx/internal/filter/app"
+	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
@@ -97,6 +99,12 @@ func WireUser(infra *Infra) {
 			Tags:      &tagBridge{db: infra.DB},
 			AuthorStats: &authorStatsBridge{db: infra.DB},
 		}),
+		// 内容过滤（票 397 / ADR-0032）：昵称与简介两个面各一个 bridge，
+		// 面枚举钉死在装配层 —— 用户模块只认识"这是我的昵称 / 简介"。
+		userapp.WithContentFilter(
+			nicknameTextFilterBridge{svc: infra.Filter},
+			abstractTextFilterBridge{svc: infra.Filter},
+		),
 	)
 
 	// ── auth 模块 ──
@@ -691,4 +699,51 @@ func normalizeTagIDs(ids []uint64) []uint64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+// nicknameTextFilterBridge 把内容过滤服务接成用户模块的昵称面端口（票 397）。
+//
+// 昵称与简介是本次事故里唯一被判定为"发布传播"的文本面（公开个人主页会渲染），
+// 而它们在改造前只有长度校验。面枚举在这里钉死：用户模块不需要认识另外五个面。
+type nicknameTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterNicknameText 替换昵称里的命中词并记一条关键词风险。
+func (b nicknameTextFilterBridge) FilterNicknameText(ctx context.Context, in userapp.FilterText) (userapp.FilteredText, error) {
+	if b.svc == nil {
+		return userapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceNickname,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return userapp.FilteredText{}, err
+	}
+	return userapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
+}
+
+// abstractTextFilterBridge 把内容过滤服务接成个人简介面端口（票 397）。
+type abstractTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterAbstractText 替换个人简介里的命中词并记一条关键词风险。
+func (b abstractTextFilterBridge) FilterAbstractText(ctx context.Context, in userapp.FilterText) (userapp.FilteredText, error) {
+	if b.svc == nil {
+		return userapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceAbstract,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return userapp.FilteredText{}, err
+	}
+	return userapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }

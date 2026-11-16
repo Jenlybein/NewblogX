@@ -3,7 +3,7 @@
   "minimumEntries": {
     "paths": 162,
     "operations": 206,
-    "schemas": 378
+    "schemas": 380
   },
   "addedIn": [
     {
@@ -394,6 +394,15 @@
         "internal_filter_adapter_http.TopUserItem",
         "internal_filter_adapter_http.HitListResponse",
         "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse"
+      ]
+    },
+    {
+      "ticket": "397",
+      "reason": "五个文本面接入内容过滤：文章创建/更新响应带上本次替换处数（filtered_count），更新响应因此有独立形状（详情内嵌 + 处数同级），评论创建响应同时补 filtered_count。产物实测 162/206/378 → 162/206/380（零新增 path / operation，+2 schema）。",
+      "paths": {},
+      "schemas": [
+        "internal_article_adapter_http.ArticleUpdateResponse",
+        "internal_article_adapter_http.ArticleCreateResponse"
       ]
     }
   ]

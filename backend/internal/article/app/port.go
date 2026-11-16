@@ -329,6 +329,30 @@ type Service struct {
 	// activity 是创作活动读端口（票 354）。为 nil 表示"没有活动数据"，
 	// 个人概览的热力图退回全零 —— 分析库不可用不该让整页打不开。
 	activity ActivityPort
+	// filter 过滤文章标题 / 摘要 / 正文（票 397）。nil 表示未接入过滤，
+	// 文章按原文落库（与改造前一致）；生产装配必然注入（article_wiring.go）。
+	filter ArticleTextFilterer
+	// collectionFilter 过滤合集标题 / 描述（票 397）。nil 同 filter。
+	collectionFilter CollectionTextFilterer
+}
+
+// WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。
+//
+// 用可选注入而不是往 New 的参数表再加两项：New 已经有七个参数、几十处调用点，
+// 为一个"多出来的清洗层"再动一遍全部调用点没有收益。没接入的调用点（旧测试）
+// 行为与改造前完全一致 —— 按原文落库。
+func (s *Service) WithContentFilter(filter ArticleTextFilterer) *Service {
+	s.filter = filter
+	return s
+}
+
+// WithCollectionContentFilter 接入合集文本的内容过滤（票 397）。
+//
+// 与文章面分开注入：两个面的枚举值不同（article / collection），而"哪段文本属于
+// 哪个面"只在装配层的 bridge 里钉死（ADR-0032 决策 4）。
+func (s *Service) WithCollectionContentFilter(filter CollectionTextFilterer) *Service {
+	s.collectionFilter = filter
+	return s
 }
 
 // WithActivity 注入创作活动读端口（票 354）。
@@ -354,6 +378,8 @@ func New(
 		quota: quota, scores: scores, words: words, quality: quality,
 	}
 }
+
+// Service 侧的内容过滤端口见 filter.go：ArticleTextFilterer / CollectionTextFilterer。
 
 // ActivityPort 是「某用户最近 N 天每天有多少次创作动作」（票 354）。
 //

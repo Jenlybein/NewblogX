@@ -32,7 +32,7 @@ func TestCreateMediumRiskIsRejected(t *testing.T) {
 			svc, repos := newModerationService(t, nil, func() moderation.WordLists { return tc.lists })
 			ctx := context.Background()
 
-			a, err := svc.Create(ctx, app.CreateArticleCmd{
+			res, err := svc.Create(ctx, app.CreateArticleCmd{
 				Actor:         authorViewer(),
 				Policy:        domain.OpenWritePolicy(),
 				Title:         "投稿",
@@ -40,6 +40,10 @@ func TestCreateMediumRiskIsRejected(t *testing.T) {
 				TargetStatus:  domain.StatusExamining,
 				SkipExamining: false,
 			})
+			var a *domain.Article
+			if res != nil {
+				a = res.Article
+			}
 			if err == nil {
 				t.Fatal("命中 medium 及以上风险应直接拒绝提交")
 			}
@@ -80,7 +84,7 @@ func TestCreateLowRiskStillPublishesPendingReview(t *testing.T) {
 	// 评分派生只给 low 的组合：总分略高但篇幅偏短等不构成 medium。
 	// 这里用空词表 + 无评分记录，等价于 none。
 	svc, _ := newModerationService(t, nil, nil)
-	a, err := svc.Create(context.Background(), app.CreateArticleCmd{
+	res, err := svc.Create(context.Background(), app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "干净稿",
@@ -91,6 +95,7 @@ func TestCreateLowRiskStillPublishesPendingReview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("none 风险不该拦人: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityPendingReview {
 		t.Fatalf("应落 Published + pending_review，实际 %s / %s", a.Status(), a.Visibility())
 	}
@@ -102,7 +107,7 @@ func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 
 	lists := moderation.WordLists{Block: []string{"代开发票"}}
 	svc, repos := newModerationService(t, nil, func() moderation.WordLists { return lists })
-	a, err := svc.Create(context.Background(), app.CreateArticleCmd{
+	res, err := svc.Create(context.Background(), app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "投稿",
@@ -113,6 +118,7 @@ func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("免审核开启时不应被风险扫描拦下: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityVisible {
 		t.Fatalf("免审核应真发布且可见，实际 %s / %s", a.Status(), a.Visibility())
 	}

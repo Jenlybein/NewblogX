@@ -40,6 +40,9 @@ type ArticleUpdateRequest struct {
 }
 
 // ArticleCreateResponse 创建结果。
+//
+// filtered_count 是内容过滤实际替换的处数（票 397）：前端据此提示「已过滤 N 处」，
+// 永不回显命中了哪个词（ADR-0032 决策 4）。
 type ArticleCreateResponse struct {
 	ID               ctype.ID          `json:"id"`
 	Title            string            `json:"title"`
@@ -50,6 +53,7 @@ type ArticleCreateResponse struct {
 	Status           ArticleStatus     `json:"status"`
 	PublishStatus    ArticleStatus     `json:"publish_status"`
 	VisibilityStatus ArticleVisibility `json:"visibility_status"`
+	FilteredCount    int               `json:"filtered_count"`
 }
 
 // ArticleDetailResponse 详情。字段顺序与改造前一致，便于 diff。
@@ -83,6 +87,16 @@ type ArticleDetailResponse struct {
 	CategoryName        string            `json:"category_name"`
 	IsDigg              bool              `json:"is_digg"`
 	IsFavor             bool              `json:"is_favor"`
+}
+
+// ArticleUpdateResponse 更新结果（票 397）。
+//
+// 详情字段原样内嵌（作者 / 后台仍要拿到更新后的完整文章），过滤处数作为同级
+// 字段。为什么不把 filtered_count 直接加进 ArticleDetailResponse：那个形状也用在
+// 详情读接口上，而"这次写了几处"只属于一次写入，不是文章的一部分。
+type ArticleUpdateResponse struct {
+	ArticleDetailResponse
+	FilteredCount int `json:"filtered_count"`
 }
 
 // ArticleDiggRequest 点赞目标态（ADR-0016 决策 3）。

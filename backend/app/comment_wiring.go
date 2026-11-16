@@ -13,6 +13,8 @@ import (
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
+	filterapp "myblogx/internal/filter/app"
+	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/http/router"
@@ -57,8 +59,35 @@ func WireComment(infra *Infra) {
 			}
 		},
 		&commentComplianceBridge{},
-	)
+	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter})
 	router.SetCommentHandler(commenthttp.NewHandler(svc))
+}
+
+// commentContentFilterBridge 把内容过滤服务接成评论模块的端口（票 396）。
+//
+// 文本面在装配层钉死成 comment：评论模块的端口刻意不带 surface（它只知道
+// "这是我的评论文本"），面枚举属于内容过滤模块。
+type commentContentFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// Filter 过滤一段评论文本并记一条关键词风险。
+func (b commentContentFilterBridge) Filter(ctx context.Context, in domain.FilterRequest) (domain.FilterResult, error) {
+	// 过滤器没装配时原样返回：评论照常发布，只是没有过滤与命中记录。
+	// 这与"引擎没构建好就不启动"不冲突 —— 真到了线上，那条路径不存在。
+	if b.svc == nil {
+		return domain.FilterResult{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceComment,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return domain.FilterResult{}, err
+	}
+	return domain.FilterResult{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }
 
 // commentComplianceBridge 把 AI 模块的合规判定接成评论模块的端口（票 359）。

@@ -7,7 +7,9 @@ import (
 
 	"myblogx/conf"
 	"myblogx/core"
+	filterapp "myblogx/internal/filter/app"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/platform/es/articlesync"
 	"myblogx/internal/platform/health"
 	"myblogx/internal/platform/http/ws"
@@ -57,6 +59,17 @@ type Infra struct {
 	// 没有它就是"进程起不来"——加载失败在这里直接返回错误，不存在兜底文本。
 	// 正文由消费点按需读（skills.Skill.Body）。
 	Skills *skills.Catalog
+
+	// ContentFilter 是全站唯一的内容过滤引擎（ADR-0032 / 票 396）。
+	//
+	// 在 InitRuntimeServices 里按运行期词表构建一次，词表保存后原子重建；请求路径
+	// 只读不构建。挂在这里而不是让各模块各建一份：整站只能有一份"在跑的匹配器"，
+	// 否则同一个词在不同面上会有两种判定口径。
+	ContentFilter *contentfilter.Engine
+
+	// Filter 是命中记录与「关键词风险」读面的用例服务（评论接入、后续五个文本面、
+	// 存量清洗都复用它）。
+	Filter *filterapp.Service
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。
@@ -159,6 +172,13 @@ func InitRuntimeServices(infra *Infra) error {
 	// 场景 → skill 的引用在启动期一次查清：引用不存在的 skill 是**配置错误**，
 	// 不能等到第一个用户提问时才失败（ADR-0021：读不到就不启动）。
 	if err := ValidateSceneSkillBindings(runtimeSite.GetRuntimeAI(), infra.Skills); err != nil {
+		return err
+	}
+
+	// 内容过滤引擎（ADR-0032 / 票 396）：词表来自运行时配置，构建失败让启动失败。
+	// 放在运行时配置之后、HTTP 装配之前：它不依赖 HTTP，而且所有进程角色都该拿到
+	// 同一份引擎（"无过滤上线等于裸奔"——这条要在接第一个请求之前就成立）。
+	if err := InitContentFilter(infra); err != nil {
 		return err
 	}
 	return nil

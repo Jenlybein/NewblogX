@@ -53,6 +53,7 @@ import type {
   TagListItem,
   TagWritePayload,
   ContentFilterRuntimeConfig,
+  ContentFilterHitListData,
   UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
@@ -694,4 +695,20 @@ export function composeAdminEntity(
     `/${kind}s/${id}/compose`,
     { method: 'PUT', body: payload },
   )
+}
+
+/**
+ * 关键词风险一页（ADR-0032 决策 7 / 票 396）。
+ *
+ * 只读：这一票后端没有任何处置端点，所以这里只有取数。
+ * `surface` / `status` 传空串等于不筛（后端也按"不筛"处理）。
+ */
+export function getContentFilterHits(query: {
+  page?: number
+  limit?: number
+  surface?: string
+  status?: string
+  user_id?: string
+}) {
+  return api().request<ContentFilterHitListData>('/content-filter/hits', { query })
 }

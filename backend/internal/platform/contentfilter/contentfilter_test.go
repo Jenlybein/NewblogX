@@ -305,3 +305,49 @@ func TestScaleTo20kWords(t *testing.T) {
 		t.Fatal("替换必须等长")
 	}
 }
+
+// MaskedSpans 是"已过滤 N 处"的唯一来源（票 396）：白名单命中记了但不替换，
+// 所以 N 不能等于命中条数、也不能等于片段数。
+func TestMaskedSpansCountsOnlyReplacedSpans(t *testing.T) {
+	cases := []struct {
+		name      string
+		whitelist []string
+		text      string
+		want      int
+	}{
+		{
+			name:      "白名单命中不替换，不计入替换处数",
+			whitelist: []string{"冰毒科普"},
+			text:      "冰毒科普，冰毒有害",
+			want:      1,
+		},
+		{
+			name:      "全部命中都在白名单里时替换处数为 0",
+			whitelist: []string{"冰毒科普"},
+			text:      "冰毒科普",
+			want:      0,
+		},
+		{
+			name:      "重叠命中按并集算一处",
+			whitelist: nil,
+			text:      "代开发票",
+			want:      1,
+		},
+	}
+	words := []contentfilter.Word{
+		word("冰毒", contentfilter.TierBlock, contentfilter.CategoryDrugs),
+		word("代开发票", contentfilter.TierBlock, contentfilter.CategoryFakeDocs),
+		word("发票", contentfilter.TierWatch, contentfilter.CategoryFakeDocs),
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			engine, err := contentfilter.NewEngine(words, tc.whitelist)
+			if err != nil {
+				t.Fatalf("构建引擎失败: %v", err)
+			}
+			if got := engine.Filter(tc.text).MaskedSpans; got != tc.want {
+				t.Fatalf("替换处数应为 %d，实际 %d", tc.want, got)
+			}
+		})
+	}
+}

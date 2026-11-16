@@ -47,6 +47,7 @@ import (
 	commenthttp "myblogx/internal/comment/adapter/http"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	filterhttp "myblogx/internal/filter/adapter/http"
 	mediahttp "myblogx/internal/media/adapter/http"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	"myblogx/internal/platform/captcha"
@@ -126,6 +127,8 @@ var adminOnly = []struct {
 	// 内容过滤词表（第 11 段，ADR-0032）：只有管理端出入口，匿名与普通用户都读不到。
 	{"GET", "/api/site/admin/content_filter"},
 	{"PUT", "/api/site/content_filter"},
+	// 关键词风险列表（ADR-0032 决策 7 / 票 396）：命中记录属敏感信息，整段管理员专属。
+	{"GET", "/api/content-filter/hits"},
 	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
 	// 却从未被行为探针覆盖。补上后，普通用户令牌会被真的挡一次；漏挂中间件立即变红。
 	{"POST", "/api/banners"},
@@ -168,6 +171,8 @@ var adminAreaPrefixes = []string{
 	"/logs/",
 	"/users/admin",
 	"/site/admin/",
+	// 关键词风险（票 396）：整段只给管理员，读写混在一起的可能性为零。
+	"/content-filter/",
 }
 
 // userTokenVerifier 让任何非空令牌都以"普通用户"身份通过。
@@ -203,6 +208,7 @@ func injectZeroHandlers() router.Handlers {
 	router.SetFollowHandler(&socialhttp.Handler{})
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
+	router.SetFilterHandler(&filterhttp.Handler{})
 	return router.Handlers{Chat: &chathttp.Handler{}}
 }
 

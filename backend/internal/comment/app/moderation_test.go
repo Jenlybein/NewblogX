@@ -32,7 +32,11 @@ func newFakeRepo() *fakeRepo {
 }
 
 func (r *fakeRepo) Create(_ context.Context, c *domain.Comment) error {
-	c.ID = ctype.NewID(1)
+	// 只补空 ID：评论内容过滤（票 396）会在 Create 之前先生成 ID，好让命中记录
+	// 能指向新评论；无条件覆盖会让那条链路在测试里看起来"ID 对不上"。
+	if c.ID.IsZero() {
+		c.ID = ctype.NewID(1)
+	}
 	c.CreatedAt = time.Now()
 	r.created = append(r.created, c)
 	return nil
@@ -71,10 +75,10 @@ func (r *fakeRepo) SoftDeleteMany(context.Context, []domain.CommentID) error { r
 
 type fakeDiggs struct{}
 
-func (fakeDiggs) Exists(context.Context, uint64, uint64) (bool, error)        { return false, nil }
-func (fakeDiggs) Delete(context.Context, uint64, uint64) (bool, error)        { return false, nil }
-func (fakeDiggs) Create(context.Context, uint64, uint64) (bool, error)        { return false, nil }
-func (fakeDiggs) DeleteByComments(context.Context, []uint64) error            { return nil }
+func (fakeDiggs) Exists(context.Context, uint64, uint64) (bool, error) { return false, nil }
+func (fakeDiggs) Delete(context.Context, uint64, uint64) (bool, error) { return false, nil }
+func (fakeDiggs) Create(context.Context, uint64, uint64) (bool, error) { return false, nil }
+func (fakeDiggs) DeleteByComments(context.Context, []uint64) error     { return nil }
 func (fakeDiggs) DiggedSet(context.Context, uint64, []uint64) (map[uint64]bool, error) {
 	return nil, nil
 }
@@ -125,15 +129,24 @@ type fakeCache struct{ added int }
 
 func (c *fakeCache) AddArticleComments(context.Context, uint64, int) error { c.added++; return nil }
 func (c *fakeCache) AddReply(context.Context, uint64, int) error           { return nil }
-func (c *fakeCache) DelReply(context.Context, uint64) error               { return nil }
-func (c *fakeCache) AddDigg(context.Context, uint64, int) error           { return nil }
-func (c *fakeCache) DelDigg(context.Context, uint64) error                { return nil }
+func (c *fakeCache) DelReply(context.Context, uint64) error                { return nil }
+func (c *fakeCache) AddDigg(context.Context, uint64, int) error            { return nil }
+func (c *fakeCache) DelDigg(context.Context, uint64) error                 { return nil }
 
-type fakeNotifier struct{ count int }
+type fakeNotifier struct {
+	count int
+	// lastContent 是最近一次通知里带的评论正文：过滤必须发生在通知之前
+	//（票 396：通知里也是替换后的文本）。
+	lastContent string
+}
 
-func (n *fakeNotifier) CommentCreated(context.Context, domain.CommentNotice) error { n.count++; return nil }
-func (n *fakeNotifier) ReplyCreated(context.Context, domain.ReplyNotice) error     { return nil }
-func (n *fakeNotifier) DiggCreated(context.Context, domain.DiggNotice) error       { return nil }
+func (n *fakeNotifier) CommentCreated(_ context.Context, in domain.CommentNotice) error {
+	n.count++
+	n.lastContent = in.Content
+	return nil
+}
+func (n *fakeNotifier) ReplyCreated(context.Context, domain.ReplyNotice) error { return nil }
+func (n *fakeNotifier) DiggCreated(context.Context, domain.DiggNotice) error   { return nil }
 
 type fakeIDs struct{}
 

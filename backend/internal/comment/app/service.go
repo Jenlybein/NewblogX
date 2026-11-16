@@ -26,6 +26,9 @@ type CreateResult struct {
 	RootID    ctype.ID `json:"root_id"`
 	Status    int8     `json:"status"`
 	Content   string   `json:"content"`
+	// FilteredCount 是内容过滤实际替换的处数（票 396 / ADR-0032）。
+	// 前端据此提示"已过滤 N 处"；**不回显命中词**，否则词表就漏了。
+	FilteredCount int `json:"filtered_count"`
 }
 
 // RootItem 是一级评论列表项（字段名与旧契约逐字一致）。
@@ -104,6 +107,8 @@ type Service struct {
 	moderation func() ModerationPolicy
 	// compliance 是 AI 合规判定端口；nil 表示只做词表机审。
 	compliance ComplianceChecker
+	// filter 是内容过滤端口（票 396）；nil 表示未接入过滤，评论按原文落库。
+	filter domain.ContentFilterer
 }
 
 // WithModeration 接入评论审核（票 359）。
@@ -113,6 +118,15 @@ type Service struct {
 func (s *Service) WithModeration(policy func() ModerationPolicy, checker ComplianceChecker) *Service {
 	s.moderation = policy
 	s.compliance = checker
+	return s
+}
+
+// WithContentFilter 接入全站内容过滤（票 396 / ADR-0032）。
+//
+// 同样是可选项：没接入的调用点（旧测试、尚未装配的进程角色）行为与改造前完全一致
+// —— 按原文落库。过滤是"多出来的一层"，不是评论模块的前置条件。
+func (s *Service) WithContentFilter(filter domain.ContentFilterer) *Service {
+	s.filter = filter
 	return s
 }
 
@@ -173,18 +187,27 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		return nil, apperr.New(apperr.CodeCommentClosed)
 	}
 
+	// 内容过滤（票 396 / ADR-0032）：落库前先把命中词替换成等长 `*`。
+	//
+	// 位置是刻意的：先过滤、再走下面两条判定，判读的都是用户真正会看到的那份文本
+	// （ADR-0032 决策 6 显式接受了这个顺序的代价）。ID 在这里先取，是因为命中记录
+	// 要指向"新评论 ID"，而评论 ID 平时是在仓储落库时才生成的。
+	commentID := s.ids.NextCommentID()
+	content, filteredCount := s.filterContent(ctx, viewer.ID, commentID, in.Content)
+
 	// 机器层（票 359）：阻断词直接拒绝，观察词强制留待人工。
 	// 放在入库之前：被拒的评论不该留下任何痕迹，也不该触发计数与通知。
 	policy := s.moderationPolicy()
-	if hits := matchWords(in.Content, policy.BlockWords); len(hits) > 0 {
+	if hits := matchWords(content, policy.BlockWords); len(hits) > 0 {
 		s.logError("评论命中阻断词，已拒绝: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), hits)
 		return nil, apperr.New(apperr.CodeCommentBlocked)
 	}
-	watchHits := matchWords(in.Content, policy.WatchWords)
+	watchHits := matchWords(content, policy.WatchWords)
 
 	display := s.display(ctx, viewer.ID.Uint64())
 	c := domain.Comment{
-		Content:      in.Content,
+		ID:           commentID,
+		Content:      content,
 		UserID:       viewer.ID,
 		UserNickname: display.Nickname,
 		UserAvatar:   display.Avatar,
@@ -224,9 +247,9 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		s.logError("评论命中观察词，留待人工: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), watchHits)
 	}
 	// AI 层（票 359）：只在"本来就要发布"时才花钱判定 —— 已经要人工看的评论
-	// 再调一次模型没有收益。
+	// 再调一次模型没有收益。读的是过滤后的文本（ADR-0032 决策 6：先替换再判定）。
 	if published && policy.AIEnabled && s.compliance != nil {
-		published = s.passAI(ctx, policy, article.Title, in.Content, c.ID.Uint64())
+		published = s.passAI(ctx, policy, article.Title, content, c.ID.Uint64())
 	}
 	if published {
 		if err := s.repo.UpdateStatus(ctx, c.ID, domain.StatusPublished); err != nil {
@@ -244,13 +267,43 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	}
 
 	return &CreateResult{
-		ID:        c.ID,
-		ArticleID: c.ArticleID,
-		ReplyID:   c.ReplyID,
-		RootID:    c.RootID,
-		Status:    int8(c.Status),
-		Content:   c.Content,
+		ID:            c.ID,
+		ArticleID:     c.ArticleID,
+		ReplyID:       c.ReplyID,
+		RootID:        c.RootID,
+		Status:        int8(c.Status),
+		Content:       c.Content,
+		FilteredCount: filteredCount,
 	}, nil
+}
+
+// filterContent 在落库前把命中词替换成等长 `*`（票 396 / ADR-0032）。
+//
+// 三条失败方向，全部按"照常发布"处理：
+//   - 没接入过滤器（旧调用点 / 尚未装配的进程角色）→ 原文；
+//   - 过滤器返回错误（记录写失败等）→ 原文 + 一条 error 日志；
+//   - 过滤器返回空文本（不该发生，但不能把用户的话弄丢）→ 原文。
+//
+// 也就是说这条路径永远不返回错误：审计问题不该演变成用户发不出评论
+//（ADR-0032 决策 11）。
+func (s *Service) filterContent(ctx context.Context, userID, commentID ctype.ID, text string) (string, int) {
+	if s.filter == nil {
+		return text, 0
+	}
+	got, err := s.filter.Filter(ctx, domain.FilterRequest{
+		UserID:    userID,
+		ContentID: commentID,
+		Text:      text,
+	})
+	if err != nil {
+		s.logError("评论内容过滤失败，按原文继续: user=%d comment=%d err=%v",
+			userID.Uint64(), commentID.Uint64(), err)
+		return text, 0
+	}
+	if got.Masked == "" {
+		return text, got.FilteredCount
+	}
+	return got.Masked, got.FilteredCount
 }
 
 // ToggleDigg 点赞 / 取消点赞；返回操作后是否处于"已点赞"。

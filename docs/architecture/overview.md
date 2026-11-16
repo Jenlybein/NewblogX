@@ -185,7 +185,7 @@ type ArticleGate interface {
 
 > v1 落地时 `TxManager` 已演进为 **UnitOfWork**（`WithinTx(ctx, fn(ctx, Repos) error)`，`Repos` 由 app 定义），事务边界在 app 层，Outbox 与业务同事务。
 
-### 2.4 模块划分（12 + platform）
+### 2.4 模块划分（14 + platform）
 
 | 模块 | 聚合根 | 现状来源 |
 | --- | --- | --- |
@@ -201,7 +201,8 @@ type ArticleGate interface {
 | `notification` | GlobalNotif / SiteMsg | `api/{global_notif,sitemsg}_api` + `message_service` |
 | `site` | SiteConfig / Banner | `api/{site,banner}_api` + `site_service` |
 | `analytics` | （只读投影） | `api/data_api` + `log_service`(17) |
-| `platform` | — | `platform/` + `core/` |
+| `filter` | ContentFilterHit | 本轮新增（ADR-0032）：命中记录、处置用例、后台风险页读面；**不认识任何内容模块** —— 删除走 `filter/domain.Disposer` 端口，由合成根桥接 |
+| `platform` | — | `platform/` + `core/`（其中 `platform/contentfilter` 是过滤引擎：归一化 + AC + 等长替换） |
 
 ### 2.5 分层与依赖方向（编译器强制）
 
@@ -664,3 +665,4 @@ cd frontend_admin && pnpm openapi:types
 4. **重复代码的逐对举例**（191 对 / 563 对的样本列表、`fans_list.go` vs `follow_list.go` 0.97 等）。具体文件已随迁移消失；保留"重复曾导致审计埋点只有 15% 覆盖"这个**机制性教训**就够了。
 5. **迁移顺序 R0 / S0–S5 的排期论证**。属于计划，不是约束；当时的排期与两轮决策留档见 v1 基线过程文档（已归档删除，仅具历史价值），v2 不需要再看。
 6. **架构守卫的 PowerShell 实现细节**（`Assert-NoMatch` 用 `Select-String -Quiet`、`Get-GoFiles` 排除 `_test.go`）。脚本已删除，这些脆弱性描述只解释了"为什么改用 AST"。
+

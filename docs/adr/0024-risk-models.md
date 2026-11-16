@@ -55,7 +55,7 @@
 
 ## 相关代码与文档
 
-- 概念：[GLOSSARY · 三层机审 / 风险记录](../../GLOSSARY.md) · 2026-11-07 发布治理设计评审 §4 §五 · [#312](https://github.com/Jenlybein/NewblogX/issues/312)
+- 概念：[GLOSSARY · 机审 / 风险记录](../../GLOSSARY.md) · 2026-11-07 发布治理设计评审 §4 §五 · [#312](https://github.com/Jenlybein/NewblogX/issues/312)
 - 判定：`backend/internal/ai/moderation/moderation.go` · `backend/internal/ai/app/service.go`（`CheckArticleCompliance`）
 - 场景与策略文本：`backend/internal/ai/callmeta.go`（`SceneModeration`）· `skills/moderation/SKILL.md`
 - 记录与仓储：`backend/internal/article/domain/risk/risk.go` · `backend/internal/article/adapter/mysql/risk_repo.go` · `backend/internal/article/app/compliance.go`
@@ -63,3 +63,4 @@
 - 异步触发：`backend/app/outbox_wiring.go`（`complianceSubscriber`）
 - 暴露：`backend/internal/article/adapter/http/{dto,response}.go`
 - 配置默认：`backend/config/site_default_settings.yaml`（`ai.scene_skills.moderation`）
+

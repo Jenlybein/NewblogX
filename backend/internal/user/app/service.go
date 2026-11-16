@@ -163,6 +163,17 @@ func (s *Service) Update(ctx context.Context, viewer domain.Viewer, target domai
 	if err := domain.CanUpdateProfile(u, viewer); err != nil {
 		return nil, err
 	}
+
+	// 内容过滤（票 397 / ADR-0032）：昵称与简介落库前把命中词替换成等长 `*`。
+	//
+	// 排在格式校验之前是刻意的：替换保持 rune 长度不变，所以"长度是否超限"
+	// 的结论不会因为过滤而变化；反过来先校验再过滤，就会让校验读的是用户原文、
+	// 落库写的是星号版 —— 两处口径不一致。空更新（IsEmpty）不走过滤：没有文本
+	// 就没有命中，也没有要写的记录。
+	if !update.IsEmpty() {
+		update = s.filterProfile(ctx, target, update)
+	}
+
 	if err := update.Validate(); err != nil {
 		return nil, err
 	}

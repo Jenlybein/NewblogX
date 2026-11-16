@@ -24,15 +24,21 @@ import (
 //  2. 标题非空且不超长（domain 的唯一不变量）；
 //  3. 新合集排在末尾：顺序号 = 当前最大 + 1；
 //  4. 展示开关可以一开始就是关的——"先准备、后公布"是常见运营节奏。
+//
+// 内容过滤（票 397）：标题与描述在落库前替换命中词，命中记录按合集 ID 关联。
+// 合集也是公开读面（读者站合集页），所以它和文章一样属于"过滤后才落库"的面。
 func (s *Service) CreateCollection(ctx context.Context, cmd CreateCollectionCmd) (collection.ID, error) {
 	if !cmd.Actor.IsAdmin() {
 		return "", domain.ErrForbidden
 	}
 
+	id := s.ids.NextCollectionID()
+	title, description, _ := s.filterCollection(ctx, cmd.Actor.UserID, id, cmd.Title, cmd.Description)
+
 	c, err := collection.New(collection.NewParams{
-		ID:          s.ids.NextCollectionID(),
-		Title:       cmd.Title,
-		Description: cmd.Description,
+		ID:          id,
+		Title:       title,
+		Description: description,
 		Cover:       cmd.Cover,
 		CreatorID:   cmd.Actor.UserID,
 		Displayed:   cmd.Displayed,
@@ -63,10 +69,16 @@ func (s *Service) CreateCollection(ctx context.Context, cmd CreateCollectionCmd)
 //  2. 标题沿用创建时的不变量（非空、不超长）；
 //  3. 展示开关与顺序**不在这里改**——它们各自有独立的动作，一次标题编辑不该
 //     顺手覆盖掉别人刚切换的运营状态。
+//
+// 内容过滤（票 397）在事务之外先做：替换后的标题 / 描述才是落库的版本，
+// 而事务里只负责读-改-写。
 func (s *Service) UpdateCollection(ctx context.Context, cmd UpdateCollectionCmd) error {
 	if !cmd.Actor.IsAdmin() {
 		return domain.ErrForbidden
 	}
+
+	title, description, _ := s.filterCollection(
+		ctx, cmd.Actor.UserID, cmd.CollectionID, cmd.Title, cmd.Description)
 
 	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		c, err := r.Collections().Find(ctx, cmd.CollectionID)
@@ -74,10 +86,10 @@ func (s *Service) UpdateCollection(ctx context.Context, cmd UpdateCollectionCmd)
 			return err
 		}
 		now := s.clock.Now()
-		if err := c.Retitle(cmd.Title, now); err != nil {
+		if err := c.Retitle(title, now); err != nil {
 			return err
 		}
-		c.SetDescription(cmd.Description, now)
+		c.SetDescription(description, now)
 		c.SetCover(cmd.Cover, now)
 		return r.Collections().Update(ctx, c)
 	})

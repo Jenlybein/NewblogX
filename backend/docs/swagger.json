@@ -859,6 +859,9 @@
                     "cover_image_id": {
                         "type": "string"
                     },
+                    "filtered_count": {
+                        "type": "integer"
+                    },
                     "id": {
                         "type": "string"
                     },
@@ -1419,6 +1422,109 @@
                             "user_hidden"
                         ],
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleUpdateResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "author_abstract": {
+                        "type": "string"
+                    },
+                    "author_avatar": {
+                        "type": "string"
+                    },
+                    "author_avatar_image_id": {
+                        "type": "string"
+                    },
+                    "author_created_time": {
+                        "type": "string"
+                    },
+                    "author_id": {
+                        "type": "string"
+                    },
+                    "author_name": {
+                        "type": "string"
+                    },
+                    "author_username": {
+                        "type": "string"
+                    },
+                    "category_id": {
+                        "type": "string"
+                    },
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "comment_count": {
+                        "type": "integer"
+                    },
+                    "comments_toggle": {
+                        "type": "boolean"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "cover_image_id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "filtered_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "is_digg": {
+                        "type": "boolean"
+                    },
+                    "is_favor": {
+                        "type": "boolean"
+                    },
+                    "publish_status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleStatus"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleStatus"
+                    },
+                    "tag_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    },
+                    "visibility_status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleVisibility"
                     }
                 },
                 "type": "object"
@@ -5968,6 +6074,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleUpdateResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
                 "properties": {
                     "code": {
@@ -9770,7 +9890,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse"
                                 }
                             }
                         },

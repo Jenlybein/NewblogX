@@ -204,6 +204,11 @@ type Service struct {
 	lastLogin   LastLoginReader
 	tags        TagValidator
 	authorStats AuthorStatsReader
+
+	// nicknameFilter / abstractFilter 是内容过滤端口（票 397）。
+	// 为 nil 表示未接入：昵称与简介按原文保存（与改造前一致）。
+	nicknameFilter NicknameTextFilterer
+	abstractFilter AbstractTextFilterer
 }
 
 // Option 是可选的装配项。
@@ -215,6 +220,17 @@ type Option func(*Service)
 // WithUsernameAllocator 注入自动用户名分配器。
 func WithUsernameAllocator(a UsernameAllocator) Option {
 	return func(s *Service) { s.usernameAlloc = a }
+}
+
+// WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。
+//
+// 昵称与简介两个面必须分别给：面枚举在装配层的 bridge 里钉死（见 app/user_wiring.go），
+// 一个函数带两个实现，接错面就是编译错误。
+func WithContentFilter(nickname NicknameTextFilterer, abstract AbstractTextFilterer) Option {
+	return func(s *Service) {
+		s.nicknameFilter = nickname
+		s.abstractFilter = abstract
+	}
 }
 
 // New 构造服务。

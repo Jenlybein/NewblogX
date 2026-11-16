@@ -69,7 +69,9 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 }
 
 // toCreateResponse 创建结果。
-func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateResponse {
+//
+// filteredCount 是这次写入被内容过滤替换的处数（票 397）：只给数量、不给命中词。
+func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID, filteredCount int) ArticleCreateResponse {
 	art := a.Article
 	resp := ArticleCreateResponse{
 		ID:               ctype.NewID(art.ID().Uint64()),
@@ -80,6 +82,7 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 		Status:           ArticleStatus(art.Status()),
 		PublishStatus:    ArticleStatus(art.Status()),
 		VisibilityStatus: ArticleVisibility(art.Visibility()),
+		FilteredCount:    filteredCount,
 	}
 	for _, t := range a.Tags {
 		resp.TagIDs = append(resp.TagIDs, ctype.NewID(t.ID.Uint64()))

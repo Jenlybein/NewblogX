@@ -386,7 +386,7 @@ func TestCreateArticleWithFreshlyCreatedCategory(t *testing.T) {
 	}
 	categoryID := saved.ID()
 
-	a, err := svc.Create(ctx, app.CreateArticleCmd{
+	res, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "用新分类的文章",
@@ -397,6 +397,7 @@ func TestCreateArticleWithFreshlyCreatedCategory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("用刚建分类建文章失败: %v", err)
 	}
+	a := res.Article
 	if a.CategoryID() == nil || *a.CategoryID() != categoryID {
 		t.Fatalf("文章分类应为新建分类 %s，实际 %v", categoryID, a.CategoryID())
 	}

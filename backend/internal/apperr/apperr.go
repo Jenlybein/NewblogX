@@ -289,11 +289,6 @@ const (
 	CodeCommentDiggChanged    Code = "comment.digg_changed"
 	CodeCommentDiggDuplicated Code = "comment.digg_duplicated"
 	CodeCommentContentEmpty   Code = "comment.content_empty"
-	// CodeCommentBlocked 评论命中阻断词，已拒绝发布（票 359）。
-	//
-	// 与"内容为空"分开：这是审核结论，提示语要说清"内容不被允许"，
-	// 而不是让用户以为是自己漏填了东西。
-	CodeCommentBlocked Code = "comment.blocked"
 )
 
 // 图片与对象存储。
@@ -668,7 +663,6 @@ var messages = map[Code]string{
 	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
 	CodeCommentDiggDuplicated: "请勿重复点赞",
 	CodeCommentContentEmpty:   "评论内容不能为空",
-	CodeCommentBlocked:        "评论包含不被允许的内容，请修改后再发",
 
 	CodeImageUnavailable:      "图片不存在或不可用",
 	CodeImageUploadDisabled:   "站点未启用图片上传",

@@ -250,52 +250,43 @@ func (r *Repo) ListFamily(ctx context.Context, rootID domain.CommentID) ([]domai
 	return toComments(rows), nil
 }
 
-// ListManaged 实现 domain.Repository。
-func (r *Repo) ListManaged(ctx context.Context, q domain.ManagedQuery) ([]domain.Comment, int64, error) {
-	page := q.Page.Normalize()
+// legacyStatusExamining 是已退场的「审核中」取值（票 400）。
+//
+// 它只在这里作为**存量判定条件**存在：domain 不再声明这个状态，也没有任何写入
+// 路径会再产生它。留着字面量而不是在 domain 里保留一个常量，是为了让"只读一次、
+// 之后不存在"这条语义在类型上也成立。
+const legacyStatusExamining int8 = 1
 
+// RetireExamining 把存量「审核中」评论一次性转成已删除（票 400）。
+//
+// 语义与幂等性：
+//   - 命中条件只有 `status = 1`，迁移后再跑一次命中 0 行，不会重复处理；
+//   - 先数一次再改：0 行时**连 UPDATE 都不发**（多进程同时启动时也一样，
+//     第二个进程数到 0 就直接返回）；
+//   - 只改状态、不写 deleted_at：公开读面本来就按 `status = 已发布` 取数，
+//     状态一变这条评论就从读者端与后台消失；软删除留给真正的删除动作，
+//     让"状态"与"软删标记"各自只表达一件事。
+func (r *Repo) RetireExamining(ctx context.Context) (int64, error) {
+	// 每次新建一份 query：gorm 的 Count / Update 都会改写同一个 statement，
+	// 复用同一个 *gorm.DB 容易把上一次的 SELECT 子句带进 UPDATE。
 	base := func() *gorm.DB {
-		tx := r.db.WithContext(ctx).Model(&commentRow{})
-		switch q.Type {
-		case 1:
-			tx = tx.Where("article_id IN ?", q.ArticleIDs).Where("status = ?", int8(domain.StatusPublished))
-		case 2:
-			tx = tx.Where("user_id = ?", q.ViewerID)
-		}
-		if !q.ArticleID.IsZero() && q.Type != 1 {
-			tx = tx.Where("article_id = ?", q.ArticleID)
-		}
-		if !q.UserID.IsZero() {
-			tx = tx.Where("user_id = ?", q.UserID)
-		}
-		if q.Status != 0 && q.Type != 1 {
-			tx = tx.Where("status = ?", int8(q.Status))
-		}
-		if page.Key != "" {
-			tx = tx.Where("content LIKE ?", "%"+page.Key+"%")
-		}
-		return tx
+		return r.db.WithContext(ctx).
+			Model(&commentRow{}).
+			Where("status = ?", legacyStatusExamining)
 	}
 
-	var total int64
-	if err := base().Count(&total).Error; err != nil {
-		return nil, 0, err
+	var pending int64
+	if err := base().Count(&pending).Error; err != nil {
+		return 0, err
 	}
-	var rows []commentRow
-	if err := base().Order("created_at DESC").
-		Limit(page.Limit).
-		Offset((page.Page - 1) * page.Limit).
-		Find(&rows).Error; err != nil {
-		return nil, 0, err
+	if pending == 0 {
+		return 0, nil
 	}
-	return toComments(rows), total, nil
-}
-
-// UpdateStatus 实现 domain.Repository。
-func (r *Repo) UpdateStatus(ctx context.Context, id domain.CommentID, status domain.Status) error {
-	return r.db.WithContext(ctx).Model(&commentRow{}).
-		Where("id = ?", id.Uint64()).
-		Update("status", int8(status)).Error
+	res := base().Update("status", int8(domain.StatusDeleted))
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
 }
 
 // SoftDeleteMany 实现 domain.Repository。

@@ -24,25 +24,8 @@ type Repository interface {
 	ListReplies(ctx context.Context, articleID, rootID uint64, page Page) ([]Comment, bool, error)
 	// ListFamily 查一条一级评论及其全部回复（删除级联用）。
 	ListFamily(ctx context.Context, rootID CommentID) ([]Comment, error)
-	// ListManaged 管理端分页查询。
-	ListManaged(ctx context.Context, q ManagedQuery) ([]Comment, int64, error)
-	// UpdateStatus 改状态。
-	UpdateStatus(ctx context.Context, id CommentID, status Status) error
 	// SoftDeleteMany 批量软删。
 	SoftDeleteMany(ctx context.Context, ids []CommentID) error
-}
-
-// ManagedQuery 是管理端列表的查询条件。
-type ManagedQuery struct {
-	// Type：1 我文章下的评论、2 我发的评论、3 管理员查全部。
-	Type      int8
-	Status    Status
-	ViewerID  ctype.ID
-	ArticleID ctype.ID
-	UserID    ctype.ID
-	// ArticleIDs 仅 Type=1 使用（该用户的文章 ID 列表）。
-	ArticleIDs []ctype.ID
-	Page       Page
 }
 
 // DiggRepository 是评论点赞的持久化端口。
@@ -90,11 +73,9 @@ type Article struct {
 	CommentsToggle bool
 }
 
-// ArticleInfo 读文章信息与"某作者的文章 ID 列表"。
+// ArticleInfo 读文章信息（评论创建时的开关与标题、回复通知用）。
 type ArticleInfo interface {
 	ByID(ctx context.Context, id uint64) (Article, error)
-	BaseMap(ctx context.Context, ids []uint64) (map[uint64]Article, error)
-	IDsByAuthor(ctx context.Context, authorID, articleID ctype.ID) ([]ctype.ID, error)
 }
 
 // CacheWriter 回写评论相关的计数缓存。

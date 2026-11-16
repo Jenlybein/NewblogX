@@ -28,8 +28,6 @@ var protocols = map[Code]ProtocolKind{
 	CodeUserSessionExpired: ProtocolAuth,
 
 	// 通知与站内信：调用方能修正的失败。
-	// 评论命中阻断词：用户改一改就能过，属于"输入不合规"，与内容为空同类。
-	CodeCommentBlocked:        ProtocolValidation,
 	CodeCommonInvalidOrder:    ProtocolValidation,
 	CodeCommonInvalidArgument: ProtocolValidation,
 	CodeCommonBindMissing:     ProtocolValidation,

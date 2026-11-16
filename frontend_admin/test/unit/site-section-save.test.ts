@@ -16,7 +16,8 @@ type Section = {
   seo: { keywords: string; description: string }
   login: { email_login: boolean }
   article: { skip_examining: boolean }
-  comment: { skip_examining: boolean }
+  // 评论段只剩旧机审词表（票 400：审核退场后的迁移来源），后台没有它的 UI。
+  comment: { moderation: { block_words: string[] } }
   chat: { stranger_msg_enabled: boolean }
   // 后台没有 UI、必须原样保留的三块。
   about: { version: string }
@@ -30,7 +31,7 @@ function section(overrides: Partial<Section> = {}): Section {
     seo: { keywords: '', description: '' },
     login: { email_login: false },
     article: { skip_examining: true },
-    comment: { skip_examining: true },
+    comment: { moderation: { block_words: ['加微信'] } },
     chat: { stranger_msg_enabled: false },
     about: { version: '1.0.0' },
     project: { title: 'JellyBin' },

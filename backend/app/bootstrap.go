@@ -181,6 +181,15 @@ func InitRuntimeServices(infra *Infra) error {
 	if err := InitContentFilter(infra); err != nil {
 		return err
 	}
+
+	// 评论「审核中」状态退场（票 400）：存量行一次性按已删除处理。
+	//
+	// 与上面的引擎在同一位置、同一个理由：状态收敛是**代码 + 数据**一起生效的
+	// 事情，必须在接第一个请求之前落地，否则读者端会出现一批永远不被处理的评论。
+	// 迁移幂等（只命中 status=1），重复执行不会重复处理，也不写库。
+	if err := RetireCommentExamining(infra); err != nil {
+		return fmt.Errorf("评论「审核中」状态迁移失败: %w", err)
+	}
 	return nil
 }
 

@@ -65,31 +65,6 @@ type ReplyItem struct {
 	ReplyUserNickname string    `json:"reply_user_nickname"`
 }
 
-// ManageItem 是管理端列表项。
-type ManageItem struct {
-	ID           ctype.ID `json:"id"`
-	CreatedAt    string   `json:"created_at"`
-	Content      string   `json:"content"`
-	DiggCount    int      `json:"digg_count"`
-	ReplyCount   int      `json:"reply_count"`
-	UserID       ctype.ID `json:"user_id"`
-	UserNickname string   `json:"user_nickname"`
-	UserAvatar   string   `json:"user_avatar"`
-	Relation     int8     `json:"relation,omitempty"`
-	ArticleID    ctype.ID `json:"article_id"`
-	ArticleTitle string   `json:"article_title"`
-	ArticleCover string   `json:"article_cover"`
-}
-
-// ManagedInput 是管理端查询输入。
-type ManagedInput struct {
-	Type      int8
-	Status    int8
-	ArticleID ctype.ID
-	UserID    ctype.ID
-	Page      domain.Page
-}
-
 // Service 是评论应用服务。
 type Service struct {
 	repo      domain.Repository
@@ -102,29 +77,15 @@ type Service struct {
 	notifier  domain.Notifier
 	ids       domain.IDGenerator
 	logger    domain.Logger
-	skipExam  func() bool
-	// moderation 是评论审核策略的现读闭包（票 359）；nil 表示未接入审核。
-	moderation func() ModerationPolicy
-	// compliance 是 AI 合规判定端口；nil 表示只做词表机审。
-	compliance ComplianceChecker
 	// filter 是内容过滤端口（票 396）；nil 表示未接入过滤，评论按原文落库。
 	filter domain.ContentFilterer
 }
 
-// WithModeration 接入评论审核（票 359）。
-//
-// 用可选项而不是往 New 上加两个参数：New 已经有 11 个位置参数，再加两个会让
-// 每个测试调用点都要改，而且"评论审核"与"仓储/缓存"不是同一层的依赖。
-func (s *Service) WithModeration(policy func() ModerationPolicy, checker ComplianceChecker) *Service {
-	s.moderation = policy
-	s.compliance = checker
-	return s
-}
-
 // WithContentFilter 接入全站内容过滤（票 396 / ADR-0032）。
 //
-// 同样是可选项：没接入的调用点（旧测试、尚未装配的进程角色）行为与改造前完全一致
-// —— 按原文落库。过滤是"多出来的一层"，不是评论模块的前置条件。
+// 用可选项而不是往 New 上加参数：没接入的调用点（旧测试、尚未装配的进程角色）
+// 行为与接入前完全一致 —— 按原文落库。过滤是"多出来的一层"，不是评论模块的
+// 前置条件。
 func (s *Service) WithContentFilter(filter domain.ContentFilterer) *Service {
 	s.filter = filter
 	return s
@@ -142,7 +103,6 @@ func New(
 	notifier domain.Notifier,
 	ids domain.IDGenerator,
 	logger domain.Logger,
-	skipExam func() bool,
 ) *Service {
 	if repo == nil {
 		panic("comment/app: 评论仓储未注入")
@@ -167,11 +127,14 @@ func New(
 		notifier:  notifier,
 		ids:       ids,
 		logger:    logger,
-		skipExam:  skipExam,
 	}
 }
 
 // Create 发表评论或回复。
+//
+// 评论**一律直接发布**（票 400）：不再有机器层拒绝、观察词留待人工与 AI 合规
+// 判定。命中词由内容过滤在前一步替换成等长 `*`，并记一条关键词风险进后台风险页
+// —— 文本照常落库、照常可见。
 func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInput) (*CreateResult, error) {
 	if viewer.IsZero() {
 		return nil, apperr.New(apperr.CodeAuthRequired)
@@ -189,20 +152,11 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 
 	// 内容过滤（票 396 / ADR-0032）：落库前先把命中词替换成等长 `*`。
 	//
-	// 位置是刻意的：先过滤、再走下面两条判定，判读的都是用户真正会看到的那份文本
-	// （ADR-0032 决策 6 显式接受了这个顺序的代价）。ID 在这里先取，是因为命中记录
+	// 位置是刻意的：替换后的文本才是入库、进通知、回响应的唯一版本，公开面因此
+	// 不可能再出现命中词（ADR-0032 决策 5 / 6）。ID 在这里先取，是因为命中记录
 	// 要指向"新评论 ID"，而评论 ID 平时是在仓储落库时才生成的。
 	commentID := s.ids.NextCommentID()
 	content, filteredCount := s.filterContent(ctx, viewer.ID, commentID, in.Content)
-
-	// 机器层（票 359）：阻断词直接拒绝，观察词强制留待人工。
-	// 放在入库之前：被拒的评论不该留下任何痕迹，也不该触发计数与通知。
-	policy := s.moderationPolicy()
-	if hits := matchWords(content, policy.BlockWords); len(hits) > 0 {
-		s.logError("评论命中阻断词，已拒绝: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), hits)
-		return nil, apperr.New(apperr.CodeCommentBlocked)
-	}
-	watchHits := matchWords(content, policy.WatchWords)
 
 	display := s.display(ctx, viewer.ID.Uint64())
 	c := domain.Comment{
@@ -212,7 +166,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		UserNickname: display.Nickname,
 		UserAvatar:   display.Avatar,
 		ArticleID:    in.ArticleID,
-		Status:       domain.StatusExamining,
+		Status:       domain.StatusPublished,
 	}
 
 	var replyUserID uint64
@@ -239,31 +193,13 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		return nil, err
 	}
 
-	published := viewer.Admin || (s.skipExam != nil && s.skipExam())
-	// 观察词命中时无论开没开免审核都留待人工：词表是运营显式加的，
-	// 它的语义就是"这条我要自己看"。
-	if len(watchHits) > 0 {
-		published = false
-		s.logError("评论命中观察词，留待人工: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), watchHits)
+	s.addArticleComments(ctx, c.ArticleID.Uint64(), 1)
+	if !c.RootID.IsZero() {
+		s.addReply(ctx, c.RootID.Uint64(), 1)
 	}
-	// AI 层（票 359）：只在"本来就要发布"时才花钱判定 —— 已经要人工看的评论
-	// 再调一次模型没有收益。读的是过滤后的文本（ADR-0032 决策 6：先替换再判定）。
-	if published && policy.AIEnabled && s.compliance != nil {
-		published = s.passAI(ctx, policy, article.Title, content, c.ID.Uint64())
-	}
-	if published {
-		if err := s.repo.UpdateStatus(ctx, c.ID, domain.StatusPublished); err != nil {
-			return nil, err
-		}
-		c.Status = domain.StatusPublished
-		s.addArticleComments(ctx, c.ArticleID.Uint64(), 1)
-		if !c.RootID.IsZero() {
-			s.addReply(ctx, c.RootID.Uint64(), 1)
-		}
-		s.notifyComment(ctx, c, article)
-		if !c.RootID.IsZero() && replyUserID != 0 {
-			s.notifyReply(ctx, c, article, replyUserID)
-		}
+	s.notifyComment(ctx, c, article)
+	if !c.RootID.IsZero() && replyUserID != 0 {
+		s.notifyReply(ctx, c, article, replyUserID)
 	}
 
 	return &CreateResult{
@@ -487,77 +423,6 @@ func (s *Service) ListReplies(ctx context.Context, articleID, rootID ctype.ID, p
 		rootReplyDelta = map[uint64]int{}
 	}
 	return items, root.ReplyCount + rootReplyDelta[rootID.Uint64()], hasMore, nil
-}
-
-// ListManaged 管理端评论列表。
-func (s *Service) ListManaged(ctx context.Context, viewer domain.Viewer, in ManagedInput) ([]ManageItem, int64, error) {
-	if in.Type == 3 && !viewer.Admin {
-		return nil, 0, apperr.New(apperr.CodeUserForbidden)
-	}
-	q := domain.ManagedQuery{
-		Type:      in.Type,
-		Status:    domain.Status(in.Status),
-		ViewerID:  viewer.ID,
-		ArticleID: in.ArticleID,
-		UserID:    in.UserID,
-		Page:      in.Page,
-	}
-	switch in.Type {
-	case 1:
-		ids, err := s.articles.IDsByAuthor(ctx, viewer.ID, in.ArticleID)
-		if err != nil {
-			return nil, 0, err
-		}
-		if len(ids) == 0 {
-			return []ManageItem{}, 0, nil
-		}
-		q.ArticleIDs = ids
-	case 2:
-		q.UserID = viewer.ID
-	}
-
-	rows, total, err := s.repo.ListManaged(ctx, q)
-	if err != nil {
-		return nil, 0, err
-	}
-	if err := s.hydrate(ctx, rows); err != nil {
-		return nil, 0, err
-	}
-
-	ids, userIDs := splitIDs(rows)
-	diggDelta, replyDelta := s.counterBatch(ctx, ids)
-	articleIDs := make([]uint64, 0, len(rows))
-	for _, row := range rows {
-		articleIDs = append(articleIDs, row.ArticleID.Uint64())
-	}
-	var articleMap map[uint64]domain.Article
-	if s.articles != nil && len(articleIDs) > 0 {
-		articleMap, _ = s.articles.BaseMap(ctx, articleIDs)
-	}
-	var relations map[uint64]int8
-	if in.Type == 1 {
-		relations = s.relationBatch(ctx, viewer.ID.Uint64(), userIDs)
-	}
-
-	items := make([]ManageItem, 0, len(rows))
-	for _, row := range rows {
-		article := articleMap[row.ArticleID.Uint64()]
-		items = append(items, ManageItem{
-			ID:           row.ID,
-			CreatedAt:    row.CreatedAt.Format("2006-01-02 15:04:05"),
-			Content:      row.Content,
-			DiggCount:    row.DiggCount + diggDelta[row.ID.Uint64()],
-			ReplyCount:   row.ReplyCount + replyDelta[row.ID.Uint64()],
-			UserID:       row.UserID,
-			UserNickname: row.UserNickname,
-			UserAvatar:   row.UserAvatar,
-			Relation:     relations[row.UserID.Uint64()],
-			ArticleID:    row.ArticleID,
-			ArticleTitle: article.Title,
-			ArticleCover: article.Cover,
-		})
-	}
-	return items, total, nil
 }
 
 // hydrate 补齐历史评论缺失的用户快照。

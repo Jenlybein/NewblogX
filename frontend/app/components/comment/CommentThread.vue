@@ -177,7 +177,6 @@ function showFallback(comment: CommentNode): boolean {
         <div class="comment__identity">
           <div class="comment__meta">
             <span class="comment__time">{{ formatDateTimeLabel(comment.created_at) }}</span>
-            <span v-if="comment.status === 1" class="comment__status">审核中</span>
           </div>
         </div>
       </div>

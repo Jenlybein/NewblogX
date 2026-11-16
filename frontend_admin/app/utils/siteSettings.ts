@@ -80,7 +80,9 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
     label: '发布与审核',
     path: '/site/publish',
     component: 'SettingsSitePublish',
-    blocks: ['article', 'comment'],
+    // 评论段不再由这一页编辑（票 400：评论审核退场）。它仍留在 site 段里当作
+    // 旧词表的迁移来源，本页既不展示也不覆盖它 —— 由读-改-写原样往返。
+    blocks: ['article'],
   },
   {
     key: 'site-chat',

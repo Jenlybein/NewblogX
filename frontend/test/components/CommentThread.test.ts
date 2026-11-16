@@ -44,7 +44,7 @@ function makeComment(overrides: Partial<CommentRootItem> = {}): CommentRootItem 
     digg_count: 3,
     is_digg: false,
     reply_count: 2,
-    status: 1,
+    status: 2,
     ...overrides,
   } as CommentRootItem;
 }
@@ -59,7 +59,7 @@ function makeReply(overrides: Partial<CommentReplyItem> = {}): CommentReplyItem 
     created_at: "2026-10-30T11:00:00.000Z",
     digg_count: 1,
     is_digg: false,
-    status: 1,
+    status: 2,
     reply_user_nickname: "读者甲",
     ...overrides,
   } as CommentReplyItem;
@@ -84,14 +84,14 @@ async function mountExpanded(comment: Partial<CommentRootItem> = {}, replies: Co
 }
 
 describe("CommentThread（评论楼层级）", () => {
-  it("渲染楼层：作者、内容、状态标签与操作按钮", () => {
+  it("渲染楼层：作者、内容、时间与操作按钮", () => {
     const wrapper = mountThread([makeComment()]);
 
     expect(wrapper.findAll(".comment")).toHaveLength(1);
     expect(wrapper.get(".comment__author").text()).toBe("读者甲");
     expect(wrapper.get(".comment__content").text()).toContain("这是一条评论");
-    // 待审核状态用语义写法的独立标签（不再借用 Naive 的 warning 橙色）。
-    expect(wrapper.get(".comment__status").text()).toBe("审核中");
+    // 评论不再有「审核中」这类状态标签（票 400）：评论发布即可见，状态栏只剩时间。
+    expect(wrapper.find(".comment__status").exists()).toBe(false);
     // 根评论的操作区：点赞 + 回复 + 展开胶囊（不再有纯文本操作）。
     expect(wrapper.findAll(".comment-action")).toHaveLength(2);
     expect(wrapper.find(".comment-capsule").exists()).toBe(true);

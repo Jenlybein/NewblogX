@@ -277,7 +277,6 @@ var userRouteTemplates = []string{
 	"GET /api/projects/:id/outline-tree",
 	// 评论 / 关注关系（票 327 起读走 /relations 三视图，写仍走 /follow）
 	"GET /api/comments",
-	"GET /api/comments/man",
 	"GET /api/comments/replies",
 	"POST /api/comments",
 	"POST /api/comments/:id/digg",

@@ -12,11 +12,16 @@ import (
 type CommentID = ctype.ID
 
 // Status 是评论状态。
+//
+// 只有两种：已发布 / 已删除（票 400）。评论不再有自己的审核系统 —— 命中词在
+// 落库前就被替换成 `*` 并进关键词风险页（ADR-0032 决策 5），不再有「审核中」
+// 这个中间态，因此也没有"等一个不会来的审核"的评论。
+//
+// **1 是一个保留值**：它是已退场的「审核中」。存量行由启动时的一次性迁移转成
+// 已删除（见 comment/adapter/mysql 的 RetireExamining），代码里不再写入它。
 type Status int8
 
 const (
-	// StatusExamining 审核中。
-	StatusExamining Status = 1
 	// StatusPublished 已发布。
 	StatusPublished Status = 2
 	// StatusDeleted 已删除。
@@ -27,7 +32,7 @@ const (
 func (s Status) IsPublished() bool { return s == StatusPublished }
 
 // IsValid 判断状态是否在枚举范围内。
-func (s Status) IsValid() bool { return s >= StatusExamining && s <= StatusDeleted }
+func (s Status) IsValid() bool { return s == StatusPublished || s == StatusDeleted }
 
 // Comment 是一条评论。
 //

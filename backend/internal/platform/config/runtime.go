@@ -130,11 +130,6 @@ func (s *RuntimeConfigService) GetRuntimeArticle() siteconf.Article {
 	return s.GetRuntimeSite().Article
 }
 
-// GetRuntimeComment 返回评论相关开关。
-func (s *RuntimeConfigService) GetRuntimeComment() siteconf.Comment {
-	return s.GetRuntimeSite().Comment
-}
-
 // GetRuntimeChat 返回私信的站点级策略（陌生人开关 + 发送限流参数）。
 //
 // 每次发送都现读，所以后台改完立即生效，不需要重启。

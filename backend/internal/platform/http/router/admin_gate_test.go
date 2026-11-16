@@ -123,6 +123,9 @@ var adminOnly = []struct {
 	{"PUT", "/api/site/upload"},
 	{"PUT", "/api/site/deco"},
 	{"PUT", "/api/site/image_gc"},
+	// 内容过滤词表（第 11 段，ADR-0032）：只有管理端出入口，匿名与普通用户都读不到。
+	{"GET", "/api/site/admin/content_filter"},
+	{"PUT", "/api/site/content_filter"},
 	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
 	// 却从未被行为探针覆盖。补上后，普通用户令牌会被真的挡一次；漏挂中间件立即变红。
 	{"POST", "/api/banners"},

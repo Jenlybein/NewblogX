@@ -5,7 +5,7 @@ import (
 )
 
 // SectionName 是运行时配置段在库里的 name，也是 HTTP 具名端点与契约 schema
-// 共用的那一份事实。九段之外没有隐式段。
+// 共用的那一份事实。十一段之外没有隐式段。
 type SectionName string
 
 const (
@@ -19,6 +19,8 @@ const (
 	SectionUpload  = "upload"
 	SectionDeco    = "deco"
 	SectionImageGC = "image_gc"
+	// SectionContentFilter 是第 11 段（ADR-0032）：全站唯一词表，只给后台读写。
+	SectionContentFilter = "content_filter"
 )
 
 // sectionEntry 是单段在注册表里的登记项。
@@ -171,6 +173,20 @@ var sectionRegistry = []sectionEntry{
 			typed, ok := v.(conf.ImageGC)
 			if ok {
 				c.ImageGC = typed
+			}
+			return ok
+		},
+	},
+	{
+		Name:     SectionContentFilter,
+		Defaults: func(d conf.RuntimeDefaults) any { return d.ContentFilter },
+		Decode: func(s *RuntimeConfigService, p map[string]string) any {
+			return decodeOrDefault(SectionContentFilter, s.defaults.ContentFilter, p, s.logger)
+		},
+		Apply: func(c *RuntimeConfig, v any) bool {
+			typed, ok := v.(conf.ContentFilter)
+			if ok {
+				c.ContentFilter = typed
 			}
 			return ok
 		},

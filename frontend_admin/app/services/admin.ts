@@ -52,13 +52,14 @@ import type {
   SumResponseData,
   TagListItem,
   TagWritePayload,
+  ContentFilterRuntimeConfig,
   UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
   GroupTreeData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十段一一对应（ADR-0020）。 */
+/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十一段一一对应（ADR-0020 / ADR-0032）。 */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
@@ -70,6 +71,7 @@ export type RuntimeSectionName =
   | 'upload'
   | 'deco'
   | 'image_gc'
+  | 'content_filter'
 
 function api() {
   return useNuxtApp().$api
@@ -628,13 +630,27 @@ export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
   return updateRuntimeSection('upload', payload)
 }
 
-/** 装饰段（九段里的 deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
+/** 装饰段（deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
 }
 
 export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
   return updateRuntimeSection('deco', payload)
+}
+
+/**
+ * 内容过滤段（第 11 段，ADR-0032）：全站唯一的词表 + 白名单。
+ *
+ * 只有后台这一个出入口：读者站与匿名端点都不返回它。保存即生效 —— 后端把整段写进
+ * 运行时配置并刷新缓存，过滤引擎按新词表重建，不需要重启。
+ */
+export function getContentFilterRuntimeConfig() {
+  return getRuntimeSection<ContentFilterRuntimeConfig>('content_filter')
+}
+
+export function updateContentFilterRuntimeConfig(payload: ContentFilterRuntimeConfig) {
+  return updateRuntimeSection('content_filter', payload)
 }
 
 // ── 合集 / 项目分组（ADR-0019）─────────────────────────────────

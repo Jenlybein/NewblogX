@@ -63,6 +63,8 @@ type RuntimeConfig interface {
 	Deco() conf.Deco
 	// ImageGC 返回当前孤儿图回收运行配置。
 	ImageGC() conf.ImageGC
+	// ContentFilter 返回全站词表段（第 11 段，ADR-0032）。
+	ContentFilter() conf.ContentFilter
 
 	// UpdateSite 覆盖站点配置。
 	UpdateSite(site conf.Site) error
@@ -84,4 +86,6 @@ type RuntimeConfig interface {
 	UpdateDeco(deco conf.Deco) error
 	// UpdateImageGC 覆盖孤儿图回收运行配置。
 	UpdateImageGC(imageGC conf.ImageGC) error
+	// UpdateContentFilter 覆盖全站词表段。
+	UpdateContentFilter(contentFilter conf.ContentFilter) error
 }

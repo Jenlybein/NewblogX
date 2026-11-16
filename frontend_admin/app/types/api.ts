@@ -273,6 +273,16 @@ export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSe
 export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
 export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
 export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
+/**
+ * 第 11 段 `content_filter`（ADR-0032）：全站唯一的词表与白名单。
+ *
+ * 这一段只有后台具名端点（`GET /site/admin/content_filter` / `PUT /site/content_filter`），
+ * 读者站与任何匿名端点都拿不到它 —— 词表公开等于把"该绕开哪些词"告诉所有人。
+ */
+export type ContentFilterRuntimeConfig =
+  RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterResponse">
+/** 词表里的一条：词 + 档位（block/watch）+ 类目（固定七类）。 */
+export type ContentFilterWord = RequiredSchema<"conf.ContentFilterWord">
 
 /** 一条模型配置（密钥字段已被后端遮蔽为 ******）。 */
 export interface AIProviderItem {

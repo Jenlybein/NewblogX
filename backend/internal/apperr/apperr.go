@@ -421,6 +421,10 @@ const (
 	// 那是运行期的业务结论，这是保存配置时的参数错误。
 	CodeSiteAIDailyLimitInvalid Code = "site.ai_daily_limit_invalid"
 
+	// 内容过滤词表的保存期校验（ADR-0032）。同样是配置期的参数错误：
+	// 空词条、不认识的档位或类目都该当场拒绝，而不是写进库里等启动时才发现。
+	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
+
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
 	CodeSetupAlreadyDone          Code = "setup.already_done"
@@ -750,6 +754,7 @@ var messages = map[Code]string{
 	CodeRuntimeConfigSecretUnavailable: "未配置主密钥（BLOGX_CONFIG_SECRET_KEY），无法加密保存密钥；请先在环境变量里设置 32 字节密钥",
 	CodeRuntimeConfigTableMissing:      "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
+	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",

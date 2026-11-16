@@ -11,7 +11,7 @@ import (
 	_ "myblogx/internal/kernel"
 )
 
-// 九段运行时配置的具名 HTTP 出入口（#283 / ADR-0020）。
+// 运行时配置段的具名 HTTP 出入口（#283 / ADR-0020；第 11 段 content_filter 见 ADR-0032）。
 //
 // 参数化 /site/{name} 与 /site/admin/{name} 已整体退场：每段各有自己的
 // GET /site/admin/<name> 与 PUT /site/<name>，注解直接引用该段的具名形状。
@@ -420,4 +420,47 @@ func (h *Handler) PublicSiteSection(c *gin.Context) {
 // @Router /site/deco [get]
 func (h *Handler) PublicDecoSection(c *gin.Context) {
 	res.OkWithData(SiteSectionDecoResponse(h.svc.PublicDeco()), c)
+}
+
+// AdminContentFilterSection 返回 content_filter 段管理端配置。
+//
+// 第 11 段只有管理端出入口：词表一旦能被匿名读到，绕过过滤的成本就降到零
+// （ADR-0032 决策 3）。所以这里**没有** PublicContentFilterSection。
+// @Summary 获取 content_filter 段运行时配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[SiteSectionContentFilterResponse]
+// @Router /site/admin/content_filter [get]
+func (h *Handler) AdminContentFilterSection(c *gin.Context) {
+	res.OkWithData(SiteSectionContentFilterResponse(h.svc.AdminContentFilter()), c)
+}
+
+// UpdateContentFilterSection 覆盖 content_filter 段运行时配置。
+//
+// 保存即生效：写入后缓存立刻刷新，过滤引擎按新词表重建（重建由用例层负责，
+// 请求路径不做构建）。
+// @Summary 更新 content_filter 段运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SiteSectionContentFilterRequest true "content_filter 段配置"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /site/content_filter [put]
+func (h *Handler) UpdateContentFilterSection(c *gin.Context) {
+	if err := updateNamedSection(c, func(v SiteSectionContentFilterRequest) error {
+		return h.svc.UpdateContentFilter(conf.ContentFilter(v))
+	}); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "content_filter",
+		Success:    true,
+		Message:    "更新运行时配置成功: content_filter",
+	})
 }

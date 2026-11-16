@@ -43,6 +43,10 @@ deploy/docker/clickhouse/users.d/default-user.xml
 *.tmp
 *.exe
 
+# 一次性脚本的本地产物（内容过滤词表就落这里）
+# 词表数据是敏感数据：进了 git 历史就等于永久公开，所以产物目录一律忽略。
+.gotmp/
+
 # 操作系统 / 编辑器
 .DS_Store
 .idea/

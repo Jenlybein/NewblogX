@@ -4,8 +4,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"strings"
-	"unicode/utf8"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
@@ -347,62 +345,36 @@ func (s *Service) UpdateContentFilter(contentFilter conf.ContentFilter) error {
 
 // normalizeContentFilter 整理并校验词表段。
 //
-// 三件事：空词条直接丢掉（批量导入常带空行）、按"小写 + 去首尾空白"去重
-// （与过滤引擎的归一化口径一致，否则词云里会出现两个看起来一样的词）、
-// 档位/类目/词长不合规一律拒绝保存。
+// 具体规则（去空白、丢空词条、按小写去重、校验档位/类目/单字词）在
+// contentfilter.NormalizeWords —— 初始词表导入命令（cmd/cli 的 -filter-import）也走同一份，
+// 导入能写进去的词，后台保存一定也能接受。
 func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilter, error) {
-	out := conf.ContentFilter{
-		Words:     make([]conf.ContentFilterWord, 0, len(contentFilter.Words)),
-		Whitelist: make([]string, 0, len(contentFilter.Whitelist)),
-	}
-	seenWords := make(map[string]struct{}, len(contentFilter.Words))
+	words := make([]contentfilter.Word, 0, len(contentFilter.Words))
 	for _, entry := range contentFilter.Words {
-		word := strings.TrimSpace(entry.Word)
-		if word == "" {
-			continue
-		}
-		tier, ok := contentfilter.ParseTier(strings.TrimSpace(entry.Tier))
-		if !ok {
-			return conf.ContentFilter{}, invalidContentFilter("词条 %q 的档位 %q 不认识", word, entry.Tier)
-		}
-		category, ok := contentfilter.ParseCategory(strings.TrimSpace(entry.Category))
-		if !ok {
-			return conf.ContentFilter{}, invalidContentFilter("词条 %q 的类目 %q 不认识", word, entry.Category)
-		}
-		if utf8.RuneCountInString(word) < contentfilter.MinWordRunes {
-			return conf.ContentFilter{}, invalidContentFilter("词条 %q 是单字词，单字词不入表", word)
-		}
-		key := strings.ToLower(word)
-		if _, dup := seenWords[key]; dup {
-			continue
-		}
-		seenWords[key] = struct{}{}
-		out.Words = append(out.Words, conf.ContentFilterWord{
-			Word:     word,
-			Tier:     string(tier),
-			Category: string(category),
+		words = append(words, contentfilter.Word{
+			Word:     entry.Word,
+			Tier:     contentfilter.Tier(entry.Tier),
+			Category: contentfilter.Category(entry.Category),
 		})
 	}
+	normalized, err := contentfilter.NormalizeWords(words)
+	if err != nil {
+		// 错误文案由 contentfilter 给出（词表不合法的两个入口共用一份措辞）。
+		return conf.ContentFilter{}, apperr.Wrap(apperr.CodeSiteContentFilterInvalid, err)
+	}
 
-	seenWhitelist := make(map[string]struct{}, len(contentFilter.Whitelist))
-	for _, raw := range contentFilter.Whitelist {
-		entry := strings.TrimSpace(raw)
-		if entry == "" {
-			continue
-		}
-		key := strings.ToLower(entry)
-		if _, dup := seenWhitelist[key]; dup {
-			continue
-		}
-		seenWhitelist[key] = struct{}{}
-		out.Whitelist = append(out.Whitelist, entry)
+	out := conf.ContentFilter{
+		Words:     make([]conf.ContentFilterWord, 0, len(normalized)),
+		Whitelist: contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
+	}
+	for _, entry := range normalized {
+		out.Words = append(out.Words, conf.ContentFilterWord{
+			Word:     entry.Word,
+			Tier:     string(entry.Tier),
+			Category: string(entry.Category),
+		})
 	}
 	return out, nil
-}
-
-// invalidContentFilter 构造"词表不合法"的参数错误。
-func invalidContentFilter(format string, args ...any) error {
-	return apperr.Wrap(apperr.CodeSiteContentFilterInvalid, fmt.Errorf(format, args...))
 }
 
 // UpdateDeco 覆盖装饰配置。

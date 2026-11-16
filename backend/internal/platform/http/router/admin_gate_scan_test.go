@@ -104,6 +104,9 @@ var adminRouteTemplates = []string{
 	// 读写都在管理员分组下。
 	"GET /api/site/admin/content_filter",
 	"PUT /api/site/content_filter",
+	// 关键词风险（ADR-0032 决策 7 / 票 396）：看到的是"谁发了什么命中词"，
+	// 整段管理员专属；这一票只有只读列表。
+	"GET /api/content-filter/hits",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",

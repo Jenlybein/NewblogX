@@ -53,6 +53,10 @@ func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry, handle
 	ImageRouter(nr, mwRuntime)
 	BannerRouter(nr, mwRuntime)
 	CaptchaRouter(nr)
+
+	// 内容过滤（ADR-0032 / 票 396）：整段管理员专属，这一票只有只读列表。
+	ContentFilterRouter(nr, mwRuntime)
+
 	// 初始化路由紧邻那几个"还没有账号"的公开接口，
 	// 便于一眼看到"哪些接口是不需要登录的"。
 	SetupRouter(nr, mwRuntime)

@@ -425,6 +425,12 @@ const (
 	// 空词条、不认识的档位或类目都该当场拒绝，而不是写进库里等启动时才发现。
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
 
+	// 关键词风险页的筛选参数（ADR-0032）。与上面的词表校验分开：
+	// 那是"运营填的词条不合法"（去改词），这是"后台传错了筛选值"（去改请求），
+	// 两条失败指向的动作不同，日志里也该分得开。
+	CodeFilterSurfaceInvalid Code = "filter.surface_invalid"
+	CodeFilterStatusInvalid  Code = "filter.status_invalid"
+
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
 	CodeSetupAlreadyDone          Code = "setup.already_done"
@@ -755,6 +761,8 @@ var messages = map[Code]string{
 	CodeRuntimeConfigTableMissing:      "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
+	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
+	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted）",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",

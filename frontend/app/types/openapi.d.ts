@@ -3000,6 +3000,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/content-filter/hits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关键词风险列表（管理员） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页条数 */
+                    limit?: number;
+                    /** @description 文本面 */
+                    surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+                    /** @description 处理状态 */
+                    status?: "pending" | "ignored" | "deleted";
+                    /** @description 用户 ID */
+                    user_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/data/ai-usage": {
         parameters: {
             query?: never;
@@ -8666,6 +8713,52 @@ export interface components {
             reply_count?: number;
             root_id?: string;
         };
+        "internal_filter_adapter_http.HitItem": {
+            content_id?: string;
+            created_at?: string;
+            handled_at?: string;
+            /** @description HandlerID / HandledAt / Note 是处置痕迹（处置动作是 #398）。 */
+            handler_id?: string;
+            /** @description HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。 */
+            hit_count?: number;
+            id?: string;
+            note?: string;
+            /** @enum {string} */
+            status?: "pending" | "ignored" | "deleted";
+            /** @enum {string} */
+            surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+            user_id?: string;
+            /** @description UserNickname 是读面现查的展示名，不落库（昵称会变）。 */
+            user_nickname?: string;
+            /** @description Words 是命中明细：词 / 档位 / 类目 / ±20 字上下文。 */
+            words?: components["schemas"]["internal_filter_adapter_http.HitWord"][];
+        };
+        "internal_filter_adapter_http.HitListResponse": {
+            /** @description Count 是满足筛选条件的总条数（不是本页条数）。 */
+            count?: number;
+            list?: components["schemas"]["internal_filter_adapter_http.HitItem"][];
+            /** @description TopUsers 是最近 90 天命中处数最多的几个用户。 */
+            top_users?: components["schemas"]["internal_filter_adapter_http.TopUserItem"][];
+        };
+        "internal_filter_adapter_http.HitSnippet": {
+            end?: number;
+            start?: number;
+            text?: string;
+        };
+        "internal_filter_adapter_http.HitWord": {
+            /** @enum {string} */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            snippets?: components["schemas"]["internal_filter_adapter_http.HitSnippet"][];
+            /** @enum {string} */
+            tier?: "block" | "watch";
+            word?: string;
+        };
+        "internal_filter_adapter_http.TopUserItem": {
+            /** @description HitCount 是窗口内该用户的命中处数（按记录里的命中处数汇总）。 */
+            hit_count?: number;
+            user_id?: string;
+            user_nickname?: string;
+        };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
             upload_id: string;
@@ -9754,6 +9847,11 @@ export interface components {
         "myblogx_internal_comment_app.CreateResult": {
             article_id?: string;
             content?: string;
+            /**
+             * @description FilteredCount 是内容过滤实际替换的处数（票 396 / ADR-0032）。
+             *     前端据此提示"已过滤 N 处"；**不回显命中词**，否则词表就漏了。
+             */
+            filtered_count?: number;
             id?: string;
             reply_id?: string;
             root_id?: string;
@@ -9952,6 +10050,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
             code?: number;
             data?: components["schemas"]["internal_comment_adapter_http.ReplyListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HitListResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {

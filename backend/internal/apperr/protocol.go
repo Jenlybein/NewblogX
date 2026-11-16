@@ -74,6 +74,11 @@ var protocols = map[Code]ProtocolKind{
 	// 内容过滤词表（ADR-0032）：保存的是运营填错的词条/档位/类目，改一改就能过，
 	// 归 1001 而不是 1002（后者会让后台以为服务坏了、不敢重试）。
 	CodeSiteContentFilterInvalid: ProtocolValidation,
+
+	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
+	// 换个值就能过，同属调用方能修正的失败。
+	CodeFilterSurfaceInvalid: ProtocolValidation,
+	CodeFilterStatusInvalid:  ProtocolValidation,
 }
 
 // ProtocolOf 从错误值取协议类别。

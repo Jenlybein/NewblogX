@@ -2874,6 +2874,155 @@
                 },
                 "type": "object"
             },
+            "internal_filter_adapter_http.HitItem": {
+                "properties": {
+                    "content_id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "handled_at": {
+                        "type": "string"
+                    },
+                    "handler_id": {
+                        "description": "HandlerID / HandledAt / Note 是处置痕迹（处置动作是 #398）。",
+                        "type": "string"
+                    },
+                    "hit_count": {
+                        "description": "HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。",
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "note": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "pending",
+                            "ignored",
+                            "deleted"
+                        ],
+                        "type": "string"
+                    },
+                    "surface": {
+                        "enum": [
+                            "article",
+                            "comment",
+                            "nickname",
+                            "abstract",
+                            "chat",
+                            "collection"
+                        ],
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "description": "UserNickname 是读面现查的展示名，不落库（昵称会变）。",
+                        "type": "string"
+                    },
+                    "words": {
+                        "description": "Words 是命中明细：词 / 档位 / 类目 / ±20 字上下文。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitListResponse": {
+                "properties": {
+                    "count": {
+                        "description": "Count 是满足筛选条件的总条数（不是本页条数）。",
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "top_users": {
+                        "description": "TopUsers 是最近 90 天命中处数最多的几个用户。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.TopUserItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitSnippet": {
+                "properties": {
+                    "end": {
+                        "type": "integer"
+                    },
+                    "start": {
+                        "type": "integer"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitWord": {
+                "properties": {
+                    "category": {
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "snippets": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitSnippet"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "tier": {
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.TopUserItem": {
+                "properties": {
+                    "hit_count": {
+                        "description": "HitCount 是窗口内该用户的命中处数（按记录里的命中处数汇总）。",
+                        "type": "integer"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_media_adapter_http.CompleteTaskRequest": {
                 "properties": {
                     "object_key": {
@@ -5483,6 +5632,10 @@
                     "content": {
                         "type": "string"
                     },
+                    "filtered_count": {
+                        "description": "FilteredCount 是内容过滤实际替换的处数（票 396 / ADR-0032）。\n前端据此提示\"已过滤 N 处\"；**不回显命中词**，否则词表就漏了。",
+                        "type": "integer"
+                    },
                     "id": {
                         "type": "string"
                     },
@@ -6043,6 +6196,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_comment_adapter_http.ReplyListResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HitListResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -11005,6 +11172,86 @@
                 "summary": "评论点赞/取消点赞",
                 "tags": [
                     "comment"
+                ]
+            }
+        },
+        "/content-filter/hits": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页条数",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "文本面",
+                        "in": "query",
+                        "name": "surface",
+                        "schema": {
+                            "enum": [
+                                "article",
+                                "comment",
+                                "nickname",
+                                "abstract",
+                                "chat",
+                                "collection"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "处理状态",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "pending",
+                                "ignored",
+                                "deleted"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "用户 ID",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "关键词风险列表（管理员）",
+                "tags": [
+                    "content-filter"
                 ]
             }
         },

@@ -284,6 +284,23 @@ export type ContentFilterRuntimeConfig =
 /** 词表里的一条：词 + 档位（block/watch）+ 类目（固定七类）。 */
 export type ContentFilterWord = RequiredSchema<"conf.ContentFilterWord">
 
+// ── 关键词风险（ADR-0032 决策 7 / 票 396）──────────────────────
+//
+// 风险页只读：一页命中记录 + 顶部命中用户 Top。命中明细里的 start / end 是
+// **rune 下标**（相对 snippets[].text），前端高亮必须按 rune 切（见
+// utils/contentFilterRisk.ts 的 splitContentFilterSnippet）。
+
+export type ContentFilterHitSnippet = RequiredSchema<"internal_filter_adapter_http.HitSnippet">
+
+export type ContentFilterHitWord = RequiredSchema<"internal_filter_adapter_http.HitWord">
+
+export type ContentFilterHitItem = RequiredSchema<"internal_filter_adapter_http.HitItem">
+
+export type ContentFilterTopUser = RequiredSchema<"internal_filter_adapter_http.TopUserItem">
+
+/** 风险页的 data 载荷：`{list, count, top_users}`。 */
+export type ContentFilterHitListData = RequiredSchema<"internal_filter_adapter_http.HitListResponse">
+
 /** 一条模型配置（密钥字段已被后端遮蔽为 ******）。 */
 export interface AIProviderItem {
   id: string

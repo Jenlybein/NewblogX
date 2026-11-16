@@ -603,7 +603,7 @@ type UserRow struct {
 	Password              string                  `gorm:"size:64" json:"-"`
 	Email                 *string                 `gorm:"size:256;uniqueIndex:uk_user_email" json:"email"`
 	OpenID                *string                 `gorm:"size:64;uniqueIndex:uk_user_open_id" json:"open_id"` // qq 登录的 openid
-	Phone                 *string                 `gorm:"size:20;uniqueIndex:uk_user_phone" json:"phone"`    // 手机号，登录主标识
+	Phone                 *string                 `gorm:"size:20;uniqueIndex:uk_user_phone" json:"phone"`     // 手机号，登录主标识
 	Status                enum.UserStatus         `gorm:"default:1;index" json:"status"`
 	TokenVersion          uint32                  `gorm:"default:1" json:"token_version"`
 	LastPasswordChangedAt *time.Time              `json:"last_password_changed_at"`
@@ -839,3 +839,31 @@ type ProjectGroupItemRow struct {
 
 // TableName 固定表名。
 func (ProjectGroupItemRow) TableName() string { return "project_group_item_models" }
+
+// ContentFilterHitRow 对应表 content_filter_hit_models（ADR-0032 / 票 396）。
+//
+// 一条命中一条记录，**不存原文**：原文在落库前就被替换掉了，这里只有命中词、
+// 档位、类目与 ±20 字上下文片段（hits_json）。字段与 filter/adapter/mysql 的
+// contentFilterHitRow 必须逐列一致（columns_static_test 默认就会比）。
+type ContentFilterHitRow struct {
+	BaseRow
+	// Surface 是文本面（article / comment / nickname / abstract / chat / collection）。
+	Surface string `gorm:"type:varchar(16);not null" json:"surface"`
+	// ContentID 是命中内容在其所属实体表里的 ID。
+	ContentID ctype.ID `gorm:"not null" json:"content_id"`
+	// UserID 是内容作者；顶部命中用户 Top 按它聚合。
+	UserID ctype.ID `gorm:"not null;index:idx_content_filter_hit_user" json:"user_id"`
+	// HitsJSON 是命中明细的 JSON 快照。
+	HitsJSON string `gorm:"type:text;not null" json:"hits_json"`
+	// HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。
+	HitCount int `gorm:"not null;default:0" json:"hit_count"`
+	// Status 是处理状态：pending / ignored / deleted。
+	Status string `gorm:"type:varchar(16);not null;default:pending" json:"status"`
+	// HandlerID / HandledAt / Note 是处置痕迹（处置动作是 #398）。
+	HandlerID ctype.ID   `gorm:"not null;default:0" json:"handler_id"`
+	HandledAt *time.Time `json:"handled_at"`
+	Note      string     `gorm:"type:varchar(512);not null;default:''" json:"note"`
+}
+
+// TableName 固定表名。
+func (ContentFilterHitRow) TableName() string { return "content_filter_hit_models" }

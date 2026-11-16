@@ -47,6 +47,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// site 链路：站点配置与轮播图改由 internal/site 提供。
 	WireSite(infra)
 
+	// 内容过滤链路（票 396）：引擎已在 InitRuntimeServices 里按词表构建，
+	// 这里只把「关键词风险」读面的处理器注入路由树。
+	WireFilter(infra)
+
 	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 

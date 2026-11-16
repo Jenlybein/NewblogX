@@ -842,3 +842,26 @@ CREATE TABLE IF NOT EXISTS `article_risk_models` (
   UNIQUE KEY `uk_article_risk_article` (`article_id`),
   KEY `idx_article_risk_verdict` (`verdict`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 关键词风险：内容过滤的命中记录（ADR-0032 决策 7 / 票 396）。
+-- 一条命中一条记录，**不存原文**：原文在落库前就被替换掉了，这里只有命中词、
+-- 档位、类目与 ±20 字上下文片段。状态与处置痕迹列给 #398 的处置动作预留。
+-- 索引按风险页的两种读法：筛选 + 分页（面 + 状态 + 时间）与按用户聚合（Top 榜）。
+CREATE TABLE IF NOT EXISTS `content_filter_hit_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `surface` varchar(16) NOT NULL,
+  `content_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `hits_json` text NOT NULL,
+  `hit_count` bigint NOT NULL DEFAULT '0',
+  `status` varchar(16) NOT NULL DEFAULT 'pending',
+  `handler_id` bigint unsigned NOT NULL DEFAULT '0',
+  `handled_at` datetime(3) DEFAULT NULL,
+  `note` varchar(512) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  KEY `idx_content_filter_hit_surface_status_created` (`surface`,`status`,`created_at`),
+  KEY `idx_content_filter_hit_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

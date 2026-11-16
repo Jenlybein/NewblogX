@@ -82,6 +82,11 @@ type Hit struct {
 type Result struct {
 	Masked string
 	Hits   []Hit
+	// MaskedSpans 是**实际被替换的处数**（白名单命中的区间不算，重叠命中按并集算一处）。
+	//
+	// 调用方拿它回答"已过滤 N 处"：Hits 里有白名单命中（记录了但不替换），
+	// 用 len(Hits) 或片段数当 N 会把没打的星号也算进去，对用户是一次撒谎。
+	MaskedSpans int
 }
 
 // Engine 持有当前生效的匹配器，词表变更后整份原子替换。

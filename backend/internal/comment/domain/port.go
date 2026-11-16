@@ -160,3 +160,33 @@ type Clock interface {
 type Logger interface {
 	Errorf(format string, args ...any)
 }
+
+// FilterRequest 是一段要在落库前过滤的评论文本。
+//
+// 端口刻意不带"文本面"参数：评论模块只知道"这是我的评论文本"，把它归到哪个面是
+// 装配层的事（ADR-0032 的 surface 枚举属于内容过滤模块）。这样评论模块不必认识
+// 另外五个面，将来加面也不会改到这里。
+type FilterRequest struct {
+	UserID ctype.ID
+	// ContentID 是即将落库的评论 ID：评论在 Create 之前先生成 ID，
+	// 命中记录才能指回真实内容（后续票的"删除内容"处置要靠它）。
+	ContentID ctype.ID
+	Text      string
+}
+
+// FilterResult 是过滤结果。
+type FilterResult struct {
+	// Masked 是替换后的文本；用它入库、发通知、回响应。
+	Masked string
+	// FilteredCount 是实际被替换的处数（只用于"已过滤 N 处"的提示）。
+	FilteredCount int
+}
+
+// ContentFilterer 在全站唯一的内容过滤层里替换命中词，并记一条关键词风险。
+//
+// 错误语义：实现方在"命中记录写失败"时应当自己吞掉并记日志（fail-open），
+// 返回 error 只留给装配级异常；即便如此，调用方也必须按"记录失败不阻断发布"
+// 处理 —— 见 Service.Create 里的注释。
+type ContentFilterer interface {
+	Filter(ctx context.Context, in FilterRequest) (FilterResult, error)
+}

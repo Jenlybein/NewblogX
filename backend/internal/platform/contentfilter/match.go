@@ -59,7 +59,8 @@ func (m *matcher) apply(text string) Result {
 			mask = append(mask, hit.spans)
 		}
 	}
-	return Result{Masked: replaceRunes(orig, mergeSpans(mask)), Hits: hits}
+	merged := mergeSpans(mask)
+	return Result{Masked: replaceRunes(orig, merged), Hits: hits, MaskedSpans: len(merged)}
 }
 
 // findSpans 在影子串上跑一次 AC，把命中区间映射回原文。

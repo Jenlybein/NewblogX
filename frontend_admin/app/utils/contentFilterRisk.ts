@@ -116,3 +116,26 @@ export function splitContentFilterSnippet(
     after: runes.slice(to).join(''),
   }
 }
+
+/** 处置动作（票 398）：删除命中的内容 / 忽略误报。 */
+export const CONTENT_FILTER_ACTION_OPTIONS = [
+  { label: '删除内容', value: 'delete' },
+  { label: '忽略（误报）', value: 'ignore' },
+] as const
+
+/**
+ * 哪些文本面的"删除内容"是**删实体**、哪些是**重置资料**。
+ *
+ * 界面要按这个差异换文案：点"删除内容"落在昵称 / 简介上时发生的是资料重置
+ * （昵称改成「问题昵称 + uid 末 4 位」、简介清空），文案说"删除"会让管理员
+ * 以为用户资料整条没了。私信面没有可删实体，界面要禁用删除并说明原因。
+ */
+export const CONTENT_FILTER_SURFACE_ACTIONS: Record<string, { deleteLabel: string, deletable: boolean }> = {
+  article: { deleteLabel: '删除文章', deletable: true },
+  comment: { deleteLabel: '删除评论', deletable: true },
+  collection: { deleteLabel: '删除合集', deletable: true },
+  nickname: { deleteLabel: '重置资料', deletable: true },
+  abstract: { deleteLabel: '重置资料', deletable: true },
+  // 私信没有软删语义，也没有后台删除入口：delete 会被后端拒绝。
+  chat: { deleteLabel: '删除消息', deletable: false },
+}

@@ -107,6 +107,8 @@ var adminRouteTemplates = []string{
 	// 关键词风险（ADR-0032 决策 7 / 票 396）：看到的是"谁发了什么命中词"，
 	// 整段管理员专属；这一票只有只读列表。
 	"GET /api/content-filter/hits",
+	"POST /api/content-filter/hits/:id/handle",
+	"POST /api/content-filter/hits/handle-batch",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",
@@ -414,3 +416,4 @@ func TestClassificationGateIsNotAlwaysGreen(t *testing.T) {
 		t.Fatal("canary 失效：未归类判定恒为假，门禁永远不会红")
 	}
 }
+

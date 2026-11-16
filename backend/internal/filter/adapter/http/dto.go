@@ -75,3 +75,48 @@ type HitListResponse struct {
 	// TopUsers 是最近 90 天命中处数最多的几个用户。
 	TopUsers []TopUserItem `json:"top_users"`
 }
+
+// HandleHitRequest 是单条处置的请求体。
+//
+// 动作与备注都在服务端校验（不靠 binding tag）：非法动作、超长备注要给出
+// 明确的中文提示，而 gin 的 binding 只能回一个笼统的 400。
+type HandleHitRequest struct {
+	Action string `json:"action" enums:"delete,ignore"`
+	// Note 是可选备注（≤200 字，服务端按 rune 计数）。
+	Note string `json:"note"`
+}
+
+// HandleHitResponse 是单条处置的 data 载荷。
+type HandleHitResponse struct {
+	Hit HitItem `json:"hit"`
+	// AlreadyHandled 表示这条记录之前已被处置，本次只是返回当前状态（幂等）。
+	AlreadyHandled bool `json:"already_handled"`
+}
+
+// HandleBatchRequest 是批量处置的请求体。
+type HandleBatchRequest struct {
+	IDs    []ctype.ID `json:"ids"`
+	Action string     `json:"action" enums:"delete,ignore"`
+	Note   string     `json:"note"`
+}
+
+// HandleBatchItem 是批量处置里的一条结果。
+//
+// 用"逐条结果"而不是"整批失败"：一批里可能混着文章与私信面，私信面没有
+// 可删内容、某条记录可能刚被别人处置，这些都是单条失败而整批照常可行的结局。
+type HandleBatchItem struct {
+	ID ctype.ID `json:"id"`
+	// Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。
+	Ok bool `json:"ok"`
+	// Status 是处置后的状态；失败且拿不到记录时为空串。
+	Status string `json:"status" enums:"pending,ignored,deleted"`
+	// Message 是失败原因的中文提示（成功时为空串）。
+	Message string `json:"message"`
+	// AlreadyHandled 与单条处置同义。
+	AlreadyHandled bool `json:"already_handled"`
+}
+
+// HandleBatchResponse 是批量处置的 data 载荷。
+type HandleBatchResponse struct {
+	Results []HandleBatchItem `json:"results"`
+}

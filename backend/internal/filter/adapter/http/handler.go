@@ -1,7 +1,7 @@
-// Package http 是内容过滤模块的 HTTP 适配器：后台「审核 → 关键词风险」读面。
+// Package http 是内容过滤模块的 HTTP 适配器：后台「审核 → 关键词风险」的读面与处置。
 //
-// 这一票只有**只读**端点。处置动作（删除 / 忽略 / 封禁 / 禁言）是 #398 的活，
-// 所以这里没有任何写方法 —— 也就不存在"某条写路由忘了挂 AdminMiddleware"的口子。
+// 整段路由只给管理员（router/content_filter_router.go）：看得到的是"谁发了什么
+// 命中词"，本身就是敏感信息；处置动作还会删内容，更不能让普通登录用户碰到。
 package http
 
 import (
@@ -10,9 +10,11 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/filter/app"
 	"myblogx/internal/filter/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
+	"myblogx/utils/jwts"
 )
 
 // Handler 是关键词风险的 HTTP 处理器。
@@ -55,6 +57,131 @@ func (h *Handler) ListHits(c *gin.Context) {
 		return
 	}
 	res.OkWithData(toListResponse(result), c)
+}
+
+// HandleHit 处置一条关键词风险记录（管理员）。
+//
+// 动作是 delete 或 ignore；delete 按文本面软删内容（昵称 / 简介面重置资料），
+// 私信面没有可删内容会返回明确错误。同一记录重复处置是幂等的（already_handled）。
+// @Summary 处置一条关键词风险记录（管理员）
+// @Tags content-filter
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "命中记录 ID"
+// @Param payload body HandleHitRequest true "处置动作与备注"
+// @Success 200 {object} kernel.Envelope[HandleHitResponse]
+// @Router /content-filter/hits/{id}/handle [post]
+func (h *Handler) HandleHit(c *gin.Context) {
+	id, err := parseHitID(c)
+	if err != nil {
+		res.Fail(err, c)
+		return
+	}
+	var raw HandleHitRequest
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		res.Fail(apperr.New(apperr.CodeCommonInvalidArgument), c)
+		return
+	}
+	actor, err := handlerID(c)
+	if err != nil {
+		res.Fail(err, c)
+		return
+	}
+	got, err := h.svc.Handle(c.Request.Context(), app.HandleInput{
+		ID:        id,
+		Action:    domain.Action(raw.Action),
+		Note:      raw.Note,
+		HandlerID: actor,
+	})
+	if err != nil {
+		res.Fail(err, c)
+		return
+	}
+	res.OkWithData(HandleHitResponse{
+		Hit:            toHitItem(got.Hit),
+		AlreadyHandled: got.AlreadyHandled,
+	}, c)
+}
+
+// HandleBatchHits 批量处置关键词风险记录（管理员）。
+//
+// 语义是**逐条结果**（见 app.Service.HandleBatch 的注释）：请求级非法（动作错 /
+// 备注超长 / 一条没选）整批拒绝；通过之后逐条执行，每条成败各自如实返回，
+// 成功的已生效、失败的保持待处理可重试。HTTP 状态恒为 200，业务码在包体里。
+// @Summary 批量处置关键词风险记录（管理员）
+// @Tags content-filter
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param payload body HandleBatchRequest true "记录 ID、动作与备注"
+// @Success 200 {object} kernel.Envelope[HandleBatchResponse]
+// @Router /content-filter/hits/handle-batch [post]
+func (h *Handler) HandleBatchHits(c *gin.Context) {
+	var raw HandleBatchRequest
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		res.Fail(apperr.New(apperr.CodeCommonInvalidArgument), c)
+		return
+	}
+	actor, err := handlerID(c)
+	if err != nil {
+		res.Fail(err, c)
+		return
+	}
+	got, err := h.svc.HandleBatch(c.Request.Context(), app.BatchHandleInput{
+		IDs:       raw.IDs,
+		Action:    domain.Action(raw.Action),
+		Note:      raw.Note,
+		HandlerID: actor,
+	})
+	if err != nil {
+		res.Fail(err, c)
+		return
+	}
+	results := make([]HandleBatchItem, 0, len(got.Items))
+	for _, item := range got.Items {
+		row := HandleBatchItem{
+			ID:             item.ID,
+			Ok:             item.Err == nil,
+			Message:        errorMessage(item.Err),
+			AlreadyHandled: item.AlreadyHandled,
+		}
+		if item.Hit.Status.Valid() {
+			row.Status = string(item.Hit.Status)
+		}
+		results = append(results, row)
+	}
+	res.OkWithData(HandleBatchResponse{Results: results}, c)
+}
+
+// parseHitID 从路径参数取命中记录 ID；格式不对按参数错误处理。
+func parseHitID(c *gin.Context) (ctype.ID, error) {
+	id, err := ctype.ParseID(c.Param("id"))
+	if err != nil || id.IsZero() {
+		return "", apperr.New(apperr.CodeCommonInvalidArgument)
+	}
+	return id, nil
+}
+
+// handlerID 取当前管理员 ID（AdminMiddleware 已保证登录且是管理员，
+// 这里只处理"中间件漏挂"的兜底：没有 claims 就按未登录处理）。
+func handlerID(c *gin.Context) (ctype.ID, error) {
+	claims := jwts.GetClaimsByGin(c)
+	if claims == nil || claims.UserID.IsZero() {
+		return "", apperr.New(apperr.CodeAuthRequired)
+	}
+	return claims.UserID, nil
+}
+
+// errorMessage 把逐条失败翻译成可读中文；未知错误不透出内部实现细节。
+func errorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	if code, ok := apperr.CodeOf(err); ok {
+		return apperr.Message(code)
+	}
+	return apperr.Message(apperr.CodeCommonServiceFailed)
 }
 
 // bindListRequest 绑定并校验查询参数。

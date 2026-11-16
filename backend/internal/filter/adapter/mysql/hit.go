@@ -9,10 +9,12 @@ package mysql
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/contentfilter"
@@ -196,6 +198,67 @@ func (r *Repo) TopUsers(ctx context.Context, since time.Time, limit int) ([]doma
 		out[i].Nickname = displays[out[i].UserID].Nickname
 	}
 	return out, nil
+}
+
+// FindByID 按 ID 查一条命中记录（软删的行也会被 gorm 默认排除）。
+func (r *Repo) FindByID(ctx context.Context, id ctype.ID) (domain.Hit, error) {
+	if id.IsZero() {
+		return domain.Hit{}, apperr.New(apperr.CodeFilterHitNotFound)
+	}
+	var row contentFilterHitRow
+	err := r.db.WithContext(ctx).Take(&row, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return domain.Hit{}, apperr.New(apperr.CodeFilterHitNotFound)
+	}
+	if err != nil {
+		return domain.Hit{}, err
+	}
+	hit, err := toHit(row)
+	if err != nil {
+		return domain.Hit{}, err
+	}
+	hit.UserNickname = r.nicknameOf(hit.UserID)
+	return hit, nil
+}
+
+// MarkHandled 把一条**待处理**记录改写成已处置，返回是否真的改写了。
+//
+// 条件更新（WHERE status = 'pending'）是幂等与并发的落点：两个管理员同时点
+// 处置，只有一个拿到 true，另一个拿到 false 后由用例层重读当前状态返回。
+// 这样后到者不会覆盖先到者的处理人 / 时间 / 备注。
+func (r *Repo) MarkHandled(ctx context.Context, id ctype.ID, h domain.Handle) (bool, error) {
+	if id.IsZero() {
+		return false, apperr.New(apperr.CodeFilterHitNotFound)
+	}
+	status := h.Status
+	if !status.Valid() {
+		return false, apperr.New(apperr.CodeFilterActionInvalid)
+	}
+	updates := map[string]any{
+		"status":     string(status),
+		"handler_id": h.HandlerID,
+		"note":       h.Note,
+		"updated_at": time.Now(),
+	}
+	if !h.HandledAt.IsZero() {
+		updates["handled_at"] = h.HandledAt
+	}
+	res := r.db.WithContext(ctx).Model(&contentFilterHitRow{}).
+		Where("id = ? AND status = ?", id, string(domain.StatusPending)).
+		Updates(updates)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// nicknameOf 现查一个用户的昵称（读面展示字段，不落库）。
+func (r *Repo) nicknameOf(userID ctype.ID) string {
+	displays, err := readmodel.LoadUserDisplayMap(r.db, []ctype.ID{userID})
+	if err != nil {
+		return ""
+	}
+	return displays[userID].Nickname
 }
 
 // applyFilters 把筛选条件挂到查询上（列表与计数共用一份口径）。

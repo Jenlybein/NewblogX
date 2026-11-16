@@ -54,6 +54,8 @@ import type {
   TagWritePayload,
   ContentFilterRuntimeConfig,
   ContentFilterHitListData,
+  ContentFilterHandleResult,
+  ContentFilterHandleBatchResult,
   UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
@@ -712,3 +714,34 @@ export function getContentFilterHits(query: {
 }) {
   return api().request<ContentFilterHitListData>('/content-filter/hits', { query })
 }
+/**
+ * 处置一条命中记录（票 398）：删除命中的内容，或忽略误报。
+ *
+ * 语义与后端一致：已处置的记录幂等返回当前状态；`delete` 对私信面会明确失败
+ * （私信没有可删的实体），所以调用方要按业务错误提示而不是当成成功。
+ */
+export function handleContentFilterHit(
+  id: string,
+  payload: { action: "delete" | "ignore"; note?: string },
+) {
+  return api().request<ContentFilterHandleResult>(`/content-filter/hits/${id}/handle`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/**
+ * 批量处置（票 398）：返回**逐条结果**，不是"整批成功/失败"。
+ *
+ * 一批里可能混着文章与私信面，也可能有条目刚被别人处置过；调用方要按
+ * `results[].ok` 汇总"成功 N 条、失败 M 条"，并把失败原因展示出来。
+ */
+export function handleContentFilterHits(
+  payload: { ids: string[]; action: "delete" | "ignore"; note?: string },
+) {
+  return api().request<ContentFilterHandleBatchResult>('/content-filter/hits/handle-batch', {
+    method: 'POST',
+    body: payload,
+  })
+}
+

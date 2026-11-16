@@ -3011,6 +3011,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/content-filter/hits/handle-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批量处置关键词风险记录（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 记录 ID、动作与备注 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_filter_adapter_http.HandleBatchRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/hits/{id}/handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 处置一条关键词风险记录（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 命中记录 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 处置动作与备注 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_filter_adapter_http.HandleHitRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/data/ai-usage": {
         parameters: {
             query?: never;
@@ -8710,6 +8795,40 @@ export interface components {
             reply_count?: number;
             root_id?: string;
         };
+        "internal_filter_adapter_http.HandleBatchItem": {
+            /** @description AlreadyHandled 与单条处置同义。 */
+            already_handled?: boolean;
+            id?: string;
+            /** @description Message 是失败原因的中文提示（成功时为空串）。 */
+            message?: string;
+            /** @description Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。 */
+            ok?: boolean;
+            /**
+             * @description Status 是处置后的状态；失败且拿不到记录时为空串。
+             * @enum {string}
+             */
+            status?: "pending" | "ignored" | "deleted";
+        };
+        "internal_filter_adapter_http.HandleBatchRequest": {
+            /** @enum {string} */
+            action?: "delete" | "ignore";
+            ids?: string[];
+            note?: string;
+        };
+        "internal_filter_adapter_http.HandleBatchResponse": {
+            results?: components["schemas"]["internal_filter_adapter_http.HandleBatchItem"][];
+        };
+        "internal_filter_adapter_http.HandleHitRequest": {
+            /** @enum {string} */
+            action?: "delete" | "ignore";
+            /** @description Note 是可选备注（≤200 字，服务端按 rune 计数）。 */
+            note?: string;
+        };
+        "internal_filter_adapter_http.HandleHitResponse": {
+            /** @description AlreadyHandled 表示这条记录之前已被处置，本次只是返回当前状态（幂等）。 */
+            already_handled?: boolean;
+            hit?: components["schemas"]["internal_filter_adapter_http.HitItem"];
+        };
         "internal_filter_adapter_http.HitItem": {
             content_id?: string;
             created_at?: string;
@@ -9995,6 +10114,16 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
             code?: number;
             data?: components["schemas"]["internal_comment_adapter_http.ReplyListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HandleBatchResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HandleHitResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {

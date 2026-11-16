@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/filter/app"
 	"myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
@@ -294,3 +295,15 @@ func TestListToleratesTopUsersFailure(t *testing.T) {
 		t.Fatalf("Top 失败应记一条 error 日志，实际 %d 条", logger.errors)
 	}
 }
+
+// FindByID / MarkHandled 是处置能力（票 398）加进仓储端口的两个方法。
+// 本文件的用例只关心"过滤与记录"，所以这里给出"查不到 / 不更新"的最简实现；
+// 处置行为由 handle_test.go 的 handleRepo 覆盖。
+func (r *fakeRepo) FindByID(_ context.Context, _ ctype.ID) (domain.Hit, error) {
+	return domain.Hit{}, apperr.New(apperr.CodeFilterHitNotFound)
+}
+
+func (r *fakeRepo) MarkHandled(_ context.Context, _ ctype.ID, _ domain.Handle) (bool, error) {
+	return false, nil
+}
+

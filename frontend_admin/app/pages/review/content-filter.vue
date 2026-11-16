@@ -1,16 +1,20 @@
 <script setup lang="ts">
 /**
- * 审核 → 关键词风险（`/review/content-filter`）：命中记录只读页（ADR-0032 决策 7 / 票 396）。
+ * 审核 → 关键词风险（`/review/content-filter`）：命中记录与处置（ADR-0032 决策 7 / 票 396、398）。
  *
- * 这一票**只读**：能看、能按文本面 / 状态 / 用户筛、能分页，不能处置。
- * 处置动作（删除内容 / 忽略 / 封禁 / 禁言）是下一票（票 398），届时在本页加按钮。
+ * 能看、能按文本面 / 状态 / 用户筛、能分页；也能处置：**删除命中的内容**
+ * 或**忽略误报**。封禁与禁言是账号级处置，在下一票（票 399）接到账号状态上。
+ *
+ * 两个按钮的语义按文本面换文案（见 utils/contentFilterRisk.ts 的
+ * CONTENT_FILTER_SURFACE_ACTIONS）：昵称 / 简介上是「重置资料」，私信面禁用删除。
  */
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NEmpty, NInput, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
-import { getContentFilterHits } from '~/services/admin'
+import { NButton, NCard, NDataTable, NEmpty, NInput, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
+import { getContentFilterHits, handleContentFilterHit, handleContentFilterHits } from '~/services/admin'
 import type { ContentFilterHitItem, ContentFilterHitSnippet, ContentFilterTopUser } from '~/types/api'
 import {
   CONTENT_FILTER_STATUS_OPTIONS,
+  CONTENT_FILTER_SURFACE_ACTIONS,
   CONTENT_FILTER_SURFACE_OPTIONS,
   contentFilterCategoryLabel,
   contentFilterStatusLabel,
@@ -34,6 +38,11 @@ const status = ref<string | null>('pending')
 const userId = ref('')
 const rows = ref<ContentFilterHitItem[]>([])
 const topUsers = ref<ContentFilterTopUser[]>([])
+// 批量处置要的选中集合：naive-ui 的 NDataTable 用 checkedRowKeys 回传。
+const checkedKeys = ref<string[]>([])
+const handling = ref(false)
+// 处置备注：同一批共用一个备注（逐条备注只会让审计表更难读）。
+const note = ref('')
 
 // as const 的选项表要复制成可变数组：NSelect 的 options 是 SelectOption[]，
 // 只读元组直接传会因 readonly 而编译不过。
@@ -110,7 +119,113 @@ const columns = [
       }),
   },
   { title: '命中处数', key: 'hit_count', width: 95 },
+  {
+    // 处置动作（票 398）：待处理的行才给按钮；已处置的行显示处理痕迹。
+    // 二次确认放在按钮里（NPopconfirm）—— 删除不可逆（原文已被替换成 *）。
+    title: '处置',
+    key: 'actions',
+    width: 190,
+    render: (row: ContentFilterHitItem) => {
+      if (row.status !== 'pending') {
+        // 处理痕迹：谁、什么备注。已处置的行不给按钮，重复点只会是空操作。
+        const who = row.handler_id ? `管理员 ${shortId(row.handler_id)}` : '已处置'
+        return h('div', { class: 'text-xs muted' }, row.note ? `${who}：${row.note}` : who)
+      }
+      const meta = actionMeta(row)
+      return h(NSpace, { size: 6 }, {
+        default: () => [
+          h(NPopconfirm, {
+            onPositiveClick: () => handleOne(row, 'delete'),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'tiny',
+              type: 'error',
+              secondary: true,
+              disabled: !meta.deletable || handling.value,
+            }, { default: () => meta.deleteLabel }),
+            default: () =>
+              meta.deletable
+                ? `确认「${meta.deleteLabel}」？原文已被替换成 *，不可恢复。`
+                : '私信没有可删除的内容，请改用「忽略」。',
+          }),
+          h(NPopconfirm, {
+            onPositiveClick: () => handleOne(row, 'ignore'),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'tiny',
+              secondary: true,
+              disabled: handling.value,
+            }, { default: () => '忽略' }),
+            default: () => '确认把这条标记为误报？内容保持原样。',
+          }),
+        ],
+      })
+    },
+  },
 ]
+
+
+/**
+ * 处置一条记录。
+ *
+ * 二次确认不能省：删除是不可逆的（原文已被替换成 `*`，没有"恢复原文"这条路），
+ * 误点一次就把一篇正常文章删了。所以点删除先弹确认，忽略（不动内容）也弹一次
+ * 确认以免误点，但措辞不同。
+ */
+async function handleOne(row: ContentFilterHitItem, action: 'delete' | 'ignore') {
+  handling.value = true
+  try {
+    const got = await handleContentFilterHit(row.id, { action, note: note.value.trim() || undefined })
+    if (got.already_handled) {
+      message.info('这条记录已被处置过，未重复执行')
+    } else {
+      message.success(action === 'delete' ? '已删除命中的内容' : '已忽略')
+    }
+    await refresh()
+  } catch {
+    message.error(action === 'delete' ? '删除失败' : '忽略失败')
+  } finally {
+    handling.value = false
+  }
+}
+
+/**
+ * 批量处置：后端返回**逐条结果**，这里按 ok 汇总提示。
+ *
+ * 不把失败弹成一串错误框：一批里混着私信面（没有可删内容）是常态，
+ * 给一句"N 条成功、M 条失败（原因见下）"比连弹三次更好用。
+ */
+async function handleSelected(action: 'delete' | 'ignore') {
+  if (checkedKeys.value.length === 0) {
+    message.warning('先勾选要处置的记录')
+    return
+  }
+  handling.value = true
+  try {
+    const got = await handleContentFilterHits({
+      ids: checkedKeys.value,
+      action,
+      note: note.value.trim() || undefined,
+    })
+    const failed = got.results.filter(item => !item.ok)
+    if (failed.length === 0) {
+      message.success(`已处置 ${got.results.length} 条`)
+    } else {
+      message.warning(`成功 ${got.results.length - failed.length} 条，失败 ${failed.length} 条：${failed[0]!.message}`)
+    }
+    checkedKeys.value = []
+    await refresh()
+  } catch {
+    message.error('批量处置失败')
+  } finally {
+    handling.value = false
+  }
+}
+
+/** 某个面的删除按钮文案与是否可用（昵称 / 简介是"重置资料"，私信禁删）。 */
+function actionMeta(row: ContentFilterHitItem) {
+  return CONTENT_FILTER_SURFACE_ACTIONS[row.surface] ?? { deleteLabel: '删除内容', deletable: true }
+}
 
 async function refresh() {
   loading.value = true
@@ -196,6 +311,37 @@ onMounted(refresh)
       </div>
     </NCard>
 
+    <NCard class="admin-card" title="批量处置">
+      <p class="muted m-0 mb-3">
+        勾选上方「待处理」的行后选择动作。备注会写到每条命中记录上（最多 200 字），
+        用于事后追溯。
+      </p>
+      <div class="admin-toolbar">
+        <NInput
+          v-model:value="note"
+          placeholder="处置备注（可选）"
+          maxlength="200"
+          show-count
+          class="w-full md:w-80" />
+        <span class="muted text-xs">已选 {{ checkedKeys.length }} 条</span>
+        <NButton
+          type="error"
+          secondary
+          :disabled="checkedKeys.length === 0 || handling"
+          :loading="handling"
+          @click="handleSelected('delete')">
+          删除内容
+        </NButton>
+        <NButton
+          secondary
+          :disabled="checkedKeys.length === 0 || handling"
+          :loading="handling"
+          @click="handleSelected('ignore')">
+          忽略
+        </NButton>
+      </div>
+    </NCard>
+
     <NCard class="admin-card" title="命中记录">
       <!-- 空列表是正常读面，不是错误：给空态，不弹"加载失败"。 -->
       <NEmpty
@@ -204,7 +350,11 @@ onMounted(refresh)
         description="没有符合条件的命中记录" />
       <NDataTable
         v-else
+        v-model:checked-row-keys="checkedKeys"
         :row-key="(row: ContentFilterHitItem) => row.id"
+        :row-selection="{
+          checks: (row: ContentFilterHitItem) => row.status === 'pending',
+        }"
         :columns="columns"
         :data="rows"
         :loading="loading"
@@ -224,7 +374,14 @@ onMounted(refresh)
     </NCard>
 
     <p class="muted m-0 text-xs">
-      这一页只读：处置动作（删除内容 / 忽略 / 封禁 / 禁言）在下一票提供。命中词与上下文不外泄到任何公开端点。
+      删除不可逆：原文已被替换成等长 <code>*</code>，没有「恢复原文」这条路。昵称 / 简介上的「重置资料」会把昵称改成
+      「问题昵称 + uid 末 4 位」并清空简介；私信没有可删内容，只能用「忽略」。封禁与禁言是账号级处置，在账号管理页。
+      命中词与上下文不外泄到任何公开端点。
     </p>
   </NSpace>
 </template>
+
+
+
+
+

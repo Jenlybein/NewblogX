@@ -45,6 +45,8 @@ func WireArticle(infra *Infra) {
 	// 真正的下游订阅者（评分 / 系统通知）挂在 outbox 中继上，
 	// 见 app/outbox_wiring.go 的 WireOutboxRelay。
 	svc := newArticleService(infra)
+	// 挂到 Infra：关键词风险页的处置动作要复用**这一份**装配（票 398）。
+	infra.ArticleService = svc
 
 	h := articlehttp.NewHandler(
 		svc,
@@ -346,3 +348,4 @@ func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateIn
 		Issues:     issues,
 	}, nil
 }
+

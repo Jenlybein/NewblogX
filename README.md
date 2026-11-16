@@ -810,6 +810,8 @@ CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注�
 | `-t` + `-s` | `run init` / `user create` | 组合操作 |
 | `-t imagegc` | 可选 `-apply` | 孤儿图清单（只读）；带 `-apply` 才真删图片 |
 | `-t imagerefgc` | 可选 `-apply` | 孤儿图片引用清单（只读）；带 `-apply` 才删引用行 |
+| `-filter-import` | 文件路径 | 初始词表导入（TSV / NDJSON），默认只报告；带 `-filter-import-apply` 才写库 |
+| `-filter-sweep` | 可选 `-filter-sweep-apply` / `-filter-sweep-reindex` | 存量内容清洗：扫六个文本面替换命中词，默认只报告；`-apply` 才写库 |
 | `-version` / `-v` | 无 | 打印版本（**在读取配置之前处理**，缺环境变量也能用） |
 
 ### role 的含义
@@ -1556,6 +1558,35 @@ docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t image
 | `state/nginx/logs/` | `/var/log/nginx` | 访问/错误日志 |
 
 **`state/api/var` 不要随便删。** river 的 binlog 位点存在这里，删了会从头重扫，轻则重复同步、重则把旧数据覆盖回去。
+
+### 12.2.3 内容过滤的上线顺序（词表 → 清洗 → 重建索引）
+
+内容过滤（ADR-0032）把「命中词替换成 `*`」放在落库之前，因此上线时**顺序不能乱**。
+尤其是三层之间有一个硬约束：**词表必须先于存量清洗导入**——旧的两份词表不会
+自动迁移（词表机审已随 #401 退场），第 11 段为空时清洗命令会直接报错，而不是
+打印一份「0 命中、看起来很干净」的报告。
+
+```bash
+cd deploy/compose/production
+
+# 1) 词表：从部署侧的词表文件导入（涉政 / 暴恐类只放部署侧，不进仓库）。
+#    默认 dry-run，先看清「会新增多少条」再决定写库。
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-import /tmp/words.tsv
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply
+
+# 2) 存量清洗：扫六个文本面（文章标题/摘要/正文、评论、昵称、简介、私信、合集），
+#    把历史命中词替换成等长 *，并补写「关键词风险」记录。默认 dry-run。
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-sweep
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-sweep -filter-sweep-apply
+
+# 3) 重建 ES 索引：MySQL 里已经是替换后的文本了，但 ES 里还是旧文档。
+#    两条命令等价，二选一（带 -filter-sweep-reindex 会在第 2 步末尾自动做）。
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -es -s init
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -es -s article-sync
+```
+
+验收口径：命令输出里六个文本面各有 `hit` 计数；「关键词风险」后台页能看到记录；
+用旧词搜索不到历史内容；重复执行第 2 步应报告 0 命中（幂等）。
 
 ### 12.3 备份与恢复
 

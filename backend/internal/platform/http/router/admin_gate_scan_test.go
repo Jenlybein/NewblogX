@@ -100,6 +100,10 @@ var adminRouteTemplates = []string{
 	"PUT /api/site/upload",
 	"PUT /api/site/deco",
 	"PUT /api/site/image_gc",
+	// 内容过滤词表（第 11 段，ADR-0032）：词表不给任何匿名/普通用户读，
+	// 读写都在管理员分组下。
+	"GET /api/site/admin/content_filter",
+	"PUT /api/site/content_filter",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",

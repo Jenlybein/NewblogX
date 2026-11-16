@@ -4,11 +4,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
+	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/site/domain"
 )
 
@@ -46,6 +49,13 @@ type Service struct {
 	qqURL   func() string
 	logger  Logger
 	aiReady func() bool
+
+	// contentFilterChanged 在词表段保存成功后被调用，用来按新词表重建过滤引擎。
+	//
+	// 做成回调而不是直接依赖引擎：平台包不认识过滤引擎的装配，#396 才把
+	// 「过滤器」接到请求路径上。装配层调 SetContentFilterChangedHook 挂上来之前
+	// 它为空，保存只刷新配置缓存（那也是"立即生效"的一半）。
+	contentFilterChanged func(conf.ContentFilter)
 }
 
 // New 构造站点服务。
@@ -298,6 +308,102 @@ func (s *Service) UpdateImageGC(imageGC conf.ImageGC) error {
 
 // AdminDeco 返回管理端的装饰配置。
 func (s *Service) AdminDeco() conf.Deco { return s.PublicDeco() }
+
+// AdminContentFilter 返回管理端的全站词表段（ADR-0032）。
+//
+// 这一段没有任何公开读：词表只给后台，读者站不会拿到它，匿名端点也不返回。
+func (s *Service) AdminContentFilter() conf.ContentFilter { return s.runtime.ContentFilter() }
+
+// SetContentFilterChangedHook 登记"词表保存之后"的回调。
+//
+// 过滤引擎（platform/contentfilter 的 Engine）在 #396 才接进请求路径；装配层把
+// `engine.Rebuild(words, whitelist)` 挂到这里，保存即生效的那一半就闭环了。
+// 传 nil 表示不关心（测试与尚未装配引擎的启动路径）。
+func (s *Service) SetContentFilterChangedHook(fn func(conf.ContentFilter)) {
+	s.contentFilterChanged = fn
+}
+
+// UpdateContentFilter 覆盖全站词表段。
+//
+// 保存前先在用例层把词条整理干净（去空白、去重、校验档位与类目）：词表是唯一写入口，
+// 让坏数据写进库里只会把问题推迟到过滤引擎构建时 —— 那时就会变成启动失败。
+// 写库并刷新缓存后立刻回调，让过滤器按新词表重建（原子切换，不阻塞在跑的请求）。
+func (s *Service) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	normalized, err := normalizeContentFilter(contentFilter)
+	if err != nil {
+		return err
+	}
+	if err := s.runtime.UpdateContentFilter(normalized); err != nil {
+		return err
+	}
+	if s.contentFilterChanged != nil {
+		s.contentFilterChanged(normalized)
+	}
+	return nil
+}
+
+// normalizeContentFilter 整理并校验词表段。
+//
+// 三件事：空词条直接丢掉（批量导入常带空行）、按"小写 + 去首尾空白"去重
+// （与过滤引擎的归一化口径一致，否则词云里会出现两个看起来一样的词）、
+// 档位/类目/词长不合规一律拒绝保存。
+func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilter, error) {
+	out := conf.ContentFilter{
+		Words:     make([]conf.ContentFilterWord, 0, len(contentFilter.Words)),
+		Whitelist: make([]string, 0, len(contentFilter.Whitelist)),
+	}
+	seenWords := make(map[string]struct{}, len(contentFilter.Words))
+	for _, entry := range contentFilter.Words {
+		word := strings.TrimSpace(entry.Word)
+		if word == "" {
+			continue
+		}
+		tier, ok := contentfilter.ParseTier(strings.TrimSpace(entry.Tier))
+		if !ok {
+			return conf.ContentFilter{}, invalidContentFilter("词条 %q 的档位 %q 不认识", word, entry.Tier)
+		}
+		category, ok := contentfilter.ParseCategory(strings.TrimSpace(entry.Category))
+		if !ok {
+			return conf.ContentFilter{}, invalidContentFilter("词条 %q 的类目 %q 不认识", word, entry.Category)
+		}
+		if utf8.RuneCountInString(word) < contentfilter.MinWordRunes {
+			return conf.ContentFilter{}, invalidContentFilter("词条 %q 是单字词，单字词不入表", word)
+		}
+		key := strings.ToLower(word)
+		if _, dup := seenWords[key]; dup {
+			continue
+		}
+		seenWords[key] = struct{}{}
+		out.Words = append(out.Words, conf.ContentFilterWord{
+			Word:     word,
+			Tier:     string(tier),
+			Category: string(category),
+		})
+	}
+
+	seenWhitelist := make(map[string]struct{}, len(contentFilter.Whitelist))
+	for _, raw := range contentFilter.Whitelist {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		key := strings.ToLower(entry)
+		if _, dup := seenWhitelist[key]; dup {
+			continue
+		}
+		seenWhitelist[key] = struct{}{}
+		out.Whitelist = append(out.Whitelist, entry)
+	}
+	return out, nil
+}
+
+// invalidContentFilter 构造"词表不合法"的参数错误。
+func invalidContentFilter(format string, args ...any) error {
+	return apperr.Wrap(apperr.CodeSiteContentFilterInvalid, fmt.Errorf(format, args...))
+}
 
 // UpdateDeco 覆盖装饰配置。
 //

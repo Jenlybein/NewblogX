@@ -167,8 +167,8 @@ func TestInitRuntimeConfig_给缺失段补默认行(t *testing.T) {
 	if err := db.Model(&runtimeConfigRow{}).Count(&count).Error; err != nil {
 		t.Fatalf("统计行数失败: %v", err)
 	}
-	if count != 10 {
-		t.Fatalf("十段都应补一行，实际 %d 行", count)
+	if count != 11 {
+		t.Fatalf("十一段都应补一行，实际 %d 行", count)
 	}
 
 	// 补进去的内容必须是该段默认值的完整 JSON，不能是空字符串。
@@ -450,7 +450,8 @@ func TestDefaultSettingsYaml_段名与常量对齐(t *testing.T) {
 	// 故意不写在这里（见 InitRuntimeSite 的注释）。
 	want := []string{
 		SectionSite, SectionAI, SectionMail,
-		SectionStorage, SectionOAuth, SectionUpload, SectionDeco, SectionImageGC,
+		SectionStorage, SectionOAuth, SectionSMS, SectionUpload, SectionDeco, SectionImageGC,
+		SectionContentFilter,
 	}
 	for _, name := range want {
 		if _, ok := top[name]; !ok {
@@ -523,15 +524,16 @@ func TestAllSections_都有jsonTag(t *testing.T) {
 	// 但 map 的键名会变成 Go 字段名，跟库里存的 snake_case 对不上 —— 表现为
 	// "改了这个字段没反应"，且完全不报错。
 	cases := map[string]any{
-		SectionSite:    conf.Site{},
-		SectionAI:      conf.AI{},
-		SectionMail:    conf.Mail{},
-		SectionStorage: conf.QiNiu{},
-		SectionOAuth:   conf.QQ{},
-		SectionLog:     conf.Logrus{},
-		SectionUpload:  conf.Upload{},
-		SectionDeco:    conf.Deco{},
-		SectionImageGC: conf.ImageGC{},
+		SectionSite:          conf.Site{},
+		SectionAI:            conf.AI{},
+		SectionMail:          conf.Mail{},
+		SectionStorage:       conf.QiNiu{},
+		SectionOAuth:         conf.QQ{},
+		SectionLog:           conf.Logrus{},
+		SectionUpload:        conf.Upload{},
+		SectionDeco:          conf.Deco{},
+		SectionImageGC:       conf.ImageGC{},
+		SectionContentFilter: conf.ContentFilter{},
 	}
 	for name, value := range cases {
 		raw, err := json.Marshal(value)

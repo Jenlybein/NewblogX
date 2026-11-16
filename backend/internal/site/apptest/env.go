@@ -190,17 +190,18 @@ func (i *Images) IDsByURLs(_ context.Context, urls []string) (map[string]uint64,
 
 // Runtime 是运行时配置的内存实现。
 type Runtime struct {
-	mu      sync.Mutex
-	site    conf.Site
-	ai      conf.AI
-	mail    conf.Mail
-	storage conf.QiNiu
-	oauth   conf.QQ
-	sms     conf.SMS
-	log     conf.Logrus
-	upload  conf.Upload
-	deco    conf.Deco
-	imageGC conf.ImageGC
+	mu            sync.Mutex
+	site          conf.Site
+	ai            conf.AI
+	mail          conf.Mail
+	storage       conf.QiNiu
+	oauth         conf.QQ
+	sms           conf.SMS
+	log           conf.Logrus
+	upload        conf.Upload
+	deco          conf.Deco
+	imageGC       conf.ImageGC
+	contentFilter conf.ContentFilter
 }
 
 var _ domain.RuntimeConfig = (*Runtime)(nil)
@@ -364,6 +365,21 @@ func (r *Runtime) UpdateImageGC(imageGC conf.ImageGC) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.imageGC = imageGC
+	return nil
+}
+
+// ContentFilter 实现 domain.RuntimeConfig。
+func (r *Runtime) ContentFilter() conf.ContentFilter {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.contentFilter
+}
+
+// UpdateContentFilter 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.contentFilter = contentFilter
 	return nil
 }
 

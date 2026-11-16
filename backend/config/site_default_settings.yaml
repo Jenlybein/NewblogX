@@ -330,6 +330,57 @@ image_gc:
   # 单次最多检查（或真删）的图片条数（硬上限 500，超过按 500 夹回）。
   batch_limit: 50
 
+# 内容过滤（第 11 段，ADR-0032）：全站唯一的词表与白名单。
+#
+# 这一段**只给后台读写**（GET /site/admin/content_filter / PUT /site/content_filter），
+# 任何匿名端点都不返回它：词表一旦公开，绕过过滤的成本就降到零。
+#
+# 这里只放**非涉政**种子词：涉政、暴恐类词只进数据库（由运营导入），不进仓库、
+# 不进默认配置、不进 CI 日志（ADR-0032 决策 8）。词条写成 word / tier / category
+# 三元组：tier 只有 block（拦截词）与 watch（观察词）两档，两档都替换，颜色不同；
+# category 固定七类，用于词云筛选与风险页归类。
+#
+# 单字词不入表（误报压过收益）；引擎构建时也会再过滤一次。
+#
+# 注意：这一段必须写在下面的 deco 生成区之前 —— 生成器只替换 deco 生成区，
+# 生成区之后的内容会被整段丢弃。
+content_filter:
+  words:
+    - word: 代开发票
+      tier: block
+      category: fake_docs
+    - word: 办假证
+      tier: block
+      category: fake_docs
+    - word: 出售账号
+      tier: block
+      category: fraud
+    - word: 博彩网站
+      tier: block
+      category: gambling
+    - word: 刷单返利
+      tier: block
+      category: fraud
+    - word: 加微信付款
+      tier: block
+      category: fraud
+    - word: 加微信
+      tier: watch
+      category: fraud
+    - word: 私聊
+      tier: watch
+      category: fraud
+    - word: 代写
+      tier: watch
+      category: fraud
+    - word: 刷单
+      tier: watch
+      category: fraud
+    - word: 兼职日结
+      tier: watch
+      category: fraud
+  # 白名单：词或短语。命中白名单仍会记一条命中（用于统计误伤），但不替换文本。
+  whitelist: []
 # Generated from config/deco-charm-parameters.json by scripts/generate-deco-parameters.mjs; DO NOT EDIT.
 # 装饰配置只放纯装饰参数：改错了最多难看，不会让任何业务链路坏掉。
 deco:

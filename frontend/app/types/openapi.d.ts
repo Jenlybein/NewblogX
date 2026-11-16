@@ -5423,6 +5423,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/content_filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 content_filter 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/deco": {
         parameters: {
             query?: never;
@@ -5878,6 +5914,47 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/content_filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 content_filter 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description content_filter 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionContentFilterRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -7692,6 +7769,20 @@ export interface components {
              */
             stiffness: number;
         };
+        "conf.ContentFilterWord": {
+            /**
+             * @description Category 是类目，固定七类，用于词云筛选与风险页归类。
+             * @enum {string}
+             */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            /**
+             * @description Tier 是档位：block（拦截词）/ watch（观察词），两档都替换，颜色不同。
+             * @enum {string}
+             */
+            tier?: "block" | "watch";
+            /** @description Word 是词条原文。不做归一化存储：后台要按运营填的写法展示与编辑。 */
+            word?: string;
+        };
         "conf.DailyLimits": {
             diagnose?: number;
             metainfo?: number;
@@ -8884,6 +8975,30 @@ export interface components {
             temperature?: number;
             timeout_sec?: number;
         };
+        "internal_site_adapter_http.SiteSectionContentFilterRequest": {
+            /**
+             * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
+             *     但不替换文本。
+             */
+            whitelist?: string[];
+            /**
+             * @description Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），
+             *     单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。
+             */
+            words?: components["schemas"]["conf.ContentFilterWord"][];
+        };
+        "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+            /**
+             * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
+             *     但不替换文本。
+             */
+            whitelist?: string[];
+            /**
+             * @description Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），
+             *     单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。
+             */
+            words?: components["schemas"]["conf.ContentFilterWord"][];
+        };
         "internal_site_adapter_http.SiteSectionDecoRequest": {
             charm?: components["schemas"]["conf.Charm"];
             /**
@@ -9902,6 +10017,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionAiResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionContentFilterResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse": {

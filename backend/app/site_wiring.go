@@ -248,6 +248,22 @@ func (b siteRuntimeBridge) UpdateImageGC(imageGC conf.ImageGC) error {
 	return b.inner.UpdateImageGC(imageGC)
 }
 
+// ContentFilter 返回全站词表段。
+func (b siteRuntimeBridge) ContentFilter() conf.ContentFilter {
+	if b.inner == nil {
+		return conf.ContentFilter{}
+	}
+	return b.inner.GetRuntimeContentFilter()
+}
+
+// UpdateContentFilter 覆盖全站词表段。
+func (b siteRuntimeBridge) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateContentFilter(contentFilter)
+}
+
 // errSiteRuntimeMissing 表示运行时配置服务没装配。
 func errSiteRuntimeMissing() error { return apperr.New(apperr.CodeSiteConfigMissing) }
 

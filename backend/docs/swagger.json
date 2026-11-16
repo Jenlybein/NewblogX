@@ -94,6 +94,36 @@
                 },
                 "type": "object"
             },
+            "conf.ContentFilterWord": {
+                "properties": {
+                    "category": {
+                        "description": "Category 是类目，固定七类，用于词云筛选与风险页归类。",
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "tier": {
+                        "description": "Tier 是档位：block（拦截词）/ watch（观察词），两档都替换，颜色不同。",
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "description": "Word 是词条原文。不做归一化存储：后台要按运营填的写法展示与编辑。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "conf.DailyLimits": {
                 "properties": {
                     "diagnose": {
@@ -3673,6 +3703,48 @@
                 },
                 "type": "object"
             },
+            "internal_site_adapter_http.SiteSectionContentFilterRequest": {
+                "properties": {
+                    "whitelist": {
+                        "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "words": {
+                        "description": "Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），\n单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。",
+                        "items": {
+                            "$ref": "#/components/schemas/conf.ContentFilterWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+                "properties": {
+                    "whitelist": {
+                        "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "words": {
+                        "description": "Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），\n单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。",
+                        "items": {
+                            "$ref": "#/components/schemas/conf.ContentFilterWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_site_adapter_http.SiteSectionDecoRequest": {
                 "properties": {
                     "charm": {
@@ -6153,6 +6225,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionAiResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionContentFilterResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -13940,6 +14026,31 @@
                 ]
             }
         },
+        "/site/admin/content_filter": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 content_filter 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
         "/site/admin/deco": {
             "get": {
                 "responses": {
@@ -14279,6 +14390,44 @@
                     }
                 },
                 "summary": "获取站点 AI 信息",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/content_filter": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionContentFilterRequest",
+                                "summary": "body",
+                                "description": "content_filter 段配置"
+                            }
+                        }
+                    },
+                    "description": "content_filter 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 content_filter 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]

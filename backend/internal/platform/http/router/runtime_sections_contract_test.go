@@ -9,18 +9,22 @@ import (
 	"testing"
 )
 
-// 九段运行时配置的具名契约（#283）。
+// 运行时配置段的具名契约（#283 / ADR-0020）。
 //
 // 唯一行为接缝 = 后端 HTTP 接口 + 契约（开放接口契约）。这里只读已生成的契约，
-// 不读 Go / TS 源码文本：九段每段都必须有具名的 GET / PUT 端点，且响应与
+// 不读 Go / TS 源码文本：每段都必须有具名的 GET / PUT 端点，且响应与
 // 请求体各自指向该段自己的具名 schema，而不是一个随 name 变形的自由键值块。
 // 参数化 /site/admin/{name} 与 /site/{name} 一旦仍在，就意味着契约没有形状
 // 可派生，两端只能继续手抄视图模型。
+//
+// 段清单跟着注册表走：第 11 段 content_filter（ADR-0032）同样只给后台，
+// 所以它一定在契约里、且一定不在公开读面。
 var runtimeSectionNames = []string{
-	"site", "ai", "mail", "storage", "oauth", "log", "upload", "deco", "image_gc",
+	"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc",
+	"content_filter",
 }
 
-func TestNineRuntimeSectionsHaveNamedContract(t *testing.T) {
+func TestRuntimeSectionsHaveNamedContract(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "docs", "swagger.json"))
 	if err != nil {
 		t.Fatalf("读取契约失败: %v", err)
@@ -59,10 +63,10 @@ func TestNineRuntimeSectionsHaveNamedContract(t *testing.T) {
 		}
 	}
 
-	// 旧参数化出入口必须整体退场：留着它等于「九段仍可绕过具名形状」。
+	// 旧参数化出入口必须整体退场：留着它等于「各段仍可绕过具名形状」。
 	for _, path := range []string{"/site/admin/{name}", "/site/{name}"} {
 		if _, ok := doc.Paths[path]; ok {
-			t.Errorf("参数化端点 %s 仍在契约里，九段没有真正具名化", path)
+			t.Errorf("参数化端点 %s 仍在契约里，各段没有真正具名化", path)
 		}
 	}
 	for key := range doc.Components.Schemas {
@@ -71,7 +75,7 @@ func TestNineRuntimeSectionsHaveNamedContract(t *testing.T) {
 		}
 	}
 
-	// 具名形状必须在场：九段各自的响应 schema 一个都不能少。
+	// 具名形状必须在场：每段各自的响应 schema 一个都不能少。
 	var missing []string
 	for _, name := range runtimeSectionNames {
 		want := "internal_site_adapter_http.SiteSection" + sectionTypeName(name) + "Response"
@@ -81,7 +85,23 @@ func TestNineRuntimeSectionsHaveNamedContract(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		t.Errorf("缺少九段具名响应 schema:\n  %s", strings.Join(missing, "\n  "))
+		t.Errorf("缺少具名响应 schema:\n  %s", strings.Join(missing, "\n  "))
+	}
+
+	// 公开读面只有 site / deco 两段。第 11 段 content_filter 一旦长出
+	// GET /site/content_filter，词表就成了匿名可读的数据 —— 绕过过滤的成本归零
+	// （ADR-0032 决策 3）。这里按契约判，不按路由表判：两端都照着契约写。
+	for _, name := range runtimeSectionNames {
+		item, ok := doc.Paths["/site/"+name]
+		if !ok {
+			continue
+		}
+		if _, hasGet := item["get"]; !hasGet {
+			continue
+		}
+		if name != "site" && name != "deco" {
+			t.Errorf("段 %q 出现了公开 GET /site/%s：配置段不得匿名可读", name, name)
+		}
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"myblogx/conf"
 )
 
-// 九段运行时配置的具名出入口（#283 / ADR-0020）。
+// 运行时配置段的具名出入口（#283 / ADR-0020；第 11 段见 ADR-0032）。
 //
 // 每段一对具名形状：响应与请求体都直接以 conf 包的段结构为底层类型，
 // 所以字段只有一份定义，契约（开放接口契约）里也不再出现
@@ -43,3 +43,7 @@ type SiteSectionDecoRequest conf.Deco
 
 type SiteSectionImageGcResponse conf.ImageGC
 type SiteSectionImageGcRequest conf.ImageGC
+
+// 第 11 段 content_filter（ADR-0032）：只有后台具名端点，没有公开读。
+type SiteSectionContentFilterResponse conf.ContentFilter
+type SiteSectionContentFilterRequest conf.ContentFilter

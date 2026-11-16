@@ -25,8 +25,8 @@ func mustSiteHandler() *sitehttp.Handler {
 
 // SiteRouter 注册站点配置路由。
 //
-// 九段运行时配置各有具名端点（#283 / ADR-0020），参数化 /site/{name} 与
-// /site/admin/{name} 已整体退场；静态路径不再与通配段争抢。
+// 运行时配置各有具名端点（#283 / ADR-0020，第 11 段 content_filter 见 ADR-0032），
+// 参数化 /site/{name} 与 /site/admin/{name} 已整体退场；静态路径不再与通配段争抢。
 func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	app := mustSiteHandler()
 
@@ -39,11 +39,12 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group.GET("ai_info", app.AIInfo)
 	group.GET("sidebar_cards", app.SidebarCards)
 
-	// 公开读：site 与 deco 是九段里唯二对读者开放的段。
+	// 公开读：site 与 deco 是唯二对读者开放的段。content_filter 不在其中 ——
+	// 词表匿名可读等于把"该绕开哪些词"提前告诉所有人（ADR-0032）。
 	group.GET("site", app.PublicSiteSection)
 	group.GET("deco", app.PublicDecoSection)
 
-	// 管理读 / 写：九段一一对应具名方法，审计的 TargetID 由 handler 写死段名。
+	// 管理读 / 写：每段一一对应具名方法，审计的 TargetID 由 handler 写死段名。
 	for _, route := range []struct {
 		path   string
 		read   gin.HandlerFunc
@@ -59,12 +60,13 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 		{"upload", app.AdminUploadSection, app.UpdateUploadSection},
 		{"deco", app.AdminDecoSection, app.UpdateDecoSection},
 		{"image_gc", app.AdminImageGcSection, app.UpdateImageGcSection},
+		{"content_filter", app.AdminContentFilterSection, app.UpdateContentFilterSection},
 	} {
 		adminGroup.GET("admin/"+route.path, route.read)
 		adminGroup.PUT(route.path, mw.CaptureLog(mw.ReqBody), route.update)
 	}
 
-	// 右栏卡片是独立运营位，不属于九段注册表。
+	// 右栏卡片是独立运营位，不属于运行时配置段注册表。
 	adminGroup.GET("admin/sidebar_cards", app.AdminSidebarCards)
 	adminGroup.PUT("admin/sidebar_cards", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.SidebarCardsSaveRequest], app.UpdateSidebarCards)
 }

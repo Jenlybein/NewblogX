@@ -123,8 +123,41 @@ type User struct {
 	Role           Role
 	RegisterSource RegisterSource
 	TokenVersion   uint32
-	IP             string
-	Addr           string
+	// MuteUntil 是禁言到期时间（票 399 / ADR-0032 决策 8）。
+	//
+	// nil 或零值 = 未禁言。禁言不落成第三个 Status：它只拦发布类动作，
+	// 登录与浏览照旧，到期靠 IsMuted 的惰性判定 + 每小时对账恢复。
+	MuteUntil *time.Time
+	IP        string
+	Addr      string
+}
+
+// IsMuted 判断此刻是否处于禁言期。
+//
+// 惰性判定：只比较 mute_until 与 now，不看对账任务跑没跑过。
+// 因此"到期后自动恢复"不依赖任何后台任务是否活着 —— 对账任务只负责把
+// 已到期的列清空，不负责决定能不能发布。
+func (u User) IsMuted(now time.Time) bool {
+	if u.MuteUntil == nil || u.MuteUntil.IsZero() {
+		return false
+	}
+	return now.Before(*u.MuteUntil)
+}
+
+// MuteRemainingDays 返回禁言剩余天数（向上取整：还差 1 小时也显示"1 天"）。
+//
+// 未禁言（含已到期）返回 0。向上取整是刻意的：显示 0 天的禁言等于"已经解了"，
+// 而实际上还剩几小时，用户会以为可以立刻发布。
+func (u User) MuteRemainingDays(now time.Time) int {
+	if !u.IsMuted(now) {
+		return 0
+	}
+	remaining := u.MuteUntil.Sub(now)
+	days := int(remaining/(24*time.Hour)) + 1
+	if remaining%(24*time.Hour) == 0 {
+		days = int(remaining / (24 * time.Hour))
+	}
+	return days
 }
 
 // CodeAge 返回注册年数（用于展示"加入 N 年"）。

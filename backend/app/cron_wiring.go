@@ -21,6 +21,7 @@ import (
 	"myblogx/internal/platform/redis/redis_tag"
 	"myblogx/internal/platform/rediscounter"
 	"myblogx/internal/platform/scheduler"
+	usermysql "myblogx/internal/user/adapter/mysql"
 )
 
 // 并账任务的调度参数。
@@ -36,7 +37,6 @@ const (
 )
 
 // reconcileInterval 返回当前生效的并账周期。
-//
 // 每次注册时现读运行期配置（库里的 site.reconcile 段），缺省 30 分钟。
 // 想改周期不必改代码；但它是**调度注册参数**，与「日志清理每天几点」同一口径：
 // 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0016。
@@ -303,6 +303,9 @@ func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskSched
 	// ── 每日日志清理 ──
 	registerLogCleanup(infra, sch)
 
+	// ── 每小时禁言到期对账（票 399）──
+	registerMuteReconcile(infra, sch)
+
 	// ── 每日浏览历史清理（90 天）──
 	registerViewHistoryCleanup(infra, sch)
 
@@ -455,8 +458,74 @@ func registerViewHistoryCleanup(infra *Infra, sch taskScheduler) {
 		viewHistoryCleanupHour, viewHistoryCleanupMinute, int(viewhistory.Retention/(24*time.Hour)))
 }
 
-// registerLogCleanup 按配置注册日志清理任务。
+// 禁言到期对账的调度参数（票 399 / ADR-0032 决策 8）。
 //
+// 每小时一次而不是每天：禁言是短周期处罚（以天为单位），用户到期后能不能
+// 发布由惰性判定即时生效；对账只负责把过期行擦掉，滞后一小时没有用户可见影响。
+// 锁 TTL 比周期短得多：任务本身只是一条条件 UPDATE。
+const (
+	muteReconcileInterval = time.Hour
+	muteReconcileLockTTL  = 10 * time.Minute
+	muteReconcileLockKey  = "cron:reconcile_mute:lock"
+)
+
+// ReconcileExpiredMutes 执行一次禁言到期对账，返回被清空的账号数。
+//
+// 单独导出是为了让用例能驱动**这条真实的任务体**（sqlite 即可验证
+// 「到期清空 / 未到期不动 / 重跑幂等」），不必等一小时。
+//
+// 与惰性判定（user/domain.CanPublish）结论一致：判定在先，对账只把已经到期的
+// mute_until 擦成 NULL —— 所以对账任务挂掉不影响"到期就能发"，它只影响表里
+// 会不会长期留着过期行。
+func ReconcileExpiredMutes(ctx context.Context, infra *Infra, now time.Time) (int64, error) {
+	if infra == nil || infra.DB == nil {
+		return 0, nil
+	}
+	// 先取"这一轮会恢复哪些账号"，只为了留审计记录（AC："解除与到期都留下记录"）。
+	// 取不到不影响对账本身：清空是条件更新，不做这一步也不会漏清或误清。
+	ids, listErr := usermysql.ExpiredMuteUserIDs(ctx, infra.DB, now)
+	if listErr != nil && infra.Logger != nil {
+		infra.Logger.Errorf("读取到期禁言账号失败（对账继续）: %v", listErr)
+	}
+	cleared, err := usermysql.ClearExpiredMutes(ctx, infra.DB, now)
+	if err != nil {
+		if infra.Logger != nil {
+			infra.Logger.Errorf("禁言到期对账失败: %v", err)
+		}
+		return 0, err
+	}
+	if infra.Logger != nil {
+		for _, id := range ids {
+			infra.Logger.Infof("禁言到期自动恢复: user_id=%d", id)
+		}
+		if cleared > 0 {
+			infra.Logger.Infof("禁言到期对账: 已清空 %d 个账号的禁言", cleared)
+		}
+	}
+	return cleared, nil
+}
+
+// registerMuteReconcile 注册每小时禁言到期对账任务。
+func registerMuteReconcile(infra *Infra, sch taskScheduler) {
+	if err := sch.Every(muteReconcileInterval, scheduler.Job{
+		Name:    "禁言到期对账",
+		LockKey: muteReconcileLockKey,
+		LockTTL: muteReconcileLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			n, err := ReconcileExpiredMutes(ctx, infra, time.Now())
+			if err != nil {
+				return 0, err
+			}
+			return int(n), nil
+		},
+	}); err != nil {
+		infra.Logger.Errorf("注册禁言到期对账任务失败: %v", err)
+		return
+	}
+	infra.Logger.Infof("已注册禁言到期对账任务: 每 %s 一次", muteReconcileInterval)
+}
+
+// registerLogCleanup 按配置注册日志清理任务。
 // 配置非法时不静默兜底成默认值就当成功：先记一条 Error，
 // 让人知道"你配的那个时间没生效"，然后用默认时间跑。
 func registerLogCleanup(infra *Infra, sch taskScheduler) {

@@ -61,15 +61,17 @@ func (h *Handler) ListHits(c *gin.Context) {
 
 // HandleHit 处置一条关键词风险记录（管理员）。
 //
-// 动作是 delete 或 ignore；delete 按文本面软删内容（昵称 / 简介面重置资料），
-// 私信面没有可删内容会返回明确错误。同一记录重复处置是幂等的（already_handled）。
+// 动作有四个（票 398 + 399）：delete / ignore 是内容动作；ban / mute 是账号动作，
+// 前者封禁（账号禁用），后者禁言（时长见 mute_days，默认 7 天）。
+// 内容动作按文本面软删内容（昵称 / 简介面重置资料），私信面没有可删内容会返回
+// 明确错误。同一记录重复处置是幂等的（already_handled）。
 // @Summary 处置一条关键词风险记录（管理员）
 // @Tags content-filter
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "命中记录 ID"
-// @Param payload body HandleHitRequest true "处置动作与备注"
+// @Param payload body HandleHitRequest true "处置动作、禁言天数与备注"
 // @Success 200 {object} kernel.Envelope[HandleHitResponse]
 // @Router /content-filter/hits/{id}/handle [post]
 func (h *Handler) HandleHit(c *gin.Context) {
@@ -91,6 +93,7 @@ func (h *Handler) HandleHit(c *gin.Context) {
 	got, err := h.svc.Handle(c.Request.Context(), app.HandleInput{
 		ID:        id,
 		Action:    domain.Action(raw.Action),
+		MuteDays:  raw.MuteDays,
 		Note:      raw.Note,
 		HandlerID: actor,
 	})
@@ -131,6 +134,7 @@ func (h *Handler) HandleBatchHits(c *gin.Context) {
 	got, err := h.svc.HandleBatch(c.Request.Context(), app.BatchHandleInput{
 		IDs:       raw.IDs,
 		Action:    domain.Action(raw.Action),
+		MuteDays:  raw.MuteDays,
 		Note:      raw.Note,
 		HandlerID: actor,
 	})

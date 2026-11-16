@@ -1,21 +1,26 @@
 <script setup lang="ts">
 /**
- * 审核 → 关键词风险（`/review/content-filter`）：命中记录与处置（ADR-0032 决策 7 / 票 396、398）。
+ * 审核 → 关键词风险（`/review/content-filter`）：命中记录与处置（ADR-0032 决策 7 / 票 396、398、399）。
  *
- * 能看、能按文本面 / 状态 / 用户筛、能分页；也能处置：**删除命中的内容**
- * 或**忽略误报**。封禁与禁言是账号级处置，在下一票（票 399）接到账号状态上。
+ * 能看、能按文本面 / 状态 / 用户筛、能分页；也能处置四类动作：
+ * **删除命中的内容**、**忽略误报**、**封禁账号**（账号禁用）、**禁言账号**（带时长，默认 7 天）。
  *
- * 两个按钮的语义按文本面换文案（见 utils/contentFilterRisk.ts 的
+ * 内容动作按文本面换文案（见 utils/contentFilterRisk.ts 的
  * CONTENT_FILTER_SURFACE_ACTIONS）：昵称 / 简介上是「重置资料」，私信面禁用删除。
+ * 账号动作不删内容：内容早已被替换成 `*` 并发布，处罚对象是账号（封禁 / 禁言）。
  */
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NEmpty, NInput, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NEmpty, NInput, NInputNumber, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
 import { getContentFilterHits, handleContentFilterHit, handleContentFilterHits } from '~/services/admin'
 import type { ContentFilterHitItem, ContentFilterHitSnippet, ContentFilterTopUser } from '~/types/api'
 import {
+  CONTENT_FILTER_MUTE_DAYS_DEFAULT,
+  CONTENT_FILTER_MUTE_DAYS_MAX,
+  CONTENT_FILTER_MUTE_DAYS_MIN,
   CONTENT_FILTER_STATUS_OPTIONS,
   CONTENT_FILTER_SURFACE_ACTIONS,
   CONTENT_FILTER_SURFACE_OPTIONS,
+  contentFilterActionLabel,
   contentFilterCategoryLabel,
   contentFilterStatusLabel,
   contentFilterStatusTagType,
@@ -43,6 +48,8 @@ const checkedKeys = ref<string[]>([])
 const handling = ref(false)
 // 处置备注：同一批共用一个备注（逐条备注只会让审计表更难读）。
 const note = ref('')
+// 禁言天数（票 399）：单条「禁言」用它，后端再做 1–365 的最终校验（缺省 7 天）。
+const muteDays = ref(CONTENT_FILTER_MUTE_DAYS_DEFAULT)
 
 // as const 的选项表要复制成可变数组：NSelect 的 options 是 SelectOption[]，
 // 只读元组直接传会因 readonly 而编译不过。
@@ -120,11 +127,11 @@ const columns = [
   },
   { title: '命中处数', key: 'hit_count', width: 95 },
   {
-    // 处置动作（票 398）：待处理的行才给按钮；已处置的行显示处理痕迹。
-    // 二次确认放在按钮里（NPopconfirm）—— 删除不可逆（原文已被替换成 *）。
+    // 处置动作（票 398 / 399）：待处理的行才给按钮；已处置的行显示处理痕迹。
+    // 二次确认放在按钮里（NPopconfirm）—— 删除不可逆、封禁/禁言是账号级处罚。
     title: '处置',
     key: 'actions',
-    width: 190,
+    width: 380,
     render: (row: ContentFilterHitItem) => {
       if (row.status !== 'pending') {
         // 处理痕迹：谁、什么备注。已处置的行不给按钮，重复点只会是空操作。
@@ -132,7 +139,7 @@ const columns = [
         return h('div', { class: 'text-xs muted' }, row.note ? `${who}：${row.note}` : who)
       }
       const meta = actionMeta(row)
-      return h(NSpace, { size: 6 }, {
+      return h(NSpace, { size: 6, wrap: true }, {
         default: () => [
           h(NPopconfirm, {
             onPositiveClick: () => handleOne(row, 'delete'),
@@ -158,6 +165,29 @@ const columns = [
             }, { default: () => '忽略' }),
             default: () => '确认把这条标记为误报？内容保持原样。',
           }),
+          // 账号动作：内容保留，处罚落在内容作者账号上。
+          h(NPopconfirm, {
+            onPositiveClick: () => handleOne(row, 'ban'),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'tiny',
+              secondary: true,
+              type: 'error',
+              disabled: handling.value,
+            }, { default: () => '封禁' }),
+            default: () => `确认封禁该用户「${row.user_nickname || shortId(row.user_id)}」？封禁后登录与发布都被拦，且不会自动恢复。`,
+          }),
+          h(NPopconfirm, {
+            onPositiveClick: () => handleOne(row, 'mute'),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'tiny',
+              secondary: true,
+              type: 'warning',
+              disabled: handling.value,
+            }, { default: () => `禁言 ${muteDays.value} 天` }),
+            default: () => `确认禁言该用户「${row.user_nickname || shortId(row.user_id)}」${muteDays.value} 天？账号仍可登录/浏览，发布类动作会被拒，到期自动恢复。`,
+          }),
         ],
       })
     },
@@ -166,27 +196,42 @@ const columns = [
 
 
 /**
- * 处置一条记录。
+ * 处置一条记录（票 398 / 399）。
  *
  * 二次确认不能省：删除是不可逆的（原文已被替换成 `*`，没有"恢复原文"这条路），
- * 误点一次就把一篇正常文章删了。所以点删除先弹确认，忽略（不动内容）也弹一次
- * 确认以免误点，但措辞不同。
+ * 误点一次就把一篇正常文章删了；封禁 / 禁言是账号级处罚，同样先确认。
+ * 账号动作的错误文案来自后端（例如天数越界的 user.mute_days_invalid），
+ * 这里原样展示，不自己翻译。
  */
-async function handleOne(row: ContentFilterHitItem, action: 'delete' | 'ignore') {
+async function handleOne(row: ContentFilterHitItem, action: 'delete' | 'ignore' | 'ban' | 'mute') {
   handling.value = true
   try {
-    const got = await handleContentFilterHit(row.id, { action, note: note.value.trim() || undefined })
+    const got = await handleContentFilterHit(row.id, {
+      action,
+      mute_days: action === 'mute' ? muteDays.value : undefined,
+      note: note.value.trim() || undefined,
+    })
     if (got.already_handled) {
       message.info('这条记录已被处置过，未重复执行')
     } else {
-      message.success(action === 'delete' ? '已删除命中的内容' : '已忽略')
+      message.success(actionSuccessText(action))
     }
     await refresh()
-  } catch {
-    message.error(action === 'delete' ? '删除失败' : '忽略失败')
+  } catch (error) {
+    message.error(error instanceof Error
+      ? `${contentFilterActionLabel(action)}失败：${error.message}`
+      : `${contentFilterActionLabel(action)}失败，请稍后重试`)
   } finally {
     handling.value = false
   }
+}
+
+/** 单条处置成功后的提示（账号动作要说清处罚落在账号上、内容保留）。 */
+function actionSuccessText(action: 'delete' | 'ignore' | 'ban' | 'mute'): string {
+  if (action === 'delete') return '已删除命中的内容'
+  if (action === 'ignore') return '已忽略'
+  if (action === 'ban') return '账号已封禁（登录与发布都被拦）'
+  return `账号已禁言 ${muteDays.value} 天（到期自动恢复）`
 }
 
 /**
@@ -322,7 +367,15 @@ onMounted(refresh)
           placeholder="处置备注（可选）"
           maxlength="200"
           show-count
-          class="w-full md:w-80" />
+          class="w-full md:w-72" />
+        <!-- 禁言天数（票 399）：单条「禁言」按钮用它；缺省 7 天，范围 1–365。 -->
+        <span class="muted text-xs">禁言天数</span>
+        <NInputNumber
+          v-model:value="muteDays"
+          :min="CONTENT_FILTER_MUTE_DAYS_MIN"
+          :max="CONTENT_FILTER_MUTE_DAYS_MAX"
+          :step="1"
+          class="w-28" />
         <span class="muted text-xs">已选 {{ checkedKeys.length }} 条</span>
         <NButton
           type="error"
@@ -375,8 +428,8 @@ onMounted(refresh)
 
     <p class="muted m-0 text-xs">
       删除不可逆：原文已被替换成等长 <code>*</code>，没有「恢复原文」这条路。昵称 / 简介上的「重置资料」会把昵称改成
-      「问题昵称 + uid 末 4 位」并清空简介；私信没有可删内容，只能用「忽略」。封禁与禁言是账号级处置，在账号管理页。
-      命中词与上下文不外泄到任何公开端点。
+      「问题昵称 + uid 末 4 位」并清空简介；私信没有可删内容，只能用「忽略」。封禁 = 账号禁用（登录与发布都被拦，
+      不会自动恢复）；禁言只拦发布类动作，到期自动恢复，也可在账号管理页提前解除。命中词与上下文不外泄到任何公开端点。
     </p>
   </NSpace>
 </template>

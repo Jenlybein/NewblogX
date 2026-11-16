@@ -36,6 +36,14 @@ type Service struct {
 	guard  sendGuard
 	// contentFilter 过滤私信正文（票 397）。nil 表示未接入，按原文发送。
 	contentFilter ChatTextFilterer
+	// publishGate 是发送前的账号闸门（票 399）；nil 表示未接入（系统动作 / 旧测试）。
+	publishGate domain.PublishGate
+}
+
+// WithPublishGate 注入发送闸门（票 399 / ADR-0032 决策 8）。
+func (s *Service) WithPublishGate(g domain.PublishGate) *Service {
+	s.publishGate = g
+	return s
 }
 
 // WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。
@@ -102,6 +110,15 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 	}
 	if senderID.IsZero() || receiverID.IsZero() {
 		return nil, apperr.New(apperr.CodeChatUserNotFound)
+	}
+
+	// 账号闸门（票 399 / ADR-0032 决策 8）：发送私信属于发布类动作。
+	// 放在内容过滤与资格判定之前：被禁言的人应先看到"禁言到某时"，而不是
+	// 一条无关的风控拒绝（拉黑 / 陌生人 / 限流）。仪表盘、已读与删除不受影响。
+	if s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, senderID); err != nil {
+			return nil, err
+		}
 	}
 
 	// 内容过滤（票 397 / ADR-0032 决策 5）：落库前把正文里的命中词替换成等长 `*`。

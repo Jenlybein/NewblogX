@@ -79,6 +79,14 @@ type Service struct {
 	logger    domain.Logger
 	// filter 是内容过滤端口（票 396）；nil 表示未接入过滤，评论按原文落库。
 	filter domain.ContentFilterer
+	// publishGate 是发布闸门（票 399）；nil 表示未接入（系统动作 / 旧测试）。
+	publishGate domain.PublishGate
+}
+
+// WithPublishGate 注入发布闸门（票 399 / ADR-0032 决策 8）。
+func (s *Service) WithPublishGate(g domain.PublishGate) *Service {
+	s.publishGate = g
+	return s
 }
 
 // WithContentFilter 接入全站内容过滤（票 396 / ADR-0032）。
@@ -138,6 +146,13 @@ func New(
 func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInput) (*CreateResult, error) {
 	if viewer.IsZero() {
 		return nil, apperr.New(apperr.CodeAuthRequired)
+	}
+	// 账号闸门（票 399 / ADR-0032 决策 8）：发表评论 / 回复属于发布类动作。
+	// 放在内容校验之前：被禁言的人应先看到"禁言到某时"，而不是"内容不能为空"。
+	if s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, viewer.ID); err != nil {
+			return nil, err
+		}
 	}
 	if strings.TrimSpace(in.Content) == "" {
 		return nil, apperr.New(apperr.CodeCommentContentEmpty)

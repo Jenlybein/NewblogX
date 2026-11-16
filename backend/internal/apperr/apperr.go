@@ -254,7 +254,18 @@ const (
 	CodeUserInvalidCredential Code = "user.invalid_credential"
 	CodeUserAccountDisabled   Code = "user.account_disabled"
 	CodeUserAccountBanned     Code = "user.account_banned"
-	CodeUserPasswordRequired  Code = "user.password_required"
+	// CodeUserMuted 账号处于禁言期（票 399 / ADR-0032 决策 8）。
+	//
+	// 与 account_disabled / account_banned 分开：那两个连登录都不行，禁言只拦
+	// 发布类动作（登录、浏览、点赞、收藏照旧）。混用一个码会让前端把被禁言的人
+	// 当成"账号没了"，也让用户误以为找管理员解禁是唯一出路（到期会自动恢复）。
+	CodeUserMuted Code = "user.muted"
+	// CodeUserMuteDaysInvalid 禁言天数越界（1–365，缺省 7）。
+	//
+	// 与 user.status_invalid 分开：那个是"状态值不是合法状态"，这个是"时长填错了"，
+	// 后台据此提示改天数而不是怀疑账号状态。
+	CodeUserMuteDaysInvalid  Code = "user.mute_days_invalid"
+	CodeUserPasswordRequired Code = "user.password_required"
 	// CodeUserPasswordAlreadySet 表示账号已有密码，应走「修改密码」（要验旧密码），
 	// 而不是「首次设置密码」。两者分开是为了不给免旧密码改密留后门。
 	CodeUserPasswordAlreadySet Code = "user.password_already_set"
@@ -651,6 +662,10 @@ var messages = map[Code]string{
 	CodeUserInvalidCredential:  "账号或密码错误",
 	CodeUserAccountDisabled:    "账号已被禁用",
 	CodeUserAccountBanned:      "账号已被封禁",
+	// 静态文案只是兜底：真正的禁言错误由 user/domain.MuteError 动态生成，
+	// 文案里带到期时间（apperr.Message 取不到时间，只能给一句可读的兜底）。
+	CodeUserMuted:           "账号已被禁言，暂时不能发布内容",
+	CodeUserMuteDaysInvalid: "禁言天数必须是 1–365 天",
 	CodeUserPasswordRequired:   "请先设置密码",
 	CodeUserPasswordAlreadySet: "账号已有密码，请使用修改密码",
 	CodeUserPasswordTooShort:   "密码长度不足",

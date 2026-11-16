@@ -753,6 +753,7 @@ CREATE TABLE IF NOT EXISTS `user_models` (
   `status` tinyint DEFAULT '1',
   `token_version` int unsigned DEFAULT '1',
   `last_password_changed_at` datetime(3) DEFAULT NULL,
+  `mute_until` datetime(3) DEFAULT NULL,
   `role` tinyint DEFAULT '0',
   `ip` varchar(64) DEFAULT NULL,
   `addr` varchar(256) DEFAULT NULL,

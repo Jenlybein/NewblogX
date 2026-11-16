@@ -201,6 +201,15 @@ func TestReconcilePeriodComesFromRuntimeConfig(t *testing.T) {
 	// 「一个调度任务」不是靠数源码行数：所有计数并账任务必须共用同一个周期，
 	// 谁另外注册一个别的节奏，这里立刻看得见。
 	for _, e := range sched.every {
+		// 禁言到期对账（票 399）是**每小时固定周期**：spec 决策 8 要求"每小时
+		// 对账恢复"，它与计数并账的周期（site.reconcile.interval_minutes）
+		// 没有关系 —— 这里显式放行并钉住 1 小时，不是漏判。
+		if e.job.Name == "禁言到期对账" {
+			if e.interval != time.Hour {
+				t.Fatalf("禁言到期对账的周期应是 1 小时（spec 决策 8），实际 %s", e.interval)
+			}
+			continue
+		}
 		if e.interval != 5*time.Minute {
 			t.Fatalf("任务 %q 的周期是 %s，应与其他并账任务同为运行期配置的 5 分钟", e.job.Name, e.interval)
 		}

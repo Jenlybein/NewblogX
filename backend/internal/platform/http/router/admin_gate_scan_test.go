@@ -76,6 +76,8 @@ var adminRouteTemplates = []string{
 	"GET /api/users/admin/list",
 	"POST /api/users/admin",
 	"PUT /api/users/admin/info",
+	// 提前解除禁言（票 399）：账号级处置，只给管理员。
+	"POST /api/users/admin/unmute",
 	"GET /api/users/login/log",
 	// 站点配置（九段具名端点：公开读 site / deco，管理读与写都是管理员）。
 	"GET /api/site/admin/site",

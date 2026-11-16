@@ -19,6 +19,15 @@ import (
 // 会不会提交"以及"提交的标题/正文是什么"，然后预占配额、在事务外评分，
 // 最后才进写事务（写事务会重新读一遍文章，以它读到的状态为准）。
 func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResult, error) {
+	// 账号闸门（票 399 / ADR-0032 决策 8）：更新文章属于发布类动作。
+	// 与 Create 同一口径 —— 只有登录用户才会走到这里（匿名在 previewUpdate 里被拒），
+	// 闸门放在最前面，被禁言的人不会先看到"文章不存在"。
+	if s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, cmd.Actor.UserID); err != nil {
+			return nil, err
+		}
+	}
+
 	var result *UpdateResult
 	// 投稿配额的预占点在这里而不是事务之前：这次更新到底会不会"提交"，
 	// 要读到文章当前状态才知道（草稿提交 vs 已发布文章编辑后自动送审）。

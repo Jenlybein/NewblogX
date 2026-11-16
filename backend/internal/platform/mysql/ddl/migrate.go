@@ -64,6 +64,15 @@ var columnAdditions = []ColumnAddition{
 		UniqueIndex:  "uk_user_phone",
 		IndexColumns: "`phone`",
 	},
+	{
+		Table:  "user_models",
+		Column: "mute_until",
+		// 禁言到期时间（票 399 / ADR-0032 决策 8）。
+		//
+		// 可空且默认 NULL：NULL 是"未禁言"，与 status 的账号状态分开表达 ——
+		// 禁言不是状态机，到期由惰性判定 + 每小时对账恢复，不需要第三个 status 值。
+		Definition: "`mute_until` datetime(3) DEFAULT NULL",
+	},
 }
 
 // Additions 返回补列清单的副本（供测试与文档断言，不允许调用方改内部状态）。

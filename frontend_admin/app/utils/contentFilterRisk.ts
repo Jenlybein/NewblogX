@@ -24,6 +24,8 @@ export const CONTENT_FILTER_STATUS_OPTIONS = [
   { label: '待处理', value: 'pending' },
   { label: '已忽略', value: 'ignored' },
   { label: '已删除内容', value: 'deleted' },
+  // 账号级处置（封禁 / 禁言）后内容保留，记录落到"账号已处置"（票 399）。
+  { label: '账号已处置', value: 'account' },
 ] as const
 
 const SURFACE_LABELS: Record<string, string> = {
@@ -39,6 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending: '待处理',
   ignored: '已忽略',
   deleted: '已删除内容',
+  account: '账号已处置',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -63,10 +66,11 @@ export function contentFilterStatusLabel(value?: string | null): string {
   return STATUS_LABELS[value] ?? value
 }
 
-/** 状态 → 标签颜色（待处理要显眼，其余收敛成灰）。 */
+/** 状态 → 标签颜色（待处理要显眼，账号已处置用 info 表示"处罚已落地"）。 */
 export function contentFilterStatusTagType(value?: string | null): ContentFilterTagType {
   if (value === 'pending') return 'warning'
   if (value === 'deleted') return 'error'
+  if (value === 'account') return 'info'
   return 'default'
 }
 
@@ -117,11 +121,28 @@ export function splitContentFilterSnippet(
   }
 }
 
-/** 处置动作（票 398）：删除命中的内容 / 忽略误报。 */
+/** 处置动作（票 398 / 399）：内容动作 2 个 + 账号动作 2 个。 */
 export const CONTENT_FILTER_ACTION_OPTIONS = [
   { label: '删除内容', value: 'delete' },
   { label: '忽略（误报）', value: 'ignore' },
+  { label: '封禁账号', value: 'ban' },
+  { label: '禁言账号', value: 'mute' },
 ] as const
+
+/**
+ * 禁言天数的口径（票 399 / ADR-0032 决策 8）。
+ *
+ * 与后端 user 模块一致：缺省 7 天、范围 1–365。前端只做输入约束，
+ * 真正校验仍由后端做（越界会返回 user.mute_days_invalid）。
+ */
+export const CONTENT_FILTER_MUTE_DAYS_DEFAULT = 7
+export const CONTENT_FILTER_MUTE_DAYS_MIN = 1
+export const CONTENT_FILTER_MUTE_DAYS_MAX = 365
+
+/** 处置动作的中文名（二次确认与提示用，未知值原样返回）。 */
+export function contentFilterActionLabel(action?: string | null): string {
+  return CONTENT_FILTER_ACTION_OPTIONS.find(option => option.value === action)?.label ?? action ?? '-'
+}
 
 /**
  * 哪些文本面的"删除内容"是**删实体**、哪些是**重置资料**。

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ChipSelect from "~/components/common/ChipSelect.vue";
 import { computed, reactive, ref } from "vue";
-import { NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
+import { NAlert, NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import { bindPhone, sendEmailCode, sendSmsCode, setAccountPassword } from "~/services/auth";
@@ -28,6 +28,7 @@ import {
 import { isImageFile, measureImage, type ShapeFramingState } from "~/utils/imageShaping";
 import { buildPrivacyUpdatePayload, buildProfileUpdatePayload, buildVisibilityUpdatePayload } from "~/utils/studioSettings";
 import { errorMessage } from "~/utils/errorMessage";
+import { muteNotice } from "~/utils/mute";
 import { useVerificationCountdown } from "~/composables/useVerificationCountdown";
 import { useCaptchaProof } from "~/composables/useCaptchaProof";
 import ImageCaptchaField from "~/components/auth/ImageCaptchaField.vue";
@@ -68,6 +69,14 @@ const activeSection = computed<SettingsSection>(() => {
 const { data: profile, refresh: refreshProfile } = await useAsyncData("studio-settings-profile", () => getSelfUserDetail());
 const { data: preference, refresh: refreshPreference } = await useAsyncData("studio-settings-preference", () => getMessagePreference());
 const { data: tagOptions } = await useAsyncData("studio-settings-tag-options", () => getTagOptions().catch(() => []));
+
+/**
+ * 禁言提示（票 399）：后端在详情里给 `mute_until`，这里算剩余天数。
+ *
+ * 不显示成 0 天：还剩几小时也显示"1 天"（见 utils/mute.ts 的口径）。
+ * 未禁言 / 已到期时为空串，横幅整体不渲染。
+ */
+const muteNoticeText = computed(() => muteNotice(profile.value?.mute_until ?? null));
 
 const profileForm = reactive({
   username: "",
@@ -714,6 +723,15 @@ useNoIndexPage();
           保存资料
         </NButton>
       </div>
+
+      <!-- 禁言状态（票 399）：到期自动恢复，不需要找管理员。 -->
+      <NAlert
+        v-if="muteNoticeText"
+        type="warning"
+        class="mt-4"
+        data-role="settings-mute-banner">
+        {{ muteNoticeText }}
+      </NAlert>
 
       <div class="mt-4">
         <div class="settings-row">

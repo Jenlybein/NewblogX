@@ -364,6 +364,8 @@ type UserSpec struct {
 	// golden 类测试必须写死，否则响应里的时间每次都变。
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// MuteUntil 是禁言到期时间（票 399）；零值表示不插入禁言（列留 NULL）。
+	MuteUntil *time.Time
 }
 
 // InsertUser 插入一个用户行。
@@ -385,6 +387,7 @@ func InsertUser(t *testing.T, db *gorm.DB, spec UserSpec) {
 	u.Role = spec.Role
 	u.CreatedAt = spec.CreatedAt
 	u.UpdatedAt = spec.UpdatedAt
+	u.MuteUntil = spec.MuteUntil
 	if err := db.Create(&u).Error; err != nil {
 		t.Fatalf("插入用户 %d 失败: %v", spec.ID, err)
 	}

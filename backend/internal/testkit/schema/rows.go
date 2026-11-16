@@ -607,7 +607,9 @@ type UserRow struct {
 	Status                enum.UserStatus         `gorm:"default:1;index" json:"status"`
 	TokenVersion          uint32                  `gorm:"default:1" json:"token_version"`
 	LastPasswordChangedAt *time.Time              `json:"last_password_changed_at"`
-	Role                  enum.RoleType           `gorm:"default:0" json:"role"`
+	// MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
+	MuteUntil *time.Time              `json:"mute_until"`
+	Role      enum.RoleType           `gorm:"default:0" json:"role"`
 	IP                    string                  `gorm:"size:64" json:"ip"`    // 注册时的 IP
 	Addr                  string                  `gorm:"size:256" json:"addr"` // 注册时的地址
 	UserConfModel         *UserConfRow            `gorm:"foreignKey:UserID;" json:"user_conf_model"`

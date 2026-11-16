@@ -89,6 +89,8 @@ var adminOnly = []struct {
 	{"GET", "/api/users/admin/list"},
 	{"POST", "/api/users/admin"},
 	{"PUT", "/api/users/admin/info"},
+	// 提前解除禁言（票 399）：管理员的账号级处置。
+	{"POST", "/api/users/admin/unmute"},
 	// 登录日志是用户管理的一部分（user_router.go 的 adminGroup），全量扫描发现它
 	// 归类为管理员却没有行为探针，补上后普通用户令牌会被真的挡一次。
 	{"GET", "/api/users/login/log"},

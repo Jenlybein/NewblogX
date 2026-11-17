@@ -136,6 +136,12 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       { label: '图片资源库', path: '/media/images', icon: 'photo' },
     ],
   },
+  {
+    // 违规计分与申诉（ADR-0035）：申诉必须有人处置，否则用户提交的单子会烂在库里。
+    label: '合规与申诉',
+    icon: 'alert',
+    children: [{ label: '申诉处置', path: '/moderation/appeals', icon: 'alert' }],
+  },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   {
     // 同「文章管理」：父项只分组，日志检索页降级为第一个子项。
@@ -529,3 +535,4 @@ export function pageFileCandidates(path: string): string[] {
   }
   return [trimmed, `${trimmed}/index`]
 }
+

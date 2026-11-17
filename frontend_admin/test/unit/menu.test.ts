@@ -81,6 +81,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: '轮播运营', path: '/media/banners', icon: 'photo' },
   { label: '图片资源库', path: '/media/images', icon: 'photo' },
+  { label: '申诉处置', path: '/moderation/appeals', icon: 'alert' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   { label: '运行日志', path: '/logs', icon: 'database' },
   { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
@@ -138,6 +139,7 @@ describe('后台菜单拍平视图', () => {
       '用户管理',
       '站点配置',
       '媒体运营',
+      '合规与申诉',
       '全局通知',
       '日志中心',
     ])
@@ -658,4 +660,6 @@ describe('pageFileCandidates', () => {
     expect(pageFileCandidates('logs/dead-letter')).toEqual(['logs/dead-letter', 'logs/dead-letter/index'])
   })
 })
+
+
 

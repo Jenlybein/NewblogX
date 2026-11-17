@@ -98,7 +98,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     expect(articleGroup.children!.filter(child => child.label.includes('编排'))).toEqual([])
   })
 
-  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个；短信页后 29 个；内容过滤页后 30 个；关键词风险页后 31 个；图形验证码页后 32 个；上传策略页随 upload 段退场后 31 个（ADR-0029 / ADR-0032 / 票 396 / 票 418）', () => {
+  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个；短信页后 29 个；内容过滤页后 30 个；关键词风险页后 31 个；图形验证码页后 32 个；上传策略页随 upload 段退场后 31 个，申诉处置页后 32 个（ADR-0029 / ADR-0032 / 票 396 / 票 418 / 票 417）', () => {
     const pages: string[] = []
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -111,7 +111,8 @@ describe('旧排列页与收录弹窗已退役', () => {
     // 23 → 28：站点拆出 login / publish / chat 三页（基础页复用 /site），
     // 媒体运营拆出 banners / images 两页（/media 保留为跳转页）。
     // 票 418：upload 段退场，「上传策略」页随之删除，32 → 31。
-  expect(pages.length).toBe(31)
+  // 票 417 新增「申诉处置」页：31 → 32。
+  expect(pages.length).toBe(32)
   })
 
   /**
@@ -149,4 +150,5 @@ describe('后台不再有任何路径写旧扁平收录表', () => {
     }
   })
 })
+
 

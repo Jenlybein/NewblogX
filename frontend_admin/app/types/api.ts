@@ -439,3 +439,6 @@ export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_ada
 
 
 
+
+export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_http.AppealItem">;
+

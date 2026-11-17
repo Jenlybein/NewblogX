@@ -63,6 +63,7 @@ import type {
   UserListResponseData,
   GroupOrderPayload,
   GroupTreeData,
+  ModerationAppealItem,
 } from '~/types/api'
 
 /**
@@ -808,5 +809,23 @@ export function unmuteAdminUser(userId: string) {
 
 
 
+
+
+
+/** 申诉列表（ADR-0035）：按状态筛，空表示全部。 */
+export function getModerationAppeals(status?: string) {
+  return api().request<{ list: ModerationAppealItem[] }>('/moderation/appeals', {
+    method: 'GET',
+    query: status ? { status } : undefined,
+  })
+}
+
+/** 处置一条申诉：approve=true 撤销违规并重算分数，note 驳回时必填。 */
+export function handleModerationAppeal(id: string, payload: { approve: boolean; note: string }) {
+  return api().request<ModerationAppealItem>(`/moderation/appeals/${id}/handle`, {
+    method: 'POST',
+    body: payload,
+  })
+}
 
 

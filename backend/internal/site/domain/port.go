@@ -40,7 +40,7 @@ type ImageResolver interface {
 // RuntimeConfig 是运行时站点配置的读写端口。
 //
 // 具体实现是 platform/config 的 RuntimeConfigService。
-// 十个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
+// 十二个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
 // 其它模块只消费、不写。
 type RuntimeConfig interface {
 	// Site 返回当前生效的站点配置。
@@ -65,6 +65,8 @@ type RuntimeConfig interface {
 	ImageGC() conf.ImageGC
 	// ContentFilter 返回全站词表段（第 11 段，ADR-0032）。
 	ContentFilter() conf.ContentFilter
+	// Captcha 返回图形验证码段（第 12 段，ADR-0033）。
+	Captcha() conf.Captcha
 
 	// UpdateSite 覆盖站点配置。
 	UpdateSite(site conf.Site) error
@@ -88,4 +90,6 @@ type RuntimeConfig interface {
 	UpdateImageGC(imageGC conf.ImageGC) error
 	// UpdateContentFilter 覆盖全站词表段。
 	UpdateContentFilter(contentFilter conf.ContentFilter) error
+	// UpdateCaptcha 覆盖图形验证码配置（第 12 段，ADR-0033）。
+	UpdateCaptcha(captcha conf.Captcha) error
 }

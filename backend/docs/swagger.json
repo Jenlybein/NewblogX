@@ -3688,6 +3688,10 @@
                     },
                     "captcha_id": {
                         "type": "string"
+                    },
+                    "expire_seconds": {
+                        "description": "ExpireSeconds 回显当前有效期：前端据此决定\"多久没操作就主动换一张\"，\n也让运营在后台改完有效期后能在响应里立刻看到生效值。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -4104,6 +4108,130 @@
                         "type": "number"
                     },
                     "timeout_sec": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionCaptchaRequest": {
+                "properties": {
+                    "bg_color": {
+                        "description": "BgColor 是背景色，`#RRGGBB` 或 `#RRGGBBAA`（字符型 / 算术型）。\n默认值带 10/255 的不透明度，与旧实现一致。",
+                        "type": "string"
+                    },
+                    "dot_count": {
+                        "type": "integer"
+                    },
+                    "driver": {
+                        "description": "Driver 是图形验证码的类型：\n  - string：字符型（字母 + 数字），旧实现的形态；\n  - math：算术型（两位数四则运算），对脚本更有效；\n  - digit：纯数字，方便手机键盘输入。",
+                        "enum": [
+                            "string",
+                            "math",
+                            "digit"
+                        ],
+                        "type": "string"
+                    },
+                    "expire_seconds": {
+                        "description": "ExpireSeconds 是验证码有效期（秒），范围 60–3600。\n\n它同时决定存储层的 TTL：验证码存在 Redis 里（多副本与重启都不会失效），\n每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。",
+                        "type": "integer"
+                    },
+                    "fail_message": {
+                        "description": "FailMessage 是读者填错验证码时看到的那句话。\n\n做成配置项而不是代码字面量：站点想把提示写得更像自己（\"看不清？换一张再试\"）\n不该发版。空串表示用默认文案（apperr 消息表里的那一句），这样没配过的站点\n行为与以前完全一致。",
+                        "type": "string"
+                    },
+                    "height": {
+                        "type": "integer"
+                    },
+                    "length": {
+                        "description": "Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），\n纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。",
+                        "type": "integer"
+                    },
+                    "max_skew": {
+                        "description": "MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。\n两者的 0 都是**合法值**（不倾斜 / 不放点），不是\"没填\"；非纯数字驱动保留原值\n但不生效（清掉会让运营切到纯数字后看到与自己填的不一样的值）。",
+                        "type": "number"
+                    },
+                    "noise_count": {
+                        "description": "NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。",
+                        "type": "integer"
+                    },
+                    "show_hollow_line": {
+                        "description": "三种干扰线各自一个开关，而不是暴露 base64Captcha 的位掩码常量：\n位掩码是库的内部编码（2/4/8），让运营去记位值是没道理的。",
+                        "type": "boolean"
+                    },
+                    "show_sine_line": {
+                        "type": "boolean"
+                    },
+                    "show_slime_line": {
+                        "type": "boolean"
+                    },
+                    "source": {
+                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`\n各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。",
+                        "type": "string"
+                    },
+                    "width": {
+                        "description": "Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionCaptchaResponse": {
+                "properties": {
+                    "bg_color": {
+                        "description": "BgColor 是背景色，`#RRGGBB` 或 `#RRGGBBAA`（字符型 / 算术型）。\n默认值带 10/255 的不透明度，与旧实现一致。",
+                        "type": "string"
+                    },
+                    "dot_count": {
+                        "type": "integer"
+                    },
+                    "driver": {
+                        "description": "Driver 是图形验证码的类型：\n  - string：字符型（字母 + 数字），旧实现的形态；\n  - math：算术型（两位数四则运算），对脚本更有效；\n  - digit：纯数字，方便手机键盘输入。",
+                        "enum": [
+                            "string",
+                            "math",
+                            "digit"
+                        ],
+                        "type": "string"
+                    },
+                    "expire_seconds": {
+                        "description": "ExpireSeconds 是验证码有效期（秒），范围 60–3600。\n\n它同时决定存储层的 TTL：验证码存在 Redis 里（多副本与重启都不会失效），\n每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。",
+                        "type": "integer"
+                    },
+                    "fail_message": {
+                        "description": "FailMessage 是读者填错验证码时看到的那句话。\n\n做成配置项而不是代码字面量：站点想把提示写得更像自己（\"看不清？换一张再试\"）\n不该发版。空串表示用默认文案（apperr 消息表里的那一句），这样没配过的站点\n行为与以前完全一致。",
+                        "type": "string"
+                    },
+                    "height": {
+                        "type": "integer"
+                    },
+                    "length": {
+                        "description": "Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），\n纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。",
+                        "type": "integer"
+                    },
+                    "max_skew": {
+                        "description": "MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。\n两者的 0 都是**合法值**（不倾斜 / 不放点），不是\"没填\"；非纯数字驱动保留原值\n但不生效（清掉会让运营切到纯数字后看到与自己填的不一样的值）。",
+                        "type": "number"
+                    },
+                    "noise_count": {
+                        "description": "NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。",
+                        "type": "integer"
+                    },
+                    "show_hollow_line": {
+                        "description": "三种干扰线各自一个开关，而不是暴露 base64Captcha 的位掩码常量：\n位掩码是库的内部编码（2/4/8），让运营去记位值是没道理的。",
+                        "type": "boolean"
+                    },
+                    "show_sine_line": {
+                        "type": "boolean"
+                    },
+                    "show_slime_line": {
+                        "type": "boolean"
+                    },
+                    "source": {
+                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`\n各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。",
+                        "type": "string"
+                    },
+                    "width": {
+                        "description": "Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。",
                         "type": "integer"
                     }
                 },
@@ -4999,6 +5127,21 @@
             "myblogx_conf_site.Login": {
                 "properties": {
                     "captcha": {
+                        "description": "Captcha 是图形验证码的**总开关**。\n\n它必须留在 site 段并保持公开可读：读者站要靠 GET /api/site/site 决定\n每个登录/发码表单渲染不渲染验证码框，藏进后台专属段只会让所有表单\n都渲染一个永远填不对的输入框。\n\n图片尺寸、字符集、有效期这些**渲染参数**不在这里，见 conf.Captcha（第 12 段）。",
+                        "type": "boolean"
+                    },
+                    "captcha_email_verify": {
+                        "type": "boolean"
+                    },
+                    "captcha_login": {
+                        "description": "下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。\n\n默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。\n需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，\n登录要卡爆破；一刀切会让\"只想给发码加验证码\"做不到。\n\n它们也必须是公开可读的（渲染需要），所以留在 site 段而不是 captcha 段：\n这就是 ADR-0020 决策 3 的分法 —— 策略留在 site.login，渲染参数进专属段。",
+                        "type": "boolean"
+                    },
+                    "captcha_phone_verify": {
+                        "type": "boolean"
+                    },
+                    "captcha_register": {
+                        "description": "CaptchaRegister 是「注册专用入口」的闸门。\n\n它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有\n独立路由 —— 它与登录共用 POST /users/phone（\"首次验证即建档\"），请求体层面\n分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**\n（captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。",
                         "type": "boolean"
                     },
                     "email_code_timeout": {
@@ -6623,6 +6766,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionAiResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionCaptchaResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionCaptchaResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -14567,6 +14724,31 @@
                 ]
             }
         },
+        "/site/admin/captcha": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionCaptchaResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 captcha 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
         "/site/admin/content_filter": {
             "get": {
                 "responses": {
@@ -14931,6 +15113,44 @@
                     }
                 },
                 "summary": "获取站点 AI 信息",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/captcha": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionCaptchaRequest",
+                                "summary": "body",
+                                "description": "captcha 段配置"
+                            }
+                        }
+                    },
+                    "description": "captcha 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 captcha 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]

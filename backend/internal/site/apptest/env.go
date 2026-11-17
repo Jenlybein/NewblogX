@@ -202,6 +202,7 @@ type Runtime struct {
 	deco          conf.Deco
 	imageGC       conf.ImageGC
 	contentFilter conf.ContentFilter
+	captcha       conf.Captcha
 }
 
 var _ domain.RuntimeConfig = (*Runtime)(nil)
@@ -365,6 +366,21 @@ func (r *Runtime) UpdateImageGC(imageGC conf.ImageGC) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.imageGC = imageGC
+	return nil
+}
+
+// Captcha 实现 domain.RuntimeConfig。
+func (r *Runtime) Captcha() conf.Captcha {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.captcha
+}
+
+// UpdateCaptcha 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateCaptcha(captcha conf.Captcha) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.captcha = captcha
 	return nil
 }
 

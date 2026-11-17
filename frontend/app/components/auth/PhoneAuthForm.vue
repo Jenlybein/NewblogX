@@ -24,7 +24,7 @@ const {
   missing: captchaMissing,
   refresh: refreshCaptcha,
   payload: captchaPayload,
-} = useCaptchaProof();
+} = useCaptchaProof("phone_verify");
 
 /** 与后端 domain.ValidatePhone 同一形状：11 位、1 开头、第二位 3-9。 */
 const phonePattern = /^1[3-9]\d{9}$/;

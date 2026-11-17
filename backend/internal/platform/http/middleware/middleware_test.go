@@ -150,7 +150,8 @@ func newMiddlewareEngineWithSite(t *testing.T, site conf.Site) *gin.Engine {
 }
 
 func registerCaptchaEmailRoutes(r *gin.Engine) {
-	r.POST("/captcha", middleware.CaptchaMiddleware, func(c *gin.Context) {
+	// 验证码校验改成按入口挂闸门（第 12 段 / ADR-0033）：这里挂登录入口那一档。
+	r.POST("/captcha", middleware.CaptchaGate(middleware.CaptchaScopeLogin), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 	r.POST("/email", middleware.EmailVerifyMiddleware, func(c *gin.Context) {
@@ -298,7 +299,7 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 		}
 	}
 
-	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true}})
+	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true, CaptchaLogin: true}})
 	registerCaptchaEmailRoutes(r)
 	_ = testutil.ImageCaptchaStore().Set("cid", "1234")
 	{
@@ -349,4 +350,184 @@ func hasBizCode(w *httptest.ResponseRecorder, code int) bool {
 		return false
 	}
 	return int(v.(float64)) == code
+}
+
+// captchaScopePaths 是四个入口各自的探测路径，用于下面的闸门矩阵。
+func captchaScopePaths() []string {
+	return []string{
+		"/gate/" + middleware.CaptchaScopeLogin,
+		"/gate/" + middleware.CaptchaScopeEmailVerify,
+		"/gate/" + middleware.CaptchaScopePhoneVerify,
+		// 注册专用入口：只有 POST /api/users/email/register 挂它。手机号注册没有独立
+		// 路由（与登录共用 POST /api/users/phone），那条通道靠 phone_verify 兜。
+		"/gate/" + middleware.CaptchaScopeRegister,
+	}
+}
+
+// registerCaptchaGateRoutes 给三个入口各挂一条只观察"过没过"的路由。
+//
+// 路由的最终 handler 直接返回 200：本用例只关心闸门放行还是拦住，不关心
+// 业务 handler 干了什么。未知 scope 那条单独挂，用来测"挂载点写错"的兜底。
+func registerCaptchaGateRoutes(r *gin.Engine) {
+	for _, path := range captchaScopePaths() {
+		// 每条路由的 scope 从路径里取回来，避免闭包捕获同一个变量。
+		scope := strings.TrimPrefix(path, "/gate/")
+		r.POST(path, middleware.CaptchaGate(scope), func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+	}
+	r.POST("/gate/unknown_scope", middleware.CaptchaGate("unknown_scope"), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+}
+
+// postCaptchaGate 发一次请求并返回响应，body 是 JSON 请求体。
+func postCaptchaGate(t *testing.T, r *gin.Engine, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// 总开关关掉时，三个入口一个都不校验（哪怕各自的闸门都开着）。
+//
+// 总开关是"一键关掉"：如果关掉总开关但闸门还独立生效，那"先整体关、再逐条开"
+// 的回滚路径就是假的 —— 运维以为自己已经关掉了验证码，登录页却还在 400，
+// 而屏幕上没有任何东西说明为什么。
+func TestCaptchaGateAllScopesOpenWhenMasterSwitchOff(t *testing.T) {
+	setupAuthEnv(t)
+	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+		Captcha:            false,
+		CaptchaLogin:       true,
+		CaptchaEmailVerify: true,
+		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
+	}})
+	registerCaptchaGateRoutes(r)
+
+	for _, path := range captchaScopePaths() {
+		// 故意不传 captcha_id：如果总开关真生效，这些请求不需要任何验证码就能过。
+		if w := postCaptchaGate(t, r, path, `{}`); w.Code != http.StatusOK {
+			t.Fatalf("%s：总开关关闭时应放行（不需要验证码），实际 code=%d body=%s",
+				path, w.Code, w.Body.String())
+		}
+	}
+}
+
+// 总开关 + 闸门都打开时，缺 captcha_id 的请求必须被拒；带上正确验证码则放行。
+//
+// 两条断言必须成对出现：只断言"拒绝"的话，一个无条件拒绝的实现也能过——
+// 那就成了"验证码永远填不对"的线上故障。带上正确码能过，才证明它真的在看 store。
+//
+// 拒绝的表现形式是业务码 1001（参数校验失败）+ HTTP 200：本仓库的成功/失败
+// 一律走 HTTP 200 + 业务码（见 res.Response.Json），前端按 code 分支，所以
+// 这里断言的是 1001 而不是 HTTP 400。
+func TestCaptchaGateRejectsMissingCaptchaWhenSwitchesOn(t *testing.T) {
+	setupAuthEnv(t)
+	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+		Captcha:            true,
+		CaptchaLogin:       true,
+		CaptchaEmailVerify: true,
+		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
+	}})
+	registerCaptchaGateRoutes(r)
+
+	for _, path := range captchaScopePaths() {
+		w := postCaptchaGate(t, r, path, `{}`)
+		if !hasBizCode(w, 1001) {
+			t.Fatalf("%s：缺 captcha_id 时应以参数错误 1001 拒绝，实际 code 对不上 body=%s",
+				path, w.Body.String())
+		}
+	}
+
+	// 正确验证码必须能过（且每个入口用自己的 store 条目，避免"通过"来自上一轮的残留）。
+	for _, path := range captchaScopePaths() {
+		id := strings.TrimPrefix(path, "/gate/") + "-ok"
+		_ = testutil.ImageCaptchaStore().Set(id, "1234")
+		w := postCaptchaGate(t, r, path, `{"captcha_id":"`+id+`","captcha_code":"1234"}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s：正确验证码应放行，实际 code=%d body=%s", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+// 总开关开着但三个闸门都关着时，三个入口都不校验。
+//
+// 这条和上一条刚好互补：确认"校验"不是由总开关单独决定的。若实现退化成
+// "总开关一开就全入口校验"，只想给发码加验证码的运营就只能连带把登录也卡住——
+// 那正是这次把开关拆成三个闸门要解决的问题。
+func TestCaptchaGateSkipsWhenScopeGateOff(t *testing.T) {
+	setupAuthEnv(t)
+	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+		Captcha:            true,
+		CaptchaLogin:       false,
+		CaptchaEmailVerify: false,
+		CaptchaPhoneVerify: false,
+	}})
+	registerCaptchaGateRoutes(r)
+
+	for _, path := range captchaScopePaths() {
+		if w := postCaptchaGate(t, r, path, `{}`); w.Code != http.StatusOK {
+			t.Fatalf("%s：闸门关闭时不该校验（不需要验证码），实际 code=%d body=%s",
+				path, w.Code, w.Body.String())
+		}
+	}
+}
+
+// 未知 scope 一律放行，即使总开关和三个闸门都开着。
+//
+// 挂载点写错（拼了 "login " 或写了 "pwd_login"）时，宁可少校验一次 —— 那会立刻
+// 被登录链路测出来；反过来把它当"要验证码"处理，会让一条没登记的路由静默
+// 400，而错误信息完全不指向挂载点。
+func TestCaptchaGateUnknownScopePasses(t *testing.T) {
+	setupAuthEnv(t)
+	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+		Captcha:            true,
+		CaptchaLogin:       true,
+		CaptchaEmailVerify: true,
+		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
+	}})
+	registerCaptchaGateRoutes(r)
+
+	if w := postCaptchaGate(t, r, "/gate/unknown_scope", `{}`); w.Code != http.StatusOK {
+		t.Fatalf("未知 scope 不该校验，实际 code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// 三个闸门彼此独立：只打开登录那一档时，只有登录入口校验。
+//
+// 这是"按入口拆分"这个决定的全部价值。如果实现里三个 scope 互相牵连（例如
+// 任一个开就全开），运营对发码限流的调整会连带改变登录页的体验，而没人能预测。
+func TestCaptchaGateScopesAreIndependent(t *testing.T) {
+	setupAuthEnv(t)
+	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+		Captcha:            true,
+		CaptchaLogin:       true,
+		CaptchaEmailVerify: false,
+		CaptchaPhoneVerify: false,
+	}})
+	registerCaptchaGateRoutes(r)
+
+	if w := postCaptchaGate(t, r, "/gate/"+middleware.CaptchaScopeLogin, `{}`); !hasBizCode(w, 1001) {
+		t.Fatalf("登录闸门开着时应校验，实际 body=%s", w.Body.String())
+	}
+	for _, path := range []string{
+		"/gate/" + middleware.CaptchaScopeEmailVerify,
+		"/gate/" + middleware.CaptchaScopePhoneVerify,
+	} {
+		if w := postCaptchaGate(t, r, path, `{}`); w.Code != http.StatusOK {
+			t.Fatalf("%s：该入口闸门关着，不该跟着登录闸门一起校验，实际 code=%d body=%s",
+				path, w.Code, w.Body.String())
+		}
+	}
 }

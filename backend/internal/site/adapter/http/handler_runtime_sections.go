@@ -15,7 +15,7 @@ import (
 //
 // 参数化 /site/{name} 与 /site/admin/{name} 已整体退场：每段各有自己的
 // GET /site/admin/<name> 与 PUT /site/<name>，注解直接引用该段的具名形状。
-// 于是契约（开放接口契约）能派生出九套字段级类型，两端不再手写视图模型。
+// 于是契约（开放接口契约）能派生出十二套字段级类型，两端不再手写视图模型。
 
 // updateNamedSection 把请求体绑定到具名形状后交给该段的更新用例。
 func updateNamedSection[T any](c *gin.Context, update func(T) error) error {
@@ -434,6 +434,49 @@ func (h *Handler) PublicDecoSection(c *gin.Context) {
 // @Router /site/admin/content_filter [get]
 func (h *Handler) AdminContentFilterSection(c *gin.Context) {
 	res.OkWithData(SiteSectionContentFilterResponse(h.svc.AdminContentFilter()), c)
+}
+
+// AdminCaptchaSection 返回 captcha 段管理端配置。
+//
+// 第 12 段与 content_filter 同理只有管理端出入口：图片尺寸/字符集/有效期属于
+// 运营参数，读者没必要知道；而"哪些入口要验证码"那三个布尔位在 site.login 里、
+// 本来就公开可读（前端要靠它决定渲染不渲染输入框）。
+// @Summary 获取 captcha 段运行时配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[SiteSectionCaptchaResponse]
+// @Router /site/admin/captcha [get]
+func (h *Handler) AdminCaptchaSection(c *gin.Context) {
+	res.OkWithData(SiteSectionCaptchaResponse(h.svc.AdminCaptcha()), c)
+}
+
+// UpdateCaptchaSection 覆盖 captcha 段运行时配置。
+//
+// 保存即生效：生成请求每次都按配置现值构建驱动、按现值写 TTL，没有"重建"这一步。
+// @Summary 更新 captcha 段运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SiteSectionCaptchaRequest true "captcha 段配置"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /site/captcha [put]
+func (h *Handler) UpdateCaptchaSection(c *gin.Context) {
+	if err := updateNamedSection(c, func(v SiteSectionCaptchaRequest) error {
+		return h.svc.UpdateCaptcha(conf.Captcha(v))
+	}); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "captcha",
+		Success:    true,
+		Message:    "更新运行时配置成功: captcha",
+	})
 }
 
 // UpdateContentFilterSection 覆盖 content_filter 段运行时配置。

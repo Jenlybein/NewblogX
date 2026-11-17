@@ -7,7 +7,7 @@ import (
 	"myblogx/conf"
 )
 
-// 段注册表是九段唯一事实：任何未登记的段在写入后必须失败，而不是
+// 段注册表是十二段唯一事实：任何未登记的段在写入后必须失败，而不是
 // "警告后缓存不更新"。这条用例只验 UpdateXxx 外部可见的返回值与缓存状态，
 // 不读源码里有没有 Warnf / switch / case。
 func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
@@ -15,8 +15,8 @@ func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
 		Mail: conf.Mail{SecretID: "registered-baseline"},
 	})
 
-	// 构造一段注册表之外的值：类型本身是九段之一，段名却未登记。
-	// 从公共入口看，它的效果和"新增了第十段却忘了登记"完全一样。
+	// 构造一段注册表之外的值：类型本身是十二段之一，段名却未登记。
+	// 从公共入口看，它的效果和"新增了一段却忘了登记"完全一样。
 	unregistered := conf.Mail{SecretID: "unregistered-value"}
 	err := updateSection(svc, SectionName(unregisteredSectionName), unregistered)
 	if err == nil {
@@ -42,11 +42,13 @@ func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
 // 全部段登记、且每个登记项的解码结果都能写回缓存（漏登记或类型写歪即红）。
 //
 // 期望值来自票面清单，不从被测试的注册表反推，避免自证。
-// 第十段 sms 由 ADR-0020 的修订引入：短信通道的密钥必须加密落库，
+// sms 段由 ADR-0020 的修订引入：短信通道的密钥必须加密落库，
 // 而 site 段有匿名可读的公开端点，放不进去。
+// 第十二段 captcha（ADR-0033）同理：图形与时效参数只给后台读写，不混进公开的 site 段。
 func TestSectionRegistryRegistersAllSections(t *testing.T) {
 	want := []string{
 		"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc", "content_filter",
+		"captcha",
 	}
 	svc, _ := newTestService(t, conf.RuntimeDefaults{})
 	for _, name := range want {

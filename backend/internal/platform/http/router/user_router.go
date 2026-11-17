@@ -38,15 +38,18 @@ func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
 	auth := authHandler
-	Group.POST("email/verify", runtimeMw.CaptchaMiddleware, auth.SendEmail)
+	// 图形验证码按**入口**单独挂闸门（第 12 段 / ADR-0033）：发码卡成本、登录卡爆破，
+	// 两者被滥用的方式不同，所以各自有一个开关，而不是共用一个"全部校验"。
+	Group.POST("email/verify", mw.CaptchaGate(mw.CaptchaScopeEmailVerify), auth.SendEmail)
 	Group.POST("email/login", runtimeMw.EmailVerifyMiddleware, auth.EmailLogin)
-	Group.POST("email/register", runtimeMw.EmailVerifyMiddleware, auth.RegisterEmail)
+	// 注册专用路由挂两道：图形验证码的 register 闸门在前（图形码是"人"的证明，先过它能挡批量刷注册），邮箱码校验在后（原样保留）。
+	Group.POST("email/register", mw.CaptchaGate(mw.CaptchaScopeRegister), runtimeMw.EmailVerifyMiddleware, auth.RegisterEmail)
 	Group.POST("qq", auth.QQLogin)
 	// 手机号通道：发码带图形验证码中间件（与邮件发码同一道闸），
 	// 登录本身由 handler 内调用阿里云核验，不需要中间件。
-	Group.POST("phone/verify", runtimeMw.CaptchaMiddleware, auth.SendSms)
+	Group.POST("phone/verify", mw.CaptchaGate(mw.CaptchaScopePhoneVerify), auth.SendSms)
 	Group.POST("phone", auth.PhoneLogin)
-	Group.POST("login", runtimeMw.CaptchaMiddleware, auth.PwdLogin)
+	Group.POST("login", mw.CaptchaGate(mw.CaptchaScopeLogin), auth.PwdLogin)
 	Group.POST("refresh", auth.Refresh)
 	Group.PUT("password/recovery/email", runtimeMw.EmailVerifyMiddleware, auth.ResetPassword)
 	authGroup.PUT("password/renewal/email", auth.UpdatePassword)

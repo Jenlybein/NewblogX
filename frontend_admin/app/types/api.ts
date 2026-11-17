@@ -252,7 +252,7 @@ export type ArticleSearchResponseData = Omit<
 }
 
 /**
- * 九段运行时配置：全部从生成的契约派生（#283 / ADR-0020）。
+ * 十二段运行时配置：全部从生成的契约派生（#283 / ADR-0020）。
  *
  * 参数化 /site/{name} 与自由键值块已退场，每段各有具名响应/请求 schema；
  * 后台不再手写投影，字段名与类型都在编译期由 openapi.d.ts 给出。
@@ -273,6 +273,15 @@ export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSe
 export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
 export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
 export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
+
+/**
+ * 第 12 段 `captcha`（ADR-0033）：图形验证码的图形与时效参数。
+ *
+ * 这一段只有后台具名端点（`GET /site/admin/captcha` / `PUT /site/captcha`）。
+ * 「开关」与「哪些入口要验证码」**不在这里**：它们在公开可读的 `site.login`
+ * 里（读者站要靠那几位决定每个表单画不画验证码框）。
+ */
+export type CaptchaRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionCaptchaResponse">
 /**
  * 第 11 段 `content_filter`（ADR-0032）：全站唯一的词表与白名单。
  *

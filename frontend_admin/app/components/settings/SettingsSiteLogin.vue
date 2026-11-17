@@ -87,8 +87,47 @@ onMounted(load)
         <NFormItem label="QQ 登录">
           <NSwitch v-model:value="config.login.qq_login" />
         </NFormItem>
-        <NFormItem label="登录与发码接口启用图形验证码">
-          <NSwitch v-model:value="config.login.captcha" />
+        <NFormItem label="启用图形验证码（总开关）">
+          <NSwitch v-model:value="config.login.captcha" data-role="login-captcha-switch" />
+        </NFormItem>
+        <!--
+          三个入口闸门：总开关打开后，逐个决定哪条路由真的校验。
+          登录与发码被滥用的方式不同（发码烧钱、登录被撞库），一刀切会让
+          「只想给发码加验证码」做不到。它们必须对读者公开 —— 前端要靠它们
+          决定每个表单画不画验证码框；图片参数在「站点 → 图形验证码」页。
+        -->
+        <NFormItem label="登录接口要求图形验证码">
+          <NSwitch
+            v-model:value="config.login.captcha_login"
+            :disabled="!config.login.captcha"
+            data-role="login-captcha-gate-login"
+          />
+          <span v-if="!config.login.captcha" class="admin-hint">总开关关闭时不生效</span>
+        </NFormItem>
+        <NFormItem label="发邮箱验证码要求图形验证码">
+          <NSwitch
+            v-model:value="config.login.captcha_email_verify"
+            :disabled="!config.login.captcha"
+            data-role="login-captcha-gate-email"
+          />
+        </NFormItem>
+        <NFormItem label="注册接口要求图形验证码">
+          <NSwitch
+            v-model:value="config.login.captcha_register"
+            :disabled="!config.login.captcha"
+            data-role="login-captcha-gate-register"
+          />
+          <span class="admin-hint">只作用于专门的注册路由；手机号注册的验证码在发码那一步</span>
+        </NFormItem>
+        <NFormItem label="发短信验证码要求图形验证码">
+          <NSwitch
+            v-model:value="config.login.captcha_phone_verify"
+            :disabled="!config.login.captcha"
+            data-role="login-captcha-gate-phone"
+          />
+          <NuxtLink to="/site/captcha" class="admin-link ml-2">
+            图片样式与有效期 →
+          </NuxtLink>
         </NFormItem>
       </NCard>
 

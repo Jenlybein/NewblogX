@@ -1,6 +1,7 @@
 package app
 
 import (
+	"myblogx/conf"
 	"myblogx/internal/platform/captcha"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/router"
@@ -19,6 +20,7 @@ func WireCaptcha(infra *Infra, store base64Captcha.Store) {
 	router.SetCaptchaHandler(captcha.NewHandler(
 		captchaSettings{site: infra.RuntimeSite},
 		store,
+		infra.Logger,
 	))
 }
 
@@ -27,10 +29,21 @@ type captchaSettings struct {
 	site *sitecfg.RuntimeConfigService
 }
 
-// CaptchaEnabled 读站点开关。配置服务缺失时按"关闭"处理，与旧实现的 nil 判断一致。
+// CaptchaEnabled 读总开关（site.login.captcha）。
+// 配置服务缺失时按"关闭"处理，与旧实现的 nil 判断一致。
 func (s captchaSettings) CaptchaEnabled() bool {
 	if s.site == nil {
 		return false
 	}
 	return s.site.GetRuntimeLogin().Captcha
+}
+
+// CaptchaConfig 读第 12 段的图形与时效参数。
+//
+// 每次现读：后台保存后立刻生效，请求路径不做"重建驱动"的缓存。
+func (s captchaSettings) CaptchaConfig() conf.Captcha {
+	if s.site == nil {
+		return conf.Captcha{}
+	}
+	return s.site.GetRuntimeCaptcha()
 }

@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mojocn/base64Captcha"
 
+	captchastore "myblogx/internal/platform/captcha"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/router"
 )
@@ -22,7 +24,22 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	cfg := infra.Config
 	// 验证码的生成（internal/platform/captcha）与校验（middleware）必须是同一个 store，
 	// 否则前端拿到的 captcha_id 在登录时校验不到。这里只创建一个实例，两处共用。
-	captchaStore := base64Captcha.DefaultMemStore
+	//
+	// 优先用 Redis：库自带的 DefaultMemStore 是进程内内存，(a) 重启即失效、
+	// (b) 多副本时 A 生成 B 校验永远失败。两者在单实例下都不显形，专挑重启/扩容那天炸。
+	// Redis 不可用（本地没起 Redis、单元测试）时退回内存存储，功能不退化、只是同进程内有效。
+	var captchaStore base64Captcha.Store
+	if infra.Redis != nil {
+		captchaStore = captchastore.NewRedisStore(infra.Redis, captchaTTL(infra), infra.Logger)
+	} else {
+		// 降级用**带 TTL 的内存实现**，不是库自带的 DefaultMemStore：
+		// 后者有效期固定 10 分钟，后台改 expire_seconds 在这条路径上不生效，
+		// 而 imagecaptcha 仍回显配置值 —— 两套时钟就是"保存成功但没效果"。
+		if infra.Logger != nil {
+			infra.Logger.Warn("Redis 不可用，图形验证码退回进程内存储：重启即失效、多副本不通用")
+		}
+		captchaStore = captchastore.NewTtlMemoryStore(captchaTTL(infra), infra.Logger)
+	}
 	opts := middleware.RuntimeOptions{
 		System:            cfg.System,
 		JWT:               cfg.Jwt,
@@ -108,4 +125,20 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	}
 
 	return nil
+}
+
+// captchaTTL 返回当前验证码有效期。
+//
+// 做成函数而不是启动时快照的值：有效期是运行时配置，改它不该要求重启；每次生成
+// 现读一句，只影响新生成的图（已经发出去的那张仍按它生成时的 TTL 过期）。
+func captchaTTL(infra *Infra) captchastore.TTLFunc {
+	return func() time.Duration {
+		if infra == nil || infra.RuntimeSite == nil {
+			return 10 * time.Minute
+		}
+		if seconds := infra.RuntimeSite.GetRuntimeCaptcha().ExpireSeconds; seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+		return 10 * time.Minute
+	}
 }

@@ -430,6 +430,8 @@ const (
 	// 内容过滤词表的保存期校验（ADR-0032）。同样是配置期的参数错误：
 	// 空词条、不认识的档位或类目都该当场拒绝，而不是写进库里等启动时才发现。
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
+	// CodeSiteCaptchaInvalid 是图形验证码段（第 12 段）参数不合法。
+	CodeSiteCaptchaInvalid Code = "site.captcha_invalid"
 
 	// 关键词风险页的筛选参数（ADR-0032）。与上面的词表校验分开：
 	// 那是"运营填的词条不合法"（去改词），这是"后台传错了筛选值"（去改请求），
@@ -441,10 +443,10 @@ const (
 	//
 	// 前五个都是"后台能自己修正"的失败：记录不存在（刷新列表就能看到最新状态）、
 	// 动作写错、备注超长、批量没选、私信面没有可删内容。它们归 1001。
-	CodeFilterHitNotFound    Code = "filter.hit_not_found"
-	CodeFilterActionInvalid  Code = "filter.action_invalid"
-	CodeFilterNoteTooLong    Code = "filter.note_too_long"
-	CodeFilterBatchEmpty     Code = "filter.batch_empty"
+	CodeFilterHitNotFound      Code = "filter.hit_not_found"
+	CodeFilterActionInvalid    Code = "filter.action_invalid"
+	CodeFilterNoteTooLong      Code = "filter.note_too_long"
+	CodeFilterBatchEmpty       Code = "filter.batch_empty"
 	CodeFilterSurfaceNoContent Code = "filter.surface_no_content"
 	// CodeFilterDisposeUnavailable 不是调用方的问题：处置端口没装配说明
 	// 这条进程的装配漏了一步，属于服务异常（不吞、也不让后台误以为是自己传错了）。
@@ -638,34 +640,34 @@ var messages = map[Code]string{
 	CodeReviewTaskHandled:  "审核任务已处理",
 	CodeReviewTaskDenied:   "无权处理该审核任务",
 
-	CodeUserNotFound:           "用户不存在",
-	CodeUserForbidden:          "无权操作该用户",
-	CodeUserUsernameTaken:      "用户名已被使用",
-	CodeUserUsernameCooldown:   "用户名每 30 天内只能更新 1 次",
-	CodeUserUsernameInvalid:    "用户名格式不符合要求",
-	CodeUserNicknameRequired:   "昵称不能为空",
-	CodeUserNicknameTooLong:    "昵称长度超出限制",
-	CodeUserAbstractTooLong:    "个人简介长度超出限制",
-	CodeUserStatusInvalid:      "账号状态不合法",
-	CodeUserStatusSelfLocked:   "不能修改自己的账号状态",
-	CodeUserEmailTaken:         "邮箱已被使用",
-	CodeUserEmailNotBound:      "账号尚未绑定邮箱",
-	CodeUserEmailRegistered:    "该邮箱已注册，请直接登录或找回密码",
-	CodeUserEmailUnregistered:  "该邮箱还没有注册，请先注册",
-	CodeUserMailTooFrequent:    "验证码发送太频繁，请稍后再试",
-	CodeUserPhoneTaken:         "该手机号已被其他账号绑定",
-	CodeUserPhoneInvalid:       "手机号格式不正确",
-	CodeUserSmsTooFrequent:     "验证码发送太频繁，请稍后再试",
-	CodeUserSmsSendFailed:      "短信发送失败，请稍后重试",
-	CodeUserSmsNotConfigured:   "短信服务未配置，请先在后台「站点 → 短信」填写阿里云凭证",
-	CodeUserSmsVerifyFailed:    "短信验证码校验失败，请稍后重试",
-	CodeUserInvalidCredential:  "账号或密码错误",
-	CodeUserAccountDisabled:    "账号已被禁用",
-	CodeUserAccountBanned:      "账号已被封禁",
+	CodeUserNotFound:          "用户不存在",
+	CodeUserForbidden:         "无权操作该用户",
+	CodeUserUsernameTaken:     "用户名已被使用",
+	CodeUserUsernameCooldown:  "用户名每 30 天内只能更新 1 次",
+	CodeUserUsernameInvalid:   "用户名格式不符合要求",
+	CodeUserNicknameRequired:  "昵称不能为空",
+	CodeUserNicknameTooLong:   "昵称长度超出限制",
+	CodeUserAbstractTooLong:   "个人简介长度超出限制",
+	CodeUserStatusInvalid:     "账号状态不合法",
+	CodeUserStatusSelfLocked:  "不能修改自己的账号状态",
+	CodeUserEmailTaken:        "邮箱已被使用",
+	CodeUserEmailNotBound:     "账号尚未绑定邮箱",
+	CodeUserEmailRegistered:   "该邮箱已注册，请直接登录或找回密码",
+	CodeUserEmailUnregistered: "该邮箱还没有注册，请先注册",
+	CodeUserMailTooFrequent:   "验证码发送太频繁，请稍后再试",
+	CodeUserPhoneTaken:        "该手机号已被其他账号绑定",
+	CodeUserPhoneInvalid:      "手机号格式不正确",
+	CodeUserSmsTooFrequent:    "验证码发送太频繁，请稍后再试",
+	CodeUserSmsSendFailed:     "短信发送失败，请稍后重试",
+	CodeUserSmsNotConfigured:  "短信服务未配置，请先在后台「站点 → 短信」填写阿里云凭证",
+	CodeUserSmsVerifyFailed:   "短信验证码校验失败，请稍后重试",
+	CodeUserInvalidCredential: "账号或密码错误",
+	CodeUserAccountDisabled:   "账号已被禁用",
+	CodeUserAccountBanned:     "账号已被封禁",
 	// 静态文案只是兜底：真正的禁言错误由 user/domain.MuteError 动态生成，
 	// 文案里带到期时间（apperr.Message 取不到时间，只能给一句可读的兜底）。
-	CodeUserMuted:           "账号已被禁言，暂时不能发布内容",
-	CodeUserMuteDaysInvalid: "禁言天数必须是 1–365 天",
+	CodeUserMuted:              "账号已被禁言，暂时不能发布内容",
+	CodeUserMuteDaysInvalid:    "禁言天数必须是 1–365 天",
 	CodeUserPasswordRequired:   "请先设置密码",
 	CodeUserPasswordAlreadySet: "账号已有密码，请使用修改密码",
 	CodeUserPasswordTooShort:   "密码长度不足",
@@ -783,6 +785,7 @@ var messages = map[Code]string{
 	CodeRuntimeConfigTableMissing:      "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
+	CodeSiteCaptchaInvalid:             "图形验证码配置不合法：类型、尺寸、有效期、字符集或颜色超出允许范围",
 	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
 	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
 	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",
@@ -870,6 +873,12 @@ var messages = map[Code]string{
 type Error struct {
 	code  Code
 	cause error
+	// userMessage 是"可以原样回给调用方"的具体文案（例如"图片宽度需在 80–400 之间，
+	// 收到 5000"）。空串表示没有，响应层退回错误码的通用文案。
+	//
+	// 它必须由调用方**显式**给出，不用 cause.Error()：那些错误的 Error() 里可能有
+	// 连接串、SQL、内部路径，一旦自动透出就是一次信息泄露。
+	userMessage string
 }
 
 // New 用错误码创建一个错误。
@@ -877,6 +886,25 @@ func New(code Code) *Error { return &Error{code: code} }
 
 // Wrap 在保留原因的同时附加错误码。
 func Wrap(code Code, cause error) *Error { return &Error{code: code, cause: cause} }
+
+// NewWithMessage 创建一个带"受控具体文案"的错误。
+//
+// 用于调用方能自行修正的失败（协议类别必须是 ProtocolValidation）：后台要把
+// "哪个字段越什么界"显示给运营，只说"参数不合法"会让他反复试同一组数字。
+// 保证只对 Validation 生效的是响应层，不是这里 —— 建错了类别也漏不出去。
+func NewWithMessage(code Code, message string) *Error {
+	return &Error{code: code, userMessage: message}
+}
+
+// UserMessage 返回受控的具体文案；没有时返回空串。
+//
+// 响应层据此覆盖通用文案（见 res.Fail / res.FailWithValidError）。
+func (e *Error) UserMessage() string {
+	if e == nil {
+		return ""
+	}
+	return e.userMessage
+}
 
 // Code 返回错误码。
 func (e *Error) Code() Code { return e.code }
@@ -924,4 +952,3 @@ func Message(code Code) string {
 	}
 	return string(code)
 }
-

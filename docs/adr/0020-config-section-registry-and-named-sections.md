@@ -1,4 +1,4 @@
-# ADR-0020：配置段注册表与十段（含 `sms`）具名化（2026-11 增补第 11 段 `content_filter`，见文末）
+# ADR-0020：配置段注册表与十段（含 `sms`）具名化（2026-11 增补第 11 段 `content_filter`、第 12 段 `captcha`，见文末）
 
 - 状态：已交付
 - 日期：2026-11-06
@@ -51,13 +51,13 @@
 
 ## 当前生效约束
 
-1. 运行时配置恰好**十一**段（含 `sms` 与 `content_filter`）：`site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。
+1. 运行时配置恰好**十二**段（含 `sms`、`content_filter` 与 `captcha`）：`site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter / captcha`。`sectionRegistry` 是唯一事实源；补种、全量解码、缓存应用、写入校验都从它派生。**漏登记必须在写库前失败**，不得回到「警告后缓存不更新」；单段 JSON 解析失败才降级为 warn + 该段默认值。
 2. `sms` 段只放发送凭证（`access_key_id` / `access_key_secret` / `endpoint` / `sign_name` / `template_code` / `timeout_sec`），`access_key_secret` 必须经 `sealForStore` 加密落库；所有登录策略与限流留在 `site.login`，`email_register` 与 `email_login` 分开。
-3. 对外只留十一（`content_filter` 无公开读，见 ADR-0032）段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点；`site` 的公开端点不得承载任何密钥。
+3. 对外只留十二（`content_filter` 与 `captcha` 无公开读，见 [ADR-0032](./0032-content-filter.md) / [ADR-0033](./0033-captcha-configurable-and-redis-store.md)）段具名端点：每段 `GET /site/admin/<段名>` 与 `PUT /site/<段名>`，`site` / `deco` 另各有公开 `GET`；参数化 `/site/{name}`、`/site/admin/{name}`、`SiteConfigData` 自由键值块、`SiteInfoRequest` 不得重新登记。公开读仍只有 `site` / `deco` 两段，读公开 `site` 触发一次站点访问量埋点；`site` 的公开端点不得承载任何密钥。
 4. 每段一对具名响应/请求形状，字段只有 `conf` 包一份定义（新类型而非真别名）；两端类型一律从各自生成的 `openapi.d.ts` 派生，不得手写配置视图模型、不得维护第三份字段清单、不得新增解析 Go tag / TS 键的源码文本断言。
 5. 三份契约产物（`backend/docs/swagger.json` + 两个 app 的 `app/types/openapi.d.ts`）必须同批由生成器产出；`minimumEntries` 以 `scripts/contract-structures.json` 的实测为独立事实源，`addedIn` 记录的各批结构（含手机号登录那批的结构）必须在产物中在场；判据四文件不得为绕开条目变动而改，`tool-versions.env` 是唯一版本来源。
-6. 审计口径不变（`runtime_config_update` + `TargetID=段名`），`TargetID` 由具名 handler 写死；右栏卡片是独立运营位，不属于十段注册表。
-7. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写十一段（含 `sms`、`content_filter`）现状，否决理由链到本 ADR；不得出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类旧口径。
+6. 审计口径不变（`runtime_config_update` + `TargetID=段名`），`TargetID` 由具名 handler 写死；右栏卡片是独立运营位，不属于十二段注册表。
+7. 配置分层文档、根 `GLOSSARY.md`「运行时配置」词条与代码注释只写十二段（含 `sms`、`content_filter`、`captcha`）现状，否决理由链到本 ADR；不得出现「八个配置段 / 八个独立路由 / 八组路由 + 八个 DTO / 后台新增 Tab 8 / 第 8 段」这类旧口径。
 8. 零 DDL：`-db` 只做加法（建表 + 按 `columnAdditions` 补列），不改名、不改类型、不删列，也不 DROP 任何表；`user_models.phone` 补列通道见 `docs/architecture/overview.md` §六 A1，零 DDL 口径见 `docs/architecture/overview.md` §六 A1。
 9. 本条与 [ADR-0019](./0019-named-outline-trees-as-the-only-shape.md) 各自独立、互不引用为替代。
 
@@ -65,9 +65,9 @@
 
 - 概念：[GLOSSARY · 运行时配置](../../GLOSSARY.md) · [GLOSSARY · 契约（开放接口契约）](../../GLOSSARY.md) · [配置分层](../architecture/configuration.md) · [契约](../architecture/contracts.md) · [架构总纲 §六 A1](../architecture/overview.md)（零 DDL 与补列通道）
 - 上游决策：[ADR-0003](./0003-generated-contract-single-source.md)（契约以代码生成为单一来源）· [ADR-0014](./0014-deco-segment-and-cursor-charm.md)（deco 段当年口径，历史判断保留）· [ADR-0019](./0019-named-outline-trees-as-the-only-shape.md)（各自独立，非替代）
-- 后端注册表：`backend/internal/platform/config/registry.go`（`SectionSMS` 等十段登记）、`registry_test.go`、`runtime.go`（`sealForStore`）、`secrets.go`、`runtime_section_read.go`
-- 十段具名出入口：`backend/internal/site/adapter/http/{dto_runtime_sections.go,handler_runtime_sections.go,handler.go}`（`PublicSiteSection` / `PublicSite()` 返回整个 `conf.Site`）、`backend/internal/site/app/service.go`、`backend/internal/site/domain/port.go`、`backend/internal/site/apptest/env.go`、`backend/app/site_wiring.go`、`backend/internal/platform/http/router/{site_router.go,admin_gate_scan_test.go,admin_gate_test.go,runtime_sections_contract_test.go,contract_routes_test.go}`
-- 段形状与消费方：`backend/conf/conf_sms.go`（`access_key_secret` / `endpoint` / `sign_name` / `template_code` / `timeout_sec`）、`backend/conf/site/enter.go`（`email_register` / `email_login` / `phone_login`）、[`platform/sms`](../../backend/internal/platform/sms/sms.go)（阿里云 PNVS 适配器）、`backend/app/user_wiring.go` 的 `smsCodeBridge`、`backend/internal/platform/redis/redis_user`（发码限流）
+- 后端注册表：`backend/internal/platform/config/registry.go`（`SectionSMS` 等十二段登记）、`registry_test.go`、`runtime.go`（`sealForStore`）、`secrets.go`、`runtime_section_read.go`
+- 十二段具名出入口：`backend/internal/site/adapter/http/{dto_runtime_sections.go,handler_runtime_sections.go,handler.go}`（`PublicSiteSection` / `PublicSite()` 返回整个 `conf.Site`）、`backend/internal/site/app/service.go`、`backend/internal/site/domain/port.go`、`backend/internal/site/apptest/env.go`、`backend/app/site_wiring.go`、`backend/internal/platform/http/router/{site_router.go,admin_gate_scan_test.go,admin_gate_test.go,runtime_sections_contract_test.go,contract_routes_test.go}`
+- 段形状与消费方：`backend/conf/conf_sms.go`（`access_key_secret` / `endpoint` / `sign_name` / `template_code` / `timeout_sec`）、`backend/conf/conf_captcha.go`（第 12 段 `captcha`：驱动 / 尺寸 / 字符集 / 有效期 / 噪点 / 干扰线 / 失败文案，含三驱动的字段适用表）、`backend/internal/site/app/captcha.go`（`NormalizeCaptcha`：越界即错、限定范围内按驱动清零）、`backend/internal/platform/captcha/`（驱动构建、颜色解析、Redis 存储与降级内存存储）、`backend/conf/site/enter.go`（`email_register` / `email_login` / `phone_login`，以及图形验证码总开关与四个入口闸门）、[`platform/sms`](../../backend/internal/platform/sms/sms.go)（阿里云 PNVS 适配器）、`backend/app/user_wiring.go` 的 `smsCodeBridge`、`backend/internal/platform/redis/redis_user`（发码限流）
 - 前端与门禁：`frontend/app/types/api.ts`、`frontend/test/gates/site-runtime-config-parity.test.ts`、`frontend_admin/app/types/api.ts`、`frontend_admin/app/services/admin.ts`、两个 app 的 `app/types/openapi.d.ts`
 - 契约与守卫：`backend/docs/swagger.json`、`scripts/contract-structures.json`、`scripts/check-contract-freshness.mjs`、`scripts/test-contract-freshness.mjs`、`scripts/verify-gates.sh`、`scripts/tool-versions.env`
 
@@ -80,3 +80,11 @@
 
 边界差异只有一条：`content_filter` **没有**公开读端点，只有 `GET /site/admin/content_filter` 与 `PUT /site/content_filter`（管理员）。
 这是一次「登记表多一行」的增补，不是对「自由键值块退场」的否定。
+
+## 增补：第 12 段 `captcha`（2026-11-17）
+
+本 ADR 的机制同样没有被推翻：段仍是一份注册表、仍全部具名进契约、仍「漏登记即测试失败」。变的只是段的数量。
+
+为什么另开一段而不是塞进 `site`：图片尺寸、字符集、有效期是**渲染参数**，读者没有必要知道；而 `site` 段有匿名可读的 `GET /site/site`，塞进去等于把运营参数发给所有访客（见 [ADR-0033](./0033-captcha-configurable-and-redis-store.md) 决策 1）。这也是把决策 3 的分法再用一次：`sms` 只放发送凭证、登录策略留在 `site.login`；`captcha` 只放渲染参数、图形验证码的总开关与四个入口闸门留在 `site.login`。
+
+边界差异只有一条：`captcha` **没有**公开读端点，只有 `GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）；而它的总开关与四个闸门反而**必须**公开可读——它们留在 `site.login` 正是为了这个（`captcha_register` 只挂专门的注册路由 `POST /users/email/register`，手机号注册与登录共用 `/users/phone`，没有独立闸门）。与 `content_filter` 一起，十二段里有两段（`content_filter` / `captcha`）没有公开读。这也是一次「登记表多一行」的增补，不是对「自由键值块退场」的否定。

@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-本目录是决策入口，**一条决策一个文件，编号连续 0001–0032**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
+本目录是决策入口，**一条决策一个文件，编号连续 0001–0033**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
 
 > **整理口径（2026-11-13）**：同一主题前后冲突只保留最新一条。被取代的决策与修订型 ADR 已整体并入保留下来的条目，旧文件物理删除；正文一律直接写现行结论，不留「后续修订」「实施记录」「差异表」尾段，也不留 `已取代` 状态。编号因此压缩重排为 0001–0029（此后新增正常续号），**旧编号与本次之前的引用一律失效**；历史版本查 git。整理时笔记与归档目录一并删除，过程记录、实测数字与 v1 归档只存在于 git 历史。
 
@@ -27,7 +27,7 @@
 | [0017](./0017-inline-svg-in-article-body.md) | 文章正文放行内联 SVG（两层白名单） | 后端消毒策略与前端 markdown-it 同时放开同一份白名单，禁止 `script` / `on*` / `foreignObject` | [#134](https://github.com/Jenlybein/NewblogX/issues/134) |
 | [0018](./0018-chat-dual-channel-http-write-ws-notify.md) | 私信：双通道 + 发送资格 + 消息中心 | `POST /chat/messages` 事务内落库为唯一发送通道，WS 只做通知；发送资格一次判完、一律失败关闭；列表按 `send_time` 升序 + 复合游标、已读改整会话、清除水位用时间口径；`chat_block_models` 是唯一经 ADR 指名新增的私信表 | [GLOSSARY · 私信与会话](../../GLOSSARY.md) · [TODO](../TODO.md) |
 | [0019](./0019-named-outline-trees-as-the-only-shape.md) | 合集/项目：目录树与分组编排 | 两张具名树表 + 两个具名端点是对外唯一形状；归属树读模型收口一处；空文件夹允许、拖拽用 sortablejs、编排入口是编辑弹窗抽屉；分组树是「实体之间」的唯一顺序真相，4 张新表、整树换序幂等整份覆盖、`compose` 一个事务写字段与整棵树 | [GLOSSARY · 合集目录树 / 项目目录树](../../GLOSSARY.md) · [契约](../architecture/contracts.md) |
-| [0020](./0020-config-section-registry-and-named-sections.md) | 配置段注册表与十段具名化（后增补第 11 段） | 十段（含 `sms`）运行时配置收成 `sectionRegistry` 唯一事实，漏登记在写库前失败；参数化 `/site/{name}` 与自由键值块退场，每段一对具名形状、两端类型从生成的契约派生；`sms` 机密经 `sealForStore` 加密落库 | [配置分层](../architecture/configuration.md) · [契约](../architecture/contracts.md) |
+| [0020](./0020-config-section-registry-and-named-sections.md) | 配置段注册表与十段具名化（后增补第 11、12 段） | 十段（含 `sms`）运行时配置收成 `sectionRegistry` 唯一事实，漏登记在写库前失败；参数化 `/site/{name}` 与自由键值块退场，每段一对具名形状、两端类型从生成的契约派生；`sms` 机密经 `sealForStore` 加密落库 | [配置分层](../architecture/configuration.md) · [契约](../architecture/contracts.md) |
 | [0021](./0021-runtime-policy-skills.md) | 运行时策略 skill 放仓库根 `skills/`，读不到就不启动 | 位置是我们自己的选择（启动读盘）；加载器只读目录层、正文按需读、版本号取 SKILL.md 字节 sha256 前 12 位；缺失或不合规**进程起不来**；`skills/**` 对 archcheck 不可见，另配 `check-skills.mjs` 门禁 | [GLOSSARY · 运行时策略 skill](../../GLOSSARY.md) · [Agent Skills 规范](https://agentskills.io/specification) |
 | [0022](./0022-submit-quota.md) | 投稿配额按自然日计数、按提交动作计量 | Redis 日桶 `article:submit:daily:<yyyymmdd>:<uid>` + 26 小时 TTL；预占/释放两段式 Lua 调用；上限 `site.article.submit_daily_max` 默认 15、管理员固定豁免；被打回也计、自动重新送审也计 | [GLOSSARY · 投稿配额](../../GLOSSARY.md) · [#304](https://github.com/Jenlybein/NewblogX/issues/304) |
 | [0023](./0023-quality-gate.md) | 发布前的质量闸门——木桶判定、事务外评分、策略文本 | 闸门与人工审核是两道独立开关；顺序「配额 → 评分 → 判定 → 落库 →（可选）建审核任务」；评分在事务外、温度 0、结果必须落库；放行 = 总分 ≥ `pass_score + gray_band_width` **且**六项每项 ≥ `pass_score`，灰带只加总分；`gap` 只表总分差额、`weak_dimensions` 只列未过线维度；评分宽严从 `skills/scoring/SKILL.md` 注入，代码按字数/段落/纯礼节形态硬封顶 | [GLOSSARY · 发布质量闸门 / 木桶判定](../../GLOSSARY.md) · [#306](https://github.com/Jenlybein/NewblogX/issues/306) |
@@ -40,6 +40,7 @@
 | [0030](./0030-async-quality-gate.md) | 发布质量闸门改为异步判定 | 提交立即返回；发件箱按「评分 → 质量判定 → 合规判定」串行执行；未达标退回草稿 + 站内通知（带分数与放行线）；拿不到分数失败关闭 | [ADR-0023](./0023-quality-gate.md) · [ADR-0025](./0025-risk-gated-publish.md) · [GLOSSARY · 发布质量闸门](../../GLOSSARY.md) |
 | [0031](./0031-home-trail-pixel-smoke-switch.md) | 首屏指针尾迹可切换 | 默认像素尾迹（自实现、canvas 网格盖章 + 淡出，颜色取 `--jelly-yellow`），`deco.home_trail=smoke` 可切回指针墨流；后台装饰页单选，未知值回落 pixel；两套共用 `.home-cover__ink` 图层位 | [ADR-0011](./0011-neutral-glass-visual-system.md) · [ADR-0014](./0014-deco-segment-and-cursor-charm.md) · [GLOSSARY · 首屏装饰](../../GLOSSARY.md) |
 | [0032](./0032-content-filter.md) | 全局内容过滤：命中替换为星号 + 关键词风险交后台处置 | 删除两处词表机审与整套评论审核；第 11 段运行期配置 `content_filter`（匿名不可读）；六个文本面**落库前**按 rune 等长替换成 `*`，不保留原文；命中记 `content_filter_hit`（±20 字上下文、90 天），后台风险页四个处置动作（删除 / 忽略 / 封禁 / 禁言）；引擎 AC + 影子串归一化；上线顺序 `-filter-import` → `-filter-sweep` → 重建 ES | [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0025](./0025-risk-gated-publish.md) · [GLOSSARY · 内容过滤](../../GLOSSARY.md) |
+| [0033](./0033-captcha-configurable-and-redis-store.md) | 图形验证码参数后台可配置、按入口闸门、存储换 Redis | 第 12 段运行期配置 `captcha`（仅后台、无公开读）管驱动 / 尺寸 / 字符集 / 有效期 / 噪点 / 干扰线 / 失败文案；`site.login` 在总开关之外有四个入口闸门（登录 / 邮箱发码 / 短信发码 / 注册，均公开可读）；归一化「0/空串回落默认、越界即报错」，不适用字段按驱动清零（`max_skew` / `dot_count` 保留原值）；存储换 Redis（前缀 `blogx:captcha:`、TTL 现读、`GETDEL` 原子取删、装配期无 Redis 才降级 `TtlMemoryStore`）；四条入口各挂 `CaptchaGate(scope)`，注册闸门只挂专门注册路由；`/imagecaptcha` 回显 `expire_seconds`，前端据此定时换图 | [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0032](./0032-content-filter.md) · [GLOSSARY · 图形验证码](../../GLOSSARY.md) · [配置分层](../architecture/configuration.md) |
 
 ## 来源与拆分说明
 

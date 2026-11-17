@@ -25,7 +25,8 @@ func mustSiteHandler() *sitehttp.Handler {
 
 // SiteRouter 注册站点配置路由。
 //
-// 运行时配置各有具名端点（#283 / ADR-0020，第 11 段 content_filter 见 ADR-0032），
+// 运行时配置各有具名端点（#283 / ADR-0020，第 11 段 content_filter 见 ADR-0032，
+// 第 12 段 captcha 见 ADR-0033），
 // 参数化 /site/{name} 与 /site/admin/{name} 已整体退场；静态路径不再与通配段争抢。
 func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	app := mustSiteHandler()
@@ -61,6 +62,8 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 		{"deco", app.AdminDecoSection, app.UpdateDecoSection},
 		{"image_gc", app.AdminImageGcSection, app.UpdateImageGcSection},
 		{"content_filter", app.AdminContentFilterSection, app.UpdateContentFilterSection},
+		// 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，只给后台读写。
+		{"captcha", app.AdminCaptchaSection, app.UpdateCaptchaSection},
 	} {
 		adminGroup.GET("admin/"+route.path, route.read)
 		adminGroup.PUT(route.path, mw.CaptureLog(mw.ReqBody), route.update)

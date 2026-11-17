@@ -1,8 +1,8 @@
 /**
  * 后台「站点配置」的编辑域（**路由、菜单子项与页面文件的唯一清单**）。
  *
- * 后端把运行时配置拆成十一个独立的段（ADR-0020 / ADR-0032），其中十段在后台各有
- * 编辑页；`image_gc` 已有具名端点但没有编辑页/组件，所以不在本清单里。
+ * 后端把运行时配置拆成十二个独立的段（ADR-0020 / ADR-0032 / ADR-0033），其中十一段在
+ * 后台各有编辑页；`image_gc` 已有具名端点但没有编辑页/组件，所以不在本清单里。
  * 这里只描述「有编辑页的域」，不是全部配置段的清单。
  *
  * 2026-11 起「站点」这一段被拆成四页（ADR-0029）：基础信息与 SEO、登录策略、
@@ -27,6 +27,7 @@ export type SiteSettingsKey =
   | 'site-publish'
   | 'site-chat'
   | 'content-filter'
+  | 'captcha'
   | 'ai'
   | 'mail'
   | 'storage'
@@ -94,7 +95,7 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
 ]
 
 /**
- * 其余八个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
+ * 其余十个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
  * 页面自己读写整段，不参与 site 段的读-改-写。
  */
 export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
@@ -106,6 +107,9 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
     component: 'SettingsContentFilter',
     blocks: [],
   },
+  // 图形验证码紧跟内容过滤：两者都是"登录页/风险页上看得见的东西"，
+  // 运营改完登录策略会顺手来这里换图。开关与入口闸门在「登录与发码」页。
+  { key: 'captcha', label: '图形验证码', path: '/site/captcha', component: 'SettingsCaptcha', blocks: [] },
   { key: 'ai', label: 'AI 助手', path: '/site/ai', component: 'SettingsAi', blocks: [] },
   { key: 'mail', label: '邮件', path: '/site/mail', component: 'SettingsMail', blocks: [] },
   { key: 'storage', label: '对象存储', path: '/site/storage', component: 'SettingsStorage', blocks: [] },
@@ -116,7 +120,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
 ]
 
-/** 全部编辑域：站点四页在前，其余八个域在后（菜单顺序即此顺序）。 */
+/** 全部编辑域：站点四页在前，其余十个域在后（菜单顺序即此顺序）。 */
 export const ALL_SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   ...SITE_SETTINGS_PAGES,
   ...SITE_SETTINGS_SECTIONS,

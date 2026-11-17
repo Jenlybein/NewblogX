@@ -262,6 +262,22 @@ func (b siteRuntimeBridge) ContentFilter() conf.ContentFilter {
 	return b.inner.GetRuntimeContentFilter()
 }
 
+// Captcha 实现 siteapp 的运行时端口（第 12 段，ADR-0033）。
+func (b siteRuntimeBridge) Captcha() conf.Captcha {
+	if b.inner == nil {
+		return conf.Captcha{}
+	}
+	return b.inner.GetRuntimeCaptcha()
+}
+
+// UpdateCaptcha 实现 siteapp 的运行时端口。
+func (b siteRuntimeBridge) UpdateCaptcha(captcha conf.Captcha) error {
+	if b.inner == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	return b.inner.UpdateCaptcha(captcha)
+}
+
 // UpdateContentFilter 覆盖全站词表段。
 func (b siteRuntimeBridge) UpdateContentFilter(contentFilter conf.ContentFilter) error {
 	if b.inner == nil {

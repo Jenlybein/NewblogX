@@ -20,4 +20,6 @@ type RuntimeDefaults struct {
 	ImageGC ImageGC `yaml:"image_gc"`
 	// ContentFilter 是第 11 段（ADR-0032）：词表只给后台读写，默认值只放非涉政种子。
 	ContentFilter ContentFilter `yaml:"content_filter"`
+	// Captcha 是第 12 段：图形验证码的图形与时效参数，只给后台读写（见 conf.Captcha）。
+	Captcha Captcha `yaml:"captcha"`
 }

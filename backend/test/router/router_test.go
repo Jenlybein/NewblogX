@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"myblogx/conf"
 	analyticsch "myblogx/internal/analytics/adapter/clickhouse"
 	analyticshttp "myblogx/internal/analytics/adapter/http"
 	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
@@ -42,7 +43,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, runtimeMw)
-	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{true}, base64Captcha.DefaultMemStore))
+	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{}, base64Captcha.DefaultMemStore, nil))
 	router.CaptchaRouter(api)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。
 	router.SetAuthHandler(authhttp.NewHandler(authapptest.NewRepos(time.Now()).Service(), nil, nil, nil, false, 0))
@@ -101,7 +102,23 @@ func TestRegisterAllRoutes(t *testing.T) {
 	}
 }
 
-// captchaSettings 是验证码开关替身（路由表测试只关心路由是否注册成功）。
+// captchaSettings 是验证码配置替身（路由表测试只关心路由是否注册成功）。
+//
+// 两个方法都要有：生成侧既读总开关（开不开），也读第十二段的图形/时效参数
+// （画成什么样）。少了 CaptchaConfig 连 handler 都构造不出来，路由表也就测不了。
 type captchaSettings struct{ enabled bool }
 
 func (c captchaSettings) CaptchaEnabled() bool { return c.enabled }
+
+// CaptchaConfig 给一份能构建驱动的合法配置（字符串型、背景色必须是合法十六进制）。
+func (c captchaSettings) CaptchaConfig() conf.Captcha {
+	return conf.Captcha{
+		Driver:        "string",
+		Length:        4,
+		Width:         200,
+		Height:        60,
+		ExpireSeconds: 600,
+		Source:        "23456789",
+		BgColor:       "#0A14320A",
+	}
+}

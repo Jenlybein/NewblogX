@@ -319,18 +319,32 @@ const {
 } = useVerificationCountdown();
 
 /**
- * 图形验证码：本页两条发码通道（绑定邮箱、设密码复验）后端都挂了同一个中间件，
- * 所以共用一份状态——两个弹窗不会同时打开，一次只服务一条。
+ * 图形验证码：本页会调两条发码通道（绑定邮箱 / 绑定手机与设密码复验），
+ * 后端按**入口**校验（email_verify / phone_verify），所以这里也要两份独立状态。
+ *
+ * 以前共用一份是错的口径：两个入口的闸门可以分别开关，共用一份会让"只给短信发码要
+ * 验证码"的场景里，绑定邮箱的弹窗也画出一个后端并不校验的框 —— 用户白填、还以为自己填错了。
+ * 两份状态互不影响，各自在对应弹窗里渲染。
  */
 const {
-  enabled: captchaEnabled,
-  image: captchaImage,
-  code: captchaCode,
-  loading: captchaLoading,
-  missing: captchaMissing,
-  refresh: refreshCaptcha,
-  payload: captchaPayload,
-} = useCaptchaProof();
+  enabled: emailCaptchaEnabled,
+  image: emailCaptchaImage,
+  code: emailCaptchaCode,
+  loading: emailCaptchaLoading,
+  missing: emailCaptchaMissing,
+  refresh: refreshEmailCaptcha,
+  payload: emailCaptchaPayload,
+} = useCaptchaProof("email_verify");
+
+const {
+  enabled: phoneCaptchaEnabled,
+  image: phoneCaptchaImage,
+  code: phoneCaptchaCode,
+  loading: phoneCaptchaLoading,
+  missing: phoneCaptchaMissing,
+  refresh: refreshPhoneCaptcha,
+  payload: phoneCaptchaPayload,
+} = useCaptchaProof("phone_verify");
 const profileAvatarPreview = computed(() => resolveAvatarUrl(profileForm.avatar));
 const profileAvatarInitial = computed(() => resolveAvatarInitial(profileForm.nickname || profileForm.username, "我"));
 
@@ -420,7 +434,7 @@ async function sendPasswordCode() {
     message.warning("当前账号还没有绑定手机号，无法用短信验证身份");
     return;
   }
-  if (captchaMissing.value) {
+  if (phoneCaptchaMissing.value) {
     message.warning("请输入图形验证码");
     return;
   }
@@ -429,15 +443,15 @@ async function sendPasswordCode() {
     await sendSmsCode({
       phone: currentPhone.value,
       purpose: "passwordProof",
-      captcha: captchaPayload(),
+      captcha: phoneCaptchaPayload(),
     });
     startPasswordSmsCountdown();
-    void refreshCaptcha();
+    void refreshPhoneCaptcha();
     message.success("验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送验证码失败"));
     // 失败也换一张图形码：它一次性且会过期，沿用旧图重试基本等于白试。
-    void refreshCaptcha();
+    void refreshPhoneCaptcha();
   }
 }
 
@@ -522,7 +536,7 @@ function cancelAvatarCrop() {
 }
 
 async function sendBindCode() {
-  if (captchaMissing.value) {
+  if (emailCaptchaMissing.value) {
     message.warning("请输入图形验证码");
     return;
   }
@@ -531,16 +545,16 @@ async function sendBindCode() {
     const payload = await sendEmailCode({
       email: emailBindForm.email.trim(),
       purpose: "bindEmail",
-      captcha: captchaPayload(),
+      captcha: emailCaptchaPayload(),
     });
     emailBindForm.email_id = payload.id;
     // 图形码一次性：用过就换一张。
-    void refreshCaptcha();
+    void refreshEmailCaptcha();
     message.success("邮箱验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送验证码失败"));
     // 失败也换一张图形码：它一次性且会过期，沿用旧图重试基本等于白试。
-    void refreshCaptcha();
+    void refreshEmailCaptcha();
   }
 }
 
@@ -571,15 +585,15 @@ async function sendPhoneBindCode() {
     message.warning("请输入 11 位手机号");
     return;
   }
-  if (captchaMissing.value) {
+  if (phoneCaptchaMissing.value) {
     message.warning("请输入图形验证码");
     return;
   }
 
   try {
-    await sendSmsCode({ phone, purpose: "login", captcha: captchaPayload() });
+    await sendSmsCode({ phone, purpose: "login", captcha: phoneCaptchaPayload() });
     // 图形码一次性：用过就换一张。
-    void refreshCaptcha();
+    void refreshPhoneCaptcha();
     startPhoneBindSmsCountdown();
     message.success("短信验证码已发送");
   } catch (error) {
@@ -605,8 +619,8 @@ function openPhoneModal() {
   phoneBindForm.code = "";
   resetPhoneBindSmsCountdown();
   showPhoneModal.value = true;
-  // 站点开了图形验证码就先把图取回来，省得用户点了发码才等。
-  if (captchaEnabled.value) void refreshCaptcha();
+  // 该弹窗走的是短信通道（phone_verify），所以取对应那一份的状态。
+  if (phoneCaptchaEnabled.value) void refreshPhoneCaptcha();
 }
 
 async function submitPasswordReset() {
@@ -997,12 +1011,12 @@ useNoIndexPage();
           <span v-if="emailBindForm.email_id" class="glass-badge">email_id 已生成</span>
         </div>
         <ImageCaptchaField
-          v-if="captchaEnabled"
-          :image="captchaImage"
-          :code="captchaCode"
-          :loading="captchaLoading"
-          @update:code="value => (captchaCode = value)"
-          @refresh="refreshCaptcha"
+          v-if="emailCaptchaEnabled"
+          :image="emailCaptchaImage"
+          :code="emailCaptchaCode"
+          :loading="emailCaptchaLoading"
+          @update:code="value => (emailCaptchaCode = value)"
+          @refresh="refreshEmailCaptcha"
         />
         <label class="space-y-2 block">
           <span class="text-sm font-medium">邮箱验证码</span>
@@ -1033,12 +1047,12 @@ useNoIndexPage();
           <span class="text-xs muted">验证码发到上面这个号码，用来确认它确实在你手上</span>
         </div>
         <ImageCaptchaField
-          v-if="captchaEnabled"
-          :image="captchaImage"
-          :code="captchaCode"
-          :loading="captchaLoading"
-          @update:code="value => (captchaCode = value)"
-          @refresh="refreshCaptcha"
+          v-if="phoneCaptchaEnabled"
+          :image="phoneCaptchaImage"
+          :code="phoneCaptchaCode"
+          :loading="phoneCaptchaLoading"
+          @update:code="value => (phoneCaptchaCode = value)"
+          @refresh="refreshPhoneCaptcha"
         />
         <label class="space-y-2 block">
           <span class="text-sm font-medium">短信验证码</span>
@@ -1085,12 +1099,12 @@ useNoIndexPage();
             </div>
           </label>
           <ImageCaptchaField
-            v-if="captchaEnabled"
-            :image="captchaImage"
-            :code="captchaCode"
-            :loading="captchaLoading"
-            @update:code="value => (captchaCode = value)"
-            @refresh="refreshCaptcha"
+            v-if="phoneCaptchaEnabled"
+            :image="phoneCaptchaImage"
+            :code="phoneCaptchaCode"
+            :loading="phoneCaptchaLoading"
+            @update:code="value => (phoneCaptchaCode = value)"
+            @refresh="refreshPhoneCaptcha"
           />
           <p v-if="!hasBoundPhone" class="text-xs muted">当前账号没有绑定手机号，暂时无法设置密码。</p>
         </template>

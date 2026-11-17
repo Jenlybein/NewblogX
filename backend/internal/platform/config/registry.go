@@ -5,7 +5,7 @@ import (
 )
 
 // SectionName 是运行时配置段在库里的 name，也是 HTTP 具名端点与契约 schema
-// 共用的那一份事实。十一段之外没有隐式段。
+// 共用的那一份事实。十二段之外没有隐式段。
 type SectionName string
 
 const (
@@ -21,6 +21,8 @@ const (
 	SectionImageGC = "image_gc"
 	// SectionContentFilter 是第 11 段（ADR-0032）：全站唯一词表，只给后台读写。
 	SectionContentFilter = "content_filter"
+	// SectionCaptcha 是第 12 段（ADR-0033）：图形验证码的图形与时效参数，只给后台读写。
+	SectionCaptcha = "captcha"
 )
 
 // sectionEntry 是单段在注册表里的登记项。
@@ -34,7 +36,7 @@ type sectionEntry struct {
 	Apply func(*RuntimeConfig, any) bool
 }
 
-// sectionRegistry 是九段唯一事实：补种、全量解码、缓存应用、HTTP 具名出入口
+// sectionRegistry 是十二段唯一事实：补种、全量解码、缓存应用、HTTP 具名出入口
 // 全部从它派生。漏登记的段在写入路径直接失败，不再"警告后缓存未更新"。
 var sectionRegistry = []sectionEntry{
 	{
@@ -187,6 +189,20 @@ var sectionRegistry = []sectionEntry{
 			typed, ok := v.(conf.ContentFilter)
 			if ok {
 				c.ContentFilter = typed
+			}
+			return ok
+		},
+	},
+	{
+		Name:     SectionCaptcha,
+		Defaults: func(d conf.RuntimeDefaults) any { return d.Captcha },
+		Decode: func(s *RuntimeConfigService, p map[string]string) any {
+			return decodeOrDefault(SectionCaptcha, s.defaults.Captcha, p, s.logger)
+		},
+		Apply: func(c *RuntimeConfig, v any) bool {
+			typed, ok := v.(conf.Captcha)
+			if ok {
+				c.Captcha = typed
 			}
 			return ok
 		},

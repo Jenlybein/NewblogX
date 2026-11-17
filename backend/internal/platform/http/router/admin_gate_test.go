@@ -45,9 +45,9 @@ import (
 	authhttp "myblogx/internal/auth/adapter/http"
 	chathttp "myblogx/internal/chat/adapter/http"
 	commenthttp "myblogx/internal/comment/adapter/http"
+	filterhttp "myblogx/internal/filter/adapter/http"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	filterhttp "myblogx/internal/filter/adapter/http"
 	mediahttp "myblogx/internal/media/adapter/http"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	"myblogx/internal/platform/captcha"
@@ -73,7 +73,7 @@ var adminOnly = []struct {
 	{"GET", "/api/data/growth"},
 	{"GET", "/api/data/article-year"},
 	{"GET", "/api/data/ai-usage"},
-		{"GET", "/api/data/overview"},
+	{"GET", "/api/data/overview"},
 	// 日志中心（含死信查看与重投）
 	{"GET", "/api/logs/runtime"},
 	{"GET", "/api/logs/action"},
@@ -84,7 +84,7 @@ var adminOnly = []struct {
 	{"GET", "/api/logs/ai"},
 	{"GET", "/api/logs/dead-letter"},
 	{"POST", "/api/logs/dead-letter/replay"},
-		{"DELETE", "/api/logs/dead-letter"},
+	{"DELETE", "/api/logs/dead-letter"},
 	// 用户管理
 	{"GET", "/api/users/admin/list"},
 	{"POST", "/api/users/admin"},
@@ -105,7 +105,7 @@ var adminOnly = []struct {
 	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
 	{"GET", "/api/site/admin/sidebar_cards"},
 	{"PUT", "/api/site/admin/sidebar_cards"},
-	// 九段具名管理端出入口（#283）：写侧没有 :name，必须逐个被行为探针挡住。
+	// 十二段具名管理端出入口（#283）：写侧没有 :name，必须逐个被行为探针挡住。
 	{"GET", "/api/site/admin/site"},
 	{"GET", "/api/site/admin/ai"},
 	{"GET", "/api/site/admin/mail"},
@@ -129,6 +129,11 @@ var adminOnly = []struct {
 	// 内容过滤词表（第 11 段，ADR-0032）：只有管理端出入口，匿名与普通用户都读不到。
 	{"GET", "/api/site/admin/content_filter"},
 	{"PUT", "/api/site/content_filter"},
+	// 图形验证码（第 12 段，ADR-0033）：图片尺寸/字符集/有效期是运营参数，
+	// 读与写都必须只有管理员。读者站要的那三个"入口闸门"布尔位在公开的 site 段里，
+	// 不靠这两个端点。
+	{"GET", "/api/site/admin/captcha"},
+	{"PUT", "/api/site/captcha"},
 	// 关键词风险列表（ADR-0032 决策 7 / 票 396）：命中记录属敏感信息，整段管理员专属。
 	{"GET", "/api/content-filter/hits"},
 	{"GET", "/api/content-filter/word-stats"},
@@ -145,7 +150,7 @@ var adminOnly = []struct {
 	{"POST", "/api/ai/providers"},
 	{"DELETE", "/api/articles"},
 	{"DELETE", "/api/articles/tags"},
-		{"PATCH", "/api/articles/tags/order"},
+	{"PATCH", "/api/articles/tags/order"},
 	{"PUT", "/api/articles/tags"},
 	{"GET", "/api/article-review"},
 	{"POST", "/api/article-review-tasks/batch-review"},
@@ -154,17 +159,17 @@ var adminOnly = []struct {
 	{"GET", "/api/projects/admin"},
 	{"POST", "/api/projects"},
 	{"PATCH", "/api/projects/order"},
-		// 合集 / 项目分组（ADR-0019）。
-		{"GET", "/api/collections/groups"},
-		{"PUT", "/api/collections/groups"},
-		{"PUT", "/api/collections/groups/order"},
-		{"DELETE", "/api/collections/groups/9"},
-		{"PUT", "/api/collections/9/compose"},
-		{"GET", "/api/projects/groups"},
-		{"PUT", "/api/projects/groups"},
-		{"PUT", "/api/projects/groups/order"},
-		{"DELETE", "/api/projects/groups/9"},
-		{"PUT", "/api/projects/9/compose"},
+	// 合集 / 项目分组（ADR-0019）。
+	{"GET", "/api/collections/groups"},
+	{"PUT", "/api/collections/groups"},
+	{"PUT", "/api/collections/groups/order"},
+	{"DELETE", "/api/collections/groups/9"},
+	{"PUT", "/api/collections/9/compose"},
+	{"GET", "/api/projects/groups"},
+	{"PUT", "/api/projects/groups"},
+	{"PUT", "/api/projects/groups/order"},
+	{"DELETE", "/api/projects/groups/9"},
+	{"PUT", "/api/projects/9/compose"},
 }
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。
@@ -323,5 +328,3 @@ func TestAdminOnlyListCoversContract(t *testing.T) {
 		}
 	}
 }
-
-

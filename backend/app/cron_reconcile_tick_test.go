@@ -210,6 +210,14 @@ func TestReconcilePeriodComesFromRuntimeConfig(t *testing.T) {
 			}
 			continue
 		}
+		// 图片审核超时扫描（ADR-0034）也是固定 1 分钟：它扫的是"待审核/疑似"，
+		// 积压对作者的表现是"传完一直看不见"，与计数并账的周期无关。
+		if e.job.Name == "图片审核超时转人工" {
+			if e.interval != time.Minute {
+				t.Fatalf("图片审核超时扫描的周期应是 1 分钟，实际 %s", e.interval)
+			}
+			continue
+		}
 		if e.interval != 5*time.Minute {
 			t.Fatalf("任务 %q 的周期是 %s，应与其他并账任务同为运行期配置的 5 分钟", e.job.Name, e.interval)
 		}

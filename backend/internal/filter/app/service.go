@@ -112,7 +112,7 @@ func (s *Service) Record(ctx context.Context, hit domain.Hit) {
 //
 // 过滤模块只负责说"这条内容命中了规则、属于谁"，怎么折算成分数是计分模块的事。
 type ViolationRecorder interface {
-	RecordKeywordViolation(ctx context.Context, userID, hitID uint64, surface string) error
+	RecordKeywordViolation(ctx context.Context, userID, hitID ctype.ID, surface string) error
 }
 
 // SetViolationRecorder 注入计分端口（装配层调用一次；nil 表示不计分）。
@@ -120,10 +120,10 @@ func (s *Service) SetViolationRecorder(recorder ViolationRecorder) { s.violation
 
 // recordViolation 上报一次计分（失败不影响过滤主流程）。
 func (s *Service) recordViolation(ctx context.Context, hit domain.Hit) {
-	if s.violations == nil || hit.UserID.Uint64() == 0 {
+	if s.violations == nil || hit.UserID.IsZero() {
 		return
 	}
-	if err := s.violations.RecordKeywordViolation(ctx, hit.UserID.Uint64(), hit.ID.Uint64(), string(hit.Surface)); err != nil {
+	if err := s.violations.RecordKeywordViolation(ctx, hit.UserID, hit.ID, string(hit.Surface)); err != nil {
 		s.logError("上报关键词违规计分失败: hit=%d user=%d err=%v", hit.ID.Uint64(), hit.UserID.Uint64(), err)
 	}
 }

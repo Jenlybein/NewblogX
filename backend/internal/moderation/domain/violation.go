@@ -11,6 +11,8 @@ package domain
 import (
 	"math"
 	"time"
+
+	"myblogx/internal/kernel/ctype"
 )
 
 // Level 是违规等级。等级决定分值，也决定"要不要人工确认"。
@@ -68,13 +70,13 @@ const (
 
 // Event 是一条违规事件。
 type Event struct {
-	ID        uint64
-	UserID    uint64
+	ID        ctype.ID
+	UserID    ctype.ID
 	Level     Level
 	Score     int
 	Source    Source
 	RefType   string
-	RefID     uint64
+	RefID     ctype.ID
 	Evidence  string
 	Status    Status
 	IP        string
@@ -87,8 +89,8 @@ type Event struct {
 // 90 天窗口 + 60 天半衰期：一次误伤在两个月后只算半分、三个月后彻底出局，
 // 常用户不会因为"陈年旧账"被封；持续违规的人分数一直往上走。
 const (
-	Window     = 90 * 24 * time.Hour
-	HalfLife   = 60 * 24 * time.Hour
+	Window      = 90 * 24 * time.Hour
+	HalfLife    = 60 * 24 * time.Hour
 	halfDivisor = float64(1)
 )
 
@@ -140,9 +142,9 @@ const (
 
 // 阈值是产品决策：100 一天、120 七天、150 三十天、200 人工。
 const (
-	ThresholdMute1Day  = 100.0
-	ThresholdMute7Days = 120.0
-	ThresholdMute30Days = 150.0
+	ThresholdMute1Day     = 100.0
+	ThresholdMute7Days    = 120.0
+	ThresholdMute30Days   = 150.0
 	ThresholdManualReview = 200.0
 )
 

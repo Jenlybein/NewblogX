@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/moderation/domain"
 
 	"gorm.io/gorm"
@@ -12,19 +13,19 @@ import (
 
 // violationEventRow 对应 user_violation_events 表。
 type violationEventRow struct {
-	ID         uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID         ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt
-	UserID     uint64
+	UserID     ctype.ID
 	Level      string
 	Score      int
 	Source     string
 	RefType    string
-	RefID      uint64
+	RefID      ctype.ID
 	Evidence   string
 	Status     string
-	RevokedBy  uint64
+	RevokedBy  ctype.ID
 	RevokedAt  *time.Time
 	RevokeNote string
 	IP         string
@@ -42,7 +43,7 @@ type Repo struct {
 
 // IDGenerator 生成事件 ID（复用全站的雪花 ID）。
 type IDGenerator interface {
-	NextID() (uint64, error)
+	NextID() (ctype.ID, error)
 }
 
 // New 构造仓储。
@@ -98,7 +99,7 @@ func (r *Repo) Append(ctx context.Context, event domain.Event) (domain.Event, bo
 }
 
 // ListByUser 按时间倒序取事件。
-func (r *Repo) ListByUser(ctx context.Context, userID uint64, limit int) ([]domain.Event, error) {
+func (r *Repo) ListByUser(ctx context.Context, userID ctype.ID, limit int) ([]domain.Event, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -118,7 +119,7 @@ func (r *Repo) ListByUser(ctx context.Context, userID uint64, limit int) ([]doma
 }
 
 // FindByID 取单条事件。
-func (r *Repo) FindByID(ctx context.Context, id uint64) (domain.Event, bool, error) {
+func (r *Repo) FindByID(ctx context.Context, id ctype.ID) (domain.Event, bool, error) {
 	var row violationEventRow
 	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&row).Error
 	if err == gorm.ErrRecordNotFound {
@@ -131,7 +132,7 @@ func (r *Repo) FindByID(ctx context.Context, id uint64) (domain.Event, bool, err
 }
 
 // Revoke 撤销一条事件：只改状态与撤销信息，不删行。
-func (r *Repo) Revoke(ctx context.Context, id, operator uint64, note string, at time.Time) error {
+func (r *Repo) Revoke(ctx context.Context, id, operator ctype.ID, note string, at time.Time) error {
 	return r.db.WithContext(ctx).
 		Model(&violationEventRow{}).
 		Where("id = ?", id).

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/moderation/app"
 	"myblogx/internal/moderation/domain"
 )
@@ -15,12 +16,12 @@ import (
 
 type fakeRepo struct {
 	events  []domain.Event
-	appeals map[uint64]domain.Appeal
+	appeals map[ctype.ID]domain.Appeal
 	nextID  uint64
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{appeals: map[uint64]domain.Appeal{}, nextID: 1}
+	return &fakeRepo{appeals: map[ctype.ID]domain.Appeal{}, nextID: 1}
 }
 
 func (r *fakeRepo) Append(_ context.Context, event domain.Event) (domain.Event, bool, error) {
@@ -29,7 +30,7 @@ func (r *fakeRepo) Append(_ context.Context, event domain.Event) (domain.Event, 
 			return event, false, nil
 		}
 	}
-	event.ID = r.nextID
+	event.ID = ctype.NewID(r.nextID)
 	r.nextID++
 	if event.Status == "" {
 		event.Status = domain.StatusActive
@@ -38,7 +39,7 @@ func (r *fakeRepo) Append(_ context.Context, event domain.Event) (domain.Event, 
 	return event, true, nil
 }
 
-func (r *fakeRepo) ListByUser(_ context.Context, userID uint64, _ int) ([]domain.Event, error) {
+func (r *fakeRepo) ListByUser(_ context.Context, userID ctype.ID, _ int) ([]domain.Event, error) {
 	out := make([]domain.Event, 0, len(r.events))
 	for _, event := range r.events {
 		if event.UserID == userID {
@@ -48,7 +49,7 @@ func (r *fakeRepo) ListByUser(_ context.Context, userID uint64, _ int) ([]domain
 	return out, nil
 }
 
-func (r *fakeRepo) FindByID(_ context.Context, id uint64) (domain.Event, bool, error) {
+func (r *fakeRepo) FindByID(_ context.Context, id ctype.ID) (domain.Event, bool, error) {
 	for _, event := range r.events {
 		if event.ID == id {
 			return event, true, nil
@@ -57,7 +58,7 @@ func (r *fakeRepo) FindByID(_ context.Context, id uint64) (domain.Event, bool, e
 	return domain.Event{}, false, nil
 }
 
-func (r *fakeRepo) Revoke(_ context.Context, id, _ uint64, _ string, _ time.Time) error {
+func (r *fakeRepo) Revoke(_ context.Context, id, _ ctype.ID, _ string, _ time.Time) error {
 	for i := range r.events {
 		if r.events[i].ID == id {
 			r.events[i].Status = domain.StatusRevoked
@@ -70,19 +71,19 @@ func (r *fakeRepo) Create(_ context.Context, appeal domain.Appeal) (domain.Appea
 	if _, ok := r.appeals[appeal.EventID]; ok {
 		return domain.Appeal{}, errDuplicate
 	}
-	appeal.ID = r.nextID
+	appeal.ID = ctype.NewID(r.nextID)
 	r.nextID++
 	appeal.Status = domain.AppealPending
 	r.appeals[appeal.EventID] = appeal
 	return appeal, nil
 }
 
-func (r *fakeRepo) FindByEvent(_ context.Context, eventID uint64) (domain.Appeal, bool, error) {
+func (r *fakeRepo) FindByEvent(_ context.Context, eventID ctype.ID) (domain.Appeal, bool, error) {
 	appeal, ok := r.appeals[eventID]
 	return appeal, ok, nil
 }
 
-func (r *fakeRepo) findAppealByID(_ context.Context, id uint64) (domain.Appeal, bool, error) {
+func (r *fakeRepo) findAppealByID(_ context.Context, id ctype.ID) (domain.Appeal, bool, error) {
 	for _, appeal := range r.appeals {
 		if appeal.ID == id {
 			return appeal, true, nil
@@ -101,7 +102,7 @@ func (r *fakeRepo) List(_ context.Context, status domain.AppealStatus, _ int) ([
 	return out, nil
 }
 
-func (r *fakeRepo) Handle(_ context.Context, id, operator uint64, status domain.AppealStatus, note string, at time.Time) error {
+func (r *fakeRepo) Handle(_ context.Context, id, operator ctype.ID, status domain.AppealStatus, note string, at time.Time) error {
 	for key, appeal := range r.appeals {
 		if appeal.ID == id {
 			appeal.Status = status
@@ -129,11 +130,11 @@ func (r appealRepo) Create(ctx context.Context, appeal domain.Appeal) (domain.Ap
 	return r.inner.Create(ctx, appeal)
 }
 
-func (r appealRepo) FindByEvent(ctx context.Context, eventID uint64) (domain.Appeal, bool, error) {
+func (r appealRepo) FindByEvent(ctx context.Context, eventID ctype.ID) (domain.Appeal, bool, error) {
 	return r.inner.FindByEvent(ctx, eventID)
 }
 
-func (r appealRepo) FindByID(ctx context.Context, id uint64) (domain.Appeal, bool, error) {
+func (r appealRepo) FindByID(ctx context.Context, id ctype.ID) (domain.Appeal, bool, error) {
 	return r.inner.findAppealByID(ctx, id)
 }
 
@@ -141,7 +142,7 @@ func (r appealRepo) List(ctx context.Context, status domain.AppealStatus, limit 
 	return r.inner.List(ctx, status, limit)
 }
 
-func (r appealRepo) Handle(ctx context.Context, id, operator uint64, status domain.AppealStatus, note string, at time.Time) error {
+func (r appealRepo) Handle(ctx context.Context, id, operator ctype.ID, status domain.AppealStatus, note string, at time.Time) error {
 	return r.inner.Handle(ctx, id, operator, status, note, at)
 }
 
@@ -153,13 +154,13 @@ type fakeAccount struct {
 	unmuted  int
 }
 
-func (a *fakeAccount) IsAdmin(context.Context, uint64) (bool, error) { return a.admin, nil }
-func (a *fakeAccount) IsMuted(context.Context, uint64) (bool, error) { return a.muted, nil }
-func (a *fakeAccount) Mute(_ context.Context, _ uint64, days int) error {
+func (a *fakeAccount) IsAdmin(context.Context, ctype.ID) (bool, error) { return a.admin, nil }
+func (a *fakeAccount) IsMuted(context.Context, ctype.ID) (bool, error) { return a.muted, nil }
+func (a *fakeAccount) Mute(_ context.Context, _ ctype.ID, days int) error {
 	a.muteDays = append(a.muteDays, days)
 	return nil
 }
-func (a *fakeAccount) Unmute(context.Context, uint64) error {
+func (a *fakeAccount) Unmute(context.Context, ctype.ID) error {
 	a.unmuted++
 	return nil
 }
@@ -167,7 +168,7 @@ func (a *fakeAccount) Unmute(context.Context, uint64) error {
 // fakeNotifier 记录通知条数。
 type fakeNotifier struct{ contents []string }
 
-func (n *fakeNotifier) NotifySystem(_ context.Context, _ uint64, content, _, _ string) error {
+func (n *fakeNotifier) NotifySystem(_ context.Context, _ ctype.ID, content, _, _ string) error {
 	n.contents = append(n.contents, content)
 	return nil
 }
@@ -190,8 +191,8 @@ func TestRecordImage_计分并通知(t *testing.T) {
 
 	svc, _, notifier := newSvc(&fakeAccount{})
 	result, err := svc.Record(context.Background(), app.RecordInput{
-		UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine,
-		RefType: "image", RefID: 11,
+		UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine,
+		RefType: "image", RefID: ctype.NewID(11),
 	})
 	if err != nil {
 		t.Fatalf("记账失败: %v", err)
@@ -212,7 +213,7 @@ func TestRecord_Idempotent(t *testing.T) {
 	t.Parallel()
 
 	svc, _, notifier := newSvc(&fakeAccount{})
-	in := app.RecordInput{UserID: 7, Level: domain.LevelKeyword, Source: domain.SourceMachine, RefType: "filter_hit", RefID: 5}
+	in := app.RecordInput{UserID: ctype.NewID(7), Level: domain.LevelKeyword, Source: domain.SourceMachine, RefType: "filter_hit", RefID: ctype.NewID(5)}
 
 	if _, err := svc.Record(context.Background(), in); err != nil {
 		t.Fatalf("第一次记账失败: %v", err)
@@ -235,7 +236,7 @@ func TestRecord_管理员豁免(t *testing.T) {
 
 	svc, repo, notifier := newSvc(&fakeAccount{admin: true})
 	result, err := svc.Record(context.Background(), app.RecordInput{
-		UserID: 1, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: 3,
+		UserID: ctype.NewID(1), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(3),
 	})
 	if err != nil {
 		t.Fatalf("记账失败: %v", err)
@@ -258,7 +259,7 @@ func TestRecord_到阈值禁言(t *testing.T) {
 	// 5 张违规图 = 100 分。
 	for i := uint64(1); i <= 5; i++ {
 		if _, err := svc.Record(context.Background(), app.RecordInput{
-			UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: i,
+			UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(i),
 		}); err != nil {
 			t.Fatalf("第 %d 次记账失败: %v", i, err)
 		}
@@ -277,13 +278,13 @@ func TestRecord_封禁期内再违规升一档(t *testing.T) {
 
 	for i := uint64(1); i <= 5; i++ {
 		_, _ = svc.Record(context.Background(), app.RecordInput{
-			UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: i,
+			UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(i),
 		})
 	}
 	// 已在禁言期：下一条违规升到 7 天档。
 	account.muted = true
 	if _, err := svc.Record(context.Background(), app.RecordInput{
-		UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: 99,
+		UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(99),
 	}); err != nil {
 		t.Fatalf("记账失败: %v", err)
 	}
@@ -301,7 +302,7 @@ func TestAppeal_通过后撤销并解禁(t *testing.T) {
 	ctx := context.Background()
 
 	recorded, err := svc.Record(ctx, app.RecordInput{
-		UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: 1,
+		UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(1),
 	})
 	_ = recorded
 	if err != nil {
@@ -309,12 +310,12 @@ func TestAppeal_通过后撤销并解禁(t *testing.T) {
 	}
 	eventID := repo.events[0].ID
 
-	appeal, err := svc.SubmitAppeal(ctx, 7, eventID, "这张图不是我的")
+	appeal, err := svc.SubmitAppeal(ctx, ctype.NewID(7), eventID, "这张图不是我的")
 	if err != nil {
 		t.Fatalf("提交申诉失败: %v", err)
 	}
 
-	if _, err := svc.HandleAppeal(ctx, appeal.ID, 1, true, ""); err != nil {
+	if _, err := svc.HandleAppeal(ctx, appeal.ID, ctype.NewID(1), true, ""); err != nil {
 		t.Fatalf("处置申诉失败: %v", err)
 	}
 	if repo.events[0].Status != domain.StatusRevoked {
@@ -338,12 +339,12 @@ func TestAppeal_超窗口拒绝(t *testing.T) {
 
 	// 直接塞一条 8 天前的事件。
 	event, _, _ := repo.Append(context.Background(), domain.Event{
-		UserID: 7, Level: domain.LevelImage, Score: 20, Source: domain.SourceMachine,
-		RefType: "image", RefID: 1, Status: domain.StatusActive,
+		UserID: ctype.NewID(7), Level: domain.LevelImage, Score: 20, Source: domain.SourceMachine,
+		RefType: "image", RefID: ctype.NewID(1), Status: domain.StatusActive,
 		CreatedAt: time.Now().Add(-8 * 24 * time.Hour),
 	})
 
-	if _, err := svc.SubmitAppeal(context.Background(), 7, event.ID, "理由"); err == nil {
+	if _, err := svc.SubmitAppeal(context.Background(), ctype.NewID(7), event.ID, "理由"); err == nil {
 		t.Fatal("超过 7 天的处罚不应可申诉")
 	}
 }
@@ -357,15 +358,15 @@ func TestAppeal_驳回必须填理由(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := svc.Record(ctx, app.RecordInput{
-		UserID: 7, Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: 1,
+		UserID: ctype.NewID(7), Level: domain.LevelImage, Source: domain.SourceMachine, RefType: "image", RefID: ctype.NewID(1),
 	}); err != nil {
 		t.Fatalf("记账失败: %v", err)
 	}
-	appeal, err := svc.SubmitAppeal(ctx, 7, repo.events[0].ID, "理由")
+	appeal, err := svc.SubmitAppeal(ctx, ctype.NewID(7), repo.events[0].ID, "理由")
 	if err != nil {
 		t.Fatalf("提交申诉失败: %v", err)
 	}
-	if _, err := svc.HandleAppeal(ctx, appeal.ID, 1, false, ""); err == nil {
+	if _, err := svc.HandleAppeal(ctx, appeal.ID, ctype.NewID(1), false, ""); err == nil {
 		t.Fatal("驳回必须填写理由")
 	}
 }

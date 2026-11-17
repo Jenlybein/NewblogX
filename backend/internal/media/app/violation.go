@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/media/domain"
 )
 
@@ -11,7 +12,7 @@ import (
 // 为什么不直接 import 计分模块：媒体模块不该知道"分数"这回事。
 // 它只负责说"这张图被判违规了、属于谁"，怎么记分是计分模块的内部事。
 type ViolationRecorder interface {
-	RecordImageViolation(ctx context.Context, userID, imageID uint64, objectKey string) error
+	RecordImageViolation(ctx context.Context, userID, imageID ctype.ID, objectKey string) error
 }
 
 // SetViolationRecorder 注入违规计分端口。
@@ -24,10 +25,10 @@ func (s *Service) SetViolationRecorder(recorder ViolationRecorder) {
 
 // recordViolation 在判定违规时上报一次计分（失败不影响状态变更）。
 func (s *Service) recordViolation(ctx context.Context, image *domain.Image) {
-	if s.violations == nil || image == nil || image.UserID.Uint64() == 0 {
+	if s.violations == nil || image == nil || image.UserID.IsZero() {
 		return
 	}
-	if err := s.violations.RecordImageViolation(ctx, image.UserID.Uint64(), image.ID.Uint64(), image.ObjectKey); err != nil {
+	if err := s.violations.RecordImageViolation(ctx, image.UserID, image.ID, image.ObjectKey); err != nil {
 		if s.logger != nil {
 			s.logger.Warnf("上报图片违规计分失败: image=%d user=%d err=%v", image.ID, image.UserID, err)
 		}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/moderation/domain"
 )
 
@@ -21,7 +22,7 @@ import (
 func (s *Service) SetAppeals(repo domain.AppealRepository) { s.appeals = repo }
 
 // SubmitAppeal 提交一条申诉。
-func (s *Service) SubmitAppeal(ctx context.Context, userID, eventID uint64, reason string) (*domain.Appeal, error) {
+func (s *Service) SubmitAppeal(ctx context.Context, userID, eventID ctype.ID, reason string) (*domain.Appeal, error) {
 	if s.appeals == nil {
 		return nil, apperr.New(apperr.CodeModerationAppealInvalid)
 	}
@@ -72,7 +73,7 @@ func (s *Service) ListAppeals(ctx context.Context, status domain.AppealStatus) (
 // approve=true：撤销事件、重算分数、解除禁言、恢复内容（内容是否恢复由各自模块
 // 决定，这里只负责把账号侧后果退回去）。
 // approve=false：驳回，note 必填 —— 用户看到的就是这句话。
-func (s *Service) HandleAppeal(ctx context.Context, appealID, operator uint64, approve bool, note string) (*domain.Appeal, error) {
+func (s *Service) HandleAppeal(ctx context.Context, appealID, operator ctype.ID, approve bool, note string) (*domain.Appeal, error) {
 	if s.appeals == nil {
 		return nil, apperr.New(apperr.CodeModerationAppealInvalid)
 	}
@@ -126,7 +127,7 @@ func (s *Service) HandleAppeal(ctx context.Context, appealID, operator uint64, a
 }
 
 // notifyAppealResult 把处置结果告诉用户。
-func (s *Service) notifyAppealResult(ctx context.Context, userID uint64, approved bool, note string) {
+func (s *Service) notifyAppealResult(ctx context.Context, userID ctype.ID, approved bool, note string) {
 	if s.notifier == nil {
 		return
 	}

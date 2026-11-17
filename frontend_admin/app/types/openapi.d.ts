@@ -9345,16 +9345,16 @@ export interface components {
         };
         "internal_moderation_adapter_http.AppealItem": {
             created_at?: string;
-            event_id?: number;
-            id?: number;
+            event_id?: string;
+            id?: string;
             note?: string;
             reason?: string;
             /** @enum {string} */
             status?: "pending" | "approved" | "rejected";
-            user_id?: number;
+            user_id?: string;
         };
         "internal_moderation_adapter_http.AppealRequest": {
-            event_id: number;
+            event_id: string;
             reason: string;
         };
         "internal_moderation_adapter_http.EventItem": {
@@ -9365,10 +9365,10 @@ export interface components {
             can_appeal?: boolean;
             created_at?: string;
             evidence?: string;
-            id?: number;
+            id?: string;
             /** @enum {string} */
             level?: "keyword" | "image" | "general" | "severe";
-            ref_id?: number;
+            ref_id?: string;
             ref_type?: string;
             score?: number;
             /** @enum {string} */
@@ -9388,7 +9388,7 @@ export interface components {
             punishment_label?: string;
             /** @description Score 是有效分（保留一位小数）：衰减是连续函数，取整会让用户对不上账。 */
             score?: number;
-            user_id?: number;
+            user_id?: string;
         };
         "internal_notification_adapter_http.ConfRequest": {
             comment_notice_enabled?: boolean;

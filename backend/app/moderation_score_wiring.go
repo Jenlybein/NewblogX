@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 
 	moderationhttp "myblogx/internal/moderation/adapter/http"
@@ -28,7 +29,8 @@ var moderationService *moderationapp.Service
 
 // WireModeration 构造违规计分服务并接上两个上报口。
 //
-// 必须在 WireMedia / WireFilter 之后调用：那些模块的服务要先存在。
+// 必须在 WireMedia / WireFilter / WireUser / WireNotification 之后调用：
+// 那些模块的服务要先存在。
 func WireModeration(infra *Infra) *moderationapp.Service {
 	if infra == nil || infra.UserService == nil {
 		return nil
@@ -62,16 +64,16 @@ func WireModeration(infra *Infra) *moderationapp.Service {
 // Moderation 返回装配好的计分服务（可能是 nil）。
 func Moderation() *moderationapp.Service { return moderationService }
 
-// moderationIDs 用雪花生成事件 ID。
+// moderationIDs 用雪花生成事件 / 申诉 ID。
 type moderationIDs struct{}
 
-// NextID 返回下一个事件 ID。
-func (moderationIDs) NextID() (uint64, error) {
+// NextID 返回下一个 ID。
+func (moderationIDs) NextID() (ctype.ID, error) {
 	next, err := idgen.Next()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return next.Uint64(), nil
+	return next, nil
 }
 
 // moderationAccount 把 user 用例服务适配成计分的处罚端口。
@@ -80,22 +82,22 @@ type moderationAccount struct {
 }
 
 // IsAdmin 管理员豁免：账号上的分数与封禁对站长自己毫无意义。
-func (a moderationAccount) IsAdmin(ctx context.Context, userID uint64) (bool, error) {
+func (a moderationAccount) IsAdmin(ctx context.Context, userID ctype.ID) (bool, error) {
 	return a.users.IsAdminAccount(ctx, userID)
 }
 
 // IsMuted 当前是否处在禁言期（"封禁期内再违规升一档"要用）。
-func (a moderationAccount) IsMuted(ctx context.Context, userID uint64) (bool, error) {
+func (a moderationAccount) IsMuted(ctx context.Context, userID ctype.ID) (bool, error) {
 	return a.users.IsAccountMuted(ctx, userID)
 }
 
 // Mute 由系统施加禁言。
-func (a moderationAccount) Mute(ctx context.Context, userID uint64, days int) error {
+func (a moderationAccount) Mute(ctx context.Context, userID ctype.ID, days int) error {
 	return a.users.PunishMute(ctx, userID, days)
 }
 
 // Unmute 解除禁言（申诉通过后把后果退回去）。
-func (a moderationAccount) Unmute(ctx context.Context, userID uint64) error {
+func (a moderationAccount) Unmute(ctx context.Context, userID ctype.ID) error {
 	return a.users.RelieveMute(ctx, userID)
 }
 
@@ -103,12 +105,12 @@ func (a moderationAccount) Unmute(ctx context.Context, userID uint64) error {
 type moderationNotifier struct{}
 
 // NotifySystem 发一条系统通知。
-func (moderationNotifier) NotifySystem(ctx context.Context, receiver uint64, content, linkTitle, linkHref string) error {
+func (moderationNotifier) NotifySystem(ctx context.Context, receiver ctype.ID, content, linkTitle, linkHref string) error {
 	if notificationService == nil {
 		return fmt.Errorf("通知服务未装配")
 	}
 	return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
-		Receiver:  receiver,
+		Receiver:  receiver.Uint64(),
 		Content:   content,
 		LinkTitle: linkTitle,
 		LinkHref:  linkHref,
@@ -121,7 +123,7 @@ type imageViolationRecorder struct {
 }
 
 // RecordImageViolation 记一条图片违规事件（+20）。
-func (r imageViolationRecorder) RecordImageViolation(ctx context.Context, userID, imageID uint64, objectKey string) error {
+func (r imageViolationRecorder) RecordImageViolation(ctx context.Context, userID, imageID ctype.ID, objectKey string) error {
 	if r.moderation == nil {
 		return nil
 	}
@@ -146,7 +148,7 @@ type keywordViolationRecorder struct {
 //
 // 幂等键用命中记录 ID：一次请求只产生一条命中记录（一次命中多个词也只记一条），
 // 所以"同一请求命中多个词"天然只计一次分。
-func (r keywordViolationRecorder) RecordKeywordViolation(ctx context.Context, userID, hitID uint64, surface string) error {
+func (r keywordViolationRecorder) RecordKeywordViolation(ctx context.Context, userID, hitID ctype.ID, surface string) error {
 	if r.moderation == nil {
 		return nil
 	}

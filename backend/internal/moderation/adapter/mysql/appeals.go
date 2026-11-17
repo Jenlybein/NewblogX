@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/moderation/domain"
 
 	"gorm.io/gorm"
@@ -11,15 +12,15 @@ import (
 
 // appealRow 对应 user_violation_appeals 表。
 type appealRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	EventID   uint64
-	UserID    uint64
+	EventID   ctype.ID
+	UserID    ctype.ID
 	Reason    string
 	Status    string
-	HandledBy uint64
+	HandledBy ctype.ID
 	HandledAt *time.Time
 	Note      string
 }
@@ -69,7 +70,7 @@ func (r *AppealRepo) Create(ctx context.Context, appeal domain.Appeal) (domain.A
 }
 
 // FindByEvent 按事件取申诉。
-func (r *AppealRepo) FindByEvent(ctx context.Context, eventID uint64) (domain.Appeal, bool, error) {
+func (r *AppealRepo) FindByEvent(ctx context.Context, eventID ctype.ID) (domain.Appeal, bool, error) {
 	var row appealRow
 	err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Take(&row).Error
 	if err == gorm.ErrRecordNotFound {
@@ -82,7 +83,7 @@ func (r *AppealRepo) FindByEvent(ctx context.Context, eventID uint64) (domain.Ap
 }
 
 // FindByID 按 ID 取申诉。
-func (r *AppealRepo) FindByID(ctx context.Context, id uint64) (domain.Appeal, bool, error) {
+func (r *AppealRepo) FindByID(ctx context.Context, id ctype.ID) (domain.Appeal, bool, error) {
 	var row appealRow
 	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&row).Error
 	if err == gorm.ErrRecordNotFound {
@@ -115,7 +116,7 @@ func (r *AppealRepo) List(ctx context.Context, status domain.AppealStatus, limit
 }
 
 // Handle 落一次处置结果。
-func (r *AppealRepo) Handle(ctx context.Context, id, operator uint64, status domain.AppealStatus, note string, at time.Time) error {
+func (r *AppealRepo) Handle(ctx context.Context, id, operator ctype.ID, status domain.AppealStatus, note string, at time.Time) error {
 	return r.db.WithContext(ctx).
 		Model(&appealRow{}).
 		Where("id = ?", id).

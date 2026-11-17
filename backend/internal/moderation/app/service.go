@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/moderation/domain"
 )
 
@@ -30,12 +31,12 @@ func New(repo domain.Repository, account domain.Account, notifier domain.Notifie
 
 // RecordInput 是记一条违规事件的输入。
 type RecordInput struct {
-	UserID uint64
+	UserID ctype.ID
 	Level  domain.Level
 	Source domain.Source
 	// RefType / RefID 标识"是哪一件事"（内容单元），用于幂等。
 	RefType string
-	RefID   uint64
+	RefID   ctype.ID
 	// Evidence 是一句人能读懂的依据（不回显命中词，避免词表泄漏）。
 	Evidence string
 	IP       string
@@ -58,7 +59,7 @@ type RecordResult struct {
 
 // Record 记一条违规事件，并按需要施加处罚与通知。
 func (s *Service) Record(ctx context.Context, in RecordInput) (*RecordResult, error) {
-	if in.UserID == 0 {
+	if in.UserID.IsZero() {
 		return nil, apperr.New(apperr.CodeUserNotFound)
 	}
 
@@ -95,7 +96,7 @@ func (s *Service) Record(ctx context.Context, in RecordInput) (*RecordResult, er
 }
 
 // evaluate 重算分数、施加处罚、发通知。
-func (s *Service) evaluate(ctx context.Context, userID uint64, trigger domain.Event, level domain.Level) (*RecordResult, error) {
+func (s *Service) evaluate(ctx context.Context, userID ctype.ID, trigger domain.Event, level domain.Level) (*RecordResult, error) {
 	current := s.clock.Now()
 
 	events, err := s.repo.ListByUser(ctx, userID, 200)
@@ -153,8 +154,8 @@ func decideEscalated(score, prior float64, muted bool) domain.Punishment {
 }
 
 // withoutEvent 去掉指定事件后的账本（重算"这次之前"的分数）。
-func withoutEvent(events []domain.Event, id uint64) []domain.Event {
-	if id == 0 {
+func withoutEvent(events []domain.Event, id ctype.ID) []domain.Event {
+	if id.IsZero() {
 		return events
 	}
 	out := make([]domain.Event, 0, len(events))
@@ -171,7 +172,7 @@ func withoutEvent(events []domain.Event, id uint64) []domain.Event {
 //
 // 文案只给"分数 + 档位"，不回显命中词：词表一旦出现在通知里，
 // 就等于把"该绕开哪些词"告诉了所有人（与 ADR-0032 同一口径）。
-func (s *Service) notify(ctx context.Context, userID uint64, level domain.Level, score float64, punishment domain.Punishment) {
+func (s *Service) notify(ctx context.Context, userID ctype.ID, level domain.Level, score float64, punishment domain.Punishment) {
 	if s.notifier == nil {
 		return
 	}
@@ -205,15 +206,15 @@ func describeLevel(level domain.Level) string {
 
 // Summary 是一个用户的计分概览。
 type Summary struct {
-	UserID     uint64
+	UserID     ctype.ID
 	Score      float64
 	Punishment domain.Punishment
 	Events     []domain.Event
 }
 
 // Summary 返回某用户的有效分与事件时间线。
-func (s *Service) Summary(ctx context.Context, userID uint64) (*Summary, error) {
-	if userID == 0 {
+func (s *Service) Summary(ctx context.Context, userID ctype.ID) (*Summary, error) {
+	if userID.IsZero() {
 		return nil, apperr.New(apperr.CodeUserNotFound)
 	}
 	events, err := s.repo.ListByUser(ctx, userID, 100)
@@ -230,7 +231,7 @@ func (s *Service) Summary(ctx context.Context, userID uint64) (*Summary, error) 
 }
 
 // Revoke 撤销一条事件（申诉通过 / 管理员纠错），返回撤销后的有效分。
-func (s *Service) Revoke(ctx context.Context, eventID, operator uint64, note string) (float64, error) {
+func (s *Service) Revoke(ctx context.Context, eventID, operator ctype.ID, note string) (float64, error) {
 	event, ok, err := s.repo.FindByID(ctx, eventID)
 	if err != nil {
 		return 0, err
@@ -249,7 +250,7 @@ func (s *Service) Revoke(ctx context.Context, eventID, operator uint64, note str
 }
 
 // scoreOf 重算某用户的有效分。
-func (s *Service) scoreOf(ctx context.Context, userID uint64) float64 {
+func (s *Service) scoreOf(ctx context.Context, userID ctype.ID) float64 {
 	events, err := s.repo.ListByUser(ctx, userID, 200)
 	if err != nil {
 		return 0

@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"time"
+
+	"myblogx/internal/kernel/ctype"
 )
 
 // AppealWindow 是申诉窗口。
@@ -25,12 +27,12 @@ const (
 
 // Appeal 是一次申诉。
 type Appeal struct {
-	ID        uint64
-	EventID   uint64
-	UserID    uint64
+	ID        ctype.ID
+	EventID   ctype.ID
+	UserID    ctype.ID
 	Reason    string
 	Status    AppealStatus
-	HandledBy uint64
+	HandledBy ctype.ID
 	HandledAt *time.Time
 	Note      string
 	CreatedAt time.Time
@@ -41,13 +43,13 @@ type AppealRepository interface {
 	// Create 创建一条申诉。同一事件只能申诉一次（唯一键）。
 	Create(ctx context.Context, appeal Appeal) (Appeal, error)
 	// FindByEvent 按事件取申诉。
-	FindByEvent(ctx context.Context, eventID uint64) (Appeal, bool, error)
+	FindByEvent(ctx context.Context, eventID ctype.ID) (Appeal, bool, error)
 	// FindByID 按 ID 取申诉。
-	FindByID(ctx context.Context, id uint64) (Appeal, bool, error)
+	FindByID(ctx context.Context, id ctype.ID) (Appeal, bool, error)
 	// List 按状态取申诉（空串表示全部）。
 	List(ctx context.Context, status AppealStatus, limit int) ([]Appeal, error)
 	// Handle 落一次处置结果。
-	Handle(ctx context.Context, id, operator uint64, status AppealStatus, note string, at time.Time) error
+	Handle(ctx context.Context, id, operator ctype.ID, status AppealStatus, note string, at time.Time) error
 }
 
 // CanAppeal 判断一条事件现在还能不能申诉。

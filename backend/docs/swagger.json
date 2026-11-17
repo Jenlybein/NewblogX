@@ -3598,10 +3598,10 @@
                         "type": "string"
                     },
                     "event_id": {
-                        "type": "integer"
+                        "type": "string"
                     },
                     "id": {
-                        "type": "integer"
+                        "type": "string"
                     },
                     "note": {
                         "type": "string"
@@ -3618,7 +3618,7 @@
                         "type": "string"
                     },
                     "user_id": {
-                        "type": "integer"
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -3626,7 +3626,7 @@
             "internal_moderation_adapter_http.AppealRequest": {
                 "properties": {
                     "event_id": {
-                        "type": "integer"
+                        "type": "string"
                     },
                     "reason": {
                         "maxLength": 512,
@@ -3652,7 +3652,7 @@
                         "type": "string"
                     },
                     "id": {
-                        "type": "integer"
+                        "type": "string"
                     },
                     "level": {
                         "enum": [
@@ -3664,7 +3664,7 @@
                         "type": "string"
                     },
                     "ref_id": {
-                        "type": "integer"
+                        "type": "string"
                     },
                     "ref_type": {
                         "type": "string"
@@ -3729,7 +3729,7 @@
                         "type": "number"
                     },
                     "user_id": {
-                        "type": "integer"
+                        "type": "string"
                     }
                 },
                 "type": "object"

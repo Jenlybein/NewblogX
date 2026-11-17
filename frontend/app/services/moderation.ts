@@ -12,10 +12,15 @@ export function getMyViolations() {
   return useNuxtApp().$api.request<ModerationSummary>("/api/moderation/me", { method: "GET" });
 }
 
-/** 对一条处罚提交申诉（7 天窗口、一次一条，服务端校验）。 */
-export function submitViolationAppeal(payload: { event_id: number; reason: string }) {
+/**
+ * 对一条处罚提交申诉（7 天窗口、一次一条，服务端校验）。
+ *
+ * event_id 是雪花 ID：契约里印成 string（超出 JS 安全整数），所以这里也是 string。
+ */
+export function submitViolationAppeal(payload: { event_id: string; reason: string }) {
   return useNuxtApp().$api.request<ModerationAppealItem>("/api/moderation/me/appeals", {
     method: "POST",
     body: payload,
   });
 }
+

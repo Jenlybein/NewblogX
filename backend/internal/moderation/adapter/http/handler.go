@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	moderationapp "myblogx/internal/moderation/app"
 	moderationdomain "myblogx/internal/moderation/domain"
 	"myblogx/internal/platform/http/res"
@@ -26,15 +27,15 @@ func NewHandler(svc *moderationapp.Service) *Handler { return &Handler{svc: svc}
 
 // EventItem 是一条违规事件（出站形状）。
 type EventItem struct {
-	ID        uint64 `json:"id"`
-	Level     string `json:"level" enums:"keyword,image,general,severe"`
-	Score     int    `json:"score"`
-	Source    string `json:"source" enums:"machine,manual"`
-	RefType   string `json:"ref_type"`
-	RefID     uint64 `json:"ref_id"`
-	Evidence  string `json:"evidence"`
-	Status    string `json:"status" enums:"active,revoked"`
-	CreatedAt string `json:"created_at"`
+	ID        ctype.ID `json:"id"`
+	Level     string   `json:"level" enums:"keyword,image,general,severe"`
+	Score     int      `json:"score"`
+	Source    string   `json:"source" enums:"machine,manual"`
+	RefType   string   `json:"ref_type"`
+	RefID     ctype.ID `json:"ref_id"`
+	Evidence  string   `json:"evidence"`
+	Status    string   `json:"status" enums:"active,revoked"`
+	CreatedAt string   `json:"created_at"`
 	// CanAppeal 是后端算好的"现在还能不能申诉"：窗口判断只在服务端做一次，
 	// 前端不重复实现时间规则。
 	CanAppeal bool `json:"can_appeal"`
@@ -42,7 +43,7 @@ type EventItem struct {
 
 // SummaryResponse 是"我的违规记录"。
 type SummaryResponse struct {
-	UserID uint64 `json:"user_id"`
+	UserID ctype.ID `json:"user_id"`
 	// Score 是有效分（保留一位小数）：衰减是连续函数，取整会让用户对不上账。
 	Score      float64 `json:"score"`
 	Punishment string  `json:"punishment" enums:"none,mute_1d,mute_7d,mute_30d,manual_review"`
@@ -53,19 +54,19 @@ type SummaryResponse struct {
 
 // AppealRequest 提交申诉。
 type AppealRequest struct {
-	EventID uint64 `json:"event_id" binding:"required"`
-	Reason  string `json:"reason" binding:"required,max=512"`
+	EventID ctype.ID `json:"event_id" binding:"required"`
+	Reason  string   `json:"reason" binding:"required,max=512"`
 }
 
 // AppealItem 一条申诉（出站形状）。
 type AppealItem struct {
-	ID        uint64 `json:"id"`
-	EventID   uint64 `json:"event_id"`
-	UserID    uint64 `json:"user_id"`
-	Reason    string `json:"reason"`
-	Status    string `json:"status" enums:"pending,approved,rejected"`
-	Note      string `json:"note"`
-	CreatedAt string `json:"created_at"`
+	ID        ctype.ID `json:"id"`
+	EventID   ctype.ID `json:"event_id"`
+	UserID    ctype.ID `json:"user_id"`
+	Reason    string   `json:"reason"`
+	Status    string   `json:"status" enums:"pending,approved,rejected"`
+	Note      string   `json:"note"`
+	CreatedAt string   `json:"created_at"`
 }
 
 // HandleAppealRequest 处置申诉。
@@ -226,27 +227,27 @@ func toAppealItem(appeal *moderationdomain.Appeal) AppealItem {
 }
 
 // currentUserID 从鉴权上下文取当前用户。
-func currentUserID(c *gin.Context) (uint64, bool) {
+func currentUserID(c *gin.Context) (ctype.ID, bool) {
 	claims := jwts.GetClaimsByGin(c)
-	if claims == nil || claims.UserID.Uint64() == 0 {
+	if claims == nil || claims.UserID.IsZero() {
 		res.FailWithMsg("请先登录", c)
-		return 0, false
+		return "", false
 	}
-	return claims.UserID.Uint64(), true
+	return claims.UserID, true
 }
 
 // parseID 取路径里的数字 ID。
-func parseID(c *gin.Context) (uint64, bool) {
+func parseID(c *gin.Context) (ctype.ID, bool) {
 	var req struct {
-		ID uint64 `uri:"id" binding:"required"`
+		ID ctype.ID `uri:"id" binding:"required"`
 	}
 	if err := c.ShouldBindUri(&req); err != nil {
 		res.FailWithMsg("参数错误", c)
-		return 0, false
+		return "", false
 	}
-	if req.ID == 0 {
+	if req.ID.IsZero() {
 		res.FailWithError(apperr.New(apperr.CodeModerationEventNotFound), c)
-		return 0, false
+		return "", false
 	}
 	return req.ID, true
 }

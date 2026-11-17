@@ -43,7 +43,7 @@ async function appeal(event: ModerationEventItem) {
   }
   submitting.value = id;
   try {
-    await submitViolationAppeal({ event_id: event.id, reason });
+    await submitViolationAppeal({ event_id: String(event.id), reason });
     message.success("申诉已提交，处理结果会以站内信通知");
     setReason(id, "");
     await refresh();
@@ -202,4 +202,5 @@ function formatTime(value: string) {
   width: 100%;
 }
 </style>
+
 

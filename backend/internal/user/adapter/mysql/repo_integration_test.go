@@ -365,7 +365,9 @@ func TestRepoMuteUntilRoundTrip(t *testing.T) {
 		t.Fatalf("创建失败: %v", err)
 	}
 
-	until := time.Now().Add(7 * 24 * time.Hour)
+	// 列是 datetime(3)：MySQL 只存到毫秒，写入值带纳秒必然对不上（.37434562 → .374）。
+	// 所以写入值先截到毫秒，"写什么读什么"才成立。
+	until := time.Now().Add(7 * 24 * time.Hour).Truncate(time.Millisecond)
 	if err := repo.SetMuteUntil(ctx, u.ID, &until); err != nil {
 		t.Fatalf("写禁言失败: %v", err)
 	}
@@ -373,6 +375,8 @@ func TestRepoMuteUntilRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查询失败: %v", err)
 	}
+	// 用 Equal 而不是 ==：读回来的 time 带 DSN 的时区（本地 +0800），写入值是 UTC，
+	// 两者的 location 不同但可能是同一瞬间 —— == 会比 location，Equal 只比瞬间。
 	if got.MuteUntil == nil || !got.MuteUntil.Equal(until) {
 		t.Fatalf("禁言时间往返不一致: got=%v want=%v", got.MuteUntil, until)
 	}
@@ -444,3 +448,4 @@ func TestRepoClearExpiredMutes(t *testing.T) {
 		t.Fatalf("重跑对账应幂等（0 行），实际 %d, %v", again, err)
 	}
 }
+

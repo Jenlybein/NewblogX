@@ -43,6 +43,22 @@ func (integrationStorage) Stat(_, _ string) (domain.ObjectInfo, error) {
 	return domain.ObjectInfo{Hash: "it-hash", Size: 1}, nil
 }
 func (integrationStorage) Delete(_, _ string) error { return nil }
+
+// Censor 固定返回"审核不可用"：本用例关心上传确认链，不验证审核通道。
+func (integrationStorage) Censor(_ context.Context, _, _ string) (string, error) {
+	return "", apperr.New(apperr.CodeImageAuditInvalid)
+}
+
+// SetEnabled 实现 domain.ObjectStorage（本用例不关心存储侧开关）。
+func (integrationStorage) SetEnabled(_ context.Context, _, _ string, _ bool) error { return nil }
+
+// Probe 实现 domain.ObjectStorage（本用例不探活）。
+func (integrationStorage) Probe(_ context.Context, rawURL string) domain.ProbeResult {
+	if rawURL == "" {
+		return domain.ProbeResult{Error: "地址为空"}
+	}
+	return domain.ProbeResult{Status: 200, Size: 1}
+}
 func (s integrationStorage) ImageInfo(_ string) (domain.ImageInfo, error) {
 	return domain.ImageInfo{Format: "png", Width: s.width, Height: s.height, Size: 1}, nil
 }

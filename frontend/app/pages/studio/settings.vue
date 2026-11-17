@@ -32,6 +32,7 @@ import { muteNotice } from "~/utils/mute";
 import { useVerificationCountdown } from "~/composables/useVerificationCountdown";
 import { useCaptchaProof } from "~/composables/useCaptchaProof";
 import ImageCaptchaField from "~/components/auth/ImageCaptchaField.vue";
+import ModerationRecordPanel from "~/components/studio/ModerationRecordPanel.vue";
 
 definePageMeta({
   layout: "studio",
@@ -55,6 +56,8 @@ const sectionTabs = [
   { key: "notify", label: "消息偏好" },
   { key: "visibility", label: "可见性" },
   { key: "privacy", label: "隐私" },
+  // 违规记录（ADR-0035）：用户要能看到自己的分数、并就在同一屏申诉。
+  { key: "moderation", label: "违规记录" },
 ] as const;
 
 type SettingsSection = (typeof sectionTabs)[number]["key"];
@@ -995,6 +998,20 @@ useNoIndexPage();
       </div>
     </NCard>
 
+    <NCard v-if="activeSection === 'moderation'" class="studio-list-card" :bordered="false">
+      <div class="studio-toolbar">
+        <div>
+          <div class="eyebrow">Moderation</div>
+          <h2 class="section-title mt-2">违规记录</h2>
+        </div>
+      </div>
+      <div class="mt-4">
+        <!-- 分数与申诉放在同一屏：看到分数的人紧接着就想申诉，
+             中间隔一次跳转会让「7 天窗口」白白过期。 -->
+        <ModerationRecordPanel />
+      </div>
+    </NCard>
+
     <NModal
       v-model:show="showEmailModal"
       preset="card"
@@ -1132,3 +1149,4 @@ useNoIndexPage();
       @cancel="cancelAvatarCrop" />
   </div>
 </template>
+

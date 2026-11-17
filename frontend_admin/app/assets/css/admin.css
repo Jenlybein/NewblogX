@@ -733,6 +733,32 @@
     max-width: 210px;
   }
 
+  /* 联系方式那一行（手机号 · 邮箱）：同样要能截断，长邮箱不能把行撑破。 */
+  .admin-user-cell__contact {
+    @apply truncate;
+    max-width: 240px;
+  }
+
+  /* 用户详情抽屉顶部的只读账号信息块。 */
+  .admin-detail-block {
+    @apply mb-5 flex flex-col gap-1.5 rounded-md p-3;
+    background: var(--color-bg-subtle);
+  }
+
+  .admin-detail-row {
+    @apply flex min-w-0 gap-3 text-xs;
+  }
+
+  .admin-detail-label {
+    @apply shrink-0;
+    width: 64px;
+    color: var(--color-ink-muted);
+  }
+
+  .admin-detail-row > span:last-child {
+    @apply min-w-0 break-all;
+  }
+
   .admin-avatar--initial {
     @apply text-sm font-semibold;
     background: var(--color-bg-subtle);

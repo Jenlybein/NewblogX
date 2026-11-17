@@ -185,6 +185,9 @@ func (h *Handler) AdminList(c *gin.Context) {
 			Role:        int8(it.Role),
 			Status:      int8(it.Status),
 			MuteUntil:   it.MuteUntil,
+			Email:       it.Email,
+			Phone:       it.Phone,
+			Abstract:    it.Abstract,
 		})
 	}
 	res.OkWithList(out, int(total), c)

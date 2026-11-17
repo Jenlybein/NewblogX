@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -460,6 +461,38 @@ func TestDefaultSettingsYaml_段名与常量对齐(t *testing.T) {
 		if _, ok := top[name]; !ok {
 			t.Errorf("site_default_settings.yaml 缺少 %q 段（段名常量与文件键名对不上）", name)
 		}
+	}
+}
+
+// TestDefaultSettingsYaml_存储段自带上传白名单 钉住新装站点的上传门禁基线。
+//
+// 票 410 把白名单并进 storage 段。如果默认值文件里漏了这一段，新部署的站点
+// 白名单会是空的 —— 而"空即全拒"会让所有上传都被判为不支持的格式，
+// 表现为"刚装好就传不了图"，且错误信息指向格式，极难排查。
+func TestDefaultSettingsYaml_存储段自带上传白名单(t *testing.T) {
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+
+	var top struct {
+		Storage conf.QiNiu  `yaml:"storage"`
+		Upload  conf.Upload `yaml:"upload"`
+	}
+	if err := yaml.Unmarshal(raw, &top); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+
+	if len(top.Storage.Whitelist) == 0 {
+		t.Fatal("storage.whitelist 不能为空：空白名单等于拒绝一切上传")
+	}
+
+	// 迁移期两段必须一致：读取口径是"storage 优先、为空回落 upload"，
+	// 一旦默认值里两边漂移，同一个站点会因为"读哪一段"而放行不同后缀 ——
+	// 这种偏差在 upload 段退场前很难被发现。
+	if !reflect.DeepEqual(top.Storage.Whitelist, top.Upload.Whitelist) {
+		t.Fatalf("storage.whitelist %v 与 upload.whitelist %v 不一致（迁移期必须同步）",
+			top.Storage.Whitelist, top.Upload.Whitelist)
 	}
 }
 

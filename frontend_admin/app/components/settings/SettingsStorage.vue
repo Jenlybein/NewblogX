@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NSwitch, useMessage } from 'naive-ui'
+import { NAlert, NButton, NDynamicTags, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NSwitch, useMessage } from 'naive-ui'
 import { getStorageRuntimeConfig, updateStorageRuntimeConfig } from '~/services/admin'
 import type { StorageRuntimeConfig } from '~/types/api'
 
@@ -99,6 +99,9 @@ onMounted(load)
       </NSpace>
       <NFormItem label="上传回调地址（留空不启用）">
         <NInput v-model:value="config.callback_url" class="admin-field--url" placeholder="https://api.yourdomain.com/..." />
+      </NFormItem>
+      <NFormItem label="允许上传的文件后缀">
+        <NDynamicTags v-model:value="config.whitelist" class="admin-field--long" />
       </NFormItem>
       <NButton type="primary" :loading="saving" @click="save">保存存储配置</NButton>
     </NForm>

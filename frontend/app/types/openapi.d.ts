@@ -9737,6 +9737,14 @@ export interface components {
             /** @description 上传大小限制，单位 MB */
             size?: number;
             uri?: string;
+            /**
+             * @description Whitelist 是可上传的文件后缀（不带点，小写）。
+             *
+             *     从「上传策略」段并过来（票 410）：对象存储从此是"能不能传、传多大、什么格式"
+             *     的唯一事实源。旧 upload 段在退场前仍保留，读取口径见 domain.EffectiveWhitelist：
+             *     本字段非空则以本字段为准，为空才回落旧段，保证迁移期行为不变。
+             */
+            whitelist?: string[];
         };
         "internal_site_adapter_http.SiteSectionStorageResponse": {
             access_key?: string;
@@ -9752,6 +9760,14 @@ export interface components {
             /** @description 上传大小限制，单位 MB */
             size?: number;
             uri?: string;
+            /**
+             * @description Whitelist 是可上传的文件后缀（不带点，小写）。
+             *
+             *     从「上传策略」段并过来（票 410）：对象存储从此是"能不能传、传多大、什么格式"
+             *     的唯一事实源。旧 upload 段在退场前仍保留，读取口径见 domain.EffectiveWhitelist：
+             *     本字段非空则以本字段为准，为空才回落旧段，保证迁移期行为不变。
+             */
+            whitelist?: string[];
         };
         "internal_site_adapter_http.SiteSectionUploadRequest": {
             /** @description Whitelist 允许上传的图片后缀；前后端与格式探测都会用它 */

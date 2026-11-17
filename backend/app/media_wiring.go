@@ -41,7 +41,9 @@ func WireMedia(infra *Infra) {
 				SizeMB:        qiniuCfg.Size,
 				ExpirySeconds: qiniuCfg.Expiry,
 				CallbackURL:   qiniuCfg.CallbackURL,
-				Whitelist:     infra.RuntimeSite.GetRuntimeUpload().Whitelist,
+				// 白名单已从「上传策略」段并进 storage 段（票 410），
+				// 迁移期用合并口径：storage 非空取 storage，为空回落旧段。
+				Whitelist: domain.EffectiveWhitelist(qiniuCfg.Whitelist, infra.RuntimeSite.GetRuntimeUpload().Whitelist),
 			}
 		},
 	)

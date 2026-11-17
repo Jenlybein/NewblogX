@@ -43,6 +43,7 @@ import AdminAvatar from '~/components/admin/AdminAvatar.vue'
 import { createAdminUser, getAdminUsers, unmuteAdminUser, updateAdminUser } from '~/services/admin'
 import type { UserListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
+import { contactText, loginPlaceText } from '~/utils/userContact'
 import { muteStatusText } from '~/utils/mute'
 import {
   ROLE_USER,
@@ -106,6 +107,13 @@ const columns: DataTableColumns<UserListItem> = [
           h('strong', null, displayName(row)),
           // 用户名可能是邮箱，长到会把行撑破：交给 CSS 截断 + title 兜底可读。
           h('span', { class: 'muted text-xs admin-user-cell__username', title: row.username }, row.username),
+          // 联系方式：手机号（登录主标识）与邮箱，两个都没有时给一句灰字而不是空行 ——
+          // 空行会让"查不到"和"渲染坏了"看起来一样。
+          h(
+            'span',
+            { class: 'muted text-xs admin-user-cell__contact', title: contactText(row) },
+            contactText(row),
+          ),
         ]),
       ]),
   },
@@ -366,6 +374,35 @@ onMounted(refresh)
   <!-- 资料编辑：抽屉（宽 420，不铺满视口）。 -->
   <NDrawer v-model:show="editorOpen" :width="420" placement="right">
     <NDrawerContent title="用户资料" closable @close="closeEditor">
+      <!-- 账号信息：只读。手机号与邮箱是登录主标识，只能由用户自己在读者站验证后绑定，
+           后台不能直接改（直接改等于管理员能替任何人改绑登录凭证）。 -->
+      <div v-if="selected" class="admin-detail-block" data-role="user-detail-block">
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">手机号</span>
+          <span data-role="user-detail-phone">{{ selected.phone || '未绑定' }}</span>
+        </div>
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">邮箱</span>
+          <span data-role="user-detail-email">{{ selected.email || '未绑定' }}</span>
+        </div>
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">简介</span>
+          <span data-role="user-detail-abstract">{{ selected.abstract || '未填写' }}</span>
+        </div>
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">注册时间</span>
+          <span data-role="user-detail-created">{{ formatDateTime(selected.created_at) }}</span>
+        </div>
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">最近登录</span>
+          <span data-role="user-detail-last-login">{{ formatDateTime(selected.last_login_at) }}</span>
+        </div>
+        <div class="admin-detail-row">
+          <span class="admin-detail-label">登录地点</span>
+          <span data-role="user-detail-addr">{{ loginPlaceText(selected) }}</span>
+        </div>
+      </div>
+
       <NForm label-placement="top" class="admin-field-form">
         <NFormItem label="头像">
           <div class="user-avatar-edit" data-role="user-avatar-edit">

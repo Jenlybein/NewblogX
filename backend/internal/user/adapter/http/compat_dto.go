@@ -115,6 +115,13 @@ type AdminUserItemResponse struct {
 	// swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。
 	Role   int8 `json:"role" swaggertype:"integer"`
 	Status int8 `json:"status" swaggertype:"integer"`
+	// Email / Phone / Abstract：管理端排查账号时要看的联系与自我介绍。
+	//
+	// 未绑定手机号或邮箱时是空串（不是 null）：前端因此不必区分"没这一项"与
+	// "这一项为空"，直接按空串显示"未绑定"即可。
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Abstract string `json:"abstract"`
 	// MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
 	//
 	// 账号管理页据此展示"禁言至 X（还有 N 天）"并给出「解除禁言」按钮。

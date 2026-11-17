@@ -9789,9 +9789,17 @@ export interface components {
             username?: string;
         };
         "internal_user_adapter_http.AdminUserItemResponse": {
+            abstract?: string;
             addr?: string;
             avatar?: string;
             created_at?: string;
+            /**
+             * @description Email / Phone / Abstract：管理端排查账号时要看的联系与自我介绍。
+             *
+             *     未绑定手机号或邮箱时是空串（不是 null）：前端因此不必区分"没这一项"与
+             *     "这一项为空"，直接按空串显示"未绑定"即可。
+             */
+            email?: string;
             id?: string;
             ip?: string;
             last_login_at?: string;
@@ -9802,6 +9810,7 @@ export interface components {
              */
             mute_until?: string;
             nickname?: string;
+            phone?: string;
             /**
              * @description 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
              *     swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。

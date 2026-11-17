@@ -269,3 +269,76 @@ var (
 	_ = (*app.Service).Unmute
 	_ = (*app.Service).EnsureCanPublish
 )
+
+// 管理端列表必须带出邮箱、手机号与简介：管理员排查账号时靠它三样。
+//
+// 之前列表只有用户名与昵称，"这个人到底绑了哪个手机 / 邮箱对不对 / 简介里
+// 有没有留联系方式"只能去翻数据库 —— 而手机号与邮箱恰恰是登录主标识，
+// 最容易把同一个人的两个账号混起来。
+func TestAdminListCarriesContactAndAbstract(t *testing.T) {
+	t.Parallel()
+	r := apptest.NewRepos(baseTime)
+	seed(t, r)
+
+	email := "alice@example.com"
+	phone := "13800001234"
+	abstract := "前端开发，接私活请私信"
+	r.Users().Seed(domain.User{
+		ID:       aliceID,
+		Username: "alice",
+		Nickname: "Alice",
+		Email:    &email,
+		Phone:    &phone,
+		Abstract: abstract,
+		Role:     domain.RoleUser,
+		Status:   domain.StatusActive,
+	})
+
+	items, _, err := r.Service().AdminList(testCtx(), admin, domain.Query{})
+	if err != nil {
+		t.Fatalf("读管理端列表失败: %v", err)
+	}
+	var got *struct {
+		email, phone, abstract string
+	}
+	for _, item := range items {
+		if item.ID == aliceID {
+			got = &struct {
+				email, phone, abstract string
+			}{item.Email, item.Phone, item.Abstract}
+		}
+	}
+	if got == nil {
+		t.Fatal("管理端列表里找不到目标账号")
+	}
+	if got.email != email {
+		t.Fatalf("列表应带邮箱 %q，实际 %q", email, got.email)
+	}
+	if got.phone != phone {
+		t.Fatalf("列表应带手机号 %q，实际 %q", phone, got.phone)
+	}
+	if got.abstract != abstract {
+		t.Fatalf("列表应带简介 %q，实际 %q", abstract, got.abstract)
+	}
+
+	// 未绑定的账号：必须是空串而不是 panic / 空指针（Phone/Email 在领域模型里是 *string）。
+	unboundID := ctype.NewID(1002)
+	r.Users().Seed(domain.User{
+		ID:       unboundID,
+		Username: "bobby",
+		Nickname: "Bob",
+		Role:     domain.RoleUser,
+		Status:   domain.StatusActive,
+	})
+	items, _, err = r.Service().AdminList(testCtx(), admin, domain.Query{})
+	if err != nil {
+		t.Fatalf("读管理端列表失败: %v", err)
+	}
+	for _, item := range items {
+		if item.ID == unboundID {
+			if item.Email != "" || item.Phone != "" {
+				t.Fatalf("未绑定邮箱/手机号的账号应回空串，实际 email=%q phone=%q", item.Email, item.Phone)
+			}
+		}
+	}
+}

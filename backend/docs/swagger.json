@@ -4853,6 +4853,9 @@
             },
             "internal_user_adapter_http.AdminUserItemResponse": {
                 "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
                     "addr": {
                         "type": "string"
                     },
@@ -4860,6 +4863,10 @@
                         "type": "string"
                     },
                     "created_at": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "description": "Email / Phone / Abstract：管理端排查账号时要看的联系与自我介绍。\n\n未绑定手机号或邮箱时是空串（不是 null）：前端因此不必区分\"没这一项\"与\n\"这一项为空\"，直接按空串显示\"未绑定\"即可。",
                         "type": "string"
                     },
                     "id": {
@@ -4876,6 +4883,9 @@
                         "type": "string"
                     },
                     "nickname": {
+                        "type": "string"
+                    },
+                    "phone": {
                         "type": "string"
                     },
                     "role": {

@@ -168,6 +168,18 @@ type AdminUserItem struct {
 	IP          string
 	Addr        string
 	LastLoginAt time.Time
+	// Email / Phone / Abstract 是管理员排查账号时最需要的三项信息。
+	//
+	// 之前管理端只有用户名和昵称：想确认"这个人到底绑了哪个手机、邮箱对不对、
+	// 简介里有没有留联系方式"，只能去翻数据库。手机号与邮箱在账号体系里是登录
+	// 主标识（手机号登录 / 邮箱验证码），它们最容易被"看起来是同一个人的两个账号"
+	// 混淆，所以列表与详情都要给出来。
+	//
+	// 手机号未绑定时是空串（domain.User.Phone 是 *string，未绑定为 nil）；邮箱同理。
+	// 这里不做打码：管理端本来就是管理员看全量数据的界面，打码只会让他无法核对。
+	Email    string
+	Phone    string
+	Abstract string
 	// Role / Status 来自 domain.User。之前没带出去，管理端的「角色」列于是
 	// 永远是空的 —— 列表里看不到，编辑弹窗却能改，两处对不上。
 	Role   domain.Role
@@ -206,6 +218,15 @@ func (s *Service) AdminList(ctx context.Context, viewer domain.Viewer, q domain.
 			Role:      u.Role,
 			Status:    u.Status,
 			MuteUntil: u.MuteUntil,
+			Abstract:  u.Abstract,
+		}
+		// Email / Phone 在领域模型里是 *string：未绑定为 nil，而不是空串。
+		// 出到管理端时统一折算成空串，前端因此只需要处理一种"空"。
+		if u.Email != nil {
+			item.Email = *u.Email
+		}
+		if u.Phone != nil {
+			item.Phone = *u.Phone
 		}
 		if l, ok := last[u.ID.Uint64()]; ok {
 			item.IP = l.IP

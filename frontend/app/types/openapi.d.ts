@@ -8379,6 +8379,13 @@ export interface components {
             comment_count?: number;
             comments_toggle?: boolean;
             content?: string;
+            /**
+             * @description ContentDisplay 是**给读者看的**正文：正文里的图片已按用途套上压缩样式，
+             *     未过审的图被换成占位块。Content 保持原样（原图地址），编辑器回填只读它，
+             *     所以保存时不会把样式后缀写进库（ADR-0034）。
+             *     为空表示"没有可派生的内容"（无图片，或未装配派生器），前端回落 Content。
+             */
+            content_display?: string;
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
@@ -8550,6 +8557,13 @@ export interface components {
             comment_count?: number;
             comments_toggle?: boolean;
             content?: string;
+            /**
+             * @description ContentDisplay 是**给读者看的**正文：正文里的图片已按用途套上压缩样式，
+             *     未过审的图被换成占位块。Content 保持原样（原图地址），编辑器回填只读它，
+             *     所以保存时不会把样式后缀写进库（ADR-0034）。
+             *     为空表示"没有可派生的内容"（无图片，或未装配派生器），前端回落 Content。
+             */
+            content_display?: string;
             cover?: string;
             cover_image_id?: string;
             created_at?: string;

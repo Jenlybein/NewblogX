@@ -175,6 +175,20 @@ const {
 // 正文主题由 MarkdownShadowPreview 内置（token 驱动，明暗自动跟随站点根类）；
 // katex 只保留基线布局样式（分数/根号/字体），配色由自有主题覆盖。
 const articleSupportStyleHrefs = [katexCssUrl];
+
+/**
+ * 给读者渲染的正文（ADR-0034）。
+ *
+ * 后端会多返回一个 content_display：里面的图片已按用途套上压缩样式，
+ * 未过审的图被换成占位块。原 content 仍是原图地址 —— 编辑器回填只读它，
+ * 所以保存时不会把样式后缀写进库。
+ *
+ * 没有 content_display（正文里没有本站图片、或后端没启用派生）时回落原正文，
+ * 两者内容一致，只是图片不带样式后缀。
+ */
+const articleContentForReaders = computed(
+  () => article.value?.content_display || article.value?.content || "",
+);
 const { activeHeadingId, progressPercent } = useReadingProgress(
   computed(() => articleHeadings.value.map((heading) => heading.id)),
   (id) => shadowPreviewRef.value?.getHeadingElement(id) ?? null,
@@ -595,7 +609,7 @@ useHead(() => {
             <div class="article-body">
               <ArticleMarkdownRenderer
                 ref="shadowPreviewRef"
-                :source="article?.content || ''"
+                :source="articleContentForReaders"
                 :extra-style-hrefs="articleSupportStyleHrefs"
                 article-class="markdown-body"
                 @headings-change="handleArticleHeadingsChange"

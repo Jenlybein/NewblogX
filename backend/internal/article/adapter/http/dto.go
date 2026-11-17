@@ -58,12 +58,17 @@ type ArticleCreateResponse struct {
 
 // ArticleDetailResponse 详情。字段顺序与改造前一致，便于 diff。
 type ArticleDetailResponse struct {
-	ID                  ctype.ID          `json:"id"`
-	CreatedAt           time.Time         `json:"created_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
-	Title               string            `json:"title"`
-	Abstract            string            `json:"abstract"`
-	Content             string            `json:"content"`
+	ID        ctype.ID  `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Title     string    `json:"title"`
+	Abstract  string    `json:"abstract"`
+	Content   string    `json:"content"`
+	// ContentDisplay 是**给读者看的**正文：正文里的图片已按用途套上压缩样式，
+	// 未过审的图被换成占位块。Content 保持原样（原图地址），编辑器回填只读它，
+	// 所以保存时不会把样式后缀写进库（ADR-0034）。
+	// 为空表示"没有可派生的内容"（无图片，或未装配派生器），前端回落 Content。
+	ContentDisplay      string            `json:"content_display,omitempty"`
 	CategoryID          *ctype.ID         `json:"category_id"`
 	TagIDs              []ctype.ID        `json:"tag_ids"`
 	CoverImageID        *ctype.ID         `json:"cover_image_id,omitempty"`
@@ -177,13 +182,13 @@ type ArticleReviewTaskContentResponse struct {
 // categories / reasons 是**稳定 code 与一句话依据**：前者前端映射中文，
 // 后者只给管理员看（把模型依据直接给作者等于把判定规则公开）。
 type ArticleReviewCompliance struct {
-	Verdict    string     `json:"verdict" enums:"clean,suspect,violation"`
-	RiskLevel  int        `json:"risk_level"`
-	Categories []string   `json:"categories"`
-	Reasons    []string   `json:"reasons"`
-	PromptVersion string  `json:"prompt_version"`
-	ModelName  string     `json:"model_name"`
-	CheckedAt  *time.Time `json:"checked_at"`
+	Verdict       string     `json:"verdict" enums:"clean,suspect,violation"`
+	RiskLevel     int        `json:"risk_level"`
+	Categories    []string   `json:"categories"`
+	Reasons       []string   `json:"reasons"`
+	PromptVersion string     `json:"prompt_version"`
+	ModelName     string     `json:"model_name"`
+	CheckedAt     *time.Time `json:"checked_at"`
 }
 
 // ArticleReviewReasonItem 是一条可选的驳回原因（出站）。
@@ -216,7 +221,7 @@ type ArticleReviewHandleRequest struct {
 //
 // failed 里每条只给 task_id + 稳定错误码：前端按码渲染文案，不认中文。
 type ArticleReviewBatchResponse struct {
-	Succeeded int                           `json:"succeeded"`
+	Succeeded int                            `json:"succeeded"`
 	Failed    []ArticleReviewBatchFailedItem `json:"failed"`
 }
 

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
@@ -17,6 +18,34 @@ import (
 // 其余人（含作者本人）一律只看已过审的图 —— 规格里明确未过审对作者也不可见。
 func displayViewer(v domain.Viewer) imagedisplay.Viewer {
 	return imagedisplay.Viewer{IsAdmin: v.IsAdmin()}
+}
+
+// displayContent 派生"给读者看的正文"。
+//
+// 正文里的图片数量不受控（一篇长文可能有几十张），所以先一次性把 src 全取出来
+// 批量判定，再统一重写 —— 逐张查库在这里是 N 次往返。
+//
+// 返回空串表示"没有需要派生的内容"：没有图片时不返回冗余字段，
+// 前端回落 content 即可（两者本来一模一样）。
+func (h *Handler) displayContent(ctx context.Context, viewer domain.Viewer, html string) string {
+	if h.display == nil || strings.TrimSpace(html) == "" {
+		return ""
+	}
+	srcs := imagedisplay.ExtractImgSrcs(html)
+	if len(srcs) == 0 {
+		return ""
+	}
+	items := make([]imagedisplay.Item, 0, len(srcs))
+	for _, src := range srcs {
+		items = append(items, imagedisplay.Item{URL: src, Purpose: imagedisplay.PurposeContent})
+	}
+	derived := imagedisplay.MustResolve(ctx, h.display, displayViewer(viewer), items)
+
+	resolved := make(map[string]string, len(srcs))
+	for i, src := range srcs {
+		resolved[src] = derived[i]
+	}
+	return imagedisplay.RewriteImgSrcs(html, resolved)
 }
 
 // toDetailResponse 把用例视图转成详情响应。
@@ -68,6 +97,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, viewer domain.Viewer, v 
 	})
 	resp.Cover = derived[0]
 	resp.AuthorAvatar = derived[1]
+	resp.ContentDisplay = h.displayContent(ctx, viewer, a.Content())
 
 	// 图片反查失败不影响主体：旧实现也是忽略错误。
 	if h.images != nil {

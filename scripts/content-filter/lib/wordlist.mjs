@@ -33,6 +33,19 @@ const TAG_PRIORITY = ["0", "1", "4", "3", "2"];
 /** 本站七个类目（顺序即输出排序与词云顺序）。 */
 export const CATEGORIES = ["drugs", "gambling", "fraud", "porn", "fake_docs", "politics", "violence"];
 
+/**
+ * 双字词的最短长度按类目分档：这三个类的双字词几乎都是通用词，误报压过收益。
+ *
+ * 依据是生产实测（2026-11-17 首轮清洗）：3 万词里"插入 / 导航 / 供应 / 来干"这类
+ * 两字通用词把 60 篇技术文章的正文打成了 `**`。毒品与假证发票保留双字
+ * （"冰毒 / 大麻 / 发票"辨识度高，且正是事故里命中的那一类）。
+ */
+export const SHORT_WORD_MIN_RUNES = {
+  porn: 3,
+  gambling: 3,
+  fraud: 3,
+};
+
 /** 类目 → 档位（ADR-0032：毒品/枪支、涉政、暴恐、假证发票、诈骗 → 拦截；赌博/色情 → 观察）。 */
 export const TIER_BY_CATEGORY = {
   politics: "block",
@@ -203,9 +216,11 @@ export function buildCandidates({
   maxRunes = 24,
   // violenceHints 是部署侧注入的暴恐词（仓库里没有这份清单），见 lib/violenceHints.mjs。
   violenceHints = [],
+  // allowShort 关掉"按类目收紧最短长度"的口径（导入人工审核过的双字词时用）。
+  allowShort = false,
 }) {
   const entries = [];
-  const dropped = { cjkShort: 0, tooLong: 0, untagged: 0, dirty: 0, noCategory: 0 };
+  const dropped = { cjkShort: 0, tooLong: 0, untagged: 0, dirty: 0, noCategory: 0, shortGeneric: 0 };
   const seen = new Set();
 
   const accept = (word, tagset) => {
@@ -225,6 +240,14 @@ export function buildCandidates({
     if (!category) {
       dropped.noCategory += 1;
       return;
+    }
+    // 双字通用词：只在色情 / 赌博 / 诈骗三类里收紧（见 SHORT_WORD_MIN_RUNES）。
+    if (!allowShort) {
+      const need = SHORT_WORD_MIN_RUNES[category] ?? 2;
+      if (runeLength(word) < need) {
+        dropped.shortGeneric += 1;
+        return;
+      }
     }
     // 去重键用小写：词表是给人看的，两个"看起来一样"的词只会让运营怀疑自己。
     const key = word.toLowerCase();

@@ -131,6 +131,10 @@ export function parseArgs(argv) {
         opts.includePolitics = true;
         opts.includeViolence = true;
         break;
+      case "--allow-short":
+        // 逃生口：导入人工审核过的双字通用词（默认按类目收紧，见 SHORT_WORD_MIN_RUNES）。
+        opts.allowShort = true;
+        break;
       case "--exclude":
         opts.exclude = needValue(arg, argv[++i])
           .split(",")
@@ -231,6 +235,7 @@ export async function buildWordlist(opts, logger = console.log) {
     minCjk: opts.minCjk,
     maxRunes: opts.maxRunes,
     violenceHints: violence.hints,
+    allowShort: opts.allowShort,
   });
 
   // 默认排除 politics 与 violence；`--exclude` 显式给出时以它为准（完全替代默认值，
@@ -251,7 +256,7 @@ export async function buildWordlist(opts, logger = console.log) {
   const stats = summarize(selected);
   logger("");
   logger(`── 统计 ──`);
-  logger(`丢弃: CJK<${opts.minCjk} ${dropped.cjkShort} 条，超过 ${opts.maxRunes} 字 ${dropped.tooLong} 条，` +
+  logger(`丢弃: CJK<${opts.minCjk} ${dropped.cjkShort} 条，双字通用词 ${dropped.shortGeneric} 条，超过 ${opts.maxRunes} 字 ${dropped.tooLong} 条，` +
     `含非法字符 ${dropped.dirty} 条，无标签 ${dropped.untagged} 条，无类目 ${dropped.noCategory} 条`);
   logger(`排除类目(${excluded.join(",") || "无"}): ${excludedCount} 条`);
   if (kept.length > selected.length) {
@@ -295,4 +300,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.exitCode = 1;
   }
 }
+
 

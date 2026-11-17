@@ -352,12 +352,15 @@ func hasBizCode(w *httptest.ResponseRecorder, code int) bool {
 	return int(v.(float64)) == code
 }
 
-// captchaScopePaths 是三个入口各自的探测路径，用于下面的闸门矩阵。
+// captchaScopePaths 是四个入口各自的探测路径，用于下面的闸门矩阵。
 func captchaScopePaths() []string {
 	return []string{
 		"/gate/" + middleware.CaptchaScopeLogin,
 		"/gate/" + middleware.CaptchaScopeEmailVerify,
 		"/gate/" + middleware.CaptchaScopePhoneVerify,
+		// 注册专用入口：只有 POST /api/users/email/register 挂它。手机号注册没有独立
+		// 路由（与登录共用 POST /api/users/phone），那条通道靠 phone_verify 兜。
+		"/gate/" + middleware.CaptchaScopeRegister,
 	}
 }
 
@@ -400,6 +403,9 @@ func TestCaptchaGateAllScopesOpenWhenMasterSwitchOff(t *testing.T) {
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
 		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
 	}})
 	registerCaptchaGateRoutes(r)
 
@@ -427,6 +433,9 @@ func TestCaptchaGateRejectsMissingCaptchaWhenSwitchesOn(t *testing.T) {
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
 		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
 	}})
 	registerCaptchaGateRoutes(r)
 
@@ -484,6 +493,9 @@ func TestCaptchaGateUnknownScopePasses(t *testing.T) {
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
 		CaptchaPhoneVerify: true,
+		// 四个入口都要跟着矩阵走：漏一个，那个 scope 的用例就会把"闸门开"当成"闸门关"，
+		// 于是断言成"放行"——一条永远绿的假用例。
+		CaptchaRegister: true,
 	}})
 	registerCaptchaGateRoutes(r)
 

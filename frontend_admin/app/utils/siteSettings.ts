@@ -108,7 +108,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
     blocks: [],
   },
   // 图形验证码紧跟内容过滤：两者都是"登录页/风险页上看得见的东西"，
-  // 运营改完登录策略会顺手来这里换图。开关与入口闸门在「登录与安全」页。
+  // 运营改完登录策略会顺手来这里换图。开关与入口闸门在「登录与发码」页。
   { key: 'captcha', label: '图形验证码', path: '/site/captcha', component: 'SettingsCaptcha', blocks: [] },
   { key: 'ai', label: 'AI 助手', path: '/site/ai', component: 'SettingsAi', blocks: [] },
   { key: 'mail', label: '邮件', path: '/site/mail', component: 'SettingsMail', blocks: [] },

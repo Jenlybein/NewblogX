@@ -67,6 +67,10 @@ site:
     captcha_login: true
     captcha_email_verify: true
     captcha_phone_verify: true
+    # 注册专用入口（只有 POST /api/users/email/register 挂它）。
+    # 手机号注册与登录共用 POST /api/users/phone，请求体分不出注册还是登录，
+    # 所以那条通道的验证码在发码那一步（上面的 captcha_phone_verify）。
+    captcha_register: true
     # 邮箱验证码有效期，单位：分钟
     email_code_timeout: 5
     # 短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行
@@ -257,7 +261,7 @@ oauth:
 #
 # 单独一段而不是塞进 site 段：site 段有匿名可读的公开端点
 # （GET /site/site 直接返回整个 site 段），密钥放进去等于公开。
-# ADR-0020 的段清单因此从九段变为十段。
+# ADR-0020 的段清单因此又增加一段（现在共十二段，见文件末尾说明）。
 sms:
   # 阿里云 AccessKey ID
   access_key_id: ""
@@ -379,6 +383,8 @@ captcha:
   # 背景色 #RRGGBB 或 #RRGGBBAA（字符型 / 算术型）；6 位视作不透明，默认带 10/255 透明度。
   bg_color: "#0A14320A"
   # 下面两项只对纯数字型生效：单字最大倾斜（0–1）与背景圆点数量（0–20）。
+  # 读者填错验证码时看到的那句话。空串 = 用内置默认文案（图形验证码错误）。
+  fail_message: ""
   max_skew: 0.5
   dot_count: 0
 # Generated from config/deco-charm-parameters.json by scripts/generate-deco-parameters.mjs; DO NOT EDIT.

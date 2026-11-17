@@ -111,6 +111,14 @@ onMounted(load)
             data-role="login-captcha-gate-email"
           />
         </NFormItem>
+        <NFormItem label="注册接口要求图形验证码">
+          <NSwitch
+            v-model:value="config.login.captcha_register"
+            :disabled="!config.login.captcha"
+            data-role="login-captcha-gate-register"
+          />
+          <span class="admin-hint">只作用于专门的注册路由；手机号注册的验证码在发码那一步</span>
+        </NFormItem>
         <NFormItem label="发短信验证码要求图形验证码">
           <NSwitch
             v-model:value="config.login.captcha_phone_verify"

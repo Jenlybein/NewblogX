@@ -5,7 +5,7 @@
  * 这一页管第 12 段运行时配置 `captcha`：图形与时效参数，也就是"那张图长什么样、
  * 多久失效"。三件事必须一起说清楚，否则运营会在错误的位置找开关：
  *
- *   1. **这里没有总开关**：开/关在「站点 → 登录与安全」里（`site.login.captcha`），
+ *   1. **这里没有总开关**：开/关在「站点 → 登录与发码」里（`site.login.captcha`），
  *      那一位必须对读者公开，前端要靠它决定渲染不渲染验证码框；
  *   2. **哪些入口要验证码也不在这里**：同样在「登录与安全」的三个闸门里
  *      （登录 / 发邮箱验证码 / 发短信验证码），理由同上 —— 前端要知道每个表单要不要画图。
@@ -13,7 +13,9 @@
  *   3. **保存即生效**：生成请求每次都按现值构建驱动、按现值写有效期，不需要重启。
  *
  * 字段与驱动的适用关系一栏由前端标出来：不适用项直接禁用输入框，并在旁边写明
- * "该类型不使用"，而不是让它看起来能填却没效果（后端的归一化会把这些字段清零）。
+ * "该类型不使用"。注意后端的清零范围是**有限**的：source / bg_color / noise_count /
+ * 三个干扰线开关按驱动清零；max_skew / dot_count 保留原值（清掉会让 GET→PUT
+ * 往返漂移，见 ADR-0033 决策 13）。
  */
 import {
   NAlert,
@@ -95,7 +97,7 @@ onMounted(load)
       这一页只管<strong>图片长什么样、多久失效</strong>。
       验证码的开关与「哪些入口需要验证码」在
       <NuxtLink to="/site/login" class="admin-link">
-        「站点 → 登录与安全」
+        「站点 → 登录与发码」
       </NuxtLink>
       里 —— 那几项必须对读者公开，前端要靠它们决定每个表单画不画验证码框。
     </NAlert>
@@ -170,6 +172,19 @@ onMounted(load)
         <span v-else class="admin-hint">
           保存时会去掉空白与重复字符；去重后不足 2 个字符会被拒绝。
           默认已去掉易混的 0 / O / 1 / I / L。
+        </span>
+      </NFormItem>
+
+      <NFormItem label="填错时的提示文案">
+        <NInput
+          v-model:value="config.fail_message"
+          class="admin-field--long"
+          :maxlength="80"
+          placeholder="留空使用默认文案：图形验证码错误"
+          data-role="captcha-fail-message"
+        />
+        <span class="admin-hint">
+          读者填错验证码时看到的那句话。留空表示用内置默认文案；最多 80 个字符。
         </span>
       </NFormItem>
 

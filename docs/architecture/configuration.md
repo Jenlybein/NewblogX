@@ -171,9 +171,9 @@ type Service struct{ cfg func() conf.Mail }
 纯数字型另有 `max_skew` / `dot_count`。
 保存期的口径是**越界即拒绝**（`site.captcha_invalid`，文案点名哪个字段越什么界，经 `apperr.NewWithMessage` + `res.FailWithValidError`
 显示给后台）；**`0` 与空串的语义分两类**：只有 `width` / `height` / `expire_seconds` / `length` 的 `0` 是「没填」、回落默认值；
-`noise_count` / `max_skew` / `dot_count` 的 `0` 是合法值（不放噪点 / 不倾斜 / 不放点）。**不适用字段按驱动清零**，范围仅限
-`source` / `bg_color` / `noise_count` 与三个干扰线开关；`max_skew` / `dot_count` **保留原值**（清零会让 GET→PUT 往返把 0.5 变 0，
-运营切换驱动后还会看到与自己填的不一样的值）。
+`noise_count` / `max_skew` / `dot_count` 的 `0` 是合法值（不放噪点 / 不倾斜 / 不放点）。**不适用字段按驱动清零**，范围是
+`length`（算术型，题目固定两位数）、`source` / `bg_color` / `noise_count` 与三个干扰线开关；`max_skew` / `dot_count` **保留原值**
+（清零会让 GET→PUT 往返把 0.5 变 0，运营切换驱动后还会看到与自己填的不一样的值）。
 「哪些入口要验证码」不在这段，留在 `site.login`：总开关 `captcha` 之外有**四个**入口闸门
 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`，它们**必须公开可读**——
 读者站靠 `GET /api/site/site` 决定每个表单渲染不渲染验证码框（见 §六 的登录策略说明）。`captcha_register` 只挂专门的注册路由

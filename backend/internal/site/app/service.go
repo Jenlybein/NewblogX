@@ -210,12 +210,18 @@ func (s *Service) AdminStorage() conf.QiNiu {
 }
 
 // UpdateStorage 覆盖对象存储配置。
+//
+// 密钥占位符先收敛成旧值，再做字段校验：私有空间那条规则要看到真实密钥才成立。
 func (s *Service) UpdateStorage(storage conf.QiNiu) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
 	storage.SecretKey = config.ResolveSensitive(storage.SecretKey, s.runtime.Storage().SecretKey)
-	return s.runtime.UpdateStorage(storage)
+	normalized, err := NormalizeStorage(storage)
+	if err != nil {
+		return err
+	}
+	return s.runtime.UpdateStorage(normalized)
 }
 
 // AdminOAuth 返回管理端的第三方登录配置，AppKey 用占位符遮蔽。

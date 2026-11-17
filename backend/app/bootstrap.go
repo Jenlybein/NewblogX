@@ -9,8 +9,8 @@ import (
 	"myblogx/core"
 	articleapp "myblogx/internal/article/app"
 	commentapp "myblogx/internal/comment/app"
-	userapp "myblogx/internal/user/app"
 	filterapp "myblogx/internal/filter/app"
+	mediaapp "myblogx/internal/media/app"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/platform/es/articlesync"
@@ -18,6 +18,7 @@ import (
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/skills"
+	userapp "myblogx/internal/user/app"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -80,6 +81,8 @@ type Infra struct {
 	// 自己那份装配（删除要经过它们的状态机与副作用）。三个字段由各自的 Wire 函数
 	// 填，WireFilterDisposer 在它们之后读。
 	ArticleService *articleapp.Service
+	// MediaService 是媒体模块的用例服务：审核超时扫描要用同一份装配。
+	MediaService   *mediaapp.Service
 	CommentService *commentapp.Service
 	UserService    *userapp.Service
 }
@@ -261,4 +264,3 @@ func validateInfra(infra *Infra) error {
 	}
 	return nil
 }
-

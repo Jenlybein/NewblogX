@@ -8,14 +8,23 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/imagedisplay"
 )
+
+// displayViewer 把文章模块的操作者视图翻译成展示派生器的观看着身份。
+//
+// 只区分"是不是管理员"：管理员要审图，必须能看到未过审的图；
+// 其余人（含作者本人）一律只看已过审的图 —— 规格里明确未过审对作者也不可见。
+func displayViewer(v domain.Viewer) imagedisplay.Viewer {
+	return imagedisplay.Viewer{IsAdmin: v.IsAdmin()}
+}
 
 // toDetailResponse 把用例视图转成详情响应。
 //
 // CoverImageID / AuthorAvatarImageID 需要把 URL 反查成图片 ID，
 // 这是既有响应字段（前端据此判断"这张图是不是本站图库的"），
 // 所以不能省。属于集成细节，因此放在 adapter 而不是 app。
-func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) ArticleDetailResponse {
+func (h *Handler) toDetailResponse(ctx context.Context, viewer domain.Viewer, v *app.ArticleView) ArticleDetailResponse {
 	a := v.Article
 
 	resp := ArticleDetailResponse{
@@ -26,7 +35,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		Abstract:         a.Abstract(),
 		Content:          a.Content(),
 		CategoryID:       toCtypeIDPtr(a.CategoryID()),
-		Cover:            a.Cover(),
+		Cover:            "", // 下面统一派生（样式 + 审核闸门）
 		ViewCount:        a.Counters().View,
 		DiggCount:        a.Counters().Digg,
 		CommentCount:     a.Counters().Comment,
@@ -36,7 +45,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		PublishStatus:    ArticleStatus(a.Status()),
 		VisibilityStatus: ArticleVisibility(a.Visibility()),
 		AuthorID:         ctype.NewID(v.Author.ID.Uint64()),
-		AuthorAvatar:     v.Author.Avatar,
+		AuthorAvatar:     "", // 上面统一派生
 		AuthorAbstract:   v.Author.Abstract,
 		AuthorCreatedAt:  v.Author.CreatedAt,
 		AuthorNickname:   v.Author.Nickname,
@@ -50,6 +59,15 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		resp.TagIDs = append(resp.TagIDs, ctype.NewID(t.ID.Uint64()))
 		resp.Tags = append(resp.Tags, t.Title)
 	}
+
+	// 封面与作者头像走同一个派生器（ADR-0034）：一次批量判定"这两张图能不能看"，
+	// 再按用途套样式。合成一次调用而不是两次，少一次查库。
+	derived := imagedisplay.MustResolve(ctx, h.display, displayViewer(viewer), []imagedisplay.Item{
+		{URL: a.Cover(), Purpose: imagedisplay.PurposeCover},
+		{URL: v.Author.Avatar, Purpose: imagedisplay.PurposeAvatar},
+	})
+	resp.Cover = derived[0]
+	resp.AuthorAvatar = derived[1]
 
 	// 图片反查失败不影响主体：旧实现也是忽略错误。
 	if h.images != nil {

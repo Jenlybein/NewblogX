@@ -83,6 +83,11 @@ var protocols = map[Code]ProtocolKind{
 	// 图形验证码段（ADR-0033）：存的是运营填错的类型/尺寸/有效期/字符集/颜色，
 	// 改一改就能过 —— 归 1001。归 1002 会让后台以为服务坏了，明明给的是哪一项越界
 	// （详情见 UserMessage）却只看到「服务异常」。
+	// 对象存储段（ADR-0034）：填错的是样式名/分隔符/签名有效期/审核开关，
+	// 改一改就能过 —— 同样归 1001。归 1002 会让运营以为存储服务坏了，
+	// 而真正的原因（哪个字段越界）就在 UserMessage 里。
+	CodeSiteStorageInvalid: ProtocolValidation,
+
 	CodeSiteCaptchaInvalid: ProtocolValidation,
 
 	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
@@ -115,4 +120,3 @@ func ProtocolOf(err error) ProtocolKind {
 	}
 	return ProtocolService
 }
-

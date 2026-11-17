@@ -432,6 +432,11 @@ const (
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
 	// CodeSiteCaptchaInvalid 是图形验证码段（第 12 段）参数不合法。
 	CodeSiteCaptchaInvalid Code = "site.captcha_invalid"
+	// CodeSiteStorageInvalid 是对象存储段（图片样式 / 审核开关）参数不合法（ADR-0034）。
+	//
+	// 与"上传被拒"分开：那是运行期的业务结论（格式不在白名单、超出体积），
+	// 这是运维把样式名或开关填错了，改一改就能过。
+	CodeSiteStorageInvalid Code = "site.storage_invalid"
 
 	// 关键词风险页的筛选参数（ADR-0032）。与上面的词表校验分开：
 	// 那是"运营填的词条不合法"（去改词），这是"后台传错了筛选值"（去改请求），
@@ -786,6 +791,7 @@ var messages = map[Code]string{
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeSiteCaptchaInvalid:             "图形验证码配置不合法：类型、尺寸、有效期、字符集或颜色超出允许范围",
+	CodeSiteStorageInvalid:             "对象存储配置不合法：样式名、分隔符、签名有效期或审核开关超出允许范围",
 	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
 	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
 	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",

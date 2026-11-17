@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"myblogx/internal/kernel/ctype"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,7 @@ import (
 	"myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/imagedisplay"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 )
@@ -20,14 +22,43 @@ import (
 // Handler 是媒体 HTTP 处理器。
 type Handler struct {
 	svc *app.Service
+	// display 是图片展示派生器（ADR-0034）。为 nil 时原样返回库里的地址，
+	// 只在本模块被单独装配（测试）时出现。
+	display *imagedisplay.Resolver
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service) *Handler {
+func NewHandler(svc *app.Service, display *imagedisplay.Resolver) *Handler {
 	if svc == nil {
 		panic("media/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc}
+	return &Handler{svc: svc, display: display}
+}
+
+// uploadVisibleURL 上传链路返回地址前过闸门。
+//
+// 口径与全站一致：只有「审核通过」才给地址。上传者本人也不给 —— 规格里明确
+// 未过审的图对作者同样不可见（作者看到的是「审核中」占位），这样"作者能用"
+// 与"读者能看到"永远不是两套规则。
+func uploadVisibleURL(status domain.Status, raw string) string {
+	if !status.Displayable() {
+		return ""
+	}
+	return raw
+}
+
+// displayURL 派生单条图片地址（后台图片列表用）。
+//
+// 后台看的是"审核面"，所以按管理员身份派生：未过审的图也要能预览，
+// 否则管理员没法判断该放行还是驳回。
+func (h *Handler) displayURL(c *gin.Context, purpose imagedisplay.Purpose, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	out := imagedisplay.MustResolve(c.Request.Context(), h.display,
+		imagedisplay.Viewer{IsAdmin: true},
+		[]imagedisplay.Item{{URL: raw, Purpose: purpose}})
+	return out[0]
 }
 
 // CreateTaskRequest 创建上传任务。
@@ -71,9 +102,14 @@ type CompleteTaskRequest struct {
 type CompleteTaskResponse struct {
 	UploadID ctype.ID `json:"upload_id"`
 	ImageID  ctype.ID `json:"image_id"`
-	Status   string   `json:"status"`
-	URL      string   `json:"url"`
-	ErrorMsg string   `json:"error_msg,omitempty"`
+	// Status 是**任务**状态（pending / ready / failed）。
+	Status string `json:"status"`
+	// URL 是可用展示地址：只有审核通过时才有值，否则为空（前端画「审核中」占位）。
+	URL string `json:"url"`
+	// AuditStatus 是**图片审核**状态（pending / pass / review / block …），
+	// 与 Status 是两件事：任务是"文件传完了没"，审核是"这张图能不能给人看"。
+	AuditStatus string `json:"audit_status"`
+	ErrorMsg    string `json:"error_msg,omitempty"`
 }
 
 // TaskStatusResponse 任务状态。
@@ -81,9 +117,12 @@ type TaskStatusResponse struct {
 	UploadID ctype.ID `json:"upload_id"`
 	ImageID  ctype.ID `json:"image_id"`
 	Status   string   `json:"status"`
-	URL      string   `json:"url"`
-	ErrorMsg string   `json:"error_msg,omitempty"`
-	Hash     string   `json:"hash"`
+	// URL 同 CompleteTaskResponse：只有审核通过才有值。
+	URL string `json:"url"`
+	// AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。
+	AuditStatus string `json:"audit_status"`
+	ErrorMsg    string `json:"error_msg,omitempty"`
+	Hash        string `json:"hash"`
 }
 
 // callbackRequest 七牛上传回调。
@@ -110,6 +149,10 @@ type ImageItem struct {
 	Height    int       `json:"height"`
 	Hash      string    `json:"hash"`
 	Status    uint      `json:"status"`
+	// AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。
+	AuditStatus string `json:"audit_status"`
+	// AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。
+	AuditLabel string `json:"audit_label"`
 }
 
 // ListRequest 图片列表查询。
@@ -117,6 +160,45 @@ type ListRequest struct {
 	Page  int    `form:"page"`
 	Limit int    `form:"limit"`
 	Key   string `form:"key"`
+	// Status 按审核状态筛选：pending / review / pass / block / deleted / orphaned。
+	// 空串表示不筛。后台的「待审队列」用的就是 pending 与 review。
+	Status string `form:"status"`
+}
+
+// StyleProbeRequest 样式探活请求。
+type StyleProbeRequest struct {
+	// ObjectKey 留空时用图库里最新一张图，省得运营去翻 object key。
+	ObjectKey string `json:"object_key,omitempty"`
+}
+
+// StyleProbeItem 一条探活结果。
+type StyleProbeItem struct {
+	Tier      string `json:"tier" enums:"original,cover,avatar,content,chat"`
+	StyleName string `json:"style_name"`
+	URL       string `json:"url"`
+	Status    int    `json:"status"`
+	Size      int64  `json:"size"`
+	Error     string `json:"error"`
+}
+
+// StyleProbeResponse 样式探活结果。
+type StyleProbeResponse struct {
+	ObjectKey string           `json:"object_key"`
+	Items     []StyleProbeItem `json:"items"`
+}
+
+// AuditRequest 人工审核一张图。
+type AuditRequest struct {
+	// Action 是处置动作：approve（放行）/ reject（驳回并删对象）。
+	Action string `json:"action" binding:"required" enums:"approve,reject"`
+}
+
+// AuditResponse 人工审核结果。
+type AuditResponse struct {
+	ID          ctype.ID `json:"id"`
+	AuditStatus string   `json:"audit_status"`
+	AuditLabel  string   `json:"audit_label"`
+	URL         string   `json:"url"`
 }
 
 // RemoveRequest 批量删除。
@@ -150,11 +232,12 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 		return
 	}
 	if result.SkipUpload && result.Image != nil {
+		// 秒传命中也要过闸门：库里那张图可能是待审核甚至已封禁的。
 		res.OkWithData(CreateTaskResponse{
 			SkipUpload: true,
 			ImageID:    result.Image.ID,
 			Status:     result.Image.Status.String(),
-			URL:        result.Image.URL,
+			URL:        uploadVisibleURL(result.Image.Status, result.Image.URL),
 			Hash:       result.Image.Hash,
 		}, c)
 		return
@@ -202,10 +285,11 @@ func (h *Handler) CompleteUploadTask(c *gin.Context) {
 		return
 	}
 	res.OkWithData(CompleteTaskResponse{
-		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID,
-		Status:   string(result.Task.Status),
-		URL:      result.Image.URL,
+		UploadID:    result.Task.ID,
+		ImageID:     result.Image.ID,
+		Status:      string(result.Task.Status),
+		URL:         uploadVisibleURL(result.Image.Status, result.Image.URL),
+		AuditStatus: result.Image.Status.String(),
 	}, c)
 }
 
@@ -239,7 +323,8 @@ func (h *Handler) UploadTaskStatus(c *gin.Context) {
 	}
 	if result.Image != nil {
 		resp.ImageID = result.Image.ID
-		resp.URL = result.Image.URL
+		resp.URL = uploadVisibleURL(result.Image.Status, result.Image.URL)
+		resp.AuditStatus = result.Image.Status.String()
 	}
 	res.OkWithData(resp, c)
 }
@@ -281,11 +366,12 @@ func (h *Handler) QiniuCallback(c *gin.Context) {
 		return
 	}
 	res.OkWithData(CompleteTaskResponse{
-		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID,
-		Status:   string(result.Task.Status),
-		URL:      result.Image.URL,
-		ErrorMsg: result.Task.ErrorMsg,
+		UploadID:    result.Task.ID,
+		ImageID:     result.Image.ID,
+		Status:      string(result.Task.Status),
+		URL:         uploadVisibleURL(result.Image.Status, result.Image.URL),
+		AuditStatus: result.Image.Status.String(),
+		ErrorMsg:    result.Task.ErrorMsg,
 	}, c)
 }
 
@@ -316,6 +402,98 @@ func (h *Handler) QiniuAuditCallback(c *gin.Context) {
 	res.OkWithMsg("七牛审核回调处理成功", c)
 }
 
+// Audit 人工审核一张图（管理员）。
+//
+// 只对"待审核 / 疑似"有意义：放行会把状态推到通过并在存储侧解禁，
+// 驳回会把状态推到违规（终局）并按开关删除对象。违规图不允许放行 ——
+// 对象已经删了，"看起来放行了但打不开"比直接拒绝更糟。
+// @Summary 图片人工审核
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "图片 ID"
+// @Param body body AuditRequest true "审核动作"
+// @Success 200 {object} kernel.Envelope[AuditResponse]
+// @Router /images/{id}/audit [post]
+func (h *Handler) Audit(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var req AuditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res.FailWithMsg("参数错误", c)
+		return
+	}
+
+	var (
+		image *domain.Image
+		err   error
+	)
+	switch strings.TrimSpace(strings.ToLower(req.Action)) {
+	case "approve":
+		image, err = h.svc.ApproveAudit(c.Request.Context(), domain.ImageID(ctype.NewID(id)))
+	case "reject":
+		image, err = h.svc.RejectAudit(c.Request.Context(), domain.ImageID(ctype.NewID(id)))
+	default:
+		res.FailWithMsg("审核动作不存在（可选：approve / reject）", c)
+		return
+	}
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	res.OkWithData(AuditResponse{
+		ID:          image.ID,
+		AuditStatus: image.Status.String(),
+		AuditLabel:  image.Status.Label(),
+		URL:         h.displayURL(c, imagedisplay.PurposeCover, image.URL),
+	}, c)
+}
+
+// ProbeStyles 图片样式探活（管理员）。
+//
+// 为什么需要这个端点：七牛对"样式名不存在"的响应是 404，**不会回退原图**。
+// 后台把样式名填错一个字，站内那一档的图片会全部裂掉，而七牛不会报任何错。
+// 这个接口对同一张图分别请求原图与四档样式，把状态码与字节数并排返回，
+// 保存后点一下就能看出配置对不对。
+// @Summary 图片样式探活
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body StyleProbeRequest false "探活参数"
+// @Success 200 {object} kernel.Envelope[StyleProbeResponse]
+// @Router /images/style-probe [post]
+func (h *Handler) ProbeStyles(c *gin.Context) {
+	var req StyleProbeRequest
+	// 允许空请求体：运营想直接探"最新一张图"时不该被迫构造 body。
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			res.FailWithMsg("参数错误", c)
+			return
+		}
+	}
+	report, err := h.svc.ProbeImageStyles(c.Request.Context(), req.ObjectKey)
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	items := make([]StyleProbeItem, 0, len(report.Items))
+	for _, row := range report.Items {
+		items = append(items, StyleProbeItem{
+			Tier:      row.Tier,
+			StyleName: row.StyleName,
+			URL:       row.URL,
+			Status:    row.Status,
+			Size:      row.Size,
+			Error:     row.Error,
+		})
+	}
+	res.OkWithData(StyleProbeResponse{ObjectKey: report.ObjectKey, Items: items}, c)
+}
+
 // List 图片列表（管理员）。
 // @Summary 图片列表
 // @Tags image
@@ -329,7 +507,16 @@ func (h *Handler) List(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
-	images, total, err := h.svc.List(c.Request.Context(), domain.Query{Page: req.Page, Limit: req.Limit, Key: req.Key})
+	query := domain.Query{Page: req.Page, Limit: req.Limit, Key: req.Key}
+	if trimmed := strings.TrimSpace(req.Status); trimmed != "" {
+		status := domain.StatusFromSuggestion(trimmed)
+		if status == domain.StatusUnknown {
+			res.FailWithMsg("状态筛选值不存在（可选：pending / review / pass / block / deleted / orphaned）", c)
+			return
+		}
+		query.Status = &status
+	}
+	images, total, err := h.svc.List(c.Request.Context(), query)
 	if err != nil {
 		res.FailWithError(err, c)
 		return
@@ -337,20 +524,22 @@ func (h *Handler) List(c *gin.Context) {
 	items := make([]ImageItem, 0, len(images))
 	for _, img := range images {
 		items = append(items, ImageItem{
-			ID:        img.ID,
-			CreatedAt: img.CreatedAt,
-			UserID:    img.UserID,
-			Provider:  string(img.Provider),
-			Bucket:    img.Bucket,
-			ObjectKey: img.ObjectKey,
-			FileName:  img.FileName,
-			URL:       img.URL,
-			MimeType:  img.MimeType,
-			Size:      img.Size,
-			Width:     img.Width,
-			Height:    img.Height,
-			Hash:      img.Hash,
-			Status:    uint(img.Status),
+			ID:          img.ID,
+			CreatedAt:   img.CreatedAt,
+			UserID:      img.UserID,
+			Provider:    string(img.Provider),
+			Bucket:      img.Bucket,
+			ObjectKey:   img.ObjectKey,
+			FileName:    img.FileName,
+			URL:         h.displayURL(c, imagedisplay.PurposeCover, img.URL),
+			MimeType:    img.MimeType,
+			Size:        img.Size,
+			Width:       img.Width,
+			Height:      img.Height,
+			Hash:        img.Hash,
+			Status:      uint(img.Status),
+			AuditStatus: img.Status.String(),
+			AuditLabel:  img.Status.Label(),
 		})
 	}
 	res.OkWithList(items, int(total), c)

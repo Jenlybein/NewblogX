@@ -40,7 +40,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.SiteRouter(api, runtimeMw)
 	router.SetAnalyticsHandler(analyticshttp.NewHandler(analyticsch.Options{}, analyticsmysql.NewStats(testutil.DB()), nil, nil, nil))
 	router.LogRouter(api, runtimeMw)
-	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
+	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService(), nil))
 	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, runtimeMw)
 	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{}, base64Captcha.DefaultMemStore, nil))
@@ -51,7 +51,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.UserRouter(api, runtimeMw)
 	// 旧 article_api 已删除，路由只来自新 handler；这里用空依赖的处理器
 	// 仅验证路由表，不发起真实请求。
-	router.SetArticleHandler(articlehttp.NewHandler(nil, nil, nil, nil, nil))
+	router.SetArticleHandler(articlehttp.NewHandler(nil, nil, nil, nil, nil, nil))
 	router.ArticleRouter(api, runtimeMw)
 	router.SetSearchHandler(searchhttp.NewHandler(nil, nil, nil, "", nil, nil))
 	router.SearchRouter(api, runtimeMw)

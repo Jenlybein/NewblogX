@@ -26,8 +26,17 @@ const (
 	StatusOrphaned
 	// StatusReviewing 审核中。
 	StatusReviewing
-	// StatusBlocked 违规封禁。
+	// StatusBlocked 违规封禁（终局）：对象已被删除，同哈希永久拒收。
 	StatusBlocked
+	// StatusPending 待审核（新图入库的默认状态）。
+	//
+	// 为什么把它放在最后而不是插在中间：已有库行的 status 是数字，插入会改变
+	// 既有取值的语义。新增值只加在末尾，历史数据不需要迁移。
+	//
+	// 语义上它和 StatusReviewing 都"不可展示"，区别在来源：Pending 是"还没有任何
+	// 结论"，Reviewing 是"机审疑似、等人工"。分开是为了让后台能按队列处理，
+	// 也让"待审超时堆积"这个告警只看 Pending 就够了。
+	StatusPending
 )
 
 // String 返回状态短名（与旧契约一致）。
@@ -43,10 +52,41 @@ func (s Status) String() string {
 		return "review"
 	case StatusBlocked:
 		return "block"
+	case StatusPending:
+		return "pending"
 	default:
 		return "unknown"
 	}
 }
+
+// Label 返回给运营看的中文短名（后台状态列用）。
+//
+// 与 String() 分开：String() 是契约里的机读短名（前端据此分支），
+// Label 只出现在后台表格里，改文案不影响任何逻辑。
+func (s Status) Label() string {
+	switch s {
+	case StatusPass:
+		return "已通过"
+	case StatusPending:
+		return "待审核"
+	case StatusReviewing:
+		return "疑似违规"
+	case StatusBlocked:
+		return "违规"
+	case StatusDeleted:
+		return "已删除"
+	case StatusOrphaned:
+		return "无引用"
+	default:
+		return "未知"
+	}
+}
+
+// Displayable 判断这个状态能否对外展示。
+//
+// 全站唯一的判据就这一处：只有 Pass 可以。闸门关掉时的放行由展示派生器决定，
+// 不在这里开口子 —— 否则"关闸门"会变成悄悄放宽数据语义。
+func (s Status) Displayable() bool { return s == StatusPass }
 
 // StatusFromSuggestion 把七牛审核建议映射成内部状态。
 func StatusFromSuggestion(suggestion string) Status {
@@ -61,6 +101,8 @@ func StatusFromSuggestion(suggestion string) Status {
 		return StatusDeleted
 	case "orphaned":
 		return StatusOrphaned
+	case "pending":
+		return StatusPending
 	default:
 		return StatusUnknown
 	}
@@ -166,14 +208,32 @@ type ImageInfo struct {
 
 // Config 是媒体的运行配置。
 type Config struct {
-	Enabled       bool
-	Bucket        string
+	Enabled bool
+	Bucket  string
+	// Uri 是资源访问基址（与 storage.uri 一致），探活要拼完整地址。
+	Uri           string
 	Prefix        string
 	Region        string
 	SizeMB        int
 	ExpirySeconds int
 	CallbackURL   string
 	Whitelist     []string
+
+	// —— 图片展示样式（ADR-0034）——
+	// 四档样式名留空表示该档用原图；分隔符必须与七牛控制台一致。
+	StyleCover     string
+	StyleAvatar    string
+	StyleContent   string
+	StyleChat      string
+	StyleDelimiter string
+	PrivateRead    bool
+	DownloadExpiry int
+
+	// —— 图片内容审核（ADR-0034）——
+	AuditEnabled     bool
+	AuditTimeout     int
+	AuditAutoDelete  bool
+	AuditGateEnabled bool
 }
 
 // MaxSize 返回字节上限。
@@ -184,6 +244,11 @@ type Query struct {
 	Page  int
 	Limit int
 	Key   string
+	// Status 按审核状态筛选（nil 表示不筛）。
+	//
+	// 后台最常用的两个筛法是"待审核 + 疑似"（待审队列）与"违规"（复核），
+	// 没有它运营只能翻页找。
+	Status *Status
 }
 
 // Normalize 收敛分页（默认 10、上限 100）。
@@ -237,6 +302,26 @@ type ObjectStorage interface {
 	Delete(bucket, key string) error
 	ImageInfo(key string) (ImageInfo, error)
 	ObjectURL(key string) string
+	// Probe 探测一条完整 URL 的状态码与字节数（后台样式探活用）。
+	Probe(ctx context.Context, rawURL string) ProbeResult
+	// Censor 主动调用内容审核，返回管控建议（pass / review / block）。
+	//
+	// 返回 error 表示审核没跑起来（网络/鉴权/接口变更），调用方必须保持待审核，
+	// 不能把"调用失败"当成"通过"。
+	Censor(ctx context.Context, bucket, objectKey string) (suggestion string, err error)
+	// SetEnabled 在存储侧启用/禁用对象（疑似违规时禁掉，人工放行时解禁）。
+	SetEnabled(ctx context.Context, bucket, objectKey string, enabled bool) error
+}
+
+// ProbeResult 是一次 URL 探测的结果。
+//
+// 为什么需要它：七牛的图片样式名填错时返回 **404 而不是回退原图**，
+// 后台没有探活就只能等线上图片全裂才发现。
+type ProbeResult struct {
+	Status int
+	Size   int64
+	// Error 非空表示探测本身失败（网络错误等），此时 Status 为 0。
+	Error string
 }
 
 // IDGenerator 生成图片与任务 ID。

@@ -59,7 +59,7 @@ func WireSite(infra *Infra) {
 	})
 	router.SetSiteHandler(sitehttp.NewHandler(svc, func(ip, userAgent string) {
 		redis_site.SetFlow(redisOpts, ip, userAgent)
-	}, sitehttp.WithSidebar(sidebar)))
+	}, sitehttp.WithSidebar(sidebar), sitehttp.WithDisplay(ImageDisplay())))
 }
 
 // siteImageResolver 把 media 模块的图片查询适配成站点模块的端口。

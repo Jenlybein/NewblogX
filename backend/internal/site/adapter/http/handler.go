@@ -11,8 +11,10 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/imagedisplay"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
+	"myblogx/utils/jwts"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 )
@@ -32,10 +34,18 @@ type Handler struct {
 	// 属于接入层的事；用例层不需要知道流量是怎么计的。
 	// 为 nil 时跳过（单测/路由表测试不关心计数）。
 	onPublicSiteView func(ip, userAgent string)
+
+	// display 是图片展示派生器（ADR-0034）：轮播封面在这里统一过样式与闸门。
+	display *imagedisplay.Resolver
 }
 
 // Option 是 Handler 的可选依赖。
 type Option func(*Handler)
+
+// WithDisplay 注入图片展示派生器（ADR-0034）。
+func WithDisplay(display *imagedisplay.Resolver) Option {
+	return func(h *Handler) { h.display = display }
+}
 
 // WithSidebar 注入右栏卡片服务。
 func WithSidebar(sidebar *app.SidebarService) Option {
@@ -143,8 +153,14 @@ func (h *Handler) BannerList(c *gin.Context) {
 		return
 	}
 	list := make([]BannerItem, 0, len(rows))
+	// 轮播封面统一走展示派生：一次批量判定，避免 N 次查库。
+	covers := make([]imagedisplay.Item, 0, len(rows))
 	for _, row := range rows {
-		list = append(list, toBannerItem(row))
+		covers = append(covers, imagedisplay.Item{URL: row.Cover, Purpose: imagedisplay.PurposeCover})
+	}
+	derived := imagedisplay.MustResolve(c.Request.Context(), h.display, bannerViewer(c), covers)
+	for i, row := range rows {
+		list = append(list, toBannerItem(row, derived[i]))
 	}
 	res.OkWithHasMoreList(list, hasMore, c)
 }
@@ -264,14 +280,23 @@ func (h *Handler) BannerRemove(c *gin.Context) {
 	})
 }
 
+// bannerViewer 判定"当前请求是不是管理员在看"。
+//
+// 轮播列表是公开端点，但后台管理页也复用同一个接口：管理员要能看到未过审的封面
+// 才能决定放不放行，普通读者只看已过审的。
+func bannerViewer(c *gin.Context) imagedisplay.Viewer {
+	claims := jwts.GetClaimsByGin(c)
+	return imagedisplay.Viewer{IsAdmin: claims != nil && claims.IsAdmin()}
+}
+
 // toBannerItem 把领域实体转成旧契约的 JSON 形状。
-func toBannerItem(b domain.Banner) BannerItem {
+func toBannerItem(b domain.Banner, cover string) BannerItem {
 	item := BannerItem{
 		ID:        b.ID,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
 		Show:      b.Show,
-		Cover:     b.Cover,
+		Cover:     cover,
 		Href:      b.Href,
 		Title:     b.Title,
 	}

@@ -5,6 +5,7 @@
 package qiniu
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"myblogx/internal/apperr"
@@ -203,4 +204,71 @@ func (s *Storage) ObjectURL(key string) string {
 		return ""
 	}
 	return storage.MakePublicURLv2(domain, key)
+}
+
+// PrivateURL 拼接带下载凭证的访问地址（私有空间）。
+//
+// 参数 key 是**已拼好样式后缀**的对象名，例如 `myblogx/images/20261102/hash-small`。
+// 顺序不能反：七牛的下载凭证是对完整 URL 计算的，先对原图签名再往后追加 `-style`
+// 会让令牌失效，表现为图片全部 401（官方文档「带图片样式的私有空间文件授权」）。
+// SDK 内部会对 key 做 URL 编码，所以带后缀的 key 能正确参与签名。
+func (s *Storage) PrivateURL(key string, expiry time.Duration) string {
+	domain := s.mediaBase()
+	if domain == "" || strings.TrimSpace(key) == "" {
+		return ""
+	}
+	if expiry <= 0 {
+		expiry = defaultDownloadExpiry
+	}
+	deadline := time.Now().Add(expiry).Unix()
+	return storage.MakePrivateURLv2(getRuntime(s.cfg).mac, domain, key, deadline)
+}
+
+// defaultDownloadExpiry 是"没配有效期"时的回落值（一小时）。
+//
+// 与上传凭证的 expiry 无关：那个只有几十秒到几分钟，拿来给图片链接签名会让
+// 页面上的图很快全部 401。
+const defaultDownloadExpiry = time.Hour
+
+// ProbeResult 是一次探活的结果。
+type ProbeResult struct {
+	Status int
+	Size   int64
+	// Error 非空表示这次探测本身失败（网络错误等），此时 Status 为 0。
+	Error string
+}
+
+// Probe 对一条完整 URL 发一次 HEAD，拿回状态码与字节数。
+//
+// 用途是后台的「样式探活」：样式名填错时七牛返回 **404 而不是回退原图**，
+// 没有这一步只能等线上图片全裂才发现。
+func (s *Storage) Probe(ctx context.Context, rawURL string) ProbeResult {
+	if strings.TrimSpace(rawURL) == "" {
+		return ProbeResult{Error: "地址为空"}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, rawURL, nil)
+	if err != nil {
+		return ProbeResult{Error: err.Error()}
+	}
+	resp, err := getRuntime(s.cfg).httpClient.Do(req)
+	if err != nil {
+		return ProbeResult{Error: err.Error()}
+	}
+	defer resp.Body.Close()
+
+	result := ProbeResult{Status: resp.StatusCode, Size: resp.ContentLength}
+	if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
+		// 少数 CDN 不实现 HEAD：退回一次 GET，只要响应头，不读 body。
+		getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		if err != nil {
+			return ProbeResult{Error: err.Error()}
+		}
+		getResp, err := getRuntime(s.cfg).httpClient.Do(getReq)
+		if err != nil {
+			return ProbeResult{Error: err.Error()}
+		}
+		defer getResp.Body.Close()
+		result = ProbeResult{Status: getResp.StatusCode, Size: getResp.ContentLength}
+	}
+	return result
 }

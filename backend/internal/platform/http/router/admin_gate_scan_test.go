@@ -123,9 +123,13 @@ var adminRouteTemplates = []string{
 	"POST /api/banners",
 	"PUT /api/banners/:id",
 	"DELETE /api/banners",
-	// 图片管理（上传是所有登录用户，列表/删除只给管理员）
+	// 图片管理（上传是所有登录用户，列表/删除/探活只给管理员）
 	"GET /api/images",
 	"DELETE /api/images",
+	// 样式探活（ADR-0034）：只给管理员，且它会对存储发起真实请求。
+	"POST /api/images/style-probe",
+	// 人工审核（ADR-0034）：放行/驳回只给管理员。
+	"POST /api/images/:id/audit",
 	// AI 供应商（AI 生成类接口是登录用户可用，供应商管理只给管理员）
 	"GET /api/ai/providers",
 	"GET /api/ai/providers/vendors",

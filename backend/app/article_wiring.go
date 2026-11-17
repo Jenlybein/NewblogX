@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	aiapp "myblogx/internal/ai/app"
+	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/apperr"
 	articlehttp "myblogx/internal/article/adapter/http"
 	"myblogx/internal/article/adapter/mysql"
@@ -16,10 +17,9 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
-	"myblogx/internal/analytics/adapter/clickhouse"
-	"myblogx/internal/article/domain/grouping"
 	filterapp "myblogx/internal/filter/app"
 	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
@@ -54,6 +54,7 @@ func WireArticle(infra *Infra) {
 		infra.Effective,
 		viewerFromContext,
 		&imageResolver{db: infra.DB},
+		ImageDisplay(),
 	)
 	router.SetArticleHandler(h)
 }
@@ -348,4 +349,3 @@ func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateIn
 		Issues:     issues,
 	}, nil
 }
-

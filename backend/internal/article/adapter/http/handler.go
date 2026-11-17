@@ -17,6 +17,7 @@ import (
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/imagedisplay"
 	"myblogx/utils/markdown"
 )
 
@@ -44,10 +45,13 @@ type Handler struct {
 	effective *sitecfg.EffectiveConfig
 	viewer    ViewerResolver
 	images    ImageResolver
+	// display 是图片展示派生器（ADR-0034）：封面与作者头像在这里统一过样式与闸门。
+	// nil 表示未装配（测试），此时原样返回库里的地址。
+	display *imagedisplay.Resolver
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service, logger *logrus.Logger, effective *sitecfg.EffectiveConfig, viewer ViewerResolver, images ImageResolver) *Handler {
+func NewHandler(svc *app.Service, logger *logrus.Logger, effective *sitecfg.EffectiveConfig, viewer ViewerResolver, images ImageResolver, display *imagedisplay.Resolver) *Handler {
 	if viewer == nil {
 		viewer = anonymousViewer
 	}
@@ -57,7 +61,7 @@ func NewHandler(svc *app.Service, logger *logrus.Logger, effective *sitecfg.Effe
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 	}
-	return &Handler{svc: svc, logger: logger, effective: effective, viewer: viewer, images: images}
+	return &Handler{svc: svc, logger: logger, effective: effective, viewer: viewer, images: images, display: display}
 }
 
 // anonymousViewer 是兜底：没有鉴权信息时一律当匿名。
@@ -157,7 +161,7 @@ func (h *Handler) Detail(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithData(h.toDetailResponse(c.Request.Context(), view), c)
+	res.OkWithData(h.toDetailResponse(c.Request.Context(), h.viewer(c), view), c)
 }
 
 // ── 创建 ──
@@ -307,7 +311,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	res.OkWithData(ArticleUpdateResponse{
-		ArticleDetailResponse: h.toDetailResponse(c.Request.Context(), view),
+		ArticleDetailResponse: h.toDetailResponse(c.Request.Context(), h.viewer(c), view),
 		FilteredCount:         updated.FilteredCount,
 	}, c)
 }

@@ -89,6 +89,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// 必须早于 outbox：中继的订阅者要靠它发通知。
 	WireNotification(infra)
 
+	// 违规计分（ADR-0035）：必须在 media / filter / user / notification 都就绪之后 ——
+	// 它要把三个模块的窄接口接成"记分 → 处罚 → 通知"这条链。
+	WireModeration(infra)
+
 	// search 链路：路由改由 internal/search 提供。
 	WireSearch(infra)
 

@@ -60,7 +60,6 @@ import type {
   ContentFilterHandleResult,
   ContentFilterHandleBatchResult,
   ContentFilterWordStatsData,
-  UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
   GroupTreeData,
@@ -654,14 +653,6 @@ export function updateLogRuntimeConfig(payload: LogRuntimeConfig) {
   return updateRuntimeSection('log', payload)
 }
 
-export function getUploadRuntimeConfig() {
-  return getRuntimeSection<UploadRuntimeConfig>('upload')
-}
-
-export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
-  return updateRuntimeSection('upload', payload)
-}
-
 /** 装饰段（deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
@@ -813,6 +804,7 @@ export function unmuteAdminUser(userId: string) {
     body: { user_id: userId },
   })
 }
+
 
 
 

@@ -44,7 +44,7 @@ func WireMedia(infra *Infra) {
 				CallbackURL:   qiniuCfg.CallbackURL,
 				// 白名单已从「上传策略」段并进 storage 段（票 410），
 				// 迁移期用合并口径：storage 非空取 storage，为空回落旧段。
-				Whitelist: domain.EffectiveWhitelist(qiniuCfg.Whitelist, infra.RuntimeSite.GetRuntimeUpload().Whitelist),
+				Whitelist: domain.EffectiveWhitelist(qiniuCfg.Whitelist),
 
 				// 图片展示样式与审核（ADR-0034）：探活端点要能看到样式名，
 				// 审核相关字段供后续闸门使用。

@@ -7,74 +7,53 @@ import (
 	"myblogx/internal/media/domain"
 )
 
-// TestEffectiveWhitelist 钉住"storage 优先、为空回落 upload"的合并口径。
+// TestEffectiveWhitelist 钉住归一化口径：小写、去空白、去点、去重、保序。
 //
-// 这条规则决定上传门禁的放行集合，写歪了的后果是"合法后缀被拒"或"不该放的放进来"，
-// 所以每个分支都要有一条用例。
+// 「上传策略」段退场后（票 418）白名单只有一个来源，所以这里不再有
+// "storage 优先 / 回落 upload" 的分支 —— 那条规则连着段一起删掉了。
 func TestEffectiveWhitelist(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name    string
 		storage []string
-		upload  []string
 		want    []string
 	}{
-		{
-			name:    "storage 非空时以 storage 为准",
-			storage: []string{"png", "webp"},
-			upload:  []string{"jpg", "gif"},
-			want:    []string{"png", "webp"},
-		},
-		{
-			name:    "storage 为空回落 upload",
-			storage: nil,
-			upload:  []string{"jpg", "gif"},
-			want:    []string{"jpg", "gif"},
-		},
-		{
-			name:    "storage 只有空白项也算空，回落 upload",
-			storage: []string{"", "   "},
-			upload:  []string{"png"},
-			want:    []string{"png"},
-		},
-		{
-			name:    "两者都空返回空列表",
-			storage: nil,
-			upload:  nil,
-			want:    []string{},
-		},
-		{
-			name:    "归一化：去空白、转小写、去点、去重且保持顺序",
-			storage: []string{" PNG ", ".Jpg", "png", "", "gif"},
-			upload:  nil,
-			want:    []string{"png", "jpg", "gif"},
-		},
+		{"大小写与空白", []string{" PNG ", "jpg"}, []string{"png", "jpg"}},
+		{"去重保序", []string{"gif", "png", "gif"}, []string{"gif", "png"}},
+		{"带点的写法也认", []string{".webp", "bmp"}, []string{"webp", "bmp"}},
+		{"空项被丢掉", []string{"", "  ", "png"}, []string{"png"}},
+		{"没配就是空", nil, []string{}},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-			got := domain.EffectiveWhitelist(c.storage, c.upload)
-			if !reflect.DeepEqual(got, c.want) {
+			got := domain.EffectiveWhitelist(c.storage)
+			if len(got) != len(c.want) {
 				t.Fatalf("EffectiveWhitelist = %v，期望 %v", got, c.want)
+			}
+			for i := range c.want {
+				if got[i] != c.want[i] {
+					t.Fatalf("第 %d 项 = %q，期望 %q", i, got[i], c.want[i])
+				}
 			}
 		})
 	}
 }
 
-// TestEffectiveWhitelistDoesNotMutateInput 保证合并不会就地改写入参。
+// TestEffectiveWhitelistDoesNotMutateInput 保证归一化不会就地改写入参。
 //
-// 入参来自运行时配置快照，就地改会把"后台填的原样"污染成归一化后的样子，
-// 下次保存时又会把这份被改过的值写回去。
+// 入参直接来自运行时配置的缓存对象；就地改写会让"后台看到的"与"实际生效的"
+// 悄悄分叉，而且下一次保存会把改过的值写回库。
 func TestEffectiveWhitelistDoesNotMutateInput(t *testing.T) {
 	t.Parallel()
 
-	storage := []string{" PNG "}
-	upload := []string{" jpg "}
-	_ = domain.EffectiveWhitelist(storage, upload)
+	storage := []string{" PNG ", "png"}
+	before := append([]string(nil), storage...)
 
-	if storage[0] != " PNG " || upload[0] != " jpg " {
-		t.Fatalf("入参被就地改写: storage=%v upload=%v", storage, upload)
+	_ = domain.EffectiveWhitelist(storage)
+
+	if !reflect.DeepEqual(storage, before) {
+		t.Fatalf("入参被改写了: %v", storage)
 	}
 }

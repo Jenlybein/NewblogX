@@ -3592,6 +3592,148 @@
                 },
                 "type": "object"
             },
+            "internal_moderation_adapter_http.AppealItem": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "event_id": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "note": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "pending",
+                            "approved",
+                            "rejected"
+                        ],
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_moderation_adapter_http.AppealRequest": {
+                "properties": {
+                    "event_id": {
+                        "type": "integer"
+                    },
+                    "reason": {
+                        "maxLength": 512,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "event_id",
+                    "reason"
+                ],
+                "type": "object"
+            },
+            "internal_moderation_adapter_http.EventItem": {
+                "properties": {
+                    "can_appeal": {
+                        "description": "CanAppeal 是后端算好的\"现在还能不能申诉\"：窗口判断只在服务端做一次，\n前端不重复实现时间规则。",
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "evidence": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "level": {
+                        "enum": [
+                            "keyword",
+                            "image",
+                            "general",
+                            "severe"
+                        ],
+                        "type": "string"
+                    },
+                    "ref_id": {
+                        "type": "integer"
+                    },
+                    "ref_type": {
+                        "type": "string"
+                    },
+                    "score": {
+                        "type": "integer"
+                    },
+                    "source": {
+                        "enum": [
+                            "machine",
+                            "manual"
+                        ],
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "active",
+                            "revoked"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_moderation_adapter_http.HandleAppealRequest": {
+                "properties": {
+                    "approve": {
+                        "type": "boolean"
+                    },
+                    "note": {
+                        "maxLength": 512,
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_moderation_adapter_http.SummaryResponse": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_moderation_adapter_http.EventItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "punishment": {
+                        "enum": [
+                            "none",
+                            "mute_1d",
+                            "mute_7d",
+                            "mute_30d",
+                            "manual_review"
+                        ],
+                        "type": "string"
+                    },
+                    "punishment_label": {
+                        "description": "PunishmentLabel 是给用户看的中文档位说明。",
+                        "type": "string"
+                    },
+                    "score": {
+                        "description": "Score 是有效分（保留一位小数）：衰减是连续函数，取整会让用户对不上账。",
+                        "type": "number"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_notification_adapter_http.ConfRequest": {
                 "properties": {
                     "comment_notice_enabled": {
@@ -4934,32 +5076,6 @@
                     },
                     "whitelist": {
                         "description": "Whitelist 是可上传的文件后缀（不带点，小写）。\n\n从「上传策略」段并过来（票 410）：对象存储从此是\"能不能传、传多大、什么格式\"\n的唯一事实源。旧 upload 段在退场前仍保留，读取口径见 domain.EffectiveWhitelist：\n本字段非空则以本字段为准，为空才回落旧段，保证迁移期行为不变。",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "internal_site_adapter_http.SiteSectionUploadRequest": {
-                "properties": {
-                    "whitelist": {
-                        "description": "Whitelist 允许上传的图片后缀；前后端与格式探测都会用它",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "internal_site_adapter_http.SiteSectionUploadResponse": {
-                "properties": {
-                    "whitelist": {
-                        "description": "Whitelist 允许上传的图片后缀；前后端与格式探测都会用它",
                         "items": {
                             "type": "string"
                         },
@@ -6883,6 +6999,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_moderation_adapter_http.AppealItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_SummaryResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_moderation_adapter_http.SummaryResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_notification_adapter_http_ConfRequest": {
                 "properties": {
                     "code": {
@@ -7156,20 +7300,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionStorageResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionUploadResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7737,6 +7867,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_moderation_adapter_http_AppealItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_moderation_adapter_http_AppealItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_user_adapter_http_AdminUserItemResponse": {
                 "properties": {
                     "code": {
@@ -8288,6 +8432,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_media_adapter_http.ImageItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_moderation_adapter_http_AppealItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_moderation_adapter_http.AppealItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -14225,6 +14384,153 @@
                 ]
             }
         },
+        "/moderation/appeals": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "状态筛选：pending / approved / rejected",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_moderation_adapter_http_AppealItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "申诉列表",
+                "tags": [
+                    "moderation"
+                ]
+            }
+        },
+        "/moderation/appeals/{id}/handle": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "申诉 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_moderation_adapter_http.HandleAppealRequest",
+                                "summary": "body",
+                                "description": "处置结果"
+                            }
+                        }
+                    },
+                    "description": "处置结果",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "处置申诉",
+                "tags": [
+                    "moderation"
+                ]
+            }
+        },
+        "/moderation/me": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_SummaryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "我的违规记录",
+                "tags": [
+                    "moderation"
+                ]
+            }
+        },
+        "/moderation/me/appeals": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_moderation_adapter_http.AppealRequest",
+                                "summary": "body",
+                                "description": "申诉内容"
+                            }
+                        }
+                    },
+                    "description": "申诉内容",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "提交申诉",
+                "tags": [
+                    "moderation"
+                ]
+            }
+        },
         "/projects": {
             "get": {
                 "parameters": [
@@ -15371,31 +15677,6 @@
                 ]
             }
         },
-        "/site/admin/upload": {
-            "get": {
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "获取 upload 段运行时配置（管理员）",
-                "tags": [
-                    "site"
-                ]
-            }
-        },
         "/site/ai": {
             "put": {
                 "requestBody": {
@@ -15925,44 +16206,6 @@
                     }
                 ],
                 "summary": "更新 storage 段运行时配置（管理员）",
-                "tags": [
-                    "site"
-                ]
-            }
-        },
-        "/site/upload": {
-            "put": {
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionUploadRequest",
-                                "summary": "body",
-                                "description": "upload 段配置"
-                            }
-                        }
-                    },
-                    "description": "upload 段配置",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "更新 upload 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]

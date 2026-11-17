@@ -69,6 +69,8 @@ type Service struct {
 	clock   domain.Clock
 	logger  domain.Logger
 	cfg     func() domain.Config
+	// violations 是"判定违规 → 违规计分"的上报口（ADR-0035），可为 nil。
+	violations ViolationRecorder
 }
 
 // New 构造媒体服务。
@@ -511,6 +513,11 @@ func (s *Service) applyStatus(ctx context.Context, image *domain.Image, status d
 		return err
 	}
 	image.Status = status
+
+	// 判定违规先上报计分：删对象可能失败，但"这个人违规了"这件事已经成立。
+	if status == domain.StatusBlocked {
+		s.recordViolation(ctx, image)
+	}
 
 	if status != domain.StatusBlocked || !s.cfg().AuditAutoDelete {
 		return nil

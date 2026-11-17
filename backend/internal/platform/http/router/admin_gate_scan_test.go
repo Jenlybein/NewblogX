@@ -87,7 +87,6 @@ var adminRouteTemplates = []string{
 	"GET /api/site/admin/oauth",
 	"GET /api/site/admin/sms",
 	"GET /api/site/admin/log",
-	"GET /api/site/admin/upload",
 	"GET /api/site/admin/deco",
 	"GET /api/site/admin/image_gc",
 	"GET /api/site/admin/sidebar_cards",
@@ -99,7 +98,6 @@ var adminRouteTemplates = []string{
 	"PUT /api/site/oauth",
 	"PUT /api/site/sms",
 	"PUT /api/site/log",
-	"PUT /api/site/upload",
 	"PUT /api/site/deco",
 	"PUT /api/site/image_gc",
 	// 内容过滤词表（第 11 段，ADR-0032）：词表不给任何匿名/普通用户读，
@@ -130,6 +128,9 @@ var adminRouteTemplates = []string{
 	"POST /api/images/style-probe",
 	// 人工审核（ADR-0034）：放行/驳回只给管理员。
 	"POST /api/images/:id/audit",
+	// 违规计分与申诉（ADR-0035）：申诉列表与处置只给管理员。
+	"GET /api/moderation/appeals",
+	"POST /api/moderation/appeals/:id/handle",
 	// AI 供应商（AI 生成类接口是登录用户可用，供应商管理只给管理员）
 	"GET /api/ai/providers",
 	"GET /api/ai/providers/vendors",
@@ -185,6 +186,9 @@ var adminRouteTemplates = []string{
 var userRouteTemplates = []string{
 	// 站点地图：公开只读（爬虫与匿名读者都要能取），不进 ES、不做鉴权。
 	"GET /api/sitemap.xml",
+	// 违规计分与申诉（ADR-0035）：用户看自己的记录并申诉，登录即可、不要管理员。
+	"GET /api/moderation/me",
+	"POST /api/moderation/me/appeals",
 	// 健康检查 / 静态
 	"GET /health",
 	"GET /health/ready",

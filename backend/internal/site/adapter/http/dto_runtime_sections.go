@@ -35,9 +35,6 @@ type SiteSectionSmsRequest conf.SMS
 type SiteSectionLogResponse conf.Logrus
 type SiteSectionLogRequest conf.Logrus
 
-type SiteSectionUploadResponse conf.Upload
-type SiteSectionUploadRequest conf.Upload
-
 type SiteSectionDecoResponse conf.Deco
 type SiteSectionDecoRequest conf.Deco
 

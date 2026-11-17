@@ -22,10 +22,10 @@ import (
 	adapterredis "myblogx/internal/chat/adapter/redis"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
-	"myblogx/internal/platform/secretbox"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
+	"myblogx/internal/platform/secretbox"
 	sitehttp "myblogx/internal/site/adapter/http"
 	siteapp "myblogx/internal/site/app"
 	"myblogx/internal/testkit/schema"
@@ -233,8 +233,9 @@ func TestEffectiveConfig_所有段具名出入口全部登记且往返可读(t *
 	f := newEffectiveFixture(t)
 
 	names := f.effective.SectionNames()
-	if len(names) != 12 {
-		t.Fatalf("十二段应全部登记，实际 %d 段: %v", len(names), names)
+	// upload 段退场后是 11 段（票 418）。
+	if len(names) != 11 {
+		t.Fatalf("十一段应全部登记，实际 %d 段: %v", len(names), names)
 	}
 	for _, name := range names {
 		if !f.effective.HasSection(string(name)) {
@@ -334,17 +335,7 @@ func TestEffectiveConfig_所有段具名出入口全部登记且往返可读(t *
 					t.Fatalf("log 段往返失败: %+v", v)
 				}
 			}},
-		{"upload", f.handler.UpdateUploadSection, f.handler.AdminUploadSection,
-			`{"whitelist":["webp"]}`,
-			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct {
-					Whitelist []string `json:"whitelist"`
-				}
-				readSection(t, rec, &v)
-				if len(v.Whitelist) != 1 || v.Whitelist[0] != "webp" {
-					t.Fatalf("upload 段往返失败: %+v", v)
-				}
-			}},
+
 		{"deco", f.handler.UpdateDecoSection, f.handler.AdminDecoSection,
 			`{"charm":{"enable":false}}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {

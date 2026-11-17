@@ -277,7 +277,6 @@ export type StorageRuntimeConfig = RequiredSchema<"internal_site_adapter_http.Si
 export type OAuthRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionOauthResponse">
 export type SMSRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSmsResponse">
 export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionLogResponse">
-export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
 export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
 export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
 
@@ -436,6 +435,7 @@ export type ContentFilterHandleBatchItem = RequiredSchema<"internal_filter_adapt
 
 /** 批量处置的 data 载荷：`{results}`。 */
 export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_adapter_http.HandleBatchResponse">
+
 
 
 

@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -109,9 +108,11 @@ func TestDecodeSection_缺字段回退默认值(t *testing.T) {
 }
 
 func TestDecodeSection_段缺失时整段用默认值(t *testing.T) {
-	defaults := conf.Upload{Whitelist: []string{"jpg", "png"}}
+	// 用 storage 段做样本（upload 段已随票 418 退场）：它的白名单是切片，
+	// 足以证明"段缺失 → 整段取默认值"。
+	defaults := conf.QiNiu{Whitelist: []string{"jpg", "png"}}
 
-	got, err := decodeSection(SectionUpload, defaults, map[string]string{})
+	got, err := decodeSection(SectionStorage, defaults, map[string]string{})
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -171,8 +172,9 @@ func TestInitRuntimeConfig_给缺失段补默认行(t *testing.T) {
 	// 行数按注册表的段清单（现在十二段，第 12 段 captcha 见 ADR-0033）：
 	// 每段一行"完整默认值 JSON"，少一段就等于那一段在库里没有行、只能靠缓存回退，
 	// 多一段则说明有段名被写了两次（两行同名的段谁生效取决于查询顺序）。
-	if count != 12 {
-		t.Fatalf("十二段都应补一行，实际 %d 行", count)
+	// upload 段退场后是 11 段（票 418）。
+	if count != 11 {
+		t.Fatalf("十一段都应补一行，实际 %d 行", count)
 	}
 
 	// 补进去的内容必须是该段默认值的完整 JSON，不能是空字符串。
@@ -288,9 +290,6 @@ func TestUpdateSections_各段互不影响(t *testing.T) {
 	if err := svc.UpdateOAuth(conf.QQ{AppID: "app1"}); err != nil {
 		t.Fatalf("更新 oauth 失败: %v", err)
 	}
-	if err := svc.UpdateUpload(conf.Upload{Whitelist: []string{"webp"}}); err != nil {
-		t.Fatalf("更新 upload 失败: %v", err)
-	}
 	if err := svc.UpdateLog(conf.Logrus{Level: "warn"}); err != nil {
 		t.Fatalf("更新 log 失败: %v", err)
 	}
@@ -300,9 +299,6 @@ func TestUpdateSections_各段互不影响(t *testing.T) {
 	}
 	if svc.GetRuntimeOAuth().AppID != "app1" {
 		t.Fatalf("oauth 未更新: %+v", svc.GetRuntimeOAuth())
-	}
-	if list := svc.GetRuntimeUpload().Whitelist; len(list) != 1 || list[0] != "webp" {
-		t.Fatalf("upload 未更新: %+v", list)
 	}
 	if svc.GetRuntimeLog().Level != "warn" {
 		t.Fatalf("log 未更新: %+v", svc.GetRuntimeLog())
@@ -454,7 +450,8 @@ func TestDefaultSettingsYaml_段名与常量对齐(t *testing.T) {
 	// 故意不写在这里（见 InitRuntimeSite 的注释）。
 	want := []string{
 		SectionSite, SectionAI, SectionMail,
-		SectionStorage, SectionOAuth, SectionSMS, SectionUpload, SectionDeco, SectionImageGC,
+		// upload 段已退场（票 418）：白名单并入 storage，段数 12 → 11。
+		SectionStorage, SectionOAuth, SectionSMS, SectionDeco, SectionImageGC,
 		SectionContentFilter,
 	}
 	for _, name := range want {
@@ -476,8 +473,10 @@ func TestDefaultSettingsYaml_存储段自带上传白名单(t *testing.T) {
 	}
 
 	var top struct {
-		Storage conf.QiNiu  `yaml:"storage"`
-		Upload  conf.Upload `yaml:"upload"`
+		Storage conf.QiNiu `yaml:"storage"`
+		// upload 段必须**不存在**了（票 418 已退场）：留着它等于留一份
+		// 与 storage 无关的第二事实源，迟早会有人改错那一段然后发现不生效。
+		Upload map[string]any `yaml:"upload"`
 	}
 	if err := yaml.Unmarshal(raw, &top); err != nil {
 		t.Fatalf("解析默认值文件失败: %v", err)
@@ -486,13 +485,8 @@ func TestDefaultSettingsYaml_存储段自带上传白名单(t *testing.T) {
 	if len(top.Storage.Whitelist) == 0 {
 		t.Fatal("storage.whitelist 不能为空：空白名单等于拒绝一切上传")
 	}
-
-	// 迁移期两段必须一致：读取口径是"storage 优先、为空回落 upload"，
-	// 一旦默认值里两边漂移，同一个站点会因为"读哪一段"而放行不同后缀 ——
-	// 这种偏差在 upload 段退场前很难被发现。
-	if !reflect.DeepEqual(top.Storage.Whitelist, top.Upload.Whitelist) {
-		t.Fatalf("storage.whitelist %v 与 upload.whitelist %v 不一致（迁移期必须同步）",
-			top.Storage.Whitelist, top.Upload.Whitelist)
+	if top.Upload != nil {
+		t.Fatal("site_default_settings.yaml 不该再有 upload 段：白名单的唯一事实源是 storage")
 	}
 }
 
@@ -511,10 +505,6 @@ mail:
 storage:
   region: z2
   size: 5
-upload:
-  whitelist:
-    - jpg
-    - png
 `
 	if err := os.WriteFile(filepath.Join(dir, "site_default_settings.yaml"), []byte(defaultsYAML), 0o644); err != nil {
 		t.Fatalf("写默认值文件失败: %v", err)
@@ -529,9 +519,6 @@ upload:
 	}
 	if defaults.Storage.Size != 5 {
 		t.Fatalf("storage 段未读到: %+v", defaults.Storage)
-	}
-	if len(defaults.Upload.Whitelist) != 2 {
-		t.Fatalf("upload 段未读到: %+v", defaults.Upload)
 	}
 }
 
@@ -566,7 +553,6 @@ func TestAllSections_都有jsonTag(t *testing.T) {
 		SectionStorage:       conf.QiNiu{},
 		SectionOAuth:         conf.QQ{},
 		SectionLog:           conf.Logrus{},
-		SectionUpload:        conf.Upload{},
 		SectionDeco:          conf.Deco{},
 		SectionImageGC:       conf.ImageGC{},
 		SectionContentFilter: conf.ContentFilter{},

@@ -116,7 +116,6 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'oauth', label: '第三方登录', path: '/site/oauth', component: 'SettingsOAuth', blocks: [] },
   { key: 'sms', label: '短信', path: '/site/sms', component: 'SettingsSMS', blocks: [] },
   { key: 'log', label: '日志', path: '/site/log', component: 'SettingsLog', blocks: [] },
-  { key: 'upload', label: '上传策略', path: '/site/upload', component: 'SettingsUpload', blocks: [] },
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
 ]
 
@@ -141,3 +140,4 @@ export function siteSettingsSectionByKey(key: SiteSettingsKey): SiteSettingsSect
 export function siteSectionBlocks(section: SiteSettingsSection): readonly SiteSectionBlock[] {
   return section.blocks
 }
+

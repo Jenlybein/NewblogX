@@ -39,12 +39,14 @@ const (
 	MaxCaptchaDotCount = 20
 	// MaxCaptchaSourceRunes 是字符集的字符数上限（防一次填几万个字符）。
 	MaxCaptchaSourceRunes = 128
+	// MaxCaptchaFailMessageRunes 是失败文案的字符数上限（给读者看的一句话，不是日志）。
+	MaxCaptchaFailMessageRunes = 80
 )
 
 // DefaultCaptchaSource 是字符型验证码的默认字符集。
 //
-// 旧实现的字符集是 `123456789ABCDEFGHIJKLHIJKLMNOPQRSTUVWXYZ`，里面有重复字母
-// （IJKL 拼了两遍），等于把可用字符数悄悄砍掉一半。这里按"数字 + 大写字母、
+// 旧实现的字符集是 `123456789ABCDEFGHIJKLHIJKLMNOPQRSTUVWXYZ`，`H` / `I` / `J` / `K` / `L`
+// 各有两处（重复了 5 个字符，40 个字符只剩 35 个可用）。这里按"数字 + 大写字母、
 // 去掉易混的 0/O/1/I/L"给一份明确的默认值：易混字符只会制造"我看对了却填错"的投诉。
 const DefaultCaptchaSource = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 
@@ -135,11 +137,17 @@ func NormalizeCaptcha(input conf.Captcha) (conf.Captcha, error) {
 		}
 	}
 
-	// 噪点只对字符型 / 算术型有意义；纯数字驱动不收这项，统一写 0。
+	// 噪点只对字符型 / 算术型有意义；纯数字驱动不收这项，统一写 0（表示不适用）。
+	//
+	// 注意 0 在这里是**合法值**（"不放噪点"而不是"没填"）：字段注释与后台提示都
+	// 承诺了这一点，用 defaultIfZero 会把它悄悄改成 3，运营回读看到 3 却不知道
+	// 自己填的 0 去哪了。"没带字段"因此也按 0 处理 —— PUT 是整段替换语义
+	// （与 content_filter 一致），后台表单每次都会带回完整对象，手写请求没带就是
+	// 明确要求关掉，比偷偷改回 3 诚实。
 	if driver == captchaDriverDigit {
 		out.NoiseCount = 0
 	} else {
-		out.NoiseCount = defaultIfZero(input.NoiseCount, 3)
+		out.NoiseCount = input.NoiseCount
 		if out.NoiseCount < 0 || out.NoiseCount > MaxCaptchaNoiseCount {
 			return conf.Captcha{}, captchaInvalid("噪点数需在 0–%d 之间，收到 %d", MaxCaptchaNoiseCount, out.NoiseCount)
 		}
@@ -157,24 +165,28 @@ func NormalizeCaptcha(input conf.Captcha) (conf.Captcha, error) {
 		}
 	}
 
-	// 纯数字型专属：倾斜与背景点。其余驱动写 0 表示不适用。
-	if driver == captchaDriverDigit {
-		out.MaxSkew = input.MaxSkew
-		if out.MaxSkew <= 0 {
-			out.MaxSkew = 0.5
-		}
-		if out.MaxSkew > 1 {
-			return conf.Captcha{}, captchaInvalid("最大倾斜需在 0–1 之间，收到 %v", out.MaxSkew)
-		}
-		out.DotCount = input.DotCount
-		if out.DotCount < 0 || out.DotCount > MaxCaptchaDotCount {
-			return conf.Captcha{}, captchaInvalid("背景点数需在 0–%d 之间，收到 %d", MaxCaptchaDotCount, out.DotCount)
-		}
-	} else {
-		out.MaxSkew = 0
-		out.DotCount = 0
+	// 倾斜与背景点（纯数字型专属）：**0 是合法值**（"不倾斜 / 不放点"），不回落默认值；
+	// 负值或越界才是非法输入。
+	//
+	// 这两个字段**不按驱动清零**：清零会造成两个可见的怪事 ——
+	// (a) yaml 种子 max_skew=0.5、GET→PUT 往返后变 0（保存成功但值变了）；
+	// (b) 运营从 string 切到 digit 时看到的是 0 而不是自己填过的 0.5。
+	// 不生效的字段留着不会改变图片（其他驱动根本不读它们），这比"悄悄改值"诚实。
+	out.MaxSkew = input.MaxSkew
+	if out.MaxSkew < 0 || out.MaxSkew > 1 {
+		return conf.Captcha{}, captchaInvalid("最大倾斜需在 0–1 之间，收到 %v", out.MaxSkew)
+	}
+	out.DotCount = input.DotCount
+	if out.DotCount < 0 || out.DotCount > MaxCaptchaDotCount {
+		return conf.Captcha{}, captchaInvalid("背景点数需在 0–%d 之间，收到 %d", MaxCaptchaDotCount, out.DotCount)
 	}
 
+	// 失败文案：空串表示用默认文案；给了就只做去空白与长度校验。
+	// 上限 80：这是给读者看的一句话，不是日志字段，太长会把登录框顶变形。
+	out.FailMessage = strings.TrimSpace(input.FailMessage)
+	if utf8.RuneCountInString(out.FailMessage) > MaxCaptchaFailMessageRunes {
+		return conf.Captcha{}, captchaInvalid("失败文案最多 %d 个字符", MaxCaptchaFailMessageRunes)
+	}
 	// 干扰线三个开关对纯数字型无意义（该驱动不收这些选项），统一关掉。
 	if driver == captchaDriverDigit {
 		out.ShowHollowLine = false
@@ -186,8 +198,11 @@ func NormalizeCaptcha(input conf.Captcha) (conf.Captcha, error) {
 }
 
 // 三种驱动名，与 conf.Captcha.Driver 的取值、platform/captcha 的常量一致。
-// 这里用私有常量而不是 import platform/captcha：站点用例层不该为了三个字符串
-// 依赖图片生成实现，两边的一致性由 APP 层测试与 handler 的 BuildDriver 共同兜住。
+//
+// 这里用私有字符串常量而不是引用 platform/captcha 的导出常量：本文件确实已经
+// import 了 platform/captcha（为了 ParseBGColor 校验颜色），但**不再为三个字符串**
+// 加一层耦合。两边的一致性由 TestNormalizeCaptchaDriversBuildDrivers 钉住 ——
+// 它把归一化产出的每个 driver 交给 platform/captcha.BuildDriver，drift 会直接红。
 const (
 	captchaDriverString = "string"
 	captchaDriverMath   = "math"

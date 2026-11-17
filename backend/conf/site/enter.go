@@ -74,8 +74,15 @@ type Login struct {
 	CaptchaLogin       bool `yaml:"captcha_login" json:"captcha_login"`
 	CaptchaEmailVerify bool `yaml:"captcha_email_verify" json:"captcha_email_verify"`
 	CaptchaPhoneVerify bool `yaml:"captcha_phone_verify" json:"captcha_phone_verify"`
-	EmailCodeTimeout   int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
-	SmsCodeTimeout     int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
+	// CaptchaRegister 是「注册专用入口」的闸门。
+	//
+	// 它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
+	// 独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
+	// 分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
+	// （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
+	CaptchaRegister  bool `yaml:"captcha_register" json:"captcha_register"`
+	EmailCodeTimeout int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
+	SmsCodeTimeout   int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
 
 	LoginFailWindowMinute int   `yaml:"login_fail_window_minute" json:"login_fail_window_minute"` // 登录失败统计窗口，单位：分钟
 	LoginFailUserMax      int64 `yaml:"login_fail_user_max" json:"login_fail_user_max"`           // 单账号窗口内最大失败次数

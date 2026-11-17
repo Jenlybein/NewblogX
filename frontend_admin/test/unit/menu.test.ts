@@ -98,7 +98,7 @@ describe('后台菜单拍平视图', () => {
     )
     expect(navigable).toEqual(EXPECTED_ADMIN_NAV)
 
-    // 「站点配置」只分组：没有自身页面，八个编辑域紧跟在它后面。
+    // 「站点配置」只分组：没有自身页面，十个编辑域紧跟在它后面。
     expect(FLAT_NAV.find(item => item.label === '站点配置')!.path).toBeUndefined()
     expect(FLAT_NAV.find(item => item.label === '站点配置')).toMatchObject({
       parentLabel: null,

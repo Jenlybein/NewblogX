@@ -50,8 +50,8 @@ type Captcha struct {
 	ExpireSeconds int `yaml:"expire_seconds" json:"expire_seconds" min:"60" max:"3600"`
 
 	// Source 是字符型的字符集（仅在 driver=string 时使用）。
-	// 归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，
-	// 等于白送一半难度，这种输入不再被接受。
+	// 归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`
+	// 各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。
 	Source string `yaml:"source" json:"source"`
 
 	// NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。
@@ -67,7 +67,15 @@ type Captcha struct {
 	// 默认值带 10/255 的不透明度，与旧实现一致。
 	BgColor string `yaml:"bg_color" json:"bg_color"`
 
+	// FailMessage 是读者填错验证码时看到的那句话。
+	//
+	// 做成配置项而不是代码字面量：站点想把提示写得更像自己（"看不清？换一张再试"）
+	// 不该发版。空串表示用默认文案（apperr 消息表里的那一句），这样没配过的站点
+	// 行为与以前完全一致。
+	FailMessage string `yaml:"fail_message" json:"fail_message"`
 	// MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。
+	// 两者的 0 都是**合法值**（不倾斜 / 不放点），不是"没填"；非纯数字驱动保留原值
+	// 但不生效（清掉会让运营切到纯数字后看到与自己填的不一样的值）。
 	MaxSkew  float64 `yaml:"max_skew" json:"max_skew" min:"0" max:"1"`
 	DotCount int     `yaml:"dot_count" json:"dot_count" min:"0" max:"20"`
 }

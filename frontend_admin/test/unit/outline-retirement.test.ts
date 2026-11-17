@@ -98,7 +98,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     expect(articleGroup.children!.filter(child => child.label.includes('编排'))).toEqual([])
   })
 
-  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个；短信页后 29 个；内容过滤页后 30 个；关键词风险页后 32 个（ADR-0029 / ADR-0032 / 票 396）', () => {
+  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个；短信页后 29 个；内容过滤页后 30 个；关键词风险页后 31 个；图形验证码页后 32 个（ADR-0029 / ADR-0032 / 票 396）', () => {
     const pages: string[] = []
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

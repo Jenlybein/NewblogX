@@ -26,7 +26,7 @@ const {
   missing: captchaMissing,
   refresh: refreshCaptcha,
   payload: captchaPayload,
-} = useCaptchaProof("email_verify");
+} = useCaptchaProof("register");
 
 const schema = toTypedSchema(
   z.object({

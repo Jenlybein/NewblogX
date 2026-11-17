@@ -213,7 +213,7 @@ describe("每页都有可见且可用的主题开关", () => {
     // 25 个页面退役合集 / 项目两个旧排列页与目录编排页后剩 22 个；
     // #322 新增「标签管理」页后是 23 个。
     // ADR-0029：站点拆出 login / publish / chat（基础页复用 /site）、
-    // 媒体运营拆出 banners / images（/media 保留为跳转页），共 29 个（另加站点「短信」配置页）；ADR-0032 新增「内容过滤」页后 30 个；票 396 新增「关键词风险」页后 32 个。
+    // 媒体运营拆出 banners / images（/media 保留为跳转页），共 29 个（另加站点「短信」配置页）；ADR-0032 新增「内容过滤」页后 30 个；票 396 新增「关键词风险」页后 31 个；ADR-0033 新增「图形验证码」页后 32 个。
     expect(pages.length).toBe(32);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");

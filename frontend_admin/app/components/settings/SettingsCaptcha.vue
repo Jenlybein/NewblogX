@@ -30,6 +30,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { getCaptchaRuntimeConfig, updateCaptchaRuntimeConfig } from '~/services/admin'
+import { isApiBusinessError } from '~/services/http/errors'
 import type { CaptchaRuntimeConfig } from '~/types/api'
 
 const message = useMessage()
@@ -75,10 +76,11 @@ async function save() {
     // 不回读的话界面还停留在用户填的值，看起来"保存没生效"。
     config.value = await getCaptchaRuntimeConfig()
     message.success('图形验证码配置已保存')
-  } catch {
-    // 越界时后端会带回具体原因（哪个字段越什么界），直接显示它 ——
-    // 只说"保存失败"会让运营反复试同一组数字。
-    message.error('保存失败：配置超出允许范围，请检查填入的数值')
+  } catch (error) {
+    // 越界时后端带回的是"图片宽度需在 80–400 之间，收到 5000"这种字段级文案，
+    // 必须原样显示：只说"保存失败"会让运营反复试同一组数字。
+    // 取不到业务文案时退回一句能行动的话（不是"保存失败"了事）。
+    message.error(isApiBusinessError(error) ? error.message : '保存失败：配置超出允许范围，请检查填入的数值')
   } finally {
     saving.value = false
   }

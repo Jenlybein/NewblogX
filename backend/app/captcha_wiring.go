@@ -20,6 +20,7 @@ func WireCaptcha(infra *Infra, store base64Captcha.Store) {
 	router.SetCaptchaHandler(captcha.NewHandler(
 		captchaSettings{site: infra.RuntimeSite},
 		store,
+		infra.Logger,
 	))
 }
 

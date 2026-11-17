@@ -583,7 +583,7 @@ export function getReplayLogs(query: { page?: number; limit?: number; stream?: s
 
 // ── 其余配置段 ────────────────────────────────────────────────
 //
-// 九段各有具名端点（`GET /site/admin/<段名>` / `PUT /site/<段名>`），
+// 十二段各有具名端点（`GET /site/admin/<段名>` / `PUT /site/<段名>`），
 // 请求体与响应形状按段固定（ADR-0020）。这里仍用泛型包一层再给出具名包装，
 // 让页面里的调用点能一眼看出在读写哪一段；类型由生成的 openapi.d.ts 派生。
 

@@ -105,7 +105,7 @@ var adminOnly = []struct {
 	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
 	{"GET", "/api/site/admin/sidebar_cards"},
 	{"PUT", "/api/site/admin/sidebar_cards"},
-	// 九段具名管理端出入口（#283）：写侧没有 :name，必须逐个被行为探针挡住。
+	// 十二段具名管理端出入口（#283）：写侧没有 :name，必须逐个被行为探针挡住。
 	{"GET", "/api/site/admin/site"},
 	{"GET", "/api/site/admin/ai"},
 	{"GET", "/api/site/admin/mail"},

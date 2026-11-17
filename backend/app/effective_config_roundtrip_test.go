@@ -33,7 +33,7 @@ import (
 
 // 「此刻生效值」的往返测试（#284）。唯一测试接缝是后端 HTTP 接口 + 契约：
 // 后台 PUT 保存 → 深度合并 → 现读取值闭包 → 读者页 GET → 下一次发送按新值判。
-// 这里不读源码文本、不逐字段解析 Go tag / TS 键；十段登记与漏登记失败复用
+// 这里不读源码文本、不逐字段解析 Go tag / TS 键；十二段登记与漏登记失败复用
 // #283 registry_test.go 的外部行为（RegisteredSections / LookupSection），不重做。
 //
 // 消费点只持 NewEffectiveConfig 给出的一个现读闭包，不重启、不重建服务。

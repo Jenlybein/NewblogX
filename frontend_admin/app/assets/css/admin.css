@@ -421,7 +421,18 @@
     color: var(--color-ink-muted);
   }
 
-  .admin-hint {
+  /* 设置页里的行内跳转链接（例如「图形验证码」页指向「登录与发码」）。 */
+.admin-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.admin-link:hover {
+  opacity: 0.8;
+}
+
+.admin-hint {
     @apply text-xs leading-5;
     color: var(--color-ink-muted);
   }

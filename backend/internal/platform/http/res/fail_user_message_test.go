@@ -2,8 +2,12 @@ package res_test
 
 import (
 	"errors"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/platform/http/res"
@@ -58,8 +62,10 @@ func TestFailIgnoresUserMessageOnServiceErrors(t *testing.T) {
 // serviceErrorWithMessage 是一个"自带文案的服务异常"（模拟内部错误）。
 type serviceErrorWithMessage struct{}
 
-func (serviceErrorWithMessage) Error() string        { return "dial tcp 10.0.0.5:3306: connect: refused" }
-func (serviceErrorWithMessage) UserMessage() string  { return "dial tcp 10.0.0.5:3306: connect: refused" }
+func (serviceErrorWithMessage) Error() string { return "dial tcp 10.0.0.5:3306: connect: refused" }
+func (serviceErrorWithMessage) UserMessage() string {
+	return "dial tcp 10.0.0.5:3306: connect: refused"
+}
 func (serviceErrorWithMessage) Is(target error) bool { return target == errors.New("") }
 
 // contains 是 strings.Contains 的小包装（避免为一条断言再引一个包）。
@@ -70,4 +76,46 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+// 受控文案通道（apperr.NewWithMessage）只对 Validation 类错误生效。
+//
+// 这条守的是它最危险的用法：有人给服务异常类错误也塞一句 message（比如把
+// "dial tcp ... connection refused" 抄进去），响应层必须当没看见 ——
+// 服务异常的内部细节一旦进响应，泄露的是拓扑与实现细节，而不是"改一改就能过"。
+func TestNewWithMessageOnlyLeaksForValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name    string
+		err     error
+		wantMsg string
+		wantNot string
+	}{
+		{
+			name:    "Validation 类应显示受控文案",
+			err:     apperr.NewWithMessage(apperr.CodeSiteCaptchaInvalid, "图片宽度需在 80–400 之间，收到 5000"),
+			wantMsg: "图片宽度需在 80–400 之间，收到 5000",
+		},
+		{
+			name:    "服务异常类即使带了文案也不透出",
+			err:     apperr.NewWithMessage(apperr.CodeCommonServiceFailed, "dial tcp 10.0.0.5:6379: connect: connection refused"),
+			wantMsg: apperr.Message(apperr.CodeCommonServiceFailed),
+			wantNot: "6379",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			res.Fail(tc.err, c)
+			body := rec.Body.String()
+			if !strings.Contains(body, tc.wantMsg) {
+				t.Fatalf("响应应包含 %q，实际: %s", tc.wantMsg, body)
+			}
+			if tc.wantNot != "" && strings.Contains(body, tc.wantNot) {
+				t.Fatalf("响应不得包含 %q（内部细节），实际: %s", tc.wantNot, body)
+			}
+		})
+	}
 }

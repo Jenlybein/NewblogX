@@ -141,7 +141,7 @@ type Service struct{ cfg func() conf.Mail }
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
 | --- | --- | --- | --- |
-| `site` | `conf.Site` | 站点信息、SEO、登录开关与限流、图形验证码总开关与三个入口闸门、审核开关 | 下一次请求 |
+| `site` | `conf.Site` | 站点信息、SEO、登录开关与限流、图形验证码总开关与四个入口闸门、审核开关 | 下一次请求 |
 | `ai` | `conf.AI` | AI 对话与文章评分、七个场景的每人每日额度 | 下一次调用 |
 | `mail` | `conf.Mail` | 腾讯云 SES `SendEmail`（模板发信） | 下一次发信 |
 | `storage` | `conf.QiNiu` | 上传 token、URL 反解、image-ref 同步 | 下一次上传 |
@@ -152,11 +152,11 @@ type Service struct{ cfg func() conf.Mail }
 | `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
 | `image_gc` | `conf.ImageGC` | 孤儿图回收的总开关、宽限期与单批上限 | 下一次回收任务 |
 | `content_filter` | `conf.ContentFilter` | 内容过滤的词表（词 / 档位 / 类目）、白名单、命中记录保留天数 | 保存后原子重建，下一次过滤 |
-| `captcha` | `conf.Captcha` | 图形验证码的驱动、图片尺寸、字符数、字符集、噪点、三种干扰线、背景色、有效期（第 12 段，**仅后台、无公开读**） | 下一次生成 |
+| `captcha` | `conf.Captcha` | 图形验证码的驱动、图片尺寸、字符数、字符集、噪点、三种干扰线、背景色、有效期、失败文案（第 12 段，**仅后台、无公开读**） | 下一次生成 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要在注册表里
-补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（此后 `sms` 由手机号登录那一批插在 `oauth` 之后加入、
+补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的孤儿图回收段（此后 `sms` 由手机号登录那一批插在 `oauth` 之后加入、
 `content_filter` 在内容过滤改造中加入、`captcha`（[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）在本轮加入，段数一路加到现在的十二段），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
 
 `content_filter`（第 11 段，[ADR-0032](../adr/0032-content-filter.md)）**没有公开读端点**：只有
@@ -165,19 +165,27 @@ type Service struct{ cfg func() conf.Mail }
 引擎在保存后按新词表**原子重建**（重建失败保留旧词表并记 error，不清空）。
 
 `captcha`（第 12 段，[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）同样**没有公开读**：只有
-`GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）。它只承载「图长什么样、多久失效」——驱动（`string` 字符型 /
+`GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）。它只承载「图长什么样、多久失效、填错说什么」——驱动（`string` 字符型 /
 `math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线（三个布尔，不暴露库的 `2` / `4` / `8` 位掩码）、
-背景色与有效期 `expire_seconds`（60–3600，同时是存储 TTL），纯数字型另有 `max_skew` / `dot_count`。
-保存期的口径是**越界即拒绝**（`site.captcha_invalid`，文案点名哪个字段越什么界），只有 `0` / 空串回落默认值；
-**不适用字段按驱动清零**（算术型不用 `length` / `source`，纯数字型不用背景色、噪点与三个干扰线开关）。
-「哪些入口要验证码」不在这段，留在 `site.login`：总开关 `captcha` 之外有三个入口闸门
-`captcha_login` / `captcha_email_verify` / `captcha_phone_verify`（默认全开），它们**必须公开可读**——
-读者站靠 `GET /api/site/site` 决定每个表单渲染不渲染验证码框（见 §六 的登录策略说明）。
-答案存 Redis（键前缀 `blogx:captcha:`，TTL 每次生成现读 `expire_seconds`；Redis 不可用时退回进程内存储并打一条 warn，
-重启即失效、多副本不通用）。
+背景色、有效期 `expire_seconds`（60–3600，同时是存储 TTL）与失败文案 `fail_message`（≤80 字符，空串用默认「图形验证码错误」），
+纯数字型另有 `max_skew` / `dot_count`。
+保存期的口径是**越界即拒绝**（`site.captcha_invalid`，文案点名哪个字段越什么界，经 `apperr.NewWithMessage` + `res.FailWithValidError`
+显示给后台）；**`0` 与空串的语义分两类**：只有 `width` / `height` / `expire_seconds` / `length` 的 `0` 是「没填」、回落默认值；
+`noise_count` / `max_skew` / `dot_count` 的 `0` 是合法值（不放噪点 / 不倾斜 / 不放点）。**不适用字段按驱动清零**，范围仅限
+`source` / `bg_color` / `noise_count` 与三个干扰线开关；`max_skew` / `dot_count` **保留原值**（清零会让 GET→PUT 往返把 0.5 变 0，
+运营切换驱动后还会看到与自己填的不一样的值）。
+「哪些入口要验证码」不在这段，留在 `site.login`：总开关 `captcha` 之外有**四个**入口闸门
+`captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`，它们**必须公开可读**——
+读者站靠 `GET /api/site/site` 决定每个表单渲染不渲染验证码框（见 §六 的登录策略说明）。`captcha_register` 只挂专门的注册路由
+`POST /users/email/register`（图形码在邮箱码之前）；手机号注册与登录共用 `POST /users/phone`，请求体层面分不出注册还是登录，
+所以那条通道的验证码只挂在发码那一步（`captcha_phone_verify`）——这是设计约束不是遗漏。
+答案存 Redis（键前缀 `blogx:captcha:`，TTL 每次生成现读 `expire_seconds`，校验用 `GETDEL` 原子取删，实现「答对一次即作废、不可重放」）。
+降级只在**装配期**：`infra.Redis == nil` 时用带 TTL 的 `TtlMemoryStore`（同样现读 TTL、同样一次性）并打 warn；运行期 Redis 抖动
+**不自动降级**，生成接口只回「验证码生成失败，请刷新重试」并记日志（接口匿名，不能把内部错误原文透出去）。
+`GET /api/imagecaptcha` 回显 `expire_seconds`，读者站据此定时换图（有效期 − 5s、下限 10s）。
 
 `ai` 段的每日额度（`daily_limits`，ADR-0028）与第 12 段的 `captcha`（[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）是**保存期拒绝非法值**的两处配置：
-前者七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」，后者是「0 / 空串回落默认、越界一律 400」；其余数值配置（私信限流、
+前者七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」，后者是「0 / 空串回落默认（其中 `noise_count` / `max_skew` / `dot_count` 的 `0` 是合法值）、越界一律 400」；其余数值配置（私信限流、
 投稿配额）沿用「越界回落到默认值」的口径。理由是 0 在这里有明确的业务含义，静默回落会把"我不想限制这个场景"改写成"给它一个数字"；
 而验证码的越界值是安全参数（图片撑爆布局、有效期给出爆破窗口、字符集只剩一个字符），静默接受等于静默削弱防护。本票只有挂件子块 `deco.charm`：总开关 `enable`，
 以及十二个数值参数 —— 站标尺寸 `logo_size`（px，15–70）、挂绳长度 `rope_length`（px，40–240）、
@@ -253,9 +261,11 @@ type Service struct{ cfg func() conf.Mail }
 **唯一的例外**：「登录策略」它不是一段，而是 `site.login` 子对象。所以它和站点基础信息
 放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
-图形验证码的三个入口闸门（`captcha_login` / `captcha_email_verify` / `captcha_phone_verify`）与总开关
-`captcha` 也在这个子对象、这个页面里：它们必须公开可读，而「图长什么样、多久失效」在独立的
-`captcha` 段（第 12 段，自己的整段端点与「站点 → 图形验证码」页，见 [ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）。
+图形验证码的**四个**入口闸门（`captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`）与总开关
+`captcha` 也在这个子对象、这个页面（「站点 → 登录与发码」）里：它们必须公开可读，而「图长什么样、多久失效、填错说什么」
+在独立的 `captcha` 段（第 12 段，自己的整段端点与「站点 → 图形验证码」页，见 [ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）。
+`captcha_register` 只对 `POST /users/email/register` 生效（图形码在邮箱码之前）；手机号注册与登录共用 `/users/phone`，没有独立闸门，
+验证码留在发码那一步（`captcha_phone_verify`）。
 
 请求/响应形状（十二段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
 

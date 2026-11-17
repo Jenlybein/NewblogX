@@ -2,11 +2,14 @@ package app_test
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	captchainst "myblogx/internal/platform/captcha"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/apptest"
 )
@@ -70,10 +73,14 @@ func TestNormalizeCaptchaZeroInputDefaults(t *testing.T) {
 	if got.BgColor != app.DefaultCaptchaBgColor {
 		t.Fatalf("默认背景色应为 %q，实际 %q", app.DefaultCaptchaBgColor, got.BgColor)
 	}
-	if got.NoiseCount != 3 {
-		t.Fatalf("默认噪点数应为 3，实际 %d", got.NoiseCount)
+	// 噪点 0 是**合法值**（"不放噪点"），不是"没填"：全零输入里它保持 0。
+	// 这一条被两轮评审盯过 —— 早先实现把它回落成 3，等于把运营明确填的 0 偷偷改了。
+	if got.NoiseCount != 0 {
+		t.Fatalf("噪点 0 应原样保留（表示不放噪点），实际 %d", got.NoiseCount)
 	}
-	// 非纯数字驱动不使用这两项，留 0 表示"不适用"（驱动层据此不传它们）。
+	// 非纯数字驱动不读这两项，但**不再清零**：清掉会让 GET→PUT 往返漂移
+	// （yaml 种子 max_skew=0.5 存进去变 0），也会让运营切到纯数字后看到陌生的值。
+	// 全零输入下它们自然是 0，这里断言的是"没有被额外改写"。
 	if got.MaxSkew != 0 || got.DotCount != 0 {
 		t.Fatalf("非纯数字驱动的 max_skew/dot_count 应为 0（不适用），实际 %v/%d",
 			got.MaxSkew, got.DotCount)
@@ -174,8 +181,10 @@ func TestNormalizeCaptchaDigitClearsInapplicable(t *testing.T) {
 		t.Fatalf("纯数字型不应带干扰线开关，实际 空心=%v 泥浆=%v 正弦=%v",
 			got.ShowHollowLine, got.ShowSlimeLine, got.ShowSineLine)
 	}
-	if got.MaxSkew != 0.5 {
-		t.Fatalf("纯数字型的倾斜默认值应为 0.5（0 会让数字笔直排列），实际 %v", got.MaxSkew)
+	// 倾斜 0 是**合法值**（不倾斜）：全零输入下不该被悄悄改成 0.5。
+	// 想让数字带倾斜的站点在后台填正数，或让 yaml 种子（0.5）随首次保存带进来。
+	if got.MaxSkew != 0 {
+		t.Fatalf("全零输入下倾斜应保持 0（合法值，不倾斜），实际 %v", got.MaxSkew)
 	}
 }
 
@@ -292,5 +301,73 @@ func TestUpdateCaptchaRejectsInvalidAndKeepsPrevious(t *testing.T) {
 	}
 	if got := env.Runtime.Captcha(); got != previous {
 		t.Fatalf("保存失败后缓存必须保持上一份配置\n期望 %+v\n实际 %+v", previous, got)
+	}
+}
+
+// 代码里的回落值必须与 site_default_settings.yaml 的种子逐字段一致。
+//
+// GLOSSARY 的 `_Avoid_` 说得很清楚：默认值只能有一处。现实是 normalize 看不到
+// yaml（它只收到一个结构体），所以回落常量不得不在代码里存在一份 —— 那就用这条
+// 用例把两份钉死：改了一边忘了另一边，这里立刻红，而不是等运营发现
+// "我填 0 怎么变成 3 了"或者"默认宽度怎么不是 200"。
+func TestNormalizeFallbacksMatchShippedDefaults(t *testing.T) {
+	// LoadDefaults 取同目录下的 site_default_settings.yaml，所以传 config 目录里的任意文件。
+	defaults, err := sitecfg.LoadDefaults(filepath.Join("..", "..", "..", "config", "settings.yaml"))
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+	shipped := defaults.Captcha
+	if shipped.Driver != "string" {
+		t.Fatalf("yaml 默认驱动应为 string，实际 %q", shipped.Driver)
+	}
+
+	got, err := app.NormalizeCaptcha(conf.Captcha{})
+	if err != nil {
+		t.Fatalf("全零输入应能归一化: %v", err)
+	}
+	if got.Width != shipped.Width || got.Height != shipped.Height {
+		t.Fatalf("尺寸回落值应与 yaml 一致：得到 %dx%d，yaml 是 %dx%d",
+			got.Width, got.Height, shipped.Width, shipped.Height)
+	}
+	if got.ExpireSeconds != shipped.ExpireSeconds {
+		t.Fatalf("有效期回落值应与 yaml 一致：得到 %d，yaml 是 %d", got.ExpireSeconds, shipped.ExpireSeconds)
+	}
+	if got.Length != shipped.Length {
+		t.Fatalf("字符数回落值应与 yaml 一致：得到 %d，yaml 是 %d", got.Length, shipped.Length)
+	}
+	if got.Source != shipped.Source {
+		t.Fatalf("字符集回落值应与 yaml 一致：得到 %q，yaml 是 %q", got.Source, shipped.Source)
+	}
+	if got.BgColor != shipped.BgColor {
+		t.Fatalf("背景色回落值应与 yaml 一致：得到 %q，yaml 是 %q", got.BgColor, shipped.BgColor)
+	}
+	// 噪点/倾斜/点数不在回落之列（0 是合法值），但 yaml 的种子值必须是"能存进去"的：
+	// 把它们走一遍归一化，验证种子不会被改写（早期实现把 max_skew 0.5 清零过）。
+	if seeded, err := app.NormalizeCaptcha(shipped); err != nil {
+		t.Fatalf("yaml 种子应能通过归一化: %v", err)
+	} else if seeded.NoiseCount != shipped.NoiseCount ||
+		seeded.MaxSkew != shipped.MaxSkew ||
+		seeded.DotCount != shipped.DotCount {
+		t.Fatalf("yaml 种子经归一化被改写了：噪点 %d->%d，倾斜 %v->%v，点数 %d->%d",
+			shipped.NoiseCount, seeded.NoiseCount,
+			shipped.MaxSkew, seeded.MaxSkew,
+			shipped.DotCount, seeded.DotCount)
+	}
+}
+
+// 归一化产出的每种 driver 都必须能被图片生成实现接受。
+//
+// 这是一条端到端缝：app 包用私有字符串常量、platform/captcha 用导出常量，
+// 两边漂移（比如一边改成 "digital"）不会在任何一个包内被发现，只会在
+// 线上"保存成功但生成 500"。这里把它们接在一起。
+func TestNormalizeCaptchaDriversBuildDrivers(t *testing.T) {
+	for _, driver := range []string{"string", "math", "digit"} {
+		got, err := app.NormalizeCaptcha(conf.Captcha{Driver: driver})
+		if err != nil {
+			t.Fatalf("驱动 %q 归一化失败: %v", driver, err)
+		}
+		if _, err := captchainst.BuildDriver(got); err != nil {
+			t.Fatalf("归一化产出的驱动 %q 无法构建图片驱动: %v", got.Driver, err)
+		}
 	}
 }

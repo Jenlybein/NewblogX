@@ -61,7 +61,7 @@ func (s *RedisStore) Set(id, value string) error {
 	defer cancel()
 	if err := s.client.Set(ctx, KeyPrefix+id, value, ttl).Err(); err != nil {
 		if s.logger != nil {
-			// 只记键名不记答案：答案是验证码本身，进日志等于把答案写进磁盘。
+			// 只记错误不记键、更不记答案：答案是验证码本身，进日志等于把答案写进磁盘。
 			s.logger.Errorf("写入验证码失败: %v", err)
 		}
 		return err
@@ -81,33 +81,41 @@ func (s *RedisStore) Get(id string, clear bool) string {
 	defer cancel()
 	key := KeyPrefix + id
 
-	value, err := s.client.Get(ctx, key).Result()
+	// clear=true 时用 GETDEL 一次取走并删除：GET + DEL 两步之间两个并发请求能各用一次，
+	// 而"同一张图答对一次就作废"是这条链路上的防重放约定（ADR-0033 约束 8）。
+	var value string
+	var err error
+	if clear {
+		value, err = s.client.GetDel(ctx, key).Result()
+	} else {
+		value, err = s.client.Get(ctx, key).Result()
+	}
 	if err != nil {
 		if !errors.Is(err, redis.Nil) && s.logger != nil {
 			s.logger.Errorf("读取验证码失败: %v", err)
 		}
 		return ""
 	}
-	if clear {
-		// 用 DEL 而不是"读后再删"两步：校验成功的那个请求必须把这张图作废，
-		// 否则同一张图可以被重复提交（一次答对，多次重放）。
-		if err := s.client.Del(ctx, key).Err(); err != nil && s.logger != nil {
-			s.logger.Errorf("删除验证码失败: %v", err)
-		}
-	}
 	return value
 }
 
 // Verify 校验答案，比较时忽略大小写（字符集里是大写字母，用户习惯小写输入）。
 //
-// 成功即删除（一次性）。答案比较用 strings.EqualFold：base64Captcha 的
-// DefaultMemStore 就是 `strings.ToLower(storeValue) == strings.ToLower(answer)`，
-// 这里保持同一口径 —— 换库不该悄悄改变"大小写敏不敏感"。
+// 成功即删除（一次性）。口径见 equalFoldTrim：两种存储（Redis 与降级内存）必须
+// 共用同一个比较函数 —— 换存储不该悄悄改变"大小写敏不敏感"。
 func (s *RedisStore) Verify(id, answer string, clear bool) bool {
 	want := s.Get(id, clear)
 	if want == "" {
 		return false
 	}
+	return equalFoldTrim(want, answer)
+}
+
+// equalFoldTrim 是两种存储共用的答案比较口径：去首尾空白 + 忽略大小写。
+//
+// 与旧实现（base64Captcha 的 DefaultMemStore 用 `strings.ToLower(x) == strings.ToLower(y)`）
+// 一致，另加 trim：手机键盘容易带出尾部空格，而"带个空格就错"是最常见的无效投诉。
+func equalFoldTrim(want, answer string) bool {
 	return strings.EqualFold(strings.TrimSpace(want), strings.TrimSpace(answer))
 }
 

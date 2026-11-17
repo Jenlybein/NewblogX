@@ -76,7 +76,7 @@ handler 上的 `// @Summary` / `@Param` / `@Success` 注释是契约的唯一来
 位置：`backend/internal/kernel/envelope.go`；注解写法 `kernel.Envelope[kernel.ListData[http.XxxItem]]`。
 
 **data 载荷（ListData / HasMoreListData / EmptyData）**：
-三种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`；九段运行时配置各有具名形状，不再使用自由键值块。
+三种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`；十二段运行时配置各有具名形状，不再使用自由键值块。
 位置：`backend/internal/kernel/envelope.go`。
 易混：`ListData` 与 `HasMoreListData` 用错就是契约撒谎——前端读 `has_more` 恒为 `undefined`，编译器一句提示都没有。
 
@@ -128,14 +128,14 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 _Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，十二段各有具名响应/请求形状）。
 
 **图形验证码（image captcha）**：
-登录 / 发码表单上那张要人读的小图，用来挡脚本撞库与短信刷量（短信按条计费，刷量是真花钱）。它由三块拼成，位置各不相同：
-- **渲染参数**在第 12 段运行时配置 `captcha`（`GET /site/admin/captcha` / `PUT /site/captcha`，**没有公开读**）：驱动（`string` 字符型 / `math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线三个布尔、背景色与有效期 `expire_seconds`；纯数字型另有 `max_skew` / `dot_count`。归一化把该驱动用不上的字段清零。
-- **入口策略**在 `site.login`：总开关 `captcha`，外加三个入口闸门 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify`（默认全开）。它们**必须公开可读**（`GET /api/site/site`），读者站靠它们决定每个表单渲染不渲染验证码框。是否校验 = 总开关 && 该入口闸门，三条入口各挂自己的 `CaptchaGate(scope)`。
-- **答案存储**在 Redis（键前缀 `blogx:captcha:`，TTL 取当前 `expire_seconds`、每次生成现读），校验忽略大小写、一次性删除（`clear=true`）；Redis 不可用时退回进程内存储并打一条 warn（重启即失效、多副本不通用）。`GET /api/imagecaptcha` 回显 `expire_seconds`。
-默认字符集 `23456789ABCDEFGHJKMNPQRSTUVWXYZ` 去掉了易混的 `0/O/1/I/L`；保存时会去空白、去重复字符（旧默认值里 `IJKL` 重复过，等于白降一半难度）。归一化口径是「`0` / 空串回落默认、越界直接报错（`site.captcha_invalid`）」，不静默夹取 —— 与 `deco.charm` 的「越界钳回边界」不同，验证码的坏值是安全参数而不是手感参数。
-位置：`backend/conf/conf_captcha.go`、`backend/internal/site/app/captcha.go`（归一化）、`backend/internal/platform/captcha/`（三驱动、背景色与 Redis 存储）、`backend/internal/platform/http/middleware/captcha_middleware.go`（闸门）；决定见 [ADR-0033](./docs/adr/0033-captcha-configurable-and-redis-store.md)。
+登录 / 发码 / 注册表单上那张要人读的小图，用来挡脚本撞库与短信刷量（短信按条计费，刷量是真花钱）。它由三块拼成，位置各不相同：
+- **渲染、时效与文案参数**在第 12 段运行时配置 `captcha`（`GET /site/admin/captcha` / `PUT /site/captcha`，**没有公开读**）：驱动（`string` 字符型 / `math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线三个布尔、背景色、有效期 `expire_seconds`、失败文案 `fail_message`（≤80 字符，空串用默认「图形验证码错误」）；纯数字型另有 `max_skew` / `dot_count`。归一化把该驱动用不上的字段清零，但 `max_skew` / `dot_count` **保留原值**（清零会让 GET→PUT 往返把 0.5 变成 0）。
+- **入口策略**在 `site.login`：总开关 `captcha`，外加**四个**入口闸门 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`（默认全开）。它们**必须公开可读**（`GET /api/site/site`），读者站靠它们决定每个表单渲染不渲染验证码框。是否校验 = 总开关 && 该入口闸门，四条入口各挂自己的 `CaptchaGate(scope)`；`register` 只挂专门的注册路由 `POST /users/email/register`（图形码在前、邮箱码在后）。手机号注册没有独立闸门：它与登录共用 `POST /users/phone`，请求体分不出注册还是登录，验证码只能挂发码那一步（`captcha_phone_verify`）。
+- **答案存储**在 Redis（键前缀 `blogx:captcha:`，TTL 取当前 `expire_seconds`、每次生成现读），校验忽略大小写 + 去首尾空白、`GETDEL` 原子取删（一次性，不可重放）。降级只在**装配期**：`infra.Redis == nil` 时用带 TTL 的 `TtlMemoryStore`（同样现读 TTL、同样一次性）并打一条 warn；运行期 Redis 抖动不自动降级，生成接口只回「验证码生成失败，请刷新重试」并记日志。`GET /api/imagecaptcha` 回显 `expire_seconds`，前端按「有效期 − 5s（下限 10s）」定时换图。
+默认字符集 `23456789ABCDEFGHJKMNPQRSTUVWXYZ` 去掉了易混的 `0/O/1/I/L`；保存时会去空白、去重复字符（旧默认值里 `H` / `I` / `J` / `K` / `L` 各有两处，重复 5 个字符让 40 个字符只剩 35 个可用）。归一化口径是「`0` / 空串回落默认、越界直接报错（`site.captcha_invalid`）」——例外是 `noise_count` / `max_skew` / `dot_count` 的 `0` 为合法值（不放噪点 / 不倾斜 / 不放点），不静默夹取（与 `deco.charm` 的「越界钳回边界」不同，验证码的坏值是安全参数而不是手感参数）。
+位置：`backend/conf/conf_captcha.go`、`backend/internal/site/app/captcha.go`（归一化）、`backend/internal/platform/captcha/{driver.go,color.go,store_redis.go,store_memory.go}`（三驱动、背景色、Redis 与降级内存存储）、`backend/internal/platform/http/middleware/captcha_middleware.go`（闸门与失败文案现读）、`backend/app/wiring_http.go`（装配期选定存储）；决定见 [ADR-0033](./docs/adr/0033-captcha-configurable-and-redis-store.md)。
 易混：它与「邮箱验证码 / 短信验证码」不是一回事——那两个是发到邮箱 / 手机的一次性数字（错误口径是 `user.captcha_invalid`），图形验证码是提交前要填的那道图片题；它与「内容过滤」也没有关系（过滤改文本，验证码拦脚本）。
-_Avoid_: 把 `captcha` 段当成开关（开关与三个闸门在 `site.login`）；说"验证码图片参数写死在代码里"（已可配）；把三个闸门挪进 `captcha` 段（读者站拿不到就没法渲染，表单会画出永远填不对的框）。
+_Avoid_: 把 `captcha` 段当成开关（开关与四个闸门在 `site.login`）；说"验证码图片参数写死在代码里"（已可配）；把四个闸门挪进 `captcha` 段（读者站拿不到就没法渲染，表单会画出永远填不对的框）；再说「手机号注册漏了闸门」（它是设计约束，见 ADR-0033 决策 11）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。

@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
 import { getImageCaptcha, type CaptchaProof } from "~/services/auth";
 import { useSiteStore } from "~/stores/site";
 
@@ -9,7 +9,7 @@ import { useSiteStore } from "~/stores/site";
  * 方式不同：发码烧钱（短信按条计费），登录被撞库。一刀切会让"只想给发码加验证码"
  * 做不到，而真的只想加一处时又只能整体关掉、连带拆掉另一处的防护。
  */
-export type CaptchaGateScope = "login" | "email_verify" | "phone_verify";
+export type CaptchaGateScope = "login" | "email_verify" | "phone_verify" | "register";
 
 /**
  * 图形验证码的状态：图片、输入、以及"这次要不要带"。
@@ -36,6 +36,8 @@ export function useCaptchaProof(scope: CaptchaGateScope = "login") {
         return login.captcha_email_verify === true;
       case "phone_verify":
         return login.captcha_phone_verify === true;
+      case "register":
+        return login.captcha_register === true;
       default:
         return login.captcha_login === true;
     }
@@ -84,6 +86,27 @@ export function useCaptchaProof(scope: CaptchaGateScope = "login") {
     },
     { immediate: true },
   );
+
+  // 按后端回显的有效期主动换图：一张图放久了，用户看到的是"填对了却过期"。
+  //
+  // 留 5 秒安全余量而不是卡点换：正好在过期那一刻替换，用户可能刚好提交了旧图，
+  // 服务端已经删了它 —— 那是最难解释的一种失败（"我明明填对了"）。
+  let expireTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleExpireRefresh() {
+    if (expireTimer) {
+      clearTimeout(expireTimer);
+      expireTimer = undefined;
+    }
+    if (!enabled.value || expireSeconds.value <= 0) {
+      return;
+    }
+    const delay = Math.max((expireSeconds.value - 5) * 1000, 10_000);
+    expireTimer = setTimeout(() => void refresh(), delay);
+  }
+  watch([enabled, expireSeconds], () => scheduleExpireRefresh(), { immediate: true });
+  onScopeDispose(() => {
+    if (expireTimer) clearTimeout(expireTimer);
+  });
 
   /** 该入口开了验证码但没填齐：本地先挡一道，省一次必然失败的请求。 */
   const missing = computed(() => enabled.value && (!id.value || !code.value.trim()));

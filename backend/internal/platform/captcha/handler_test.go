@@ -105,7 +105,7 @@ func call(t *testing.T, h *captcha.Handler) (resp, *httptest.ResponseRecorder) {
 func TestImageDisabled(t *testing.T) {
 	settings := fakeSettings{enabled: false, cfg: validCaptchaConfig()}
 	store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-	h := captcha.NewHandler(settings, store)
+	h := captcha.NewHandler(settings, store, nil)
 
 	got, w := call(t, h)
 	if got.Code == 0 {
@@ -118,7 +118,7 @@ func TestImageDisabled(t *testing.T) {
 
 func TestImageSuccess(t *testing.T) {
 	store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store)
+	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store, nil)
 
 	got, w := call(t, h)
 	if got.Code != 0 {
@@ -148,7 +148,7 @@ func TestImageExpireSecondsEchoesConfiguredValue(t *testing.T) {
 	cfg.ExpireSeconds = 900
 
 	store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: cfg}, store)
+	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: cfg}, store, nil)
 
 	got, w := call(t, h)
 	if got.Code != 0 {
@@ -184,7 +184,7 @@ func TestImageInvalidConfigIsRejectedNot500(t *testing.T) {
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-			h := captcha.NewHandler(fakeSettings{enabled: true, cfg: mutate(validCaptchaConfig())}, store)
+			h := captcha.NewHandler(fakeSettings{enabled: true, cfg: mutate(validCaptchaConfig())}, store, nil)
 
 			got, w := call(t, h)
 			// 这个仓库的成功/失败一律走 HTTP 200 + 业务码（res.Response.Json），
@@ -214,7 +214,7 @@ func TestImageInvalidConfigIsRejectedNot500(t *testing.T) {
 // 在这里：答对之后必须立刻作废，否则同一张图可以被反复提交（重放）。
 func TestImageCaptchaIDVerifiesWithSameStore(t *testing.T) {
 	store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store)
+	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store, nil)
 
 	got, w := call(t, h)
 	if got.Code != 0 {
@@ -242,7 +242,7 @@ func TestImageCaptchaIDVerifiesWithSameStore(t *testing.T) {
 // 而不是内部新建的默认实例（生成与校验指向同一份数据的最直接证据）。
 func TestImageStoreIsShared(t *testing.T) {
 	store := &recordingStore{inner: base64Captcha.DefaultMemStore}
-	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store)
+	h := captcha.NewHandler(fakeSettings{enabled: true, cfg: validCaptchaConfig()}, store, nil)
 
 	got, _ := call(t, h)
 	id, _ := got.Data["captcha_id"].(string)

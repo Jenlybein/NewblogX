@@ -9385,13 +9385,25 @@ export interface components {
              *     每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。
              */
             expire_seconds?: number;
+            /**
+             * @description FailMessage 是读者填错验证码时看到的那句话。
+             *
+             *     做成配置项而不是代码字面量：站点想把提示写得更像自己（"看不清？换一张再试"）
+             *     不该发版。空串表示用默认文案（apperr 消息表里的那一句），这样没配过的站点
+             *     行为与以前完全一致。
+             */
+            fail_message?: string;
             height?: number;
             /**
              * @description Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），
              *     纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。
              */
             length?: number;
-            /** @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。 */
+            /**
+             * @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。
+             *     两者的 0 都是**合法值**（不倾斜 / 不放点），不是"没填"；非纯数字驱动保留原值
+             *     但不生效（清掉会让运营切到纯数字后看到与自己填的不一样的值）。
+             */
             max_skew?: number;
             /** @description NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。 */
             noise_count?: number;
@@ -9433,13 +9445,25 @@ export interface components {
              *     每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。
              */
             expire_seconds?: number;
+            /**
+             * @description FailMessage 是读者填错验证码时看到的那句话。
+             *
+             *     做成配置项而不是代码字面量：站点想把提示写得更像自己（"看不清？换一张再试"）
+             *     不该发版。空串表示用默认文案（apperr 消息表里的那一句），这样没配过的站点
+             *     行为与以前完全一致。
+             */
+            fail_message?: string;
             height?: number;
             /**
              * @description Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），
              *     纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。
              */
             length?: number;
-            /** @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。 */
+            /**
+             * @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。
+             *     两者的 0 都是**合法值**（不倾斜 / 不放点），不是"没填"；非纯数字驱动保留原值
+             *     但不生效（清掉会让运营切到纯数字后看到与自己填的不一样的值）。
+             */
             max_skew?: number;
             /** @description NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。 */
             noise_count?: number;
@@ -9931,6 +9955,15 @@ export interface components {
              */
             captcha_login?: boolean;
             captcha_phone_verify?: boolean;
+            /**
+             * @description CaptchaRegister 是「注册专用入口」的闸门。
+             *
+             *     它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
+             *     独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
+             *     分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
+             *     （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
+             */
+            captcha_register?: boolean;
             /** @description 邮箱验证码有效期，单位：分钟 */
             email_code_timeout?: number;
             email_login?: boolean;

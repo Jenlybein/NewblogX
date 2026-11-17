@@ -252,7 +252,7 @@ export type ArticleSearchResponseData = Omit<
 }
 
 /**
- * 九段运行时配置：全部从生成的契约派生（#283 / ADR-0020）。
+ * 十二段运行时配置：全部从生成的契约派生（#283 / ADR-0020）。
  *
  * 参数化 /site/{name} 与自由键值块已退场，每段各有具名响应/请求 schema；
  * 后台不再手写投影，字段名与类型都在编译期由 openapi.d.ts 给出。

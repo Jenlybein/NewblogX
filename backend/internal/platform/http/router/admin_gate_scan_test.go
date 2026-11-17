@@ -79,7 +79,7 @@ var adminRouteTemplates = []string{
 	// 提前解除禁言（票 399）：账号级处置，只给管理员。
 	"POST /api/users/admin/unmute",
 	"GET /api/users/login/log",
-	// 站点配置（九段具名端点：公开读 site / deco，管理读与写都是管理员）。
+	// 站点配置（十二段具名端点：公开读 site / deco，管理读与写都是管理员）。
 	"GET /api/site/admin/site",
 	"GET /api/site/admin/ai",
 	"GET /api/site/admin/mail",
@@ -213,7 +213,7 @@ var userRouteTemplates = []string{
 	"GET /api/users/search",
 	"GET /api/users/sessions",
 	"DELETE /api/users/sessions/:id",
-	// 站点公开读：seo / ai_info / 九段里的 site 与 deco / 右栏卡片。
+	// 站点公开读：seo / ai_info / 十二段里的 site 与 deco / 右栏卡片。
 	"GET /api/site/site",
 	"GET /api/site/deco",
 	"GET /api/site/qq_url",

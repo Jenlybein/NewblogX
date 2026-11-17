@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"strings"
+
 	confsite "myblogx/conf/site"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/io_util"
 
@@ -20,6 +23,8 @@ const (
 	CaptchaScopeEmailVerify = "email_verify"
 	// CaptchaScopePhoneVerify 是发短信验证码入口。
 	CaptchaScopePhoneVerify = "phone_verify"
+	// CaptchaScopeRegister 是注册专用入口（只有 POST /users/email/register 挂它）。
+	CaptchaScopeRegister = "register"
 )
 
 type CaptchaMiddlewareRequest struct {
@@ -62,7 +67,7 @@ func (h Runtime) captchaGate(c *gin.Context, scope string) {
 	}
 
 	if h.ImageCaptchaStore == nil || !h.ImageCaptchaStore.Verify(cr.CaptchaID, cr.CaptchaCode, true) {
-		res.FailWithMsg("图形验证码错误", c)
+		res.FailWithMsg(captchaFailMessage(h.RuntimeSite), c)
 		c.Abort()
 		return
 	}
@@ -80,6 +85,26 @@ func captchaGateEnabled(login confsite.Login, scope string) bool {
 		return login.CaptchaEmailVerify
 	case CaptchaScopePhoneVerify:
 		return login.CaptchaPhoneVerify
+	case CaptchaScopeRegister:
+		return login.CaptchaRegister
 	}
 	return false
+}
+
+// DefaultCaptchaFailMessage 是读者填错验证码时的默认提示。
+//
+// 与旧实现的字面量逐字一致：没在后台配过的站点，行为不该因为这次改动而变。
+const DefaultCaptchaFailMessage = "图形验证码错误"
+
+// captchaFailMessage 取当前配置的失败文案；没配（空串或配置服务缺失）就用默认值。
+//
+// 每次现读：后台改完这句立刻生效，不需要重启（与图形参数的读取口径一致）。
+func captchaFailMessage(runtimeSite *sitecfg.RuntimeConfigService) string {
+	if runtimeSite == nil {
+		return DefaultCaptchaFailMessage
+	}
+	if msg := strings.TrimSpace(runtimeSite.GetRuntimeCaptcha().FailMessage); msg != "" {
+		return msg
+	}
+	return DefaultCaptchaFailMessage
 }

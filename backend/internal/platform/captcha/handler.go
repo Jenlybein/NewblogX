@@ -35,14 +35,20 @@ type Settings interface {
 type Handler struct {
 	settings Settings
 	store    base64Captcha.Store
+	logger   Logger
+}
+
+// Logger 是窄日志接口（平台包不依赖具体日志实现）。
+type Logger interface {
+	Errorf(format string, args ...any)
 }
 
 // NewHandler 构造处理器。store 必须与校验侧是同一个实例。
-func NewHandler(settings Settings, store base64Captcha.Store) *Handler {
+func NewHandler(settings Settings, store base64Captcha.Store, logger Logger) *Handler {
 	if store == nil {
 		panic("captcha: 验证码存储未注入")
 	}
-	return &Handler{settings: settings, store: store}
+	return &Handler{settings: settings, store: store, logger: logger}
 }
 
 // ImageResponse 是验证码响应。
@@ -78,7 +84,13 @@ func (h *Handler) Image(c *gin.Context) {
 	captcha := base64Captcha.NewCaptcha(driver, h.store)
 	id, b64s, _, err := captcha.Generate()
 	if err != nil {
-		res.FailWithMsg(err.Error(), c)
+		// 不把 err.Error() 回给调用方：这个接口是匿名的，而错误里可能是
+		// `dial tcp redis:6379: connect: connection refused` 这类内部拓扑。
+		// 存储抖动时的正确表现是"这张图取不到，让用户刷新重试"，不是把内部信息透出去。
+		if h.logger != nil {
+			h.logger.Errorf("生成验证码失败: %v", err)
+		}
+		res.FailWithMsg("验证码生成失败，请刷新重试", c)
 		return
 	}
 	res.OkWithData(&ImageResponse{

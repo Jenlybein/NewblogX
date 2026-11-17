@@ -15,7 +15,7 @@ import (
 //
 // 参数化 /site/{name} 与 /site/admin/{name} 已整体退场：每段各有自己的
 // GET /site/admin/<name> 与 PUT /site/<name>，注解直接引用该段的具名形状。
-// 于是契约（开放接口契约）能派生出九套字段级类型，两端不再手写视图模型。
+// 于是契约（开放接口契约）能派生出十二套字段级类型，两端不再手写视图模型。
 
 // updateNamedSection 把请求体绑定到具名形状后交给该段的更新用例。
 func updateNamedSection[T any](c *gin.Context, update func(T) error) error {

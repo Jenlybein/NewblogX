@@ -43,7 +43,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, runtimeMw)
-	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{true}, base64Captcha.DefaultMemStore))
+	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{}, base64Captcha.DefaultMemStore, nil))
 	router.CaptchaRouter(api)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。
 	router.SetAuthHandler(authhttp.NewHandler(authapptest.NewRepos(time.Now()).Service(), nil, nil, nil, false, 0))

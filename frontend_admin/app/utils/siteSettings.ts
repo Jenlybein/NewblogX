@@ -95,7 +95,7 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
 ]
 
 /**
- * 其余九个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
+ * 其余十个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
  * 页面自己读写整段，不参与 site 段的读-改-写。
  */
 export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
@@ -120,7 +120,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
 ]
 
-/** 全部编辑域：站点四页在前，其余九个域在后（菜单顺序即此顺序）。 */
+/** 全部编辑域：站点四页在前，其余十个域在后（菜单顺序即此顺序）。 */
 export const ALL_SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   ...SITE_SETTINGS_PAGES,
   ...SITE_SETTINGS_SECTIONS,

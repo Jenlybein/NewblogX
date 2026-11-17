@@ -104,19 +104,43 @@ test("buildCandidates：单字、无 CJK、超长、重复都丢弃并计数", (
     ["冰毒", ["1"]],
     ["冰毒", ["1"]],
     ["abcd", ["2"]],
+    // 双字 + 诈骗类：按 SHORT_WORD_MIN_RUNES 收紧，应计入 shortGeneric。
     ["卖淫", ["2", "4"]],
+    // 三字 + 诈骗类：保留。
+    ["卖淫嫖娼", ["4"]],
   ]);
   const long = "很长很长".repeat(10);
   tags.set(long, ["4"]);
   const { entries, dropped } = buildCandidates({ tags });
   assert.deepEqual(
     entries.map((entry) => entry.word).sort(),
-    ["冰毒", "卖淫"].sort(),
+    ["冰毒", "卖淫嫖娼"].sort(),
   );
   assert.equal(dropped.cjkShort, 2, "单字词与纯拉丁词都计入 CJK 不足");
   assert.equal(dropped.tooLong, 1, "超过 24 字的噪音词应丢弃");
+  assert.equal(dropped.shortGeneric, 1, "双字通用词按类目收紧后计入 shortGeneric");
   assert.equal(entries.find((entry) => entry.word === "冰毒").tier, "block");
-  assert.equal(entries.find((entry) => entry.word === "卖淫").category, "fraud");
+  assert.equal(entries.find((entry) => entry.word === "卖淫嫖娼").category, "fraud");
+});
+
+// 生产实测（2026-11-17）的口径回归：三个通用类收紧到 3 rune，毒品 / 假证保留 2 rune。
+// 这条用例存在的理由很具体 —— 3 万词里「插入」「导航」「供应」曾把 60 篇技术文章
+// 的正文打成 `**`，而「冰毒」「发票」必须仍然命中。
+test("buildCandidates：双字词按类目分档（通用类丢、毒品与假证留）", () => {
+  const tags = new Map([
+    ["插入", ["2"]],
+    ["导航", ["4"]],
+    ["供应", ["4"]],
+    ["冰毒", ["1"]],
+    ["发票", ["4"]],
+    ["代开发票", ["4"]],
+  ]);
+  const { entries, dropped } = buildCandidates({ tags });
+  assert.deepEqual(entries.map((entry) => entry.word).sort(), ["代开发票", "冰毒", "发票"].sort());
+  assert.equal(dropped.shortGeneric, 3);
+  // --allow-short 逃生口：显式要求时双字通用词可以被保留。
+  const relaxed = buildCandidates({ tags, allowShort: true });
+  assert.equal(relaxed.entries.length, 6);
 });
 
 test("buildCandidates：去重键是小写，保留首次出现的写法", () => {

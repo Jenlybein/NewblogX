@@ -836,7 +836,7 @@ CREATE TABLE IF NOT EXISTS `user_violation_events` (
   `deleted_at` datetime(3) DEFAULT NULL,
   `user_id` bigint unsigned NOT NULL,
   `level` varchar(16) NOT NULL DEFAULT '',
-  `score` int NOT NULL DEFAULT '0',
+  `score` bigint NOT NULL DEFAULT '0',
   `source` varchar(16) NOT NULL DEFAULT 'machine',
   `ref_type` varchar(32) NOT NULL DEFAULT '',
   `ref_id` bigint unsigned NOT NULL DEFAULT '0',

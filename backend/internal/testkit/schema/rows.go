@@ -877,8 +877,10 @@ func (ContentFilterHitRow) TableName() string { return "content_filter_hit_model
 // 逐列一致（columns_static_test 默认会比）。
 type UserViolationEventRow struct {
 	BaseRow
-	UserID     ctype.ID   `gorm:"not null;index:idx_user_violation_user_created,priority:1" json:"user_id"`
-	Level      string     `gorm:"type:varchar(16);not null;default:'" json:"level"`
+	UserID ctype.ID `gorm:"not null;index:idx_user_violation_user_created,priority:1" json:"user_id"`
+	Level  string   `gorm:"type:varchar(16);not null;default:'" json:"level"`
+	// 分数列与 GORM 默认口径一致（bigint）：schema.sql 与 AutoMigrate 必须逐列相同，
+	// 否则"新装库"和"升级库"会长出不同的列类型。
 	Score      int        `gorm:"not null;default:0" json:"score"`
 	Source     string     `gorm:"type:varchar(16);not null;default:machine" json:"source"`
 	RefType    string     `gorm:"type:varchar(32);not null;default:';uniqueIndex:uk_user_violation_ref,priority:1" json:"ref_type"`

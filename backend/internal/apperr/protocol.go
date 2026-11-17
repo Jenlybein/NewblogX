@@ -80,6 +80,11 @@ var protocols = map[Code]ProtocolKind{
 	// 归 1001 而不是 1002（后者会让后台以为服务坏了、不敢重试）。
 	CodeSiteContentFilterInvalid: ProtocolValidation,
 
+	// 图形验证码段（ADR-0033）：存的是运营填错的类型/尺寸/有效期/字符集/颜色，
+	// 改一改就能过 —— 归 1001。归 1002 会让后台以为服务坏了，明明给的是哪一项越界
+	// （详情见 UserMessage）却只看到「服务异常」。
+	CodeSiteCaptchaInvalid: ProtocolValidation,
+
 	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
 	// 换个值就能过，同属调用方能修正的失败。
 	CodeFilterSurfaceInvalid: ProtocolValidation,

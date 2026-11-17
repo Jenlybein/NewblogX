@@ -70,6 +70,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '发布与审核', path: '/site/publish', icon: 'settings' },
   { label: '私信', path: '/site/chat', icon: 'settings' },
   { label: '内容过滤', path: '/site/content-filter', icon: 'settings' },
+  { label: '图形验证码', path: '/site/captcha', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '对象存储', path: '/site/storage', icon: 'settings' },

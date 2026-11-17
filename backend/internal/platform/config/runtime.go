@@ -42,6 +42,8 @@ type RuntimeConfig struct {
 	Deco          conf.Deco
 	ImageGC       conf.ImageGC
 	ContentFilter conf.ContentFilter
+	// 第 12 段：图形验证码的图形与时效参数（conf.Captcha）。
+	Captcha conf.Captcha
 }
 
 // RuntimeConfigService 负责运行时配置的加载、缓存与更新。
@@ -195,6 +197,14 @@ func (s *RuntimeConfigService) GetRuntimeContentFilter() conf.ContentFilter {
 	return s.GetRuntimeConfig().ContentFilter
 }
 
+// GetRuntimeCaptcha 返回图形验证码段。
+//
+// 每次现读：图片参数与有效期改了就该立刻生效，不能要求重启 —— 生成请求每次
+// 都按现值构建驱动、按现值写 TTL。
+func (s *RuntimeConfigService) GetRuntimeCaptcha() conf.Captcha {
+	return s.GetRuntimeConfig().Captcha
+}
+
 // snapshotLocked 返回缓存的一份副本；缓存为空时回退到默认值。
 //
 // 返回副本而不是指针：调用方拼装响应时可能改字段（例如把密钥换成占位符），
@@ -216,6 +226,7 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		Deco:          s.defaults.Deco,
 		ImageGC:       s.defaults.ImageGC,
 		ContentFilter: s.defaults.ContentFilter,
+		Captcha:       s.defaults.Captcha,
 	}
 }
 
@@ -418,6 +429,14 @@ func (s *RuntimeConfigService) UpdateImageGC(imageGC conf.ImageGC) error {
 // 保存路径上调用，请求路径不做构建。
 func (s *RuntimeConfigService) UpdateContentFilter(contentFilter conf.ContentFilter) error {
 	return updateSection(s, SectionContentFilter, contentFilter)
+}
+
+// UpdateCaptcha 覆盖图形验证码段并刷新缓存。
+//
+// 与词表段不同，这里没有"重建"这一步：生成请求每次都按配置现值构建驱动，
+// 缓存刷新本身就是全部生效路径。
+func (s *RuntimeConfigService) UpdateCaptcha(captcha conf.Captcha) error {
+	return updateSection(s, SectionCaptcha, captcha)
 }
 
 // updateSection 是各段更新的公共骨架：事务里 upsert 单行，提交后刷内存缓存。

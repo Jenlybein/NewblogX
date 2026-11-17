@@ -55,9 +55,27 @@ type Login struct {
 	EmailRegister bool `yaml:"email_register" json:"email_register"`
 	// PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关。
 	PhoneLogin bool `yaml:"phone_login" json:"phone_login"`
-	Captcha    bool `yaml:"captcha" json:"captcha"`
-	EmailCodeTimeout int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
-	SmsCodeTimeout   int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
+	// Captcha 是图形验证码的**总开关**。
+	//
+	// 它必须留在 site 段并保持公开可读：读者站要靠 GET /api/site/site 决定
+	// 每个登录/发码表单渲染不渲染验证码框，藏进后台专属段只会让所有表单
+	// 都渲染一个永远填不对的输入框。
+	//
+	// 图片尺寸、字符集、有效期这些**渲染参数**不在这里，见 conf.Captcha（第 12 段）。
+	Captcha bool `yaml:"captcha" json:"captcha"`
+	// 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
+	//
+	// 默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
+	// 需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
+	// 登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
+	//
+	// 它们也必须是公开可读的（渲染需要），所以留在 site 段而不是 captcha 段：
+	// 这就是 ADR-0020 决策 3 的分法 —— 策略留在 site.login，渲染参数进专属段。
+	CaptchaLogin       bool `yaml:"captcha_login" json:"captcha_login"`
+	CaptchaEmailVerify bool `yaml:"captcha_email_verify" json:"captcha_email_verify"`
+	CaptchaPhoneVerify bool `yaml:"captcha_phone_verify" json:"captcha_phone_verify"`
+	EmailCodeTimeout   int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
+	SmsCodeTimeout     int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
 
 	LoginFailWindowMinute int   `yaml:"login_fail_window_minute" json:"login_fail_window_minute"` // 登录失败统计窗口，单位：分钟
 	LoginFailUserMax      int64 `yaml:"login_fail_user_max" json:"login_fail_user_max"`           // 单账号窗口内最大失败次数

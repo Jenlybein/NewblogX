@@ -65,6 +65,8 @@ type RuntimeConfig interface {
 	ImageGC() conf.ImageGC
 	// ContentFilter 返回全站词表段（第 11 段，ADR-0032）。
 	ContentFilter() conf.ContentFilter
+	// Captcha 返回图形验证码段（第 12 段，ADR-0033）。
+	Captcha() conf.Captcha
 
 	// UpdateSite 覆盖站点配置。
 	UpdateSite(site conf.Site) error
@@ -76,6 +78,8 @@ type RuntimeConfig interface {
 	UpdateStorage(storage conf.QiNiu) error
 	// UpdateOAuth 覆盖第三方登录配置。
 	UpdateOAuth(oauth conf.QQ) error
+	// UpdateCaptcha 覆盖图形验证码配置。
+	UpdateCaptcha(captcha conf.Captcha) error
 	// UpdateSMS 覆盖短信通道配置。
 	UpdateSMS(sms conf.SMS) error
 	// UpdateLog 覆盖日志配置。

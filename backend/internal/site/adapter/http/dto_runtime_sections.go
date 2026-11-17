@@ -47,3 +47,7 @@ type SiteSectionImageGcRequest conf.ImageGC
 // 第 11 段 content_filter（ADR-0032）：只有后台具名端点，没有公开读。
 type SiteSectionContentFilterResponse conf.ContentFilter
 type SiteSectionContentFilterRequest conf.ContentFilter
+
+// 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，同样只有后台具名端点。
+type SiteSectionCaptchaResponse conf.Captcha
+type SiteSectionCaptchaRequest conf.Captcha

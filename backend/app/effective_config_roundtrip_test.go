@@ -233,8 +233,8 @@ func TestEffectiveConfig_所有段具名出入口全部登记且往返可读(t *
 	f := newEffectiveFixture(t)
 
 	names := f.effective.SectionNames()
-	if len(names) != 11 {
-		t.Fatalf("十一段应全部登记，实际 %d 段: %v", len(names), names)
+	if len(names) != 12 {
+		t.Fatalf("十二段应全部登记，实际 %d 段: %v", len(names), names)
 	}
 	for _, name := range names {
 		if !f.effective.HasSection(string(name)) {

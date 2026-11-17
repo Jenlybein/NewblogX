@@ -106,6 +106,10 @@ var adminRouteTemplates = []string{
 	// 读写都在管理员分组下。
 	"GET /api/site/admin/content_filter",
 	"PUT /api/site/content_filter",
+	// 图形验证码（第 12 段，ADR-0033）：图形/时效参数只给管理员。
+	// 读者站需要的是 site.login 的三个闸门布尔位（公开可读），不是这两个端点。
+	"GET /api/site/admin/captcha",
+	"PUT /api/site/captcha",
 	// 关键词风险（ADR-0032 决策 7 / 票 396）：看到的是"谁发了什么命中词"，
 	// 整段管理员专属；这一票只有只读列表。
 	"GET /api/content-filter/hits",
@@ -419,5 +423,3 @@ func TestClassificationGateIsNotAlwaysGreen(t *testing.T) {
 		t.Fatal("canary 失效：未归类判定恒为假，门禁永远不会红")
 	}
 }
-
-

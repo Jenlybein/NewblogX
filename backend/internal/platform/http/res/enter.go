@@ -140,6 +140,17 @@ func FailWithError(err error, c *gin.Context) {
 // 收口到 apperr"与"参数错误用 1001"同时成立。
 func FailWithValidError(err error, c *gin.Context) {
 	data, msg := validate.ValidateError(err)
+	// 与 Fail 同一条通道：Validation 类失败允许错误值自带一句更具体的文案。
+	// 典型例子是图形验证码段保存时的"图片宽度需在 80–400 之间，收到 5000" ——
+	// 不给这句，后台只能看到"配置不合法"。
+	if apperr.ProtocolOf(err) == apperr.ProtocolValidation {
+		var carrier interface{ UserMessage() string }
+		if errors.As(err, &carrier) {
+			if extra := strings.TrimSpace(carrier.UserMessage()); extra != "" {
+				msg = extra
+			}
+		}
+	}
 	Response{
 		Code: FailValidCode,
 		Data: data,
@@ -184,4 +195,3 @@ func Fail(err error, c *gin.Context) {
 		Response{Code: FailServiceCode, Data: data, Msg: msg}.Json(c)
 	}
 }
-

@@ -124,8 +124,18 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；十段 `site/ai/mail/storage/oauth/sms/log/upload/deco/image_gc`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0020](./docs/adr/0020-config-section-registry-and-named-sections.md)）。`sms` 段只放短信通道的传输层凭证与模板；登录开关与发码限流在 `site.login`，与邮件那几项并排。
-_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，十段各有具名响应/请求形状）。
+位置：表 `runtime_config_models`；十二段 `site/ai/mail/storage/oauth/sms/log/upload/deco/image_gc/content_filter/captcha`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0020](./docs/adr/0020-config-section-registry-and-named-sections.md)）。`sms` 段只放短信通道的传输层凭证与模板；登录开关与发码限流在 `site.login`，与邮件那几项并排。`content_filter` 与 `captcha` 两段都没有公开读，只给后台具名端点读写。
+_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，十二段各有具名响应/请求形状）。
+
+**图形验证码（image captcha）**：
+登录 / 发码表单上那张要人读的小图，用来挡脚本撞库与短信刷量（短信按条计费，刷量是真花钱）。它由三块拼成，位置各不相同：
+- **渲染参数**在第 12 段运行时配置 `captcha`（`GET /site/admin/captcha` / `PUT /site/captcha`，**没有公开读**）：驱动（`string` 字符型 / `math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线三个布尔、背景色与有效期 `expire_seconds`；纯数字型另有 `max_skew` / `dot_count`。归一化把该驱动用不上的字段清零。
+- **入口策略**在 `site.login`：总开关 `captcha`，外加三个入口闸门 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify`（默认全开）。它们**必须公开可读**（`GET /api/site/site`），读者站靠它们决定每个表单渲染不渲染验证码框。是否校验 = 总开关 && 该入口闸门，三条入口各挂自己的 `CaptchaGate(scope)`。
+- **答案存储**在 Redis（键前缀 `blogx:captcha:`，TTL 取当前 `expire_seconds`、每次生成现读），校验忽略大小写、一次性删除（`clear=true`）；Redis 不可用时退回进程内存储并打一条 warn（重启即失效、多副本不通用）。`GET /api/imagecaptcha` 回显 `expire_seconds`。
+默认字符集 `23456789ABCDEFGHJKMNPQRSTUVWXYZ` 去掉了易混的 `0/O/1/I/L`；保存时会去空白、去重复字符（旧默认值里 `IJKL` 重复过，等于白降一半难度）。归一化口径是「`0` / 空串回落默认、越界直接报错（`site.captcha_invalid`）」，不静默夹取 —— 与 `deco.charm` 的「越界钳回边界」不同，验证码的坏值是安全参数而不是手感参数。
+位置：`backend/conf/conf_captcha.go`、`backend/internal/site/app/captcha.go`（归一化）、`backend/internal/platform/captcha/`（三驱动、背景色与 Redis 存储）、`backend/internal/platform/http/middleware/captcha_middleware.go`（闸门）；决定见 [ADR-0033](./docs/adr/0033-captcha-configurable-and-redis-store.md)。
+易混：它与「邮箱验证码 / 短信验证码」不是一回事——那两个是发到邮箱 / 手机的一次性数字（错误口径是 `user.captcha_invalid`），图形验证码是提交前要填的那道图片题；它与「内容过滤」也没有关系（过滤改文本，验证码拦脚本）。
+_Avoid_: 把 `captcha` 段当成开关（开关与三个闸门在 `site.login`）；说"验证码图片参数写死在代码里"（已可配）；把三个闸门挪进 `captcha` 段（读者站拿不到就没法渲染，表单会画出永远填不对的框）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。

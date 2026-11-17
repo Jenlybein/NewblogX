@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mojocn/base64Captcha"
 
+	captchastore "myblogx/internal/platform/captcha"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/router"
 )
@@ -22,7 +24,26 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	cfg := infra.Config
 	// 验证码的生成（internal/platform/captcha）与校验（middleware）必须是同一个 store，
 	// 否则前端拿到的 captcha_id 在登录时校验不到。这里只创建一个实例，两处共用。
-	captchaStore := base64Captcha.DefaultMemStore
+	//
+	// 优先用 Redis：库自带的 DefaultMemStore 是进程内内存，(a) 重启即失效、
+	// (b) 多副本时 A 生成 B 校验永远失败。两者在单实例下都不显形，专挑重启/扩容那天炸。
+	// Redis 不可用（本地没起 Redis、单元测试）时退回内存存储，功能不退化、只是同进程内有效。
+	var captchaStore base64Captcha.Store
+	if infra.Redis != nil {
+		captchaStore = captchastore.NewRedisStore(
+			infra.Redis,
+			// TTL 每次现读配置：改有效期不该要求重启，且只影响新生成的图片。
+			func() time.Duration {
+				return time.Duration(infra.RuntimeSite.GetRuntimeCaptcha().ExpireSeconds) * time.Second
+			},
+			infra.Logger,
+		)
+	} else {
+		if infra.Logger != nil {
+			infra.Logger.Warn("Redis 不可用，图形验证码退回进程内存储：重启即失效、多副本不通用")
+		}
+		captchaStore = base64Captcha.DefaultMemStore
+	}
 	opts := middleware.RuntimeOptions{
 		System:            cfg.System,
 		JWT:               cfg.Jwt,

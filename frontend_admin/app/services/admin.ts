@@ -52,6 +52,7 @@ import type {
   SumResponseData,
   TagListItem,
   TagWritePayload,
+  CaptchaRuntimeConfig,
   ContentFilterRuntimeConfig,
   ContentFilterHitListData,
   ContentFilterHandleResult,
@@ -63,7 +64,14 @@ import type {
   GroupTreeData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的十一段一一对应（ADR-0020 / ADR-0032）。 */
+/**
+ * 可读写的配置段。与后端段注册表（platform/config/registry.go）的十二段一一对应
+ * （ADR-0020 / ADR-0032 / ADR-0033）。
+ *
+ * 这里必须是**全量**段清单，而不是"有编辑页的段"：`image_gc` 没有编辑页但仍有
+ * 具名端点，漏掉它会让那一类调用点无处归类；新增一段时这条联合类型必须同步 +
+ * 一行，否则 typecheck 会在真正用到它的页面里报错（比运行期 404 早得多）。
+ */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
@@ -76,6 +84,7 @@ export type RuntimeSectionName =
   | 'deco'
   | 'image_gc'
   | 'content_filter'
+  | 'captcha'
 
 function api() {
   return useNuxtApp().$api
@@ -655,6 +664,20 @@ export function getContentFilterRuntimeConfig() {
 
 export function updateContentFilterRuntimeConfig(payload: ContentFilterRuntimeConfig) {
   return updateRuntimeSection('content_filter', payload)
+}
+
+/**
+ * 图形验证码段（第 12 段，ADR-0033）：图形与时效参数。
+ *
+ * 只有后台这一个出入口。保存即生效：生成请求每次都按现值构建驱动、按现值写 TTL，
+ * 没有"重建引擎"那一步。开关与入口闸门不在这里（见 site.login）。
+ */
+export function getCaptchaRuntimeConfig() {
+  return getRuntimeSection<CaptchaRuntimeConfig>('captcha')
+}
+
+export function updateCaptchaRuntimeConfig(payload: CaptchaRuntimeConfig) {
+  return updateRuntimeSection('captcha', payload)
 }
 
 // ── 合集 / 项目分组（ADR-0019）─────────────────────────────────

@@ -58,7 +58,7 @@
 CREATE TABLE IF NOT EXISTS `runtime_config_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` / `updated_at` / `deleted_at` datetime(3),
-  `name` varchar(32) NOT NULL,   -- 十一段：site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter
+  `name` varchar(32) NOT NULL,   -- 十二段：site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter / captcha
   `payload` longtext NOT NULL,   -- 一段完整 JSON
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_runtime_config_models_name` (`name`)
@@ -134,14 +134,14 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 五、十一个配置段
+## 五、十二个配置段
 
-这十一段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
+这十二段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
 补种、全量解码、缓存应用与写入校验都从它派生，**漏登记在写库前直接失败**（不再「警告后缓存不更新」）。理由与否决链见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
 | --- | --- | --- | --- |
-| `site` | `conf.Site` | 站点信息、SEO、登录开关与限流、审核开关 | 下一次请求 |
+| `site` | `conf.Site` | 站点信息、SEO、登录开关与限流、图形验证码总开关与三个入口闸门、审核开关 | 下一次请求 |
 | `ai` | `conf.AI` | AI 对话与文章评分、七个场景的每人每日额度 | 下一次调用 |
 | `mail` | `conf.Mail` | 腾讯云 SES `SendEmail`（模板发信） | 下一次发信 |
 | `storage` | `conf.QiNiu` | 上传 token、URL 反解、image-ref 同步 | 下一次上传 |
@@ -152,21 +152,34 @@ type Service struct{ cfg func() conf.Mail }
 | `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
 | `image_gc` | `conf.ImageGC` | 孤儿图回收的总开关、宽限期与单批上限 | 下一次回收任务 |
 | `content_filter` | `conf.ContentFilter` | 内容过滤的词表（词 / 档位 / 类目）、白名单、命中记录保留天数 | 保存后原子重建，下一次过滤 |
+| `captcha` | `conf.Captcha` | 图形验证码的驱动、图片尺寸、字符数、字符集、噪点、三种干扰线、背景色、有效期（第 12 段，**仅后台、无公开读**） | 下一次生成 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要在注册表里
-补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（此后 `sms` 由手机号登录那一批
-插在 `oauth` 之后成为第十段，`content_filter` 在这次改造中成为第十一段），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
+补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（此后 `sms` 由手机号登录那一批插在 `oauth` 之后加入、
+`content_filter` 在内容过滤改造中加入、`captcha`（[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）在本轮加入，段数一路加到现在的十二段），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
 
 `content_filter`（第 11 段，[ADR-0032](../adr/0032-content-filter.md)）**没有公开读端点**：只有
 `GET /site/admin/content_filter` 与 `PUT /site/content_filter`（管理员）。理由是词表本身就是「不能让外部拿到」的数据，
 而 `site` 段有匿名可读的 `GET /site/site`。段内校验在保存期做（词条非空、档位只有 `block` / `watch`、类目只有七类），
 引擎在保存后按新词表**原子重建**（重建失败保留旧词表并记 error，不清空）。
 
-`ai` 段的每日额度（`daily_limits`，ADR-0028）是**唯一一处保存期拒绝非法值**的配置：
-它七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」；其余数值配置（私信限流、
-投稿配额）沿用「越界回落到默认值」的口径。理由是 0 在这里有明确的业务含义，静默
-回落会把"我不想限制这个场景"改写成"给它一个数字"。本票只有挂件子块 `deco.charm`：总开关 `enable`，
+`captcha`（第 12 段，[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）同样**没有公开读**：只有
+`GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）。它只承载「图长什么样、多久失效」——驱动（`string` 字符型 /
+`math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线（三个布尔，不暴露库的 `2` / `4` / `8` 位掩码）、
+背景色与有效期 `expire_seconds`（60–3600，同时是存储 TTL），纯数字型另有 `max_skew` / `dot_count`。
+保存期的口径是**越界即拒绝**（`site.captcha_invalid`，文案点名哪个字段越什么界），只有 `0` / 空串回落默认值；
+**不适用字段按驱动清零**（算术型不用 `length` / `source`，纯数字型不用背景色、噪点与三个干扰线开关）。
+「哪些入口要验证码」不在这段，留在 `site.login`：总开关 `captcha` 之外有三个入口闸门
+`captcha_login` / `captcha_email_verify` / `captcha_phone_verify`（默认全开），它们**必须公开可读**——
+读者站靠 `GET /api/site/site` 决定每个表单渲染不渲染验证码框（见 §六 的登录策略说明）。
+答案存 Redis（键前缀 `blogx:captcha:`，TTL 每次生成现读 `expire_seconds`；Redis 不可用时退回进程内存储并打一条 warn，
+重启即失效、多副本不通用）。
+
+`ai` 段的每日额度（`daily_limits`，ADR-0028）与第 12 段的 `captcha`（[ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）是**保存期拒绝非法值**的两处配置：
+前者七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」，后者是「0 / 空串回落默认、越界一律 400」；其余数值配置（私信限流、
+投稿配额）沿用「越界回落到默认值」的口径。理由是 0 在这里有明确的业务含义，静默回落会把"我不想限制这个场景"改写成"给它一个数字"；
+而验证码的越界值是安全参数（图片撑爆布局、有效期给出爆破窗口、字符集只剩一个字符），静默接受等于静默削弱防护。本票只有挂件子块 `deco.charm`：总开关 `enable`，
 以及十二个数值参数 —— 站标尺寸 `logo_size`（px，15–70）、挂绳长度 `rope_length`（px，40–240）、
 节点数 `segments`（节，4–30，计数）、描边起始宽度 `line_width`（px，1–6，收尾固定为起始的 0.6 倍）、
 重力 `gravity`（px/s²，400–4000）、每步阻尼 `damping`（无量纲，0.9–1）、距离约束刚度 `stiffness`
@@ -220,17 +233,18 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 六、后台页面：十一个配置段、十个编辑域，一个例外
+## 六、后台页面：十二个配置段、十一个编辑域，一个例外
 
 `frontend_admin/app/pages/site/` 下每个编辑域一个页面文件（`index.vue` 是站点域，
 其余是 `ai.vue` / `mail.vue` / …），各自只挂载一个配置组件：
 `SettingsSite` / `SettingsAi` / `SettingsMail` / `SettingsStorage` / `SettingsOAuth` /
-`SettingsSMS` / `SettingsLog` / `SettingsUpload` / `SettingsDeco`。组件本身不改名、不移动。
+`SettingsSMS` / `SettingsLog` / `SettingsUpload` / `SettingsDeco` / `SettingsContentFilter` /
+`SettingsCaptcha`。组件本身不改名、不移动。
 
-十一个配置段里目前**十个**有后台编辑页（`settings.ts` 那张清单：`site` / `ai` / `mail` / `storage` /
-`oauth` / `sms` / `log` / `upload` / `deco` / `content_filter`）；唯一没有编辑页的是 `image_gc` —— 它已在注册表与
+十二个配置段里目前**十一个**有后台编辑页（`frontend_admin/app/utils/siteSettings.ts` 那张清单：`site` / `ai` / `mail` / `storage` /
+`oauth` / `sms` / `log` / `upload` / `deco` / `content_filter` / `captcha`）；唯一没有编辑页的是 `image_gc` —— 它已在注册表与
 具名端点里，但生效值仍由默认种子与回收任务读取（展示开关归 #284）。
-`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部十一段的清单。
+`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部十二段的清单。
 
 路由由 URL 决定（`/site` + `/site/{域}`），刷新停留在当前域、链接可分享。
 菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
@@ -239,8 +253,11 @@ type Service struct{ cfg func() conf.Mail }
 **唯一的例外**：「登录策略」它不是一段，而是 `site.login` 子对象。所以它和站点基础信息
 放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
+图形验证码的三个入口闸门（`captcha_login` / `captcha_email_verify` / `captcha_phone_verify`）与总开关
+`captcha` 也在这个子对象、这个页面里：它们必须公开可读，而「图长什么样、多久失效」在独立的
+`captcha` 段（第 12 段，自己的整段端点与「站点 → 图形验证码」页，见 [ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）。
 
-请求/响应形状（十一段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
+请求/响应形状（十二段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
 
 | 方向 | 形状 | 契约里是什么 |
 | --- | --- | --- |
@@ -296,7 +313,7 @@ const loaded = ref(false)
 1. **契约是破坏性变更**。每段各有具名端点与具名形状，旧参数化端点与自由键值块整体下线；
    仍按 `/site/{name}` 调用的客户端会 404，两个前端的派生类型必须同批重生成。三份契约产物
    （`backend/docs/swagger.json` 与两个 app 的 `app/types/openapi.d.ts`）由生成器同批产出，
-   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 158/202/369），
+   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 168/212/392），
    判据四文件零改动。当初「拆成八组路由 + 八个 DTO」的否决理由与推翻经过见
    [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 2. **密钥明文入库**（§3.4）。它不会比 `.env` 更安全，只换来"改完即生效"。
@@ -315,8 +332,8 @@ const loaded = ref(false)
 | `settings.yaml` 删掉的业务段 | 4（`upload` / `email` / `qq` / `qiniu`） |
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
-| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是十一段，见 §五 / [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md) |
-| 新增接口 | 2 个 setup 接口；配置读写现为十一段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
+| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是十二段，见 §五 / [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md) |
+| 新增接口 | 2 个 setup 接口；配置读写现为十二段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 
 `settings.yaml` 现在只剩进程级配置。业务默认值只有一个来源

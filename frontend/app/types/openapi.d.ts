@@ -5555,6 +5555,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 captcha 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionCaptchaResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/content_filter": {
         parameters: {
             query?: never;
@@ -6046,6 +6082,47 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 captcha 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description captcha 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionCaptchaRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -9109,6 +9186,11 @@ export interface components {
         "internal_platform_captcha.ImageResponse": {
             base64?: string;
             captcha_id?: string;
+            /**
+             * @description ExpireSeconds 回显当前有效期：前端据此决定"多久没操作就主动换一张"，
+             *     也让运营在后台改完有效期后能在响应里立刻看到生效值。
+             */
+            expire_seconds?: number;
         };
         "internal_site_adapter_http.AIResponse": {
             abstract?: string;
@@ -9280,6 +9362,102 @@ export interface components {
             };
             temperature?: number;
             timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionCaptchaRequest": {
+            /**
+             * @description BgColor 是背景色，`#RRGGBB` 或 `#RRGGBBAA`（字符型 / 算术型）。
+             *     默认值带 10/255 的不透明度，与旧实现一致。
+             */
+            bg_color?: string;
+            dot_count?: number;
+            /**
+             * @description Driver 是图形验证码的类型：
+             *       - string：字符型（字母 + 数字），旧实现的形态；
+             *       - math：算术型（两位数四则运算），对脚本更有效；
+             *       - digit：纯数字，方便手机键盘输入。
+             * @enum {string}
+             */
+            driver?: "string" | "math" | "digit";
+            /**
+             * @description ExpireSeconds 是验证码有效期（秒），范围 60–3600。
+             *
+             *     它同时决定存储层的 TTL：验证码存在 Redis 里（多副本与重启都不会失效），
+             *     每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。
+             */
+            expire_seconds?: number;
+            height?: number;
+            /**
+             * @description Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），
+             *     纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。
+             */
+            length?: number;
+            /** @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。 */
+            max_skew?: number;
+            /** @description NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。 */
+            noise_count?: number;
+            /**
+             * @description 三种干扰线各自一个开关，而不是暴露 base64Captcha 的位掩码常量：
+             *     位掩码是库的内部编码（2/4/8），让运营去记位值是没道理的。
+             */
+            show_hollow_line?: boolean;
+            show_sine_line?: boolean;
+            show_slime_line?: boolean;
+            /**
+             * @description Source 是字符型的字符集（仅在 driver=string 时使用）。
+             *     归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，
+             *     等于白送一半难度，这种输入不再被接受。
+             */
+            source?: string;
+            /** @description Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。 */
+            width?: number;
+        };
+        "internal_site_adapter_http.SiteSectionCaptchaResponse": {
+            /**
+             * @description BgColor 是背景色，`#RRGGBB` 或 `#RRGGBBAA`（字符型 / 算术型）。
+             *     默认值带 10/255 的不透明度，与旧实现一致。
+             */
+            bg_color?: string;
+            dot_count?: number;
+            /**
+             * @description Driver 是图形验证码的类型：
+             *       - string：字符型（字母 + 数字），旧实现的形态；
+             *       - math：算术型（两位数四则运算），对脚本更有效；
+             *       - digit：纯数字，方便手机键盘输入。
+             * @enum {string}
+             */
+            driver?: "string" | "math" | "digit";
+            /**
+             * @description ExpireSeconds 是验证码有效期（秒），范围 60–3600。
+             *
+             *     它同时决定存储层的 TTL：验证码存在 Redis 里（多副本与重启都不会失效），
+             *     每次生成按**当时的配置值**写 TTL，所以改它不需要重启，只影响新生成的图片。
+             */
+            expire_seconds?: number;
+            height?: number;
+            /**
+             * @description Length 是验证码字符/运算数的位数：字符型指字符个数（2–8），
+             *     纯数字指数字个数（3–8）。算术型不使用此项（题目固定为两位数运算）。
+             */
+            length?: number;
+            /** @description MaxSkew / DotCount 只对纯数字型生效：单字最大倾斜与背景圆点数量。 */
+            max_skew?: number;
+            /** @description NoiseCount 是噪点数量（字符型 / 算术型）：0–10，0 表示不放噪点。 */
+            noise_count?: number;
+            /**
+             * @description 三种干扰线各自一个开关，而不是暴露 base64Captcha 的位掩码常量：
+             *     位掩码是库的内部编码（2/4/8），让运营去记位值是没道理的。
+             */
+            show_hollow_line?: boolean;
+            show_sine_line?: boolean;
+            show_slime_line?: boolean;
+            /**
+             * @description Source 是字符型的字符集（仅在 driver=string 时使用）。
+             *     归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，
+             *     等于白送一半难度，这种输入不再被接受。
+             */
+            source?: string;
+            /** @description Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。 */
+            width?: number;
         };
         "internal_site_adapter_http.SiteSectionContentFilterRequest": {
             /**
@@ -9730,7 +9908,29 @@ export interface components {
             stranger_msg_enabled?: boolean;
         };
         "myblogx_conf_site.Login": {
+            /**
+             * @description Captcha 是图形验证码的**总开关**。
+             *
+             *     它必须留在 site 段并保持公开可读：读者站要靠 GET /api/site/site 决定
+             *     每个登录/发码表单渲染不渲染验证码框，藏进后台专属段只会让所有表单
+             *     都渲染一个永远填不对的输入框。
+             *
+             *     图片尺寸、字符集、有效期这些**渲染参数**不在这里，见 conf.Captcha（第 12 段）。
+             */
             captcha?: boolean;
+            captcha_email_verify?: boolean;
+            /**
+             * @description 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
+             *
+             *     默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
+             *     需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
+             *     登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
+             *
+             *     它们也必须是公开可读的（渲染需要），所以留在 site 段而不是 captcha 段：
+             *     这就是 ADR-0020 决策 3 的分法 —— 策略留在 site.login，渲染参数进专属段。
+             */
+            captcha_login?: boolean;
+            captcha_phone_verify?: boolean;
             /** @description 邮箱验证码有效期，单位：分钟 */
             email_code_timeout?: number;
             email_login?: boolean;
@@ -10321,6 +10521,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionAiResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionCaptchaResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionCaptchaResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse": {

@@ -10,8 +10,14 @@ import type { EmailVerifyResponse } from "~/types/api";
  */
 export type CaptchaProof = { captcha_id: string; captcha_code: string };
 
-/** 图片验证码：`base64` 已经是可以直接放进 `<img src>` 的 data URI。 */
-export type ImageCaptcha = { captcha_id: string; base64: string };
+/**
+ * 图片验证码：`base64` 已经是可以直接放进 `<img src>` 的 data URI。
+ *
+ * `expire_seconds` 是后端回显的当前有效期（第 12 段 `captcha` 的配置值）。
+ * 它让前端知道"多久没操作就该主动换一张"，也让运营在后台改完有效期后
+ * 立刻能在响应里看到生效值 —— 前端不该自己写死一个 10 分钟。
+ */
+export type ImageCaptcha = { captcha_id: string; base64: string; expire_seconds?: number };
 
 /** 取一张图形验证码（一次性：校验成功即失效，所以每次提交后要重新取）。 */
 export function getImageCaptcha() {

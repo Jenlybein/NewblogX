@@ -138,7 +138,8 @@ func newMiddlewareEngineWithSite(t *testing.T, site conf.Site) *gin.Engine {
 }
 
 func registerCaptchaEmailRoutes(r *gin.Engine) {
-	r.POST("/captcha", middleware.CaptchaMiddleware, func(c *gin.Context) {
+	// 验证码校验改成按入口挂闸门（第 12 段 / ADR-0033）：这里挂登录入口那一档。
+	r.POST("/captcha", middleware.CaptchaGate(middleware.CaptchaScopeLogin), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 	r.POST("/email", middleware.EmailVerifyMiddleware, func(c *gin.Context) {
@@ -229,8 +230,10 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 		}
 	}
 
-	// 开启验证码 + 正确验证码
-	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true}})
+	// 开启验证码 + 正确验证码。总开关之外还要打开登录入口的闸门：
+	// 只开总开关（Captcha: true）时按入口闸门的语义是不校验的，这里要测的是
+	// "校验真的发生了、正确码能过"，所以两个条件都得给。
+	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true, CaptchaLogin: true}})
 	registerCaptchaEmailRoutes(r)
 	_ = testutil.ImageCaptchaStore().Set("cid", "1234")
 	{

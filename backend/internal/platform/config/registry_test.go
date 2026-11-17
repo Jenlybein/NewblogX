@@ -44,9 +44,11 @@ func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
 // 期望值来自票面清单，不从被测试的注册表反推，避免自证。
 // 第十段 sms 由 ADR-0020 的修订引入：短信通道的密钥必须加密落库，
 // 而 site 段有匿名可读的公开端点，放不进去。
+// 第十二段 captcha（ADR-0033）同理：图形与时效参数只给后台读写，不混进公开的 site 段。
 func TestSectionRegistryRegistersAllSections(t *testing.T) {
 	want := []string{
 		"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc", "content_filter",
+		"captcha",
 	}
 	svc, _ := newTestService(t, conf.RuntimeDefaults{})
 	for _, name := range want {

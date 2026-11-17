@@ -167,8 +167,11 @@ func TestInitRuntimeConfig_给缺失段补默认行(t *testing.T) {
 	if err := db.Model(&runtimeConfigRow{}).Count(&count).Error; err != nil {
 		t.Fatalf("统计行数失败: %v", err)
 	}
-	if count != 11 {
-		t.Fatalf("十一段都应补一行，实际 %d 行", count)
+	// 行数按注册表的段清单（现在十二段，第 12 段 captcha 见 ADR-0033）：
+	// 每段一行"完整默认值 JSON"，少一段就等于那一段在库里没有行、只能靠缓存回退，
+	// 多一段则说明有段名被写了两次（两行同名的段谁生效取决于查询顺序）。
+	if count != 12 {
+		t.Fatalf("十二段都应补一行，实际 %d 行", count)
 	}
 
 	// 补进去的内容必须是该段默认值的完整 JSON，不能是空字符串。

@@ -273,6 +273,15 @@ export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSe
 export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
 export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
 export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
+
+/**
+ * 第 12 段 `captcha`（ADR-0033）：图形验证码的图形与时效参数。
+ *
+ * 这一段只有后台具名端点（`GET /site/admin/captcha` / `PUT /site/captcha`）。
+ * 「开关」与「哪些入口要验证码」**不在这里**：它们在公开可读的 `site.login`
+ * 里（读者站要靠那几位决定每个表单画不画验证码框）。
+ */
+export type CaptchaRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionCaptchaResponse">
 /**
  * 第 11 段 `content_filter`（ADR-0032）：全站唯一的词表与白名单。
  *

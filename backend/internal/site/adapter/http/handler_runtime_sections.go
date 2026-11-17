@@ -436,6 +436,49 @@ func (h *Handler) AdminContentFilterSection(c *gin.Context) {
 	res.OkWithData(SiteSectionContentFilterResponse(h.svc.AdminContentFilter()), c)
 }
 
+// AdminCaptchaSection 返回 captcha 段管理端配置。
+//
+// 第 12 段与 content_filter 同理只有管理端出入口：图片尺寸/字符集/有效期属于
+// 运营参数，读者没必要知道；而"哪些入口要验证码"那三个布尔位在 site.login 里、
+// 本来就公开可读（前端要靠它决定渲染不渲染输入框）。
+// @Summary 获取 captcha 段运行时配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[SiteSectionCaptchaResponse]
+// @Router /site/admin/captcha [get]
+func (h *Handler) AdminCaptchaSection(c *gin.Context) {
+	res.OkWithData(SiteSectionCaptchaResponse(h.svc.AdminCaptcha()), c)
+}
+
+// UpdateCaptchaSection 覆盖 captcha 段运行时配置。
+//
+// 保存即生效：生成请求每次都按配置现值构建驱动、按现值写 TTL，没有"重建"这一步。
+// @Summary 更新 captcha 段运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SiteSectionCaptchaRequest true "captcha 段配置"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /site/captcha [put]
+func (h *Handler) UpdateCaptchaSection(c *gin.Context) {
+	if err := updateNamedSection(c, func(v SiteSectionCaptchaRequest) error {
+		return h.svc.UpdateCaptcha(conf.Captcha(v))
+	}); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "captcha",
+		Success:    true,
+		Message:    "更新运行时配置成功: captcha",
+	})
+}
+
 // UpdateContentFilterSection 覆盖 content_filter 段运行时配置。
 //
 // 保存即生效：写入后缓存立刻刷新，过滤引擎按新词表重建（重建由用例层负责，

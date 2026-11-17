@@ -58,6 +58,15 @@ site:
     email_register: false
     # 登录和发送邮箱验证码接口是否启用图形验证码中间件
     captcha: false
+    # 下面三个是图形验证码的**入口闸门**：在总开关打开的前提下，逐个决定哪条路由
+    # 真的校验（登录 / 发邮箱验证码 / 发短信验证码）。默认全开 = 与旧行为一致：
+    # 一开总开关，三条入口都校验。
+    #
+    # 它们必须留在 site 段并保持公开可读：读者站要靠它们决定每个表单渲染不渲染
+    # 验证码框（渲染参数在 captcha 段，见文件末尾）。
+    captcha_login: true
+    captcha_email_verify: true
+    captcha_phone_verify: true
     # 邮箱验证码有效期，单位：分钟
     email_code_timeout: 5
     # 短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行
@@ -340,6 +349,38 @@ content_filter:
   # 命中记录的保留天数（1–3650）。记录里存着 ±20 字上下文，留多久是运营对
   # "审计价值 vs 数据量"的取舍；清理任务每天读一次现值，改这里不需要重启。
   retain_days: 90
+# 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数。
+#
+# 只有后台具名端点（GET /site/admin/captcha、PUT /site/captcha），没有公开读：
+# 图片尺寸/字符集/有效期属于运营参数，读者没必要知道。
+#
+# 「哪些入口要验证码」不在这里 —— 那是登录策略，见上面 site.login 的 captcha 与
+# captcha_login / captcha_email_verify / captcha_phone_verify 三个闸门（那些必须公开可读，
+# 前端要靠它们决定渲染不渲染输入框）。
+captcha:
+  # 类型：string（字符型）/ math（算术型）/ digit（纯数字）。
+  driver: string
+  # 字符数：字符型 2–8、纯数字 3–8；算术型不适用（题目固定两位运算）。
+  length: 4
+  # 图片尺寸（像素）。改这两项不需要发版：前端按 base64 直接渲染。
+  width: 200
+  height: 60
+  # 有效期（秒）：60–3600。它同时是存储层 TTL，改它不影响已经发出去的图片。
+  expire_seconds: 600
+  # 字符集（仅字符型）。默认去掉了易混的 0/O/1/I/L —— 易混字符只会制造
+  # "我看对了却填错"的投诉。保存时会去空白、去重复字符（旧默认值里有 IJKLHIJKL 重复）。
+  source: "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+  # 噪点数量（字符型 / 算术型）：0–10，0 表示不放。
+  noise_count: 3
+  # 三种干扰线各自一个开关（字符型 / 算术型）。默认空心线 + 泥浆线，与旧实现一致。
+  show_hollow_line: true
+  show_slime_line: true
+  show_sine_line: false
+  # 背景色 #RRGGBB 或 #RRGGBBAA（字符型 / 算术型）；6 位视作不透明，默认带 10/255 透明度。
+  bg_color: "#0A14320A"
+  # 下面两项只对纯数字型生效：单字最大倾斜（0–1）与背景圆点数量（0–20）。
+  max_skew: 0.5
+  dot_count: 0
 # Generated from config/deco-charm-parameters.json by scripts/generate-deco-parameters.mjs; DO NOT EDIT.
 # 装饰配置只放纯装饰参数：改错了最多难看，不会让任何业务链路坏掉。
 deco:

@@ -21,7 +21,7 @@ const {
   missing: captchaMissing,
   refresh: refreshCaptcha,
   payload: captchaPayload,
-} = useCaptchaProof();
+} = useCaptchaProof("login");
 
 const schema = toTypedSchema(
   z.object({

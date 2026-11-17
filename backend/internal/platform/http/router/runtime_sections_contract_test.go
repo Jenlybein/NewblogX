@@ -17,11 +17,11 @@ import (
 // 参数化 /site/admin/{name} 与 /site/{name} 一旦仍在，就意味着契约没有形状
 // 可派生，两端只能继续手抄视图模型。
 //
-// 段清单跟着注册表走：第 11 段 content_filter（ADR-0032）同样只给后台，
-// 所以它一定在契约里、且一定不在公开读面。
+// 段清单跟着注册表走：第 11 段 content_filter（ADR-0032）与第 12 段 captcha（ADR-0033）
+// 同样只给后台，所以它们一定在契约里、且一定不在公开读面。
 var runtimeSectionNames = []string{
 	"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc",
-	"content_filter",
+	"content_filter", "captcha",
 }
 
 func TestRuntimeSectionsHaveNamedContract(t *testing.T) {

@@ -1,18 +1,17 @@
 // Package captcha 提供图片验证码的生成能力。
 //
 // 为什么放在 platform 而不是建一个业务模块：它没有领域状态、没有业务规则，
-// 只是把 base64Captcha 包一层并读一个开关。为 170 行代码造 domain/app/adapter
-// 三层，那是为了结构而结构。
+// 只是把 base64Captcha 包一层并读配置。为这点代码造 domain/app/adapter 三层，
+// 那是为了结构而结构。
 //
-// 与校验侧的耦合：校验在 middleware.CaptchaMiddleware（登录、发邮箱验证码两条
-// 路由挂了它），它读的是 middleware.RuntimeOptions.ImageCaptchaStore。
-// **生成与校验必须指向同一个 store 实例**，否则前端拿到的 captcha_id 校验时查不到。
-// 装配层（app.WireHTTP）因此只创建一个 store 实例，同时传给这里和 RuntimeOptions。
+// 与校验侧的耦合：校验在 middleware 的 CaptchaGate，它读的是同一份运行时配置
+// （内部实现走 middleware.RuntimeOptions.ImageCaptchaStore）。
+// **生成与校验必须指向同一个 store 实例**，否则前端拿到的 captcha_id 校验时查不到 ——
+// 装配层（app.WireHTTP）因此只创建一个 store，同时传给这里和 RuntimeOptions。
 package captcha
 
 import (
-	"image/color"
-
+	"myblogx/conf"
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
@@ -21,12 +20,15 @@ import (
 	_ "myblogx/internal/kernel"
 )
 
-// Settings 读站点是否启用验证码。
+// Settings 读站点是否启用验证码，以及当前的图形与时效参数。
 //
 // 做成窄接口而不是直接收 RuntimeConfigService：装配层负责适配，
 // 平台包不依赖具体的配置实现。
 type Settings interface {
+	// CaptchaEnabled 是总开关（site.login.captcha）。总开关关掉时生成接口直接拒绝。
 	CaptchaEnabled() bool
+	// CaptchaConfig 是第 12 段的图形与时效参数（ADR-0033）。
+	CaptchaConfig() conf.Captcha
 }
 
 // Handler 生成图片验证码。
@@ -35,7 +37,7 @@ type Handler struct {
 	store    base64Captcha.Store
 }
 
-// NewHandler 构造处理器。
+// NewHandler 构造处理器。store 必须与校验侧是同一个实例。
 func NewHandler(settings Settings, store base64Captcha.Store) *Handler {
 	if store == nil {
 		panic("captcha: 验证码存储未注入")
@@ -47,6 +49,9 @@ func NewHandler(settings Settings, store base64Captcha.Store) *Handler {
 type ImageResponse struct {
 	CaptchaID string `json:"captcha_id"`
 	Base64    string `json:"base64"`
+	// ExpireSeconds 回显当前有效期：前端据此决定"多久没操作就主动换一张"，
+	// 也让运营在后台改完有效期后能在响应里立刻看到生效值。
+	ExpireSeconds int `json:"expire_seconds"`
 }
 
 // Image 生成图片验证码并返回 base64 图片。
@@ -61,19 +66,14 @@ func (h *Handler) Image(c *gin.Context) {
 		return
 	}
 
-	// 尺寸、噪点、干扰线、字符集与背景色沿用旧参数：改这些会让
-	// 前端已经调好的 input 尺寸对不上，属于无收益的变动。
-	driverString := base64Captcha.DriverString{
-		Height:          60,
-		Width:           200,
-		NoiseCount:      3,
-		ShowLineOptions: 2 | 4,
-		Length:          4,
-		Source:          "123456789ABCDEFGHIJKLHIJKLMNOPQRSTUVWXYZ",
-		BgColor:         &color.RGBA{R: 10, G: 20, B: 50, A: 10},
+	cfg := h.settings.CaptchaConfig()
+	driver, err := BuildDriver(cfg)
+	if err != nil {
+		// 配置写坏了（例如背景色写成 "深蓝"）—— 这是配置问题不是用户问题，
+		// 所以文案直接说清楚，别再让用户以为是自己手速慢。
+		res.FailWithMsg("验证码配置无效："+err.Error(), c)
+		return
 	}
-
-	var driver base64Captcha.Driver = driverString.ConvertFonts()
 
 	captcha := base64Captcha.NewCaptcha(driver, h.store)
 	id, b64s, _, err := captcha.Generate()
@@ -81,5 +81,9 @@ func (h *Handler) Image(c *gin.Context) {
 		res.FailWithMsg(err.Error(), c)
 		return
 	}
-	res.OkWithData(&ImageResponse{CaptchaID: id, Base64: b64s}, c)
+	res.OkWithData(&ImageResponse{
+		CaptchaID:     id,
+		Base64:        b64s,
+		ExpireSeconds: cfg.ExpireSeconds,
+	}, c)
 }

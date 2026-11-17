@@ -502,16 +502,22 @@ const (
 )
 
 // registerImageAuditSweep 注册审核超时扫描任务。
+//
+// 注意：任务体里**运行时**才去取 media 用例服务（infra.MediaService），不能注册时就取。
+// 生产以 role=all 启动，进程内先跑 WireWorker（含本函数）再跑 WireHTTP（含 WireMedia），
+// 注册那一刻 MediaService 还是 nil —— 若在这里判空返回，任务会**静默地永不注册**，
+// 表现为"审核超时转人工"这条能力根本没生效，而且日志里什么都看不到（2026-11-18 踩过）。
 func registerImageAuditSweep(infra *Infra, sch taskScheduler) {
-	svc := infra.MediaService
-	if svc == nil {
-		return
-	}
 	if err := sch.Every(imageAuditSweepInterval, scheduler.Job{
 		Name:    "图片审核超时转人工",
 		LockKey: imageAuditSweepLockKey,
 		LockTTL: imageAuditSweepLockTTL,
 		Run: func(ctx context.Context) (int, error) {
+			svc := infra.MediaService
+			if svc == nil {
+				// 极早期（WireHTTP 还没跑完）只可能是进程刚起来的那几十秒。
+				return 0, nil
+			}
 			// 超时口径每次现读运行时配置：后台调完时限不用重启。
 			timeout := infra.RuntimeSite.GetRuntimeStorage().AuditTimeoutSeconds
 			if timeout <= 0 {

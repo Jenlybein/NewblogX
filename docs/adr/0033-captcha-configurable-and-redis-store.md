@@ -30,7 +30,7 @@
 10. **契约同批重生成**：新增 2 个 path（`/site/admin/captcha`、`/site/captcha`）、2 个 operation、3 个 schema（`SiteSectionCaptchaRequest` / `SiteSectionCaptchaResponse` / `Envelope-…SiteSectionCaptchaResponse`）；`fail_message` 与 `captcha_register` 是同一批的字段事实（不新增 path / schema）。`scripts/contract-structures.json` 的 `minimumEntries` 按实测同批抬高，判据文件不改。
 11. **注册入口单独一个闸门**：用户确认的范围是四条入口（登录 / 邮箱发码 / 短信发码 / 注册），实现落地为 `site.login` 的四个布尔。`captcha_register` 只挂在专门的注册路由 `POST /api/users/email/register` 上（图形码在前、邮箱码在后）。**手机号注册没有独立闸门，这是设计约束不是遗漏**：它与登录共用 `POST /api/users/phone`（「首次验证即建档」），请求体层面分不出这次是注册还是登录，所以那条通道的验证码在**发码那一步**（`captcha_phone_verify`）；硬在 `/users/phone` 上加一道注册闸门，等于让「手机号登录」也被注册策略牵连。
 12. **失败文案进配置**：第 12 段新增 `fail_message`（上限 80 字符，空串表示用默认文案「图形验证码错误」）。中间件每次失败时**现读**配置，所以后台改完立刻生效。它直接解决「读者填错时看到的那句话写死在代码里」这条原始抱怨；上限 80 是因为这是给读者看的一句话，不是日志字段，太长会把登录框顶变形。
-13. **`max_skew` / `dot_count` 不按驱动清零**：其余"不适用"字段（`source` / `bg_color` / `noise_count` / 三个干扰线开关）按驱动清零，但这两项**保留原值**。清零会造成两个可见的怪事：(a) yaml 种子 `max_skew=0.5` 经 GET→PUT 往返后变成 0（保存成功但值变了，运营会以为后台在偷偷改数）；(b) 运营从字符型切到纯数字后，看到一个与自己填过的 0.5 不同的值，无法判断到底哪次生效。它们在不适用的驱动里本来就不被读取，留着不会影响图片，这比「悄悄改值」诚实。
+13. **`max_skew` / `dot_count` 不按驱动清零**：其余"不适用"字段（`length` —— 算术型的题目固定两位数、`source` / `bg_color` / `noise_count` / 三个干扰线开关）按驱动清零，但这两项**保留原值**。清零会造成两个可见的怪事：(a) yaml 种子 `max_skew=0.5` 经 GET→PUT 往返后变成 0（保存成功但值变了，运营会以为后台在偷偷改数）；(b) 运营从字符型切到纯数字后，看到一个与自己填过的 0.5 不同的值，无法判断到底哪次生效。它们在不适用的驱动里本来就不被读取，留着不会影响图片，这比「悄悄改值」诚实。
 
 ## 理由与已否决方案
 
@@ -64,7 +64,7 @@
 2. `site.login` 的 `captcha` 总开关与 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register` **四个**闸门**必须公开可读**（`GET /api/site/site` 返回）；不得挪进 `captcha` 段或任何后台专属段。
 3. `captcha` 段**不得新增公开读**：只有 `GET /site/admin/captcha` 与 `PUT /site/captcha`；公开读面仍只有 `site` / `deco` 两段。
 4. 归一化**越界必错**（`site.captcha_invalid`，文案点名字段与区间），不得静默夹取；只有 `0` / 空串回落默认值，**例外**见决策 2 / 13：`noise_count`、`max_skew`、`dot_count` 的 `0` 是合法值（不放噪点 / 不倾斜 / 不放点），不回落默认值。
-5. 不适用字段**按驱动清零**，但范围仅限 `source` / `bg_color` / `noise_count` / 三个干扰线开关；`max_skew` / `dot_count` **保留原值**（决策 13），后台表单同步禁用。
+5. 不适用字段**按驱动清零**，但范围仅限 `length`（算术型）/ `source` / `bg_color` / `noise_count` / 三个干扰线开关；`max_skew` / `dot_count` **保留原值**（决策 13），后台表单同步禁用。
 6. **存储降级只在装配期**：`infra.Redis == nil` 时降级到 `TtlMemoryStore` 并打 warn；运行期 Redis 抖动**不做**自动降级，表现为「这张图取不到、用户刷新重试」；生成接口**不得**把内部错误原文回给匿名用户（只回固定文案并记日志）。
 7. **TTL 必须现读运行时配置**，不得在构造 / 启动时缓存；**降级路径（`TtlMemoryStore`）同样现读**；改有效期只影响新生成的图。
 8. 校验口径固定：**忽略大小写 + 去首尾空白**；Redis 侧必须 **`GETDEL` 原子取删**（不得先 GET 再 DEL）；同一张图答对一次即作废、不可重放。

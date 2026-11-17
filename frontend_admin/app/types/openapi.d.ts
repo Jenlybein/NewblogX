@@ -9416,8 +9416,8 @@ export interface components {
             show_slime_line?: boolean;
             /**
              * @description Source 是字符型的字符集（仅在 driver=string 时使用）。
-             *     归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，
-             *     等于白送一半难度，这种输入不再被接受。
+             *     归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`
+             *     各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。
              */
             source?: string;
             /** @description Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。 */
@@ -9476,8 +9476,8 @@ export interface components {
             show_slime_line?: boolean;
             /**
              * @description Source 是字符型的字符集（仅在 driver=string 时使用）。
-             *     归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，
-             *     等于白送一半难度，这种输入不再被接受。
+             *     归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`
+             *     各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。
              */
             source?: string;
             /** @description Width / Height 是图片像素尺寸。前端按 base64 直接渲染，改这两项不需要发版。 */

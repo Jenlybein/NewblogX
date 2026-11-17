@@ -4165,7 +4165,7 @@
                         "type": "boolean"
                     },
                     "source": {
-                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，\n等于白送一半难度，这种输入不再被接受。",
+                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`\n各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。",
                         "type": "string"
                     },
                     "width": {
@@ -4227,7 +4227,7 @@
                         "type": "boolean"
                     },
                     "source": {
-                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `IJKLHIJKL` 有重复字母，\n等于白送一半难度，这种输入不再被接受。",
+                        "description": "Source 是字符型的字符集（仅在 driver=string 时使用）。\n归一化会剔除重复字符与空白：旧实现的字符集里 `H` / `I` / `J` / `K` / `L`\n各有两处（重复了 5 个字符，40 个字符只剩 35 个可用），这种输入不再被接受。",
                         "type": "string"
                     },
                     "width": {

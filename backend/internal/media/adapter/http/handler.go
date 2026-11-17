@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"myblogx/internal/kernel/ctype"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,18 @@ func NewHandler(svc *app.Service, display *imagedisplay.Resolver) *Handler {
 		panic("media/http: 用例服务未注入")
 	}
 	return &Handler{svc: svc, display: display}
+}
+
+// uploadVisibleURL 上传链路返回地址前过闸门。
+//
+// 口径与全站一致：只有「审核通过」才给地址。上传者本人也不给 —— 规格里明确
+// 未过审的图对作者同样不可见（作者看到的是「审核中」占位），这样"作者能用"
+// 与"读者能看到"永远不是两套规则。
+func uploadVisibleURL(status domain.Status, raw string) string {
+	if !status.Displayable() {
+		return ""
+	}
+	return raw
 }
 
 // displayURL 派生单条图片地址（后台图片列表用）。
@@ -89,9 +102,14 @@ type CompleteTaskRequest struct {
 type CompleteTaskResponse struct {
 	UploadID ctype.ID `json:"upload_id"`
 	ImageID  ctype.ID `json:"image_id"`
-	Status   string   `json:"status"`
-	URL      string   `json:"url"`
-	ErrorMsg string   `json:"error_msg,omitempty"`
+	// Status 是**任务**状态（pending / ready / failed）。
+	Status string `json:"status"`
+	// URL 是可用展示地址：只有审核通过时才有值，否则为空（前端画「审核中」占位）。
+	URL string `json:"url"`
+	// AuditStatus 是**图片审核**状态（pending / pass / review / block …），
+	// 与 Status 是两件事：任务是"文件传完了没"，审核是"这张图能不能给人看"。
+	AuditStatus string `json:"audit_status"`
+	ErrorMsg    string `json:"error_msg,omitempty"`
 }
 
 // TaskStatusResponse 任务状态。
@@ -99,9 +117,12 @@ type TaskStatusResponse struct {
 	UploadID ctype.ID `json:"upload_id"`
 	ImageID  ctype.ID `json:"image_id"`
 	Status   string   `json:"status"`
-	URL      string   `json:"url"`
-	ErrorMsg string   `json:"error_msg,omitempty"`
-	Hash     string   `json:"hash"`
+	// URL 同 CompleteTaskResponse：只有审核通过才有值。
+	URL string `json:"url"`
+	// AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。
+	AuditStatus string `json:"audit_status"`
+	ErrorMsg    string `json:"error_msg,omitempty"`
+	Hash        string `json:"hash"`
 }
 
 // callbackRequest 七牛上传回调。
@@ -128,6 +149,10 @@ type ImageItem struct {
 	Height    int       `json:"height"`
 	Hash      string    `json:"hash"`
 	Status    uint      `json:"status"`
+	// AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。
+	AuditStatus string `json:"audit_status"`
+	// AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。
+	AuditLabel string `json:"audit_label"`
 }
 
 // ListRequest 图片列表查询。
@@ -135,6 +160,9 @@ type ListRequest struct {
 	Page  int    `form:"page"`
 	Limit int    `form:"limit"`
 	Key   string `form:"key"`
+	// Status 按审核状态筛选：pending / review / pass / block / deleted / orphaned。
+	// 空串表示不筛。后台的「待审队列」用的就是 pending 与 review。
+	Status string `form:"status"`
 }
 
 // StyleProbeRequest 样式探活请求。
@@ -190,11 +218,12 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 		return
 	}
 	if result.SkipUpload && result.Image != nil {
+		// 秒传命中也要过闸门：库里那张图可能是待审核甚至已封禁的。
 		res.OkWithData(CreateTaskResponse{
 			SkipUpload: true,
 			ImageID:    result.Image.ID,
 			Status:     result.Image.Status.String(),
-			URL:        result.Image.URL,
+			URL:        uploadVisibleURL(result.Image.Status, result.Image.URL),
 			Hash:       result.Image.Hash,
 		}, c)
 		return
@@ -242,10 +271,11 @@ func (h *Handler) CompleteUploadTask(c *gin.Context) {
 		return
 	}
 	res.OkWithData(CompleteTaskResponse{
-		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID,
-		Status:   string(result.Task.Status),
-		URL:      result.Image.URL,
+		UploadID:    result.Task.ID,
+		ImageID:     result.Image.ID,
+		Status:      string(result.Task.Status),
+		URL:         uploadVisibleURL(result.Image.Status, result.Image.URL),
+		AuditStatus: result.Image.Status.String(),
 	}, c)
 }
 
@@ -279,7 +309,8 @@ func (h *Handler) UploadTaskStatus(c *gin.Context) {
 	}
 	if result.Image != nil {
 		resp.ImageID = result.Image.ID
-		resp.URL = result.Image.URL
+		resp.URL = uploadVisibleURL(result.Image.Status, result.Image.URL)
+		resp.AuditStatus = result.Image.Status.String()
 	}
 	res.OkWithData(resp, c)
 }
@@ -321,11 +352,12 @@ func (h *Handler) QiniuCallback(c *gin.Context) {
 		return
 	}
 	res.OkWithData(CompleteTaskResponse{
-		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID,
-		Status:   string(result.Task.Status),
-		URL:      result.Image.URL,
-		ErrorMsg: result.Task.ErrorMsg,
+		UploadID:    result.Task.ID,
+		ImageID:     result.Image.ID,
+		Status:      string(result.Task.Status),
+		URL:         uploadVisibleURL(result.Image.Status, result.Image.URL),
+		AuditStatus: result.Image.Status.String(),
+		ErrorMsg:    result.Task.ErrorMsg,
 	}, c)
 }
 
@@ -411,7 +443,16 @@ func (h *Handler) List(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
-	images, total, err := h.svc.List(c.Request.Context(), domain.Query{Page: req.Page, Limit: req.Limit, Key: req.Key})
+	query := domain.Query{Page: req.Page, Limit: req.Limit, Key: req.Key}
+	if trimmed := strings.TrimSpace(req.Status); trimmed != "" {
+		status := domain.StatusFromSuggestion(trimmed)
+		if status == domain.StatusUnknown {
+			res.FailWithMsg("状态筛选值不存在（可选：pending / review / pass / block / deleted / orphaned）", c)
+			return
+		}
+		query.Status = &status
+	}
+	images, total, err := h.svc.List(c.Request.Context(), query)
 	if err != nil {
 		res.FailWithError(err, c)
 		return
@@ -419,20 +460,22 @@ func (h *Handler) List(c *gin.Context) {
 	items := make([]ImageItem, 0, len(images))
 	for _, img := range images {
 		items = append(items, ImageItem{
-			ID:        img.ID,
-			CreatedAt: img.CreatedAt,
-			UserID:    img.UserID,
-			Provider:  string(img.Provider),
-			Bucket:    img.Bucket,
-			ObjectKey: img.ObjectKey,
-			FileName:  img.FileName,
-			URL:       h.displayURL(c, imagedisplay.PurposeCover, img.URL),
-			MimeType:  img.MimeType,
-			Size:      img.Size,
-			Width:     img.Width,
-			Height:    img.Height,
-			Hash:      img.Hash,
-			Status:    uint(img.Status),
+			ID:          img.ID,
+			CreatedAt:   img.CreatedAt,
+			UserID:      img.UserID,
+			Provider:    string(img.Provider),
+			Bucket:      img.Bucket,
+			ObjectKey:   img.ObjectKey,
+			FileName:    img.FileName,
+			URL:         h.displayURL(c, imagedisplay.PurposeCover, img.URL),
+			MimeType:    img.MimeType,
+			Size:        img.Size,
+			Width:       img.Width,
+			Height:      img.Height,
+			Hash:        img.Hash,
+			Status:      uint(img.Status),
+			AuditStatus: img.Status.String(),
+			AuditLabel:  img.Status.Label(),
 		})
 	}
 	res.OkWithList(items, int(total), c)

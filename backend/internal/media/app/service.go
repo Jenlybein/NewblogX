@@ -349,6 +349,17 @@ func (s *Service) verify(ctx context.Context, task *domain.Task, meta *uploadedM
 	}, nil
 }
 
+// initialStatus 返回新图片的初始状态。
+//
+// 这里是"合规闸门"的入口：审核开启时新图一律 pending（不可见），
+// 只有审核给出 pass 才变可见。关掉审核等于恢复"上传即可见"的老行为。
+func (s *Service) initialStatus() domain.Status {
+	if s.cfg().AuditEnabled {
+		return domain.StatusPending
+	}
+	return domain.StatusPass
+}
+
 // persist 落图片记录并回写任务状态。
 func (s *Service) persist(ctx context.Context, task *domain.Task, verified *verifiedImage) (*ConfirmResult, error) {
 	image, ok, err := s.repo.FindByHash(ctx, verified.Hash)
@@ -370,7 +381,9 @@ func (s *Service) persist(ctx context.Context, task *domain.Task, verified *veri
 			Width:     verified.Width,
 			Height:    verified.Height,
 			Hash:      verified.Hash,
-			Status:    domain.StatusPass,
+			// 审核关闭时保持老行为（入库即可见）；开启时入库为待审核，
+			// 只有拿到 pass 结论才允许展示（ADR-0034）。
+			Status: s.initialStatus(),
 		}
 		if err := s.repo.Create(ctx, &created); err != nil {
 			// 并发下另一请求可能刚建好同哈希图片，重查一次。
@@ -413,16 +426,12 @@ func (s *Service) applyPendingAudit(ctx context.Context, image *domain.Image) {
 		return
 	}
 	status := domain.StatusFromSuggestion(name)
-	if status == domain.StatusUnknown || status == image.Status {
+	if !canTransition(image.Status, status) {
 		return
 	}
-	if err := s.repo.UpdateStatus(ctx, image.ID, status); err != nil {
-		if s.logger != nil {
-			s.logger.Warnf("应用审核结果失败: image=%d err=%v", image.ID, err)
-		}
-		return
+	if err := s.applyStatus(ctx, image, status, auditSourcePendingCallback); err != nil && s.logger != nil {
+		s.logger.Warnf("应用审核结果失败: image=%d err=%v", image.ID, err)
 	}
-	image.Status = status
 }
 
 // HandleAuditCallback 处理七牛内容审核回调。
@@ -446,10 +455,61 @@ func (s *Service) HandleAuditCallback(ctx context.Context, body []byte) error {
 		}
 		return s.audits.Store(ctx, objectKey, status.String(), auditStatusTTL)
 	}
-	if image.Status == status {
+	if !canTransition(image.Status, status) {
 		return nil
 	}
-	return s.repo.UpdateStatus(ctx, image.ID, status)
+	return s.applyStatus(ctx, &image, status, auditSourceCallback)
+}
+
+// 审核结论的来源。写进日志与（后续的）审计列，用来回答"这张图为什么是这个状态"。
+const (
+	auditSourceCallback        = "callback"
+	auditSourcePendingCallback = "callback-pending"
+	auditSourceActive          = "api"
+	auditSourceTimeout         = "timeout"
+	auditSourceManual          = "manual"
+)
+
+// canTransition 判断审核结论能否覆盖当前状态。
+//
+// 两条硬规则：
+//  1. **blocked 是终局**。任何来源都不能把它改回 pass —— 否则一次乱序回调
+//     （先 block 后 pass）就把违规图放出去了。违规图的对象在判定时已被删除，
+//     "放行"本来也无从谈起。
+//  2. **同状态不重复写**。回调会重试，重复写只是浪费一次 UPDATE。
+func canTransition(current, next domain.Status) bool {
+	if current == next {
+		return false
+	}
+	if current == domain.StatusBlocked {
+		return false
+	}
+	if next == domain.StatusUnknown {
+		return false
+	}
+	return true
+}
+
+// applyStatus 落一次状态变更，并处理"判定违规即删除对象"这条副作用。
+//
+// 删对象失败**不让状态回滚**：图已经是违规的，必须立刻不可见。
+// 失败只记日志并保持 object_deleted_at 为空，由重试扫描补删（见 T4）。
+func (s *Service) applyStatus(ctx context.Context, image *domain.Image, status domain.Status, source string) error {
+	if err := s.repo.UpdateStatus(ctx, image.ID, status); err != nil {
+		return err
+	}
+	image.Status = status
+
+	if status != domain.StatusBlocked || !s.cfg().AuditAutoDelete {
+		return nil
+	}
+	if err := s.storage.Delete(image.Bucket, image.ObjectKey); err != nil {
+		if s.logger != nil {
+			s.logger.Warnf("删除违规图对象失败（待重试）: image=%d key=%s source=%s err=%v",
+				image.ID, image.ObjectKey, source, err)
+		}
+	}
+	return nil
 }
 
 // List 图片列表。

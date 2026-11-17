@@ -26,8 +26,17 @@ const (
 	StatusOrphaned
 	// StatusReviewing 审核中。
 	StatusReviewing
-	// StatusBlocked 违规封禁。
+	// StatusBlocked 违规封禁（终局）：对象已被删除，同哈希永久拒收。
 	StatusBlocked
+	// StatusPending 待审核（新图入库的默认状态）。
+	//
+	// 为什么把它放在最后而不是插在中间：已有库行的 status 是数字，插入会改变
+	// 既有取值的语义。新增值只加在末尾，历史数据不需要迁移。
+	//
+	// 语义上它和 StatusReviewing 都"不可展示"，区别在来源：Pending 是"还没有任何
+	// 结论"，Reviewing 是"机审疑似、等人工"。分开是为了让后台能按队列处理，
+	// 也让"待审超时堆积"这个告警只看 Pending 就够了。
+	StatusPending
 )
 
 // String 返回状态短名（与旧契约一致）。
@@ -43,10 +52,41 @@ func (s Status) String() string {
 		return "review"
 	case StatusBlocked:
 		return "block"
+	case StatusPending:
+		return "pending"
 	default:
 		return "unknown"
 	}
 }
+
+// Label 返回给运营看的中文短名（后台状态列用）。
+//
+// 与 String() 分开：String() 是契约里的机读短名（前端据此分支），
+// Label 只出现在后台表格里，改文案不影响任何逻辑。
+func (s Status) Label() string {
+	switch s {
+	case StatusPass:
+		return "已通过"
+	case StatusPending:
+		return "待审核"
+	case StatusReviewing:
+		return "疑似违规"
+	case StatusBlocked:
+		return "违规"
+	case StatusDeleted:
+		return "已删除"
+	case StatusOrphaned:
+		return "无引用"
+	default:
+		return "未知"
+	}
+}
+
+// Displayable 判断这个状态能否对外展示。
+//
+// 全站唯一的判据就这一处：只有 Pass 可以。闸门关掉时的放行由展示派生器决定，
+// 不在这里开口子 —— 否则"关闸门"会变成悄悄放宽数据语义。
+func (s Status) Displayable() bool { return s == StatusPass }
 
 // StatusFromSuggestion 把七牛审核建议映射成内部状态。
 func StatusFromSuggestion(suggestion string) Status {
@@ -61,6 +101,8 @@ func StatusFromSuggestion(suggestion string) Status {
 		return StatusDeleted
 	case "orphaned":
 		return StatusOrphaned
+	case "pending":
+		return StatusPending
 	default:
 		return StatusUnknown
 	}
@@ -202,6 +244,11 @@ type Query struct {
 	Page  int
 	Limit int
 	Key   string
+	// Status 按审核状态筛选（nil 表示不筛）。
+	//
+	// 后台最常用的两个筛法是"待审核 + 疑似"（待审队列）与"违规"（复核），
+	// 没有它运营只能翻页找。
+	Status *Status
 }
 
 // Normalize 收敛分页（默认 10、上限 100）。

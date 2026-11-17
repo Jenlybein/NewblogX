@@ -9095,10 +9095,17 @@ export interface components {
             upload_id: string;
         };
         "internal_media_adapter_http.CompleteTaskResponse": {
+            /**
+             * @description AuditStatus 是**图片审核**状态（pending / pass / review / block …），
+             *     与 Status 是两件事：任务是"文件传完了没"，审核是"这张图能不能给人看"。
+             */
+            audit_status?: string;
             error_msg?: string;
             image_id?: string;
+            /** @description Status 是**任务**状态（pending / ready / failed）。 */
             status?: string;
             upload_id?: string;
+            /** @description URL 是可用展示地址：只有审核通过时才有值，否则为空（前端画「审核中」占位）。 */
             url?: string;
         };
         "internal_media_adapter_http.CreateTaskRequest": {
@@ -9132,6 +9139,10 @@ export interface components {
             url?: string;
         };
         "internal_media_adapter_http.ImageItem": {
+            /** @description AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。 */
+            audit_label?: string;
+            /** @description AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。 */
+            audit_status?: string;
             bucket?: string;
             created_at?: string;
             file_name?: string;
@@ -9168,11 +9179,14 @@ export interface components {
             object_key?: string;
         };
         "internal_media_adapter_http.TaskStatusResponse": {
+            /** @description AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。 */
+            audit_status?: string;
             error_msg?: string;
             hash?: string;
             image_id?: string;
             status?: string;
             upload_id?: string;
+            /** @description URL 同 CompleteTaskResponse：只有审核通过才有值。 */
             url?: string;
         };
         "internal_notification_adapter_http.ConfRequest": {

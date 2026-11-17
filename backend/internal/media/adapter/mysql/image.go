@@ -152,6 +152,9 @@ func (r *Repo) List(ctx context.Context, q domain.Query) ([]domain.Image, int64,
 			like := "%" + key + "%"
 			tx = tx.Where("file_name LIKE ? OR object_key LIKE ?", like, like)
 		}
+		if q.Status != nil {
+			tx = tx.Where("status = ?", uint(*q.Status))
+		}
 		return tx
 	}
 	var total int64
@@ -201,8 +204,13 @@ func ResolveURLByID(db *gorm.DB, id uint64) (string, error) {
 		}
 		return "", err
 	}
+	// 写入口（设为封面/头像）只拒绝**确定不可用**的状态。
+	//
+	// 待审核与疑似放行是有意的：作者刚传完图就要能把它设成封面并提交文章，
+	// 否则一次审核延迟会连带把发布流程卡住。图片"能不能展示"由读面的
+	// 展示派生器判定（ADR-0034），不在这里替它做决定。
 	switch domain.Status(row.Status) {
-	case domain.StatusPass, domain.StatusReviewing:
+	case domain.StatusPass, domain.StatusReviewing, domain.StatusPending:
 		return strings.TrimSpace(row.URL), nil
 	default:
 		return "", apperr.New(apperr.CodeImageUnavailable)

@@ -3297,6 +3297,10 @@
             },
             "internal_media_adapter_http.CompleteTaskResponse": {
                 "properties": {
+                    "audit_status": {
+                        "description": "AuditStatus 是**图片审核**状态（pending / pass / review / block …），\n与 Status 是两件事：任务是\"文件传完了没\"，审核是\"这张图能不能给人看\"。",
+                        "type": "string"
+                    },
                     "error_msg": {
                         "type": "string"
                     },
@@ -3304,12 +3308,14 @@
                         "type": "string"
                     },
                     "status": {
+                        "description": "Status 是**任务**状态（pending / ready / failed）。",
                         "type": "string"
                     },
                     "upload_id": {
                         "type": "string"
                     },
                     "url": {
+                        "description": "URL 是可用展示地址：只有审核通过时才有值，否则为空（前端画「审核中」占位）。",
                         "type": "string"
                     }
                 },
@@ -3395,6 +3401,14 @@
             },
             "internal_media_adapter_http.ImageItem": {
                 "properties": {
+                    "audit_label": {
+                        "description": "AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。",
+                        "type": "string"
+                    },
+                    "audit_status": {
+                        "description": "AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。",
+                        "type": "string"
+                    },
                     "bucket": {
                         "type": "string"
                     },
@@ -3511,6 +3525,10 @@
             },
             "internal_media_adapter_http.TaskStatusResponse": {
                 "properties": {
+                    "audit_status": {
+                        "description": "AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。",
+                        "type": "string"
+                    },
                     "error_msg": {
                         "type": "string"
                     },
@@ -3527,6 +3545,7 @@
                         "type": "string"
                     },
                     "url": {
+                        "description": "URL 同 CompleteTaskResponse：只有审核通过才有值。",
                         "type": "string"
                     }
                 },

@@ -497,7 +497,7 @@ export function deleteBanners(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/banners', { method: 'DELETE', body: { id_list } })
 }
 
-export function getImages(query: { page?: number; limit?: number }) {
+export function getImages(query: { page?: number; limit?: number; status?: string }) {
   return api().request<ImageListResponseData>('/images', { query })
 }
 
@@ -808,6 +808,7 @@ export function unmuteAdminUser(userId: string) {
     body: { user_id: userId },
   })
 }
+
 
 
 

@@ -76,6 +76,8 @@ var adminRouteTemplates = []string{
 	"GET /api/users/admin/list",
 	"POST /api/users/admin",
 	"PUT /api/users/admin/info",
+	// 提前解除禁言（票 399）：账号级处置，只给管理员。
+	"POST /api/users/admin/unmute",
 	"GET /api/users/login/log",
 	// 站点配置（九段具名端点：公开读 site / deco，管理读与写都是管理员）。
 	"GET /api/site/admin/site",
@@ -100,6 +102,16 @@ var adminRouteTemplates = []string{
 	"PUT /api/site/upload",
 	"PUT /api/site/deco",
 	"PUT /api/site/image_gc",
+	// 内容过滤词表（第 11 段，ADR-0032）：词表不给任何匿名/普通用户读，
+	// 读写都在管理员分组下。
+	"GET /api/site/admin/content_filter",
+	"PUT /api/site/content_filter",
+	// 关键词风险（ADR-0032 决策 7 / 票 396）：看到的是"谁发了什么命中词"，
+	// 整段管理员专属；这一票只有只读列表。
+	"GET /api/content-filter/hits",
+	"POST /api/content-filter/hits/:id/handle",
+	"POST /api/content-filter/hits/handle-batch",
+	"GET /api/content-filter/word-stats",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",
@@ -270,7 +282,6 @@ var userRouteTemplates = []string{
 	"GET /api/projects/:id/outline-tree",
 	// 评论 / 关注关系（票 327 起读走 /relations 三视图，写仍走 /follow）
 	"GET /api/comments",
-	"GET /api/comments/man",
 	"GET /api/comments/replies",
 	"POST /api/comments",
 	"POST /api/comments/:id/digg",
@@ -408,3 +419,5 @@ func TestClassificationGateIsNotAlwaysGreen(t *testing.T) {
 		t.Fatal("canary 失效：未归类判定恒为假，门禁永远不会红")
 	}
 }
+
+

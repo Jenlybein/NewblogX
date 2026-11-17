@@ -66,7 +66,7 @@ func newGateService(t *testing.T, gate app.QualityGatePort) (*app.Service, *appt
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
 	quota := apptest.NewSubmitQuota(15)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil, gate)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, gate)
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者甲", Username: "u100"})
 	repos.FakeCategories().Seed()
 	return svc, repos, quota
@@ -91,10 +91,11 @@ func TestGateDisabledKeepsSubmitUnchanged(t *testing.T) {
 	gate := &fakeQualityGate{score: 10} // 即使只有 10 分也不该影响判定
 	svc, _, _ := newGateService(t, gate)
 
-	a, err := svc.Create(context.Background(), gateSubmitCmd(app.QualityGatePolicy{}))
+	res, err := svc.Create(context.Background(), gateSubmitCmd(app.QualityGatePolicy{}))
 	if err != nil {
 		t.Fatalf("闸门关闭时不应报错: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished {
 		t.Fatalf("闸门关闭时应照旧发布，实际 %v", a.Status())
 	}
@@ -108,10 +109,11 @@ func TestGatePassesWhenScoreReachesPublishLine(t *testing.T) {
 	gate := &fakeQualityGate{score: 52} // = 及格线 50 + 灰带 2
 	svc, _, quota := newGateService(t, gate)
 
-	a, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
+	res, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
 	if err != nil {
 		t.Fatalf("分数达到放行线不应报错: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished {
 		t.Fatalf("分数达标应按站点策略发布，实际 %v", a.Status())
 	}
@@ -132,10 +134,11 @@ func TestGatePassWithReviewStillPendingVisibility(t *testing.T) {
 	cmd := gateSubmitCmd(gatePolicy())
 	cmd.SkipExamining = false
 
-	a, err := svc.Create(context.Background(), cmd)
+	res, err := svc.Create(context.Background(), cmd)
 	if err != nil {
 		t.Fatalf("达标提交不应报错: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityPendingReview {
 		t.Fatalf("达标且非免审核应落 Published + pending_review，实际 %s / %s", a.Status(), a.Visibility())
 	}
@@ -256,10 +259,11 @@ func TestGateBucketPassesWhenEveryDimensionClears(t *testing.T) {
 	gate := &fakeQualityGate{score: 78, dimensions: evenDimensions(60)}
 	svc, _, _ := newGateService(t, gate)
 
-	a, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
+	res, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
 	if err != nil {
 		t.Fatalf("六项都过线且总分过线应放行: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished {
 		t.Fatalf("达标应发布，实际 %s", a.Status())
 	}

@@ -66,6 +66,8 @@ func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	Group.GET("search", profile.SearchUsers)
 	authGroup.PUT("info", profile.UpdateInfo)
 	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), profile.AdminUpdate)
+	// 提前解除禁言（票 399）：账号管理页的动作，只给管理员。
+	adminGroup.POST("admin/unmute", mw.CaptureLog(mw.ReqBody), profile.AdminUnmute)
 
 	// 登录日志归 analytics 模块（S4.9）。
 	analytics := mustAnalyticsHandler()

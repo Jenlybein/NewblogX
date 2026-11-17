@@ -27,9 +27,14 @@ var protocols = map[Code]ProtocolKind{
 	CodeUserTokenInvalid:   ProtocolAuth,
 	CodeUserSessionExpired: ProtocolAuth,
 
+	// 禁言（票 399 / ADR-0032 决策 8）：被禁言者账号仍然有效（能登录、浏览、
+	// 点赞、收藏），只是发布类动作被拒；到期自动恢复，不做任何人工动作。
+	// 这是调用方看得懂、等得到的业务校验失败，归 1001 而不是 1002（后者会让
+	// 前端以为后端坏了、反复重试）。
+	CodeUserMuted:           ProtocolValidation,
+	CodeUserMuteDaysInvalid: ProtocolValidation,
+
 	// 通知与站内信：调用方能修正的失败。
-	// 评论命中阻断词：用户改一改就能过，属于"输入不合规"，与内容为空同类。
-	CodeCommentBlocked:        ProtocolValidation,
 	CodeCommonInvalidOrder:    ProtocolValidation,
 	CodeCommonInvalidArgument: ProtocolValidation,
 	CodeCommonBindMissing:     ProtocolValidation,
@@ -70,6 +75,25 @@ var protocols = map[Code]ProtocolKind{
 	CodeGroupTitleTooLong:  ProtocolValidation,
 	CodeGroupNotFound:      ProtocolValidation,
 	CodeGroupOrderMismatch: ProtocolValidation,
+
+	// 内容过滤词表（ADR-0032）：保存的是运营填错的词条/档位/类目，改一改就能过，
+	// 归 1001 而不是 1002（后者会让后台以为服务坏了、不敢重试）。
+	CodeSiteContentFilterInvalid: ProtocolValidation,
+
+	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
+	// 换个值就能过，同属调用方能修正的失败。
+	CodeFilterSurfaceInvalid: ProtocolValidation,
+	CodeFilterStatusInvalid:  ProtocolValidation,
+
+	// 关键词风险的处置动作（ADR-0032 决策 7 / 票 398）：记录不存在、动作写错、
+	// 备注超长、批量没选、私信面没内容 —— 都是后台换一下操作就能过的失败，归 1001。
+	CodeFilterHitNotFound:      ProtocolValidation,
+	CodeFilterActionInvalid:    ProtocolValidation,
+	CodeFilterNoteTooLong:      ProtocolValidation,
+	CodeFilterBatchEmpty:       ProtocolValidation,
+	CodeFilterSurfaceNoContent: ProtocolValidation,
+	// 处置端口没装配（filter.dispose_unavailable）**不**登记在这里：它明确属于
+	// 服务异常，按仓库约定登记在 protocol_test.go 的 serviceFallbackCodes 并写明理由。
 }
 
 // ProtocolOf 从错误值取协议类别。
@@ -86,3 +110,4 @@ func ProtocolOf(err error) ProtocolKind {
 	}
 	return ProtocolService
 }
+

@@ -226,15 +226,15 @@ func TestEffectiveConfig_敏感字段占位符不写回星号_空串真清除_�
 	}
 }
 
-// 十段全部登记：复用 #283 RegisteredSections() 的外部行为枚举段名，
+// 全部段登记：复用 #283 RegisteredSections() 的外部行为枚举段名，
 // 再逐段走具名 HTTP 出入口往返（写成功 + 管理读能拿回新值）。
 // 漏登记即失败由 #283 的 registry_test.go 外部行为覆盖，本票不重做注册表。
-func TestEffectiveConfig_十段具名出入口全部登记且往返可读(t *testing.T) {
+func TestEffectiveConfig_所有段具名出入口全部登记且往返可读(t *testing.T) {
 	f := newEffectiveFixture(t)
 
 	names := f.effective.SectionNames()
-	if len(names) != 10 {
-		t.Fatalf("十段应全部登记，实际 %d 段: %v", len(names), names)
+	if len(names) != 11 {
+		t.Fatalf("十一段应全部登记，实际 %d 段: %v", len(names), names)
 	}
 	for _, name := range names {
 		if !f.effective.HasSection(string(name)) {
@@ -367,6 +367,26 @@ func TestEffectiveConfig_十段具名出入口全部登记且往返可读(t *tes
 				readSection(t, rec, &v)
 				if v.GraceDays != 7 {
 					t.Fatalf("image_gc 段往返失败: %+v", v)
+				}
+			}},
+		{"content_filter", f.handler.UpdateContentFilterSection, f.handler.AdminContentFilterSection,
+			`{"words":[{"word":"冰毒","tier":"block","category":"drugs"}],"whitelist":["冰毒科普"]}`,
+			func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var v struct {
+					Words []struct {
+						Word     string `json:"word"`
+						Tier     string `json:"tier"`
+						Category string `json:"category"`
+					} `json:"words"`
+					Whitelist []string `json:"whitelist"`
+				}
+				readSection(t, rec, &v)
+				if len(v.Words) != 1 || v.Words[0].Word != "冰毒" ||
+					v.Words[0].Tier != "block" || v.Words[0].Category != "drugs" {
+					t.Fatalf("content_filter 段词表往返失败: %+v", v.Words)
+				}
+				if len(v.Whitelist) != 1 || v.Whitelist[0] != "冰毒科普" {
+					t.Fatalf("content_filter 段白名单往返失败: %+v", v.Whitelist)
 				}
 			}},
 	}

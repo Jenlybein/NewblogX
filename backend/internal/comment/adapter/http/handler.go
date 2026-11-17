@@ -70,17 +70,6 @@ type ReplyListResponse struct {
 	HasMore    bool            `json:"has_more"`
 }
 
-// ManListRequest 管理端评论列表。
-type ManListRequest struct {
-	Page      int      `form:"page"`
-	Limit     int      `form:"limit"`
-	Key       string   `form:"key"`
-	ArticleID ctype.ID `form:"article_id"`
-	UserID    ctype.ID `form:"user_id"`
-	Status    int8     `form:"status"`
-	Type      int8     `form:"type" binding:"required"`
-}
-
 func pageOf(p, limit int, key string) domain.Page {
 	return domain.Page{Page: p, Limit: limit, Key: key}
 }
@@ -201,33 +190,6 @@ func (h *Handler) ListReplies(c *gin.Context) {
 		List:       items,
 		HasMore:    hasMore,
 	}, c)
-}
-
-// ListManaged 管理端评论列表。
-// @Summary 评论管理列表
-// @Tags comment
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[kernel.ListData[app.ManageItem]]
-// @Router /comments/man [get]
-func (h *Handler) ListManaged(c *gin.Context) {
-	var req ManListRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		res.FailWithMsg("参数错误", c)
-		return
-	}
-	items, total, err := h.svc.ListManaged(c.Request.Context(), viewer(c), app.ManagedInput{
-		Type:      req.Type,
-		Status:    req.Status,
-		ArticleID: req.ArticleID,
-		UserID:    req.UserID,
-		Page:      pageOf(req.Page, req.Limit, req.Key),
-	})
-	if err != nil {
-		res.FailWithError(err, c)
-		return
-	}
-	res.OkWithList(items, int(total), c)
 }
 
 // pathID 解析路径里的数字 ID。

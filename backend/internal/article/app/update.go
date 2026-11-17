@@ -28,6 +28,25 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	var verdict qualityVerdict
 	riskRejected := false
 
+	// 内容过滤（票 397 / ADR-0032 决策 5/6）：落库前把命中词替换成等长 `*`。
+	//
+	// 必须在**预演之前**：预演算出的标题 / 正文会喂给同步风险扫描与质量闸门，
+	// 那两个判定要读替换后的文本（先替换、再判定、再落库）。只过滤本次真的要改
+	// 的字段 —— nil 指针代表"不改"，替换成空串会把它变成"清空"。
+	filteredCount := 0
+	if cmd.Title != nil {
+		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Title)
+		cmd.Title, filteredCount = &masked, filteredCount+count
+	}
+	if cmd.Abstract != nil {
+		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Abstract)
+		cmd.Abstract, filteredCount = &masked, filteredCount+count
+	}
+	if cmd.Content != nil {
+		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Content)
+		cmd.Content, filteredCount = &masked, filteredCount+count
+	}
+
 	// 只读预演 + **事务外**的同步风险扫描与评分。两者都必须在 WithinTx 之外：
 	// 风险扫描要读已有评分记录，评分是一次 5–30 秒的模型调用，占着事务等于
 	// 钉死连接池（ADR-0023 硬纪律、ADR-0025 决策 1）。写事务会重新读一遍
@@ -41,6 +60,18 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		return nil, err
 	}
 
+	// 账号闸门（票 399 / ADR-0032 决策 8、10）：禁言 / 禁用 / 封禁只拦**发布类**动作。
+	//
+	// 位置在只读预演**之后**：这次更新到底会不会"提交"（草稿提交 vs 已发布文章的
+	// 编辑后自动送审 vs 纯编辑草稿）必须先读到文章当前状态才知道。代价是被禁言的
+	// 人可能先看到"文章不存在"而不是"你被禁言了" —— 这是刻意接受的：把闸门提前
+	// 就等于连"整理草稿"一起拦掉，比文档口径更严。
+	if preview.NeedsSubmit && s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, cmd.Actor.UserID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 预演说"这次会提交"就在事务外把配额、风险扫描、评分一次做完。
 	// 闸门关不关都要扫（票 302 新规则），所以不再分两条路径、也不在事务内补扫。
 	if preview.NeedsSubmit {
@@ -52,7 +83,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		// 站点「文章免审核」开启时全部直接真发布，同步风险扫描也不拦。
 		if !cmd.SkipExamining {
-			risk, err := s.scanSubmitRisk(ctx, preview.Title, preview.Content, cmd.ArticleID)
+			risk, err := s.scanSubmitRisk(ctx, cmd.ArticleID)
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
 				return nil, err
@@ -127,7 +158,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		// 没有任何字段变化时直接返回，不写库（旧实现的 Noop 分支）。
 		if flags == (domain.EditFlags{}) && !tagsReplaced && cmd.TargetStatus == nil {
-			result = &UpdateResult{Article: a, Changed: false}
+			result = &UpdateResult{Article: a, Changed: false, FilteredCount: filteredCount}
 			return nil
 		}
 
@@ -209,7 +240,13 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			}
 		}
 
-		result = &UpdateResult{Article: a, Changed: true, Resubmitted: resubmitted, TagsReplaced: tagsReplaced}
+		result = &UpdateResult{
+			Article:       a,
+			Changed:       true,
+			Resubmitted:   resubmitted,
+			TagsReplaced:  tagsReplaced,
+			FilteredCount: filteredCount,
+		}
 
 		return emit(ctx, r,
 			submitEventName(a.Status(), riskRejected, explicitDraft, false), a.ID())

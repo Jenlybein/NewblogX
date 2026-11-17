@@ -94,6 +94,36 @@
                 },
                 "type": "object"
             },
+            "conf.ContentFilterWord": {
+                "properties": {
+                    "category": {
+                        "description": "Category 是类目，固定七类，用于词云筛选与风险页归类。",
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "tier": {
+                        "description": "Tier 是档位：block（拦截词）/ watch（观察词），两档都替换，颜色不同。",
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "description": "Word 是词条原文。不做归一化存储：后台要按运营填的写法展示与编辑。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "conf.DailyLimits": {
                 "properties": {
                     "diagnose": {
@@ -829,6 +859,9 @@
                     "cover_image_id": {
                         "type": "string"
                     },
+                    "filtered_count": {
+                        "type": "integer"
+                    },
                     "id": {
                         "type": "string"
                     },
@@ -1255,7 +1288,7 @@
                         "type": "string"
                     },
                     "risk_labels": {
-                        "description": "RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：\nblock_word / watch_word / low_score / dimension_collapse / length_abnormal。",
+                        "description": "RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：\nlow_score / dimension_collapse / length_abnormal。",
                         "items": {
                             "type": "string"
                         },
@@ -1389,6 +1422,109 @@
                             "user_hidden"
                         ],
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleUpdateResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "author_abstract": {
+                        "type": "string"
+                    },
+                    "author_avatar": {
+                        "type": "string"
+                    },
+                    "author_avatar_image_id": {
+                        "type": "string"
+                    },
+                    "author_created_time": {
+                        "type": "string"
+                    },
+                    "author_id": {
+                        "type": "string"
+                    },
+                    "author_name": {
+                        "type": "string"
+                    },
+                    "author_username": {
+                        "type": "string"
+                    },
+                    "category_id": {
+                        "type": "string"
+                    },
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "comment_count": {
+                        "type": "integer"
+                    },
+                    "comments_toggle": {
+                        "type": "boolean"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "cover_image_id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "filtered_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "is_digg": {
+                        "type": "boolean"
+                    },
+                    "is_favor": {
+                        "type": "boolean"
+                    },
+                    "publish_status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleStatus"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleStatus"
+                    },
+                    "tag_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    },
+                    "visibility_status": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleVisibility"
                     }
                 },
                 "type": "object"
@@ -2844,6 +2980,306 @@
                 },
                 "type": "object"
             },
+            "internal_filter_adapter_http.HandleBatchItem": {
+                "properties": {
+                    "already_handled": {
+                        "description": "AlreadyHandled 与单条处置同义。",
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "description": "Message 是失败原因的中文提示（成功时为空串）。",
+                        "type": "string"
+                    },
+                    "ok": {
+                        "description": "Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。",
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "description": "Status 是处置后的状态；失败且拿不到记录时为空串。",
+                        "enum": [
+                            "pending",
+                            "ignored",
+                            "deleted",
+                            "account"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleBatchRequest": {
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "delete",
+                            "ignore",
+                            "ban",
+                            "mute"
+                        ],
+                        "type": "string"
+                    },
+                    "ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "mute_days": {
+                        "description": "MuteDays 与单条处置同义（只有 mute 动作读它）。",
+                        "type": "integer"
+                    },
+                    "note": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleBatchResponse": {
+                "properties": {
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleHitRequest": {
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "delete",
+                            "ignore",
+                            "ban",
+                            "mute"
+                        ],
+                        "type": "string"
+                    },
+                    "mute_days": {
+                        "description": "MuteDays 是禁言天数，只有 mute 动作读它：1–365，缺省（0）按 7 天。\n越界由服务端拒绝（user.mute_days_invalid）。",
+                        "type": "integer"
+                    },
+                    "note": {
+                        "description": "Note 是可选备注（≤200 字，服务端按 rune 计数）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HandleHitResponse": {
+                "properties": {
+                    "already_handled": {
+                        "description": "AlreadyHandled 表示这条记录之前已被处置，本次只是返回当前状态（幂等）。",
+                        "type": "boolean"
+                    },
+                    "hit": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HitItem"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitItem": {
+                "properties": {
+                    "content_id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "handled_at": {
+                        "type": "string"
+                    },
+                    "handler_id": {
+                        "description": "HandlerID / HandledAt / Note 是处置痕迹（处置动作是 #398）。",
+                        "type": "string"
+                    },
+                    "hit_count": {
+                        "description": "HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。",
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "note": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "pending",
+                            "ignored",
+                            "deleted",
+                            "account"
+                        ],
+                        "type": "string"
+                    },
+                    "surface": {
+                        "enum": [
+                            "article",
+                            "comment",
+                            "nickname",
+                            "abstract",
+                            "chat",
+                            "collection"
+                        ],
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "description": "UserNickname 是读面现查的展示名，不落库（昵称会变）。",
+                        "type": "string"
+                    },
+                    "words": {
+                        "description": "Words 是命中明细：词 / 档位 / 类目 / ±20 字上下文。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitListResponse": {
+                "properties": {
+                    "count": {
+                        "description": "Count 是满足筛选条件的总条数（不是本页条数）。",
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "top_users": {
+                        "description": "TopUsers 是最近 90 天命中处数最多的几个用户。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.TopUserItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitSnippet": {
+                "properties": {
+                    "end": {
+                        "type": "integer"
+                    },
+                    "start": {
+                        "type": "integer"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.HitWord": {
+                "properties": {
+                    "category": {
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "snippets": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.HitSnippet"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "tier": {
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.TopUserItem": {
+                "properties": {
+                    "hit_count": {
+                        "description": "HitCount 是窗口内该用户的命中处数（按记录里的命中处数汇总）。",
+                        "type": "integer"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.WordStatItem": {
+                "properties": {
+                    "category": {
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "count": {
+                        "description": "Count 是最近 90 天的出现处数（词云字号的数据源）。",
+                        "type": "integer"
+                    },
+                    "tier": {
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.WordStatsResponse": {
+                "properties": {
+                    "days": {
+                        "type": "integer"
+                    },
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.WordStatItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_media_adapter_http.CompleteTaskRequest": {
                 "properties": {
                     "object_key": {
@@ -3673,6 +4109,56 @@
                 },
                 "type": "object"
             },
+            "internal_site_adapter_http.SiteSectionContentFilterRequest": {
+                "properties": {
+                    "retain_days": {
+                        "description": "RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。\n\n它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营\n对\"审计价值 vs 数据量\"的取舍，不该由一次发版决定。清理任务每天读一次现值，\n所以改它不需要重启。",
+                        "type": "integer"
+                    },
+                    "whitelist": {
+                        "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "words": {
+                        "description": "Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），\n单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。",
+                        "items": {
+                            "$ref": "#/components/schemas/conf.ContentFilterWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+                "properties": {
+                    "retain_days": {
+                        "description": "RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。\n\n它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营\n对\"审计价值 vs 数据量\"的取舍，不该由一次发版决定。清理任务每天读一次现值，\n所以改它不需要重启。",
+                        "type": "integer"
+                    },
+                    "whitelist": {
+                        "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "words": {
+                        "description": "Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），\n单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。",
+                        "items": {
+                            "$ref": "#/components/schemas/conf.ContentFilterWord"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_site_adapter_http.SiteSectionDecoRequest": {
                 "properties": {
                     "charm": {
@@ -3934,9 +4420,6 @@
                     "chat": {
                         "$ref": "#/components/schemas/myblogx_conf_site.Chat"
                     },
-                    "comment": {
-                        "$ref": "#/components/schemas/myblogx_conf_site.Comment"
-                    },
                     "login": {
                         "$ref": "#/components/schemas/myblogx_conf_site.Login"
                     },
@@ -3966,9 +4449,6 @@
                     },
                     "chat": {
                         "$ref": "#/components/schemas/myblogx_conf_site.Chat"
-                    },
-                    "comment": {
-                        "$ref": "#/components/schemas/myblogx_conf_site.Comment"
                     },
                     "login": {
                         "$ref": "#/components/schemas/myblogx_conf_site.Login"
@@ -4203,6 +4683,17 @@
                 },
                 "type": "object"
             },
+            "internal_user_adapter_http.AdminUnmuteRequest": {
+                "properties": {
+                    "user_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "user_id"
+                ],
+                "type": "object"
+            },
             "internal_user_adapter_http.AdminUpdateRequest": {
                 "properties": {
                     "abstract": {
@@ -4250,6 +4741,10 @@
                         "type": "string"
                     },
                     "last_login_at": {
+                        "type": "string"
+                    },
+                    "mute_until": {
+                        "description": "MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。\n\n账号管理页据此展示\"禁言至 X（还有 N 天）\"并给出「解除禁言」按钮。",
                         "type": "string"
                     },
                     "nickname": {
@@ -4465,12 +4960,9 @@
                         "description": "「发布与展示」三个开关（ADR-0015 决策 2）。\n它们只表达\"允许什么\"，判定点在 app 层与读过滤处，不靠前端隐藏；\n默认值只写在 site_default_settings.yaml（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。",
                         "type": "boolean"
                     },
-                    "moderation": {
-                        "$ref": "#/components/schemas/myblogx_conf_site.Moderation"
-                    },
                     "quality_gate": {
                         "$ref": "#/components/schemas/myblogx_conf_site.QualityGate",
-                        "description": "Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。\n\n词表是**运行期数据**（运营热改、不发版），\"怎么判\"的规则结构在\ninternal/article/domain/moderation 里。两档的差别：阻断级命中后将来可\n自动拒（本票只标红），观察级只标红、处置权交人。\n\n缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；\n这里不写第二份字面默认值。\nQualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。\n\n它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部\n自由可配、**不做交叉校验**（spec 决策 11）——允许保存\"及格线 50 而\n31–59 叫不合格文章\"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。\n\n缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective\n一处收敛，不在用例层与 adapter 各抄一份。"
+                        "description": "QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。\n\n它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部\n自由可配、**不做交叉校验**（spec 决策 11）——允许保存\"及格线 50 而\n31–59 叫不合格文章\"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。\n\n缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective\n一处收敛，不在用例层与 adapter 各抄一份。"
                     },
                     "show_non_admin_articles": {
                         "description": "显示非管理员发布的文章",
@@ -4500,40 +4992,6 @@
                     "stranger_msg_enabled": {
                         "description": "允许陌生人发私信",
                         "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_conf_site.Comment": {
-                "properties": {
-                    "ai": {
-                        "$ref": "#/components/schemas/myblogx_conf_site.CommentAI",
-                        "description": "AI 是评论的 AI 合规判定（票 359）。"
-                    },
-                    "moderation": {
-                        "$ref": "#/components/schemas/myblogx_conf_site.Moderation",
-                        "description": "Moderation 是评论的机审词表（与文章同构）。"
-                    },
-                    "skip_examining": {
-                        "description": "免审核（机器+AI 都通过时直发）",
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_conf_site.CommentAI": {
-                "properties": {
-                    "enabled": {
-                        "description": "Enabled 打开后，评论在发布前会过一遍 AI 合规判定。",
-                        "type": "boolean"
-                    },
-                    "max_tokens": {
-                        "description": "MaxTokens 是单次判定的输出上限，默认 1000。\n\n结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本\n控制在可预期量级。",
-                        "type": "integer"
-                    },
-                    "timeout_sec": {
-                        "description": "TimeoutSec 是单次判定的超时秒数，默认 8。\n\n评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求\n挂到分钟级。超时按\"未判定\"处理（留待人工），不按\"通过\"处理。",
-                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -4603,27 +5061,6 @@
                     },
                     "username_pwd_login": {
                         "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_conf_site.Moderation": {
-                "properties": {
-                    "block_words": {
-                        "description": "BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "watch_words": {
-                        "description": "WatchWords 观察级词表：命中只标红，处置权在人。",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -5411,6 +5848,10 @@
                     "content": {
                         "type": "string"
                     },
+                    "filtered_count": {
+                        "description": "FilteredCount 是内容过滤实际替换的处数（票 396 / ADR-0032）。\n前端据此提示\"已过滤 N 处\"；**不回显命中词**，否则词表就漏了。",
+                        "type": "integer"
+                    },
                     "id": {
                         "type": "string"
                     },
@@ -5422,47 +5863,6 @@
                     },
                     "status": {
                         "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_comment_app.ManageItem": {
-                "properties": {
-                    "article_cover": {
-                        "type": "string"
-                    },
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "article_title": {
-                        "type": "string"
-                    },
-                    "content": {
-                        "type": "string"
-                    },
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "digg_count": {
-                        "type": "integer"
-                    },
-                    "id": {
-                        "type": "string"
-                    },
-                    "relation": {
-                        "type": "integer"
-                    },
-                    "reply_count": {
-                        "type": "integer"
-                    },
-                    "user_avatar": {
-                        "type": "string"
-                    },
-                    "user_id": {
-                        "type": "string"
-                    },
-                    "user_nickname": {
-                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -5810,6 +6210,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleUpdateResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
                 "properties": {
                     "code": {
@@ -5971,6 +6385,62 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_comment_adapter_http.ReplyListResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HandleHitResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.HitListResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.WordStatsResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -6153,6 +6623,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionAiResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionContentFilterResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -6958,20 +7442,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
                 "properties": {
                     "code": {
@@ -7538,21 +8008,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/myblogx_internal_comment_app.ManageItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_search_domain.ArticleStatus": {
                 "enum": [
                     1,
@@ -7840,6 +8295,10 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "mute_until": {
+                        "description": "MuteUntil 是禁言到期时间（票 399）；nil / 缺省表示未禁言。\n\n只出现在\"我自己\"的详情里：读者设置页据此展示剩余时间，\n发布动作被拒时后端文案也会带上同一个时间点。",
+                        "type": "string"
                     },
                     "nickname": {
                         "type": "string"
@@ -9613,7 +10072,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse"
                                 }
                             }
                         },
@@ -10805,31 +11264,6 @@
                 ]
             }
         },
-        "/comments/man": {
-            "get": {
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "评论管理列表",
-                "tags": [
-                    "comment"
-                ]
-            }
-        },
         "/comments/replies": {
             "get": {
                 "responses": {
@@ -10919,6 +11353,199 @@
                 "summary": "评论点赞/取消点赞",
                 "tags": [
                     "comment"
+                ]
+            }
+        },
+        "/content-filter/hits": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页条数",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "文本面",
+                        "in": "query",
+                        "name": "surface",
+                        "schema": {
+                            "enum": [
+                                "article",
+                                "comment",
+                                "nickname",
+                                "abstract",
+                                "chat",
+                                "collection"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "处理状态",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "pending",
+                                "ignored",
+                                "deleted",
+                                "account"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "用户 ID",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "关键词风险列表（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/hits/handle-batch": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_filter_adapter_http.HandleBatchRequest",
+                                "summary": "payload",
+                                "description": "记录 ID、动作与备注"
+                            }
+                        }
+                    },
+                    "description": "记录 ID、动作与备注",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "批量处置关键词风险记录（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/hits/{id}/handle": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "命中记录 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_filter_adapter_http.HandleHitRequest",
+                                "summary": "payload",
+                                "description": "处置动作、禁言天数与备注"
+                            }
+                        }
+                    },
+                    "description": "处置动作、禁言天数与备注",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "处置一条关键词风险记录（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/word-stats": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "词云统计（管理员）",
+                "tags": [
+                    "content-filter"
                 ]
             }
         },
@@ -13940,6 +14567,31 @@
                 ]
             }
         },
+        "/site/admin/content_filter": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 content_filter 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
         "/site/admin/deco": {
             "get": {
                 "responses": {
@@ -14279,6 +14931,44 @@
                     }
                 },
                 "summary": "获取站点 AI 信息",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/content_filter": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionContentFilterRequest",
+                                "summary": "body",
+                                "description": "content_filter 段配置"
+                            }
+                        }
+                    },
+                    "description": "content_filter 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 content_filter 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]
@@ -15033,6 +15723,44 @@
                     }
                 ],
                 "summary": "用户列表",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/admin/unmute": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_user_adapter_http.AdminUnmuteRequest",
+                                "summary": "body",
+                                "description": "目标用户"
+                            }
+                        }
+                    },
+                    "description": "目标用户",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "管理员解除禁言",
                 "tags": [
                     "user"
                 ]

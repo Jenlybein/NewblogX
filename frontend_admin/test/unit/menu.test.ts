@@ -58,6 +58,7 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
+  { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
   { label: '文章列表', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
   { label: '合集管理', path: '/articles/collections', icon: 'article' },
@@ -68,6 +69,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '登录与发码', path: '/site/login', icon: 'settings' },
   { label: '发布与审核', path: '/site/publish', icon: 'settings' },
   { label: '私信', path: '/site/chat', icon: 'settings' },
+  { label: '内容过滤', path: '/site/content-filter', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '对象存储', path: '/site/storage', icon: 'settings' },
@@ -131,7 +133,7 @@ describe('后台菜单拍平视图', () => {
     })
     expect(FLAT_NAV.filter(item => item.depth === 0).map(item => item.label)).toEqual([
       '数据概览',
-      '文章审核',
+      '审核',
       '文章管理',
       '用户管理',
       '站点配置',
@@ -139,6 +141,20 @@ describe('后台菜单拍平视图', () => {
       '全局通知',
       '日志中心',
     ])
+
+    // 审核域（ADR-0032 决策 7）：父项只分组，「文章审核」与「关键词风险」下沉一级。
+    expect(FLAT_NAV.find(item => item.label === '审核')!.path).toBeUndefined()
+    expect(FLAT_NAV.find(item => item.label === '文章审核')).toMatchObject({
+      parentLabel: '审核',
+      parentPath: null,
+      depth: 1,
+    })
+    expect(FLAT_NAV.find(item => item.label === '关键词风险')).toMatchObject({
+      path: '/review/content-filter',
+      parentLabel: '审核',
+      parentPath: null,
+      depth: 1,
+    })
   })
 
   it('flattenNav 把子项排在父项之后，并记录父级归属与深度', () => {

@@ -43,7 +43,7 @@ func newStudioStatsTestHandler(t *testing.T) (*Handler, *apptest.Repos, *fakeAct
 
 	repos := apptest.NewRepos()
 	activity := &fakeActivity{byUser: map[domain.UserID]map[string]int{}}
-	svc := app.New(apptest.NewTx(repos), apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), apptest.NewSubmitQuota(15), nil, nil, nil).
+	svc := app.New(apptest.NewTx(repos), apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), apptest.NewSubmitQuota(15), nil, nil).
 		WithActivity(activity)
 	return NewHandler(svc, nil, nil, nil, nil), repos, activity
 }

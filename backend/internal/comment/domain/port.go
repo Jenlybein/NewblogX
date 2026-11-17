@@ -24,25 +24,8 @@ type Repository interface {
 	ListReplies(ctx context.Context, articleID, rootID uint64, page Page) ([]Comment, bool, error)
 	// ListFamily 查一条一级评论及其全部回复（删除级联用）。
 	ListFamily(ctx context.Context, rootID CommentID) ([]Comment, error)
-	// ListManaged 管理端分页查询。
-	ListManaged(ctx context.Context, q ManagedQuery) ([]Comment, int64, error)
-	// UpdateStatus 改状态。
-	UpdateStatus(ctx context.Context, id CommentID, status Status) error
 	// SoftDeleteMany 批量软删。
 	SoftDeleteMany(ctx context.Context, ids []CommentID) error
-}
-
-// ManagedQuery 是管理端列表的查询条件。
-type ManagedQuery struct {
-	// Type：1 我文章下的评论、2 我发的评论、3 管理员查全部。
-	Type      int8
-	Status    Status
-	ViewerID  ctype.ID
-	ArticleID ctype.ID
-	UserID    ctype.ID
-	// ArticleIDs 仅 Type=1 使用（该用户的文章 ID 列表）。
-	ArticleIDs []ctype.ID
-	Page       Page
 }
 
 // DiggRepository 是评论点赞的持久化端口。
@@ -75,6 +58,15 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []uint64) (map[uint64]Display, error)
 }
 
+// PublishGate 是发布类动作前的账号闸门（票 399 / ADR-0032 决策 8）。
+//
+// 实现由 user 模块提供、装配层注入（app/publish_gate_wiring.go）：评论模块
+// 只负责在 Create 的最前面调一次，错误原样向上返回（含禁言到期时间的文案）。
+// nil 表示未接入（那些不服务用户请求的进程角色），行为与改造前一致。
+type PublishGate interface {
+	EnsureCanPublish(ctx context.Context, userID ctype.ID) error
+}
+
 // Display 是评论列表需要的用户展示信息。
 type Display struct {
 	Nickname string
@@ -90,11 +82,9 @@ type Article struct {
 	CommentsToggle bool
 }
 
-// ArticleInfo 读文章信息与"某作者的文章 ID 列表"。
+// ArticleInfo 读文章信息（评论创建时的开关与标题、回复通知用）。
 type ArticleInfo interface {
 	ByID(ctx context.Context, id uint64) (Article, error)
-	BaseMap(ctx context.Context, ids []uint64) (map[uint64]Article, error)
-	IDsByAuthor(ctx context.Context, authorID, articleID ctype.ID) ([]ctype.ID, error)
 }
 
 // CacheWriter 回写评论相关的计数缓存。
@@ -159,4 +149,34 @@ type Clock interface {
 // Logger 是窄日志接口。
 type Logger interface {
 	Errorf(format string, args ...any)
+}
+
+// FilterRequest 是一段要在落库前过滤的评论文本。
+//
+// 端口刻意不带"文本面"参数：评论模块只知道"这是我的评论文本"，把它归到哪个面是
+// 装配层的事（ADR-0032 的 surface 枚举属于内容过滤模块）。这样评论模块不必认识
+// 另外五个面，将来加面也不会改到这里。
+type FilterRequest struct {
+	UserID ctype.ID
+	// ContentID 是即将落库的评论 ID：评论在 Create 之前先生成 ID，
+	// 命中记录才能指回真实内容（后续票的"删除内容"处置要靠它）。
+	ContentID ctype.ID
+	Text      string
+}
+
+// FilterResult 是过滤结果。
+type FilterResult struct {
+	// Masked 是替换后的文本；用它入库、发通知、回响应。
+	Masked string
+	// FilteredCount 是实际被替换的处数（只用于"已过滤 N 处"的提示）。
+	FilteredCount int
+}
+
+// ContentFilterer 在全站唯一的内容过滤层里替换命中词，并记一条关键词风险。
+//
+// 错误语义：实现方在"命中记录写失败"时应当自己吞掉并记日志（fail-open），
+// 返回 error 只留给装配级异常；即便如此，调用方也必须按"记录失败不阻断发布"
+// 处理 —— 见 Service.Create 里的注释。
+type ContentFilterer interface {
+	Filter(ctx context.Context, in FilterRequest) (FilterResult, error)
 }

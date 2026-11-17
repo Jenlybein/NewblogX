@@ -51,6 +51,12 @@ func WireSite(infra *Infra) {
 	)
 	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。
 	redisOpts := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
+	// 词表保存即生效的另一半（ADR-0032 / 票 396）：保存成功后按新词表原子重建
+	// 过滤引擎。回调里不返回 error —— 保存已经落库，重建失败只意味着"旧词表继续
+	// 生效"，那是引擎 Rebuild 的既定语义，不该把一次成功的保存变成失败。
+	svc.SetContentFilterChangedHook(func(contentFilter conf.ContentFilter) {
+		rebuildContentFilter(infra, contentFilter)
+	})
 	router.SetSiteHandler(sitehttp.NewHandler(svc, func(ip, userAgent string) {
 		redis_site.SetFlow(redisOpts, ip, userAgent)
 	}, sitehttp.WithSidebar(sidebar)))
@@ -246,6 +252,22 @@ func (b siteRuntimeBridge) UpdateImageGC(imageGC conf.ImageGC) error {
 		return errSiteRuntimeMissing()
 	}
 	return b.inner.UpdateImageGC(imageGC)
+}
+
+// ContentFilter 返回全站词表段。
+func (b siteRuntimeBridge) ContentFilter() conf.ContentFilter {
+	if b.inner == nil {
+		return conf.ContentFilter{}
+	}
+	return b.inner.GetRuntimeContentFilter()
+}
+
+// UpdateContentFilter 覆盖全站词表段。
+func (b siteRuntimeBridge) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateContentFilter(contentFilter)
 }
 
 // errSiteRuntimeMissing 表示运行时配置服务没装配。

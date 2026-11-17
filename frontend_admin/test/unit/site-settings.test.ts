@@ -27,7 +27,7 @@ import {
  *
  * 要守住的事：
  *
- *   1. 十二个编辑域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
+ *   1. 十三个编辑域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
  *   2. 每个页面只渲染自己那一个配置组件（不再有页内 tab，也不能顺手改兄弟页的字段）；
  *   3. 左侧菜单的归属与层级与路由一致：站点四页深度 2、其余域深度 1；
  *   4. 站点四页共用同一个 `site` 段端点，所以保存必须走读-改-写（见 siteSectionSave 的用例）。
@@ -65,6 +65,16 @@ const EXPECTED_SECTIONS: ExpectedSection[] = [
     depth: 2,
   },
   { key: "site-chat", label: "私信", path: "/site/chat", page: "site/chat", component: "SettingsSiteChat", depth: 2 },
+  // 第 11 段 content_filter（ADR-0032）是独立的一段：编辑域排在其它域之前，
+  // 但它仍挂在「站点配置」下、深度 1（不属于 site 段的四页）。
+  {
+    key: "content-filter",
+    label: "内容过滤",
+    path: "/site/content-filter",
+    page: "site/content-filter",
+    component: "SettingsContentFilter",
+    depth: 1,
+  },
   { key: "ai", label: "AI 助手", path: "/site/ai", page: "site/ai", component: "SettingsAi", depth: 1 },
   { key: "mail", label: "邮件", path: "/site/mail", page: "site/mail", component: "SettingsMail", depth: 1 },
   {
@@ -108,7 +118,7 @@ function pageSource(page: string): string {
 }
 
 describe("站点配置编辑域清单（路由与组件映射的唯一来源）", () => {
-  it("十二个编辑域的顺序、标题、路由与组件名固定", () => {
+  it("十三个编辑域的顺序、标题、路由与组件名固定", () => {
     expect(
       ALL_SITE_SETTINGS_SECTIONS.map(({ key, label, path, component }) => ({
         key,
@@ -124,7 +134,7 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
         component,
       })),
     );
-    expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(12);
+    expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(13);
     // 站点四页与其余八域在清单里的切分也是固定口径。
     expect(SITE_SETTINGS_PAGES.map((section) => section.key)).toEqual([
       "site-basics",
@@ -132,18 +142,18 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
       "site-publish",
       "site-chat",
     ]);
-    expect(SITE_SETTINGS_SECTIONS).toHaveLength(8);
+    expect(SITE_SETTINGS_SECTIONS).toHaveLength(9);
   });
 
   it("站点四页各自声明自己拥有的 site 段顶层块，且互不重叠", () => {
     const owned = SITE_SETTINGS_PAGES.flatMap((section) => section.blocks);
     expect(new Set(owned).size).toBe(owned.length);
-    expect(owned.sort()).toEqual(["article", "chat", "comment", "login", "seo", "site_info"]);
+    expect(owned.sort()).toEqual(["article", "chat", "login", "seo", "site_info"]);
 
     for (const section of SITE_SETTINGS_PAGES) {
       expect(section.blocks.length, section.key).toBeGreaterThan(0);
     }
-    // 其余七域各用自己整段端点，不参与 site 段的读-改-写。
+    // 其余八域各用自己整段端点，不参与 site 段的读-改-写。
     for (const section of SITE_SETTINGS_SECTIONS) {
       expect(section.blocks, section.key).toEqual([]);
     }
@@ -203,7 +213,7 @@ describe("站点配置菜单层级（三级）", () => {
     expect(children.length).toBe(1 + SITE_SETTINGS_SECTIONS.length + OPERATIONAL_CHILDREN.length);
   });
 
-  it("十二个编辑域都能在菜单里查到，层级与父级归属正确", () => {
+  it("十三个编辑域都能在菜单里查到，层级与父级归属正确", () => {
     for (const section of EXPECTED_SECTIONS) {
       const item = navItemByPath(section.path);
       expect(item).toMatchObject({ label: section.label, depth: section.depth });
@@ -265,7 +275,7 @@ function reconcile(expanded: string[], path: string): string[] {
 }
 
 describe("站点配置编辑域页面文件（刷新保持当前域）", () => {
-  it("app/pages/site 下十二个编辑域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
+  it("app/pages/site 下十三个编辑域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
     const domainPages = EXPECTED_SECTIONS.map((section) => section.page).sort();
     const actual = sitePageFiles();
     expect(actual.filter((page) => domainPages.includes(page))).toEqual(domainPages);
@@ -302,7 +312,7 @@ describe("站点配置编辑域页面文件（刷新保持当前域）", () => {
     }
   });
 
-  it("十二个编辑域的配置组件都在原位置", () => {
+  it("十三个编辑域的配置组件都在原位置", () => {
     for (const section of EXPECTED_SECTIONS) {
       expect(
         existsSync(join(settingsDir, `${section.component}.vue`)),

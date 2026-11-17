@@ -191,6 +191,70 @@ func (r *Repo) UpdateStatus(ctx context.Context, id domain.UserID, status domain
 	return nil
 }
 
+// SetMuteUntil 实现 domain.Repository。
+//
+// at 为 nil 时必须把列写成 NULL（解除禁言），不能写成零值时间：'0001-01-01'
+// 会被惰性判定当成"很久以前到期"，虽然碰巧也是未禁言，但那一列就不再是
+// "NULL = 未禁言"的单一语义，对账任务也会永远扫不到它。
+func (r *Repo) SetMuteUntil(ctx context.Context, id domain.UserID, at *time.Time) error {
+	var value any
+	if at != nil {
+		value = *at
+	}
+	res := r.db.WithContext(ctx).Model(&UserRow{}).
+		Where("id = ?", id.Uint64()).
+		Updates(map[string]any{"mute_until": value})
+	if res.Error != nil {
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
+// ClearExpiredMutes 实现 domain.Repository。
+func (r *Repo) ClearExpiredMutes(ctx context.Context, now time.Time) (int64, error) {
+	cleared, err := ClearExpiredMutes(ctx, r.db, now)
+	return cleared, translate(err)
+}
+
+// ClearExpiredMutes 把已到期的禁言列一次性清空，返回清掉的条数（票 399）。
+//
+// 条件更新（mute_until <= now）而不是"读出来再逐条写"：并发下新设的禁言
+// （mute_until > now）不会被这轮误清；重跑一次 0 行、幂等。
+// 用 update_time 无关的直达 SQL：这里只改一列，不触发资料快照同步。
+func ClearExpiredMutes(ctx context.Context, db *gorm.DB, now time.Time) (int64, error) {
+	if db == nil {
+		return 0, nil
+	}
+	res := db.WithContext(ctx).Model(&UserRow{}).
+		Where("mute_until IS NOT NULL AND mute_until <= ?", now).
+		Update("mute_until", gorm.Expr("NULL"))
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
+// ExpiredMuteUserIDs 返回此刻已到期、仍带着 mute_until 的账号 ID（票 399）。
+//
+// 只给"到期自动恢复"留审计记录用（每小时对账日志要能点名是哪些账号被恢复）。
+// 它不改任何行：清空仍然走 ClearExpiredMutes 的条件更新，两者先后顺序不影响
+// 数据正确性（并发下对账可能少报一个刚被别人清掉的账号，多一条日志无害）。
+func ExpiredMuteUserIDs(ctx context.Context, db *gorm.DB, now time.Time) ([]uint64, error) {
+	if db == nil {
+		return nil, nil
+	}
+	var ids []uint64
+	if err := db.WithContext(ctx).Model(&UserRow{}).
+		Where("mute_until IS NOT NULL AND mute_until <= ?", now).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 // UpdatePassword 实现 domain.Repository。
 //
 // 同时写令牌版本与改密时间：版本 +1 让所有旧访问令牌立即失效，
@@ -410,6 +474,7 @@ func toUser(row UserRow) domain.User {
 		Role:           domain.Role(row.Role),
 		RegisterSource: domain.RegisterSource(row.RegisterSource),
 		TokenVersion:   row.TokenVersion,
+		MuteUntil:      row.MuteUntil,
 		IP:             row.IP,
 		Addr:           row.Addr,
 	}
@@ -429,6 +494,7 @@ func fromUser(u domain.User) UserRow {
 		Phone:          u.Phone,
 		Status:         int8(u.Status),
 		TokenVersion:   u.TokenVersion,
+		MuteUntil:      u.MuteUntil,
 		Role:           int8(u.Role),
 		IP:             u.IP,
 		Addr:           u.Addr,

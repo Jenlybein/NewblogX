@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
@@ -114,6 +115,40 @@ func (h *Handler) AdminUpdate(c *gin.Context) {
 	res.OkWithMsg("用户信息更新成功", c)
 }
 
+// AdminUnmute 提前解除禁言（管理员）。
+//
+// 与"到期自动恢复"是两条路：自动恢复不需要任何端点（惰性判定），这里只处理
+// "管理员提前放人"。幂等：本来就没禁言也返回成功，不写库。
+// @Summary 管理员解除禁言
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body AdminUnmuteRequest true "目标用户"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /users/admin/unmute [post]
+func (h *Handler) AdminUnmute(c *gin.Context) {
+	var req AdminUnmuteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res.FailWithMsg("参数错误", c)
+		return
+	}
+	u, err := h.svc.Unmute(c.Request.Context(), viewer(c), req.UserID)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("已解除禁言", c)
+	// 留记录：解除是一次账号级处置，事后必须能查到"谁、什么时候、对谁"。
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "user_unmute",
+		TargetType: "user",
+		TargetID:   req.UserID.String(),
+		Success:    true,
+		Message:    "管理员提前解除禁言: user=" + req.UserID.String() + " nickname=" + u.Nickname,
+	})
+}
+
 // AdminList 管理端用户列表。
 // @Summary 用户列表
 // @Tags user
@@ -149,6 +184,7 @@ func (h *Handler) AdminList(c *gin.Context) {
 			LastLoginAt: it.LastLoginAt,
 			Role:        int8(it.Role),
 			Status:      int8(it.Status),
+			MuteUntil:   it.MuteUntil,
 		})
 	}
 	res.OkWithList(out, int(total), c)

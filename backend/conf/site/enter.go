@@ -96,14 +96,6 @@ type Article struct {
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
 
-	// Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
-	//
-	// 词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
-	// internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
-	// 自动拒（本票只标红），观察级只标红、处置权交人。
-	//
-	// 缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
-	// 这里不写第二份字面默认值。
 	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
 	//
 	// 它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
@@ -113,53 +105,6 @@ type Article struct {
 	// 缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective
 	// 一处收敛，不在用例层与 adapter 各抄一份。
 	QualityGate QualityGate `yaml:"quality_gate" json:"quality_gate"`
-
-	Moderation Moderation `yaml:"moderation" json:"moderation"`
-}
-
-// Moderation 是机审词表的运行期配置形状。
-//
-// 两个清单都整段替换（不做逐元素合并）：删掉一个词必须真的删掉，不能因为
-// 默认值里还留着而"删了没反应"（合并语义见 internal/platform/config/merge.go）。
-type Moderation struct {
-	// BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。
-	BlockWords []string `yaml:"block_words" json:"block_words"`
-	// WatchWords 观察级词表：命中只标红，处置权在人。
-	WatchWords []string `yaml:"watch_words" json:"watch_words"`
-}
-
-// Comment 是评论的站点级策略（票 359）。
-//
-// 在票 359 之前这里只有一个"免审核"开关：打开就直发，等于评论完全裸奔。
-// 现在补上两层判定，形状与文章那套**刻意保持一致** —— 词表同构、AI 结论同构，
-// 运营只要理解一套规则。
-type Comment struct {
-	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核（机器+AI 都通过时直发）
-
-	// Moderation 是评论的机审词表（与文章同构）。
-	Moderation Moderation `yaml:"moderation" json:"moderation"`
-
-	// AI 是评论的 AI 合规判定（票 359）。
-	AI CommentAI `yaml:"ai" json:"ai"`
-}
-
-// CommentAI 是评论 AI 判定的运行期参数。
-//
-// 单列一个结构而不是平铺进 Comment：这三个值是一组（开关 + 成本上限 + 超时），
-// 平铺会让人以为它们彼此无关。
-type CommentAI struct {
-	// Enabled 打开后，评论在发布前会过一遍 AI 合规判定。
-	Enabled bool `yaml:"enabled" json:"enabled"`
-	// MaxTokens 是单次判定的输出上限，默认 1000。
-	//
-	// 结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本
-	// 控制在可预期量级。
-	MaxTokens int `yaml:"max_tokens" json:"max_tokens"`
-	// TimeoutSec 是单次判定的超时秒数，默认 8。
-	//
-	// 评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求
-	// 挂到分钟级。超时按"未判定"处理（留待人工），不按"通过"处理。
-	TimeoutSec int `yaml:"timeout_sec" json:"timeout_sec"`
 }
 
 // Chat 是私信的站点级策略（#202）。

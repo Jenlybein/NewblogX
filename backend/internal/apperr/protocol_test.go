@@ -74,6 +74,9 @@ func declaredCodes(t *testing.T) []apperr.Code {
 // 这张表只允许收缩：删掉一条意味着那个码登记了协议类别。新增一条必须在提交
 // 说明里写清为什么它属于服务异常，而不是参数 / 登录态问题。
 var serviceFallbackCodes = []apperr.Code{
+	// 关键词风险的处置端口没装配（票 398）：后台点删除时发现这一进程没有接内容模块，
+	// 是装配漏了一步，不是管理员传错了参数。按通用服务异常返回，不把装配细节透出去。
+	apperr.CodeFilterDisposeUnavailable,
 	// 分组功能未就绪（装配层没提供分组仓储）：这不是用户能修的问题，
 	// 也不该暴露内部装配细节，所以按通用服务异常返回。
 	apperr.CodeGroupWiring,
@@ -393,3 +396,4 @@ func TestEveryCodeHasMessageAndProtocolDecision(t *testing.T) {
 		}
 	}
 }
+

@@ -70,7 +70,17 @@ export interface AdminNavFlatItem {
 /** 菜单树（唯一来源）。父项 + 子项构成两级；父项自身仍可有页面。 */
 export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
-  { label: '文章审核', path: '/review', icon: 'shield' },
+  {
+    // 审核域（ADR-0032 决策 7）：文章审核是人工队列，关键词风险是内容过滤的
+    // 命中记录。父项只分组、没有自身页面 —— 否则「审核」会多出一个空落地页，
+    // 而它真正的两块内容都在子项里。
+    label: '审核',
+    icon: 'shield',
+    children: [
+      { label: '文章审核', path: '/review', icon: 'shield' },
+      { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
+    ],
+  },
   {
     // 父项只负责分组：点标题是展开/收起，不进页面。所以父项**不给 path**，
     // 它自己的页面降级成第一个子项（「文章列表」）—— 否则那页就没有入口了。

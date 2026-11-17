@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
+	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/site/domain"
 )
 
@@ -46,6 +47,13 @@ type Service struct {
 	qqURL   func() string
 	logger  Logger
 	aiReady func() bool
+
+	// contentFilterChanged 在词表段保存成功后被调用，用来按新词表重建过滤引擎。
+	//
+	// 做成回调而不是直接依赖引擎：平台包不认识过滤引擎的装配，#396 才把
+	// 「过滤器」接到请求路径上。装配层调 SetContentFilterChangedHook 挂上来之前
+	// 它为空，保存只刷新配置缓存（那也是"立即生效"的一半）。
+	contentFilterChanged func(conf.ContentFilter)
 }
 
 // New 构造站点服务。
@@ -298,6 +306,100 @@ func (s *Service) UpdateImageGC(imageGC conf.ImageGC) error {
 
 // AdminDeco 返回管理端的装饰配置。
 func (s *Service) AdminDeco() conf.Deco { return s.PublicDeco() }
+
+// AdminContentFilter 返回管理端的全站词表段（ADR-0032）。
+//
+// 这一段没有任何公开读：词表只给后台，读者站不会拿到它，匿名端点也不返回。
+func (s *Service) AdminContentFilter() conf.ContentFilter { return s.runtime.ContentFilter() }
+
+// SetContentFilterChangedHook 登记"词表保存之后"的回调。
+//
+// 过滤引擎（platform/contentfilter 的 Engine）在 #396 才接进请求路径；装配层把
+// `engine.Rebuild(words, whitelist)` 挂到这里，保存即生效的那一半就闭环了。
+// 传 nil 表示不关心（测试与尚未装配引擎的启动路径）。
+func (s *Service) SetContentFilterChangedHook(fn func(conf.ContentFilter)) {
+	s.contentFilterChanged = fn
+}
+
+// UpdateContentFilter 覆盖全站词表段。
+//
+// 保存前先在用例层把词条整理干净（去空白、去重、校验档位与类目）：词表是唯一写入口，
+// 让坏数据写进库里只会把问题推迟到过滤引擎构建时 —— 那时就会变成启动失败。
+// 写库并刷新缓存后立刻回调，让过滤器按新词表重建（原子切换，不阻塞在跑的请求）。
+func (s *Service) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	normalized, err := normalizeContentFilter(contentFilter)
+	if err != nil {
+		return err
+	}
+	if err := s.runtime.UpdateContentFilter(normalized); err != nil {
+		return err
+	}
+	if s.contentFilterChanged != nil {
+		s.contentFilterChanged(normalized)
+	}
+	return nil
+}
+
+// normalizeContentFilter 整理并校验词表段。
+//
+// 具体规则（去空白、丢空词条、按小写去重、校验档位/类目/单字词）在
+// contentfilter.NormalizeWords —— 初始词表导入命令（cmd/cli 的 -filter-import）也走同一份，
+// 导入能写进去的词，后台保存一定也能接受。
+func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilter, error) {
+	words := make([]contentfilter.Word, 0, len(contentFilter.Words))
+	for _, entry := range contentFilter.Words {
+		words = append(words, contentfilter.Word{
+			Word:     entry.Word,
+			Tier:     contentfilter.Tier(entry.Tier),
+			Category: contentfilter.Category(entry.Category),
+		})
+	}
+	normalized, err := contentfilter.NormalizeWords(words)
+	if err != nil {
+		// 错误文案由 contentfilter 给出（词表不合法的两个入口共用一份措辞）。
+		return conf.ContentFilter{}, apperr.Wrap(apperr.CodeSiteContentFilterInvalid, err)
+	}
+
+	out := conf.ContentFilter{
+		Words:      make([]conf.ContentFilterWord, 0, len(normalized)),
+		Whitelist:  contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
+		RetainDays: normalizeRetainDays(contentFilter.RetainDays),
+	}
+	for _, entry := range normalized {
+		out.Words = append(out.Words, conf.ContentFilterWord{
+			Word:     entry.Word,
+			Tier:     string(entry.Tier),
+			Category: string(entry.Category),
+		})
+	}
+	return out, nil
+}
+
+// DefaultContentFilterRetainDays 是命中记录保留天数的缺省值（与 ADR-0032 决策 10 一致）。
+const DefaultContentFilterRetainDays = 90
+
+// MaxContentFilterRetainDays 是保留天数的上限（十年）。
+//
+// 上限不是为了"数据量"（十年早就该归档了），而是为了让越界值有一个确定的落点：
+// 0 / 负数当缺省（老配置没有这个键时就是 0），超上限钳到上限，都不报错 ——
+// 与 deco 的 Normalize 同一口径（配置写歪不该让运营保存不了词表）。
+const MaxContentFilterRetainDays = 3650
+
+// normalizeRetainDays 把保留天数钳进 [1, MaxContentFilterRetainDays]。
+//
+// 0 表示"老配置里没有这个键"，按缺省值处理；负数与超上限钳到边界，不报错。
+func normalizeRetainDays(days int) int {
+	if days <= 0 {
+		return DefaultContentFilterRetainDays
+	}
+	if days > MaxContentFilterRetainDays {
+		return MaxContentFilterRetainDays
+	}
+	return days
+}
 
 // UpdateDeco 覆盖装饰配置。
 //

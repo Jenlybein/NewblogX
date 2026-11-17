@@ -2,7 +2,7 @@
 /**
  * 用户管理（管理员）。
  *
- * 三件事：**看列表**、**改资料**、**封禁 / 解封**。
+ * 四件事：**看列表**、**改资料**、**封禁 / 解封**、**解除禁言**（票 399）。
  *
  * 本轮（决定清单 §6）修了三处：
  *
@@ -14,6 +14,8 @@
  *     并给 `scroll-x` 兜底窄视口。
  *  3. **封禁入口**：以前只能"先点编辑、再改右侧下拉"，路径绕。现在行内直接
  *     封禁 / 解封（二次确认，自己那一行禁用）；编辑从右栏常驻表单改成抽屉。
+ *  4. **禁言**（票 399）：列表新增「禁言」列（到期时间 + 剩余天数），行内可
+ *     「解除禁言」（提前放人；到期本来就会自动恢复，不需要人工操作）。
  *
  * 后端规则（`backend/internal/user/domain/rule.go`）：只有管理员能改，**不能改自己**，
  * 改状态会吊销该用户的全部会话。所以自己那一行必须在前端就先禁掉按钮，
@@ -38,9 +40,10 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import AdminAvatar from '~/components/admin/AdminAvatar.vue'
-import { createAdminUser, getAdminUsers, updateAdminUser } from '~/services/admin'
+import { createAdminUser, getAdminUsers, unmuteAdminUser, updateAdminUser } from '~/services/admin'
 import type { UserListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
+import { muteStatusText } from '~/utils/mute'
 import {
   ROLE_USER,
   STATUS_ACTIVE,
@@ -125,16 +128,40 @@ const columns: DataTableColumns<UserListItem> = [
         { default: () => statusLabel(row.status) },
       ),
   },
+  {
+    // 禁言（票 399）：只显示"禁言至某时（还有 N 天）"；到期自动恢复，不需要人工操作。
+    title: '禁言',
+    key: 'mute_until',
+    width: 220,
+    render: row => {
+      const text = muteStatusText(row.mute_until)
+      return text
+        ? h('div', { class: 'text-xs' }, text)
+        : h('div', { class: 'muted text-xs' }, '—')
+    },
+  },
   { title: '最近登录', key: 'last_login_at', width: 190, render: row => formatDateTime(row.last_login_at) },
   {
     title: '操作',
     key: 'action',
-    width: 200,
+    width: 290,
     fixed: 'right',
-    render: row =>
-      h(NSpace, { size: 4, justify: 'end' }, {
+    render: row => {
+      // 「解除禁言」只在真有禁言时出现；已到期的行列里已经是 —，也就不该再有按钮。
+      const muted = muteStatusText(row.mute_until) !== ''
+      return h(NSpace, { size: 4, justify: 'end' }, {
         default: () => [
           h(NButton, { size: 'small', tertiary: true, onClick: () => openEditor(row) }, { default: () => '编辑' }),
+          muted
+            ? h(NButton, {
+              size: 'small',
+              tertiary: true,
+              type: 'warning',
+              disabled: isSelf(row),
+              title: isSelf(row) ? '不能改自己的账号状态' : undefined,
+              onClick: () => confirmUnmute(row),
+            }, { default: () => '解除禁言' })
+            : null,
           row.status === STATUS_BANNED
             ? h(NButton, {
               size: 'small',
@@ -152,8 +179,9 @@ const columns: DataTableColumns<UserListItem> = [
               title: isSelf(row) ? '不能改自己的账号状态' : undefined,
               onClick: () => confirmBan(row),
             }, { default: () => '封禁' }),
-        ],
-      }),
+        ].filter(Boolean),
+      })
+    },
   },
 ]
 
@@ -263,6 +291,29 @@ function confirmUnban(row: UserListItem) {
     negativeText: '取消',
     async onPositiveClick() {
       await applyStatus(row, STATUS_ACTIVE, '账号已解封')
+    },
+  })
+}
+
+/**
+ * 提前解除禁言（票 399）：清空 mute_until，发布能力立刻恢复。
+ *
+ * 与"到期自动恢复"是两条路：到期本来不需要任何操作，这里只是提前放人。
+ */
+async function confirmUnmute(row: UserListItem) {
+  dialog.warning({
+    title: '解除禁言',
+    content: `确认解除「${displayName(row)}」的禁言？解除后该用户立刻可以发文 / 评论 / 私信。`,
+    positiveText: '解除禁言',
+    negativeText: '取消',
+    async onPositiveClick() {
+      try {
+        await unmuteAdminUser(row.id)
+        message.success('已解除禁言')
+        await refresh()
+      } catch (error) {
+        message.error(error instanceof Error ? `解除禁言失败：${error.message}` : '解除禁言失败，请稍后重试')
+      }
     },
   })
 }

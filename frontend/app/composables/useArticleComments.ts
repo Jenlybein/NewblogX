@@ -64,7 +64,7 @@ export interface ArticleCommentsDeps {
     article_id: string;
     content: string;
     reply_id?: string;
-  }) => Promise<{ status?: number } | null | undefined>;
+  }) => Promise<{ status?: number; filtered_count?: number } | null | undefined>;
   diggComment: (commentId: string) => Promise<unknown>;
   /** 评论/回复成功后刷新正文（评论数在正文上）。 */
   refreshArticle: () => Promise<unknown> | unknown;
@@ -271,15 +271,14 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
         content: trimmed,
         ...(target ? { reply_id: target.id } : {}),
       });
-      // 票 359：评论要过机审 + AI 判定，未通过的那条会停在「审核中」。
-      // 这时说"已发送"而列表里看不到，正是最让人困惑的组合（同 #344 收藏那类问题），
-      // 所以按返回的状态分开提示。
-      const pending = created?.status === 1;
-      if (pending) {
-        deps.notify.success(target ? "回复已提交，审核通过后显示" : "评论已提交，审核通过后显示");
-      } else {
-        deps.notify.success(target ? "回复已发送" : "评论已发送");
-      }
+      // 评论一律直接发布（票 400）：不再按返回状态区分「已发送 / 待审核」，
+      // 也不再为「审核中」留任何提示分支 —— 那个状态在后端已经不存在。
+      //
+      // 命中词替换（票 397 / ADR-0032）：只提示处数、不回显命中了哪个词 ——
+      // 回显等于教人绕过词表。替换后文本已经落库，不必再提示"内容已修改"。
+      const filtered = created?.filtered_count ?? 0;
+      const done = target ? "回复已发送" : "评论已发送";
+      deps.notify.success(filtered > 0 ? `${done}，已过滤 ${filtered} 处` : done);
       replyTarget.value = null;
       deps.pager.reset(1);
       await deps.pager.loadPage(1, true);

@@ -3,6 +3,9 @@
 package res
 
 import (
+	"errors"
+	"strings"
+
 	"myblogx/internal/apperr"
 	"myblogx/utils/validate"
 
@@ -155,12 +158,24 @@ func Fail(err error, c *gin.Context) {
 		err = apperr.New(apperr.CodeCommonServiceFailed)
 	}
 	msg := apperr.Message(apperr.CodeCommonServiceFailed)
+	protocol := apperr.ProtocolOf(err)
 	if code, ok := apperr.CodeOf(err); ok {
 		msg = apperr.Message(code)
 	}
+	// 受控覆盖：调用方能自己修正的失败（ProtocolValidation）允许错误值自带一句
+	// 更具体的文案 —— 目前只有禁言的「到某天 / 还有 N 天」。服务异常与登录态失败
+	// 一律不覆盖：那些错误的 Error() 里可能有连接串、SQL、内部路径，绝不出响应。
+	if protocol == apperr.ProtocolValidation {
+		var carrier interface{ UserMessage() string }
+		if errors.As(err, &carrier) {
+			if extra := strings.TrimSpace(carrier.UserMessage()); extra != "" {
+				msg = extra
+			}
+		}
+	}
 	data := map[string]any{}
 
-	switch apperr.ProtocolOf(err) {
+	switch protocol {
 	case apperr.ProtocolValidation:
 		Response{Code: FailValidCode, Data: data, Msg: msg}.Json(c)
 	case apperr.ProtocolAuth:
@@ -169,3 +184,4 @@ func Fail(err error, c *gin.Context) {
 		Response{Code: FailServiceCode, Data: data, Msg: msg}.Json(c)
 	}
 }
+

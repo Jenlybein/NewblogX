@@ -152,6 +152,15 @@ type UserInfoPort interface {
 	LoadDisplays(ctx context.Context, ids []domain.UserID) (map[domain.UserID]domain.Display, error)
 	// EnsureUsable 校验用户处于可写状态（存在且未被禁用/封禁）。
 	EnsureUsable(ctx context.Context, id domain.UserID) error
+	// EnsureCanPublish 校验用户此刻可以执行发布类动作（票 399）。
+	//
+	// 与 EnsureUsable 的区别就是本票的全部内容：EnsureUsable 只看账号状态，
+	// EnsureCanPublish 还看禁言期（禁言只拦发布类动作，登录/浏览/点赞/收藏不看这条）。
+	//
+	// 返回的错误可能是 user/domain.MuteError（文案含到期时间）或既有的
+	// 账号状态错误码；消费方一律原样向上返回，不要自行翻译 ——
+	// 文案与错误码的单一来源在 user 模块。
+	EnsureCanPublish(ctx context.Context, id domain.UserID) error
 }
 
 // SettingsPort 是本模块提供给其他模块的偏好只读能力。
@@ -204,6 +213,11 @@ type Service struct {
 	lastLogin   LastLoginReader
 	tags        TagValidator
 	authorStats AuthorStatsReader
+
+	// nicknameFilter / abstractFilter 是内容过滤端口（票 397）。
+	// 为 nil 表示未接入：昵称与简介按原文保存（与改造前一致）。
+	nicknameFilter NicknameTextFilterer
+	abstractFilter AbstractTextFilterer
 }
 
 // Option 是可选的装配项。
@@ -215,6 +229,17 @@ type Option func(*Service)
 // WithUsernameAllocator 注入自动用户名分配器。
 func WithUsernameAllocator(a UsernameAllocator) Option {
 	return func(s *Service) { s.usernameAlloc = a }
+}
+
+// WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。
+//
+// 昵称与简介两个面必须分别给：面枚举在装配层的 bridge 里钉死（见 app/user_wiring.go），
+// 一个函数带两个实现，接错面就是编译错误。
+func WithContentFilter(nickname NicknameTextFilterer, abstract AbstractTextFilterer) Option {
+	return func(s *Service) {
+		s.nicknameFilter = nickname
+		s.abstractFilter = abstract
+	}
 }
 
 // New 构造服务。
@@ -294,4 +319,19 @@ func (s *Service) EnsureUsable(ctx context.Context, id domain.UserID) error {
 		return err
 	}
 	return domain.CanLogin(u)
+}
+
+// EnsureCanPublish 实现 UserInfoPort（票 399）。
+//
+// 统一入口只在这里：状态判定（禁用/封禁）和禁言判定（now < mute_until）都在
+// domain.CanPublish 里，各消费模块只调这一个方法并把错误原样返回。
+func (s *Service) EnsureCanPublish(ctx context.Context, id domain.UserID) error {
+	if id.IsZero() {
+		return notFound()
+	}
+	u, err := s.users.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	return domain.CanPublish(u, s.clock.Now())
 }

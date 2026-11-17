@@ -45,15 +45,16 @@ export function getReplyComments(articleId: string | number, rootId: string, pag
 /**
  * 发表评论。
  *
- * 返回体里的 `status` 是**权威状态**（票 359）：1 = 审核中（机审观察词命中，
- * 或 AI 判为可疑/违规/判定失败），2 = 已发布。调用方据此决定提示文案 ——
- * 一律说"已发送"会让"发了但列表里没有"变成一个无法解释的现象。
+ * 评论一律**直接发布**（票 400）：返回体里仍有 `status`（已发布 = 2），但它不再是
+ * "要不要等审核"的判据 —— 后端已没有「审核中」这个状态，也没有轮询。
+ * 返回体里的 `filtered_count` 是本次被替换的处数（票 396），调用方只提示处数、
+ * 不回显命中词。
  */
 export function createComment(payload: {
   article_id: string;
   content: string;
   reply_id?: string;
-}): Promise<{ status?: number } | null | undefined> {
+}): Promise<{ status?: number; filtered_count?: number } | null | undefined> {
   return useNuxtApp().$api.request("/api/comments", {
     method: "POST",
     body: payload,

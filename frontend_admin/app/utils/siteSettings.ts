@@ -1,14 +1,17 @@
 /**
  * 后台「站点配置」的编辑域（**路由、菜单子项与页面文件的唯一清单**）。
  *
- * 后端把运行时配置拆成九个独立的段（ADR-0020），其中八段在后台各有编辑页；
- * 第九段 `image_gc` 已有具名端点但没有编辑页/组件，所以不在本清单里。
+ * 后端把运行时配置拆成十一个独立的段（ADR-0020 / ADR-0032），其中十段在后台各有
+ * 编辑页；`image_gc` 已有具名端点但没有编辑页/组件，所以不在本清单里。
  * 这里只描述「有编辑页的域」，不是全部配置段的清单。
  *
  * 2026-11 起「站点」这一段被拆成四页（ADR-0029）：基础信息与 SEO、登录策略、
  * 发布治理、私信各占一个路由。它们仍然同属 `site` 段、共用一对端点
  * （读 `GET /site/admin/site`、写 `PUT /site/site`），所以保存必须走
  * 「取最新整段 → 只覆盖本页拥有的顶层块 → 写回」（见 utils/siteSectionSave）。
+ *
+ * 「内容过滤」是独立的一段（`content_filter`，ADR-0032）：词表与白名单只给后台，
+ * 不属于 site 段，也不参与上面的读-改-写。
  *
  * 为什么这里只存组件名（字符串）而不 import 组件：utils 层不依赖 Vue，
  * 沿用 `menu.ts` 的同一约定；页面文件自己按原名 import 配置组件，
@@ -23,6 +26,7 @@ export type SiteSettingsKey =
   | 'site-login'
   | 'site-publish'
   | 'site-chat'
+  | 'content-filter'
   | 'ai'
   | 'mail'
   | 'storage'
@@ -76,7 +80,9 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
     label: '发布与审核',
     path: '/site/publish',
     component: 'SettingsSitePublish',
-    blocks: ['article', 'comment'],
+    // 词表已随「文章词表机审退场」从这一页摘除（票 401），发布治理只剩 article 一块；
+    // 词表归「站点 → 内容过滤」（content_filter 段，自己的整段端点）。
+    blocks: ['article'],
   },
   {
     key: 'site-chat',
@@ -88,10 +94,18 @@ export const SITE_SETTINGS_PAGES: readonly SiteSettingsSection[] = [
 ]
 
 /**
- * 其余七个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
+ * 其余八个编辑域：每个域一对独立端点（`GET /site/admin/<段>` / `PUT /site/<段>`），
  * 页面自己读写整段，不参与 site 段的读-改-写。
  */
 export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
+  // 内容过滤排在编辑域首位：它是发布治理的下一站，运营改完「发布与审核」就会来这里看词表。
+  {
+    key: 'content-filter',
+    label: '内容过滤',
+    path: '/site/content-filter',
+    component: 'SettingsContentFilter',
+    blocks: [],
+  },
   { key: 'ai', label: 'AI 助手', path: '/site/ai', component: 'SettingsAi', blocks: [] },
   { key: 'mail', label: '邮件', path: '/site/mail', component: 'SettingsMail', blocks: [] },
   { key: 'storage', label: '对象存储', path: '/site/storage', component: 'SettingsStorage', blocks: [] },
@@ -102,7 +116,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
 ]
 
-/** 全部编辑域：站点四页在前，其余七个域在后（菜单顺序即此顺序）。 */
+/** 全部编辑域：站点四页在前，其余八个域在后（菜单顺序即此顺序）。 */
 export const ALL_SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   ...SITE_SETTINGS_PAGES,
   ...SITE_SETTINGS_SECTIONS,

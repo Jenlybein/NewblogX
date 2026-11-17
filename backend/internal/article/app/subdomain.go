@@ -457,14 +457,13 @@ func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) er
 
 // ListReviewTasks 分页列出审核任务（仅管理员）。
 //
-// 条目带**文章当前正文**，而不是任务行上的标题快照：审核员要在列表里直接
-// 判断"值不值得发"，标题不够（#307）。任务表没有正文列（零 DDL 硬约束），
-// 所以正文从 article_models 批量读一次；文章已被删除时该条正文为空，
-// 但任务照常出现，队列不会因此整页失败。
+// 每条条目同时带上评分派生层的结论（低分 / 维度塌陷 / 篇幅异常）。词表信号已随
+// 「文章词表机审退场」删除（ADR-0032 决策 6）：命中词在落库前就被替换成 `*`，
+// 审核列表不再有 block_word / watch_word。剩下的这一层是纯函数：评分记录每次从
+// ai 模块现读，不落库也不缓存，所以新一轮评分产生后，下一次列表请求立即按新评分判
+// （票 311 验收标准 2）。
 //
-// 每条条目同时带上机审前两层的结论（词表 + 评分派生标签）。两层都是纯函数：
-// 词表每次从运行期配置现读、评分记录每次从 ai 模块现读，不落库也不缓存，
-// 所以运营改完词表，下一次列表请求立即按新词表判（票 311 验收标准 2）。
+// 正文不在列表里：审核员按需通过 ReviewTaskContent 读一次（#307）。
 //
 // 默认排序由仓储负责：提交时间升序（老投稿在前）。按风险排序时风险不在库里，
 // 需要先取整个筛选范围、在内存里排序后再按页码切片（见 ReviewSortRisk）。
@@ -474,7 +473,6 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 	}
 	var (
 		tasks       []*review.Task
-		bodies      map[domain.ArticleID]string
 		scores      map[domain.ArticleID]moderation.ScoreFacts
 		compliances map[ctype.ID]*risk.Record
 		total       int64
@@ -492,10 +490,6 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		if err != nil {
 			return err
 		}
-		bodies, err = reviewBodies(ctx, r, tasks)
-		if err != nil {
-			return err
-		}
 		scores, err = s.latestModerationScores(ctx, tasks)
 		if err != nil {
 			return err
@@ -507,24 +501,17 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		return nil, 0, err
 	}
 
-	words := moderation.WordLists{}
-	if s.words != nil {
-		words = s.words()
-	}
-
 	out := make([]ReviewTaskView, 0, len(tasks))
 	for _, task := range tasks {
-		// 没有评分记录时 facts 保持 nil：第②层不产生信号，不报错（票 311 验收标准 5）。
+		// 没有评分记录时 facts 保持 nil：这一层不产生信号，不报错（票 311 验收标准 5）。
 		var facts *moderation.ScoreFacts
 		if got, ok := scores[task.ArticleID()]; ok {
 			copied := got
 			facts = &copied
 		}
-		body := bodies[task.ArticleID()]
-		risk := moderation.Evaluate(task.ArticleTitle()+"\n"+body, words, facts)
 		out = append(out, ReviewTaskView{
 			Task:       *task,
-			Risk:       risk,
+			Risk:       moderation.Evaluate(facts),
 			Compliance: compliances[task.ArticleID()],
 		})
 	}
@@ -572,33 +559,16 @@ func riskRecords(ctx context.Context, r Repos, tasks []*review.Task) (map[ctype.
 	return r.Risks().ListByArticles(ctx, ids)
 }
 
-// latestModerationScores 批量读取机审第②层需要的评分片段。
+// latestModerationScores 批量读取评分派生层需要的评分片段。
 //
-// 端口为 nil 或没有条目时直接返回 nil：没有评分数据的站点仍然能用第①层
-// 与审核列表，不因为没接模型就整页失败（spec #302 用户故事 18）。
+// 端口为 nil 或没有条目时直接返回 nil：没有评分数据的站点仍然能用审核列表，
+// 不因为没接模型就整页失败（spec #302 用户故事 18）。
 func (s *Service) latestModerationScores(ctx context.Context, tasks []*review.Task) (map[domain.ArticleID]moderation.ScoreFacts, error) {
 	if s.scores == nil || len(tasks) == 0 {
 		return nil, nil
 	}
 	ids := taskArticleIDs(tasks)
 	return s.scores.LatestScores(ctx, ids)
-}
-
-// reviewBodies 取审核队列条目对应的文章当前正文。
-//
-// 批量读一次（FindMany 会跳过缺失 / 已软删的 ID），不逐条查询；缺失即空串，
-// 因为"文章没了但任务还在"的情形要让人工把任务处理掉，而不是让整页 500。
-func reviewBodies(ctx context.Context, r Repos, tasks []*review.Task) (map[domain.ArticleID]string, error) {
-	ids := taskArticleIDs(tasks)
-	articles, err := r.Articles().FindMany(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	bodies := make(map[domain.ArticleID]string, len(articles))
-	for _, a := range articles {
-		bodies[a.ID()] = a.Content()
-	}
-	return bodies, nil
 }
 
 // ReviewTaskContent 返回某条审核任务对应文章的**完整正文**（仅管理员）。

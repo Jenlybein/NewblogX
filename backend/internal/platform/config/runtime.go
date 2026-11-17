@@ -31,16 +31,17 @@ const defaultSettingsFileName = "site_default_settings.yaml"
 
 // RuntimeConfig 是一份完整的运行时配置。
 type RuntimeConfig struct {
-	Site    conf.Site
-	AI      conf.AI
-	Mail    conf.Mail
-	Storage conf.QiNiu
-	OAuth   conf.QQ
-	SMS     conf.SMS
-	Log     conf.Logrus
-	Upload  conf.Upload
-	Deco    conf.Deco
-	ImageGC conf.ImageGC
+	Site          conf.Site
+	AI            conf.AI
+	Mail          conf.Mail
+	Storage       conf.QiNiu
+	OAuth         conf.QQ
+	SMS           conf.SMS
+	Log           conf.Logrus
+	Upload        conf.Upload
+	Deco          conf.Deco
+	ImageGC       conf.ImageGC
+	ContentFilter conf.ContentFilter
 }
 
 // RuntimeConfigService 负责运行时配置的加载、缓存与更新。
@@ -129,11 +130,6 @@ func (s *RuntimeConfigService) GetRuntimeArticle() siteconf.Article {
 	return s.GetRuntimeSite().Article
 }
 
-// GetRuntimeComment 返回评论相关开关。
-func (s *RuntimeConfigService) GetRuntimeComment() siteconf.Comment {
-	return s.GetRuntimeSite().Comment
-}
-
 // GetRuntimeChat 返回私信的站点级策略（陌生人开关 + 发送限流参数）。
 //
 // 每次发送都现读，所以后台改完立即生效，不需要重启。
@@ -191,6 +187,14 @@ func (s *RuntimeConfigService) GetRuntimeImageGC() conf.ImageGC {
 	return s.GetRuntimeConfig().ImageGC
 }
 
+// GetRuntimeContentFilter 返回全站词表段。
+//
+// 每次现读：后台保存词表后要立刻生效，不能要求重启（引擎重建由调用方在保存路径上做，
+// 本包只负责把最新值交出去）。
+func (s *RuntimeConfigService) GetRuntimeContentFilter() conf.ContentFilter {
+	return s.GetRuntimeConfig().ContentFilter
+}
+
 // snapshotLocked 返回缓存的一份副本；缓存为空时回退到默认值。
 //
 // 返回副本而不是指针：调用方拼装响应时可能改字段（例如把密钥换成占位符），
@@ -201,16 +205,17 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		return &cfg
 	}
 	return &RuntimeConfig{
-		Site:    s.defaults.Site,
-		AI:      s.defaults.AI,
-		Mail:    s.defaults.Mail,
-		Storage: s.defaults.Storage,
-		OAuth:   s.defaults.OAuth,
-		SMS:     s.defaults.SMS,
-		Log:     s.defaults.Log,
-		Upload:  s.defaults.Upload,
-		Deco:    s.defaults.Deco,
-		ImageGC: s.defaults.ImageGC,
+		Site:          s.defaults.Site,
+		AI:            s.defaults.AI,
+		Mail:          s.defaults.Mail,
+		Storage:       s.defaults.Storage,
+		OAuth:         s.defaults.OAuth,
+		SMS:           s.defaults.SMS,
+		Log:           s.defaults.Log,
+		Upload:        s.defaults.Upload,
+		Deco:          s.defaults.Deco,
+		ImageGC:       s.defaults.ImageGC,
+		ContentFilter: s.defaults.ContentFilter,
 	}
 }
 
@@ -239,6 +244,9 @@ func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	}
 
 	s.setCache(loaded)
+	// 第 11 段 content_filter 的旧词合并（首启时把 site.article.moderation /
+	// site.comment.moderation 并进新段）已随词表机审退场删除（票 401）：旧的两段
+	// 配置结构不再存在，合并的来源与目标都没有了。
 	return nil
 }
 
@@ -402,6 +410,14 @@ func (s *RuntimeConfigService) UpdateDeco(deco conf.Deco) error {
 // UpdateImageGC 覆盖孤儿图回收的运行配置并刷新缓存。
 func (s *RuntimeConfigService) UpdateImageGC(imageGC conf.ImageGC) error {
 	return updateSection(s, SectionImageGC, imageGC)
+}
+
+// UpdateContentFilter 覆盖全站词表段并刷新缓存。
+//
+// 缓存刷新是"立即生效"的那一半；另一半（按新词表重建过滤引擎）由站点用例层在
+// 保存路径上调用，请求路径不做构建。
+func (s *RuntimeConfigService) UpdateContentFilter(contentFilter conf.ContentFilter) error {
+	return updateSection(s, SectionContentFilter, contentFilter)
 }
 
 // updateSection 是各段更新的公共骨架：事务里 upsert 单行，提交后刷内存缓存。

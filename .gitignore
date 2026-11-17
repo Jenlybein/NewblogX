@@ -43,6 +43,10 @@ deploy/docker/clickhouse/users.d/default-user.xml
 *.tmp
 *.exe
 
+# 一次性脚本的本地产物（内容过滤词表就落这里）
+# 词表数据是敏感数据：进了 git 历史就等于永久公开，所以产物目录一律忽略。
+.gotmp/
+
 # 操作系统 / 编辑器
 .DS_Store
 .idea/
@@ -54,3 +58,9 @@ deploy/docker/clickhouse/users.d/default-user.xml
 # 本地视觉核对用的截图与临时 harness
 .shots/
 .harness/
+
+# 内容过滤的暴恐词表（ADR-0032 决策 8）：只存部署侧，不进仓库、不进 CI。
+# 构建词表时用 BLOGX_VIOLENCE_HINTS 指向它（见 scripts/content-filter/lib/violenceHints.mjs）。
+violence-hints.txt
+wordlist-*.tsv
+wordlist-*.ndjson

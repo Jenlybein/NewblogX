@@ -172,6 +172,11 @@ type AdminUserItem struct {
 	// 永远是空的 —— 列表里看不到，编辑弹窗却能改，两处对不上。
 	Role   domain.Role
 	Status domain.Status
+	// MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
+	//
+	// 账号管理页据此展示"禁言至某时"并给出「解除禁言」按钮；
+	// 没有它的话管理员只能靠猜（或去风险页翻记录）才知道这个人被禁言了。
+	MuteUntil *time.Time
 }
 
 // AdminList 分页查询用户，并附带最后登录信息。
@@ -200,6 +205,7 @@ func (s *Service) AdminList(ctx context.Context, viewer domain.Viewer, q domain.
 			CreatedAt: u.CreatedAt,
 			Role:      u.Role,
 			Status:    u.Status,
+			MuteUntil: u.MuteUntil,
 		}
 		if l, ok := last[u.ID.Uint64()]; ok {
 			item.IP = l.IP

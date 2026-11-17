@@ -16,7 +16,6 @@ type Section = {
   seo: { keywords: string; description: string }
   login: { email_login: boolean }
   article: { skip_examining: boolean }
-  comment: { skip_examining: boolean }
   chat: { stranger_msg_enabled: boolean }
   // 后台没有 UI、必须原样保留的三块。
   about: { version: string }
@@ -30,7 +29,6 @@ function section(overrides: Partial<Section> = {}): Section {
     seo: { keywords: '', description: '' },
     login: { email_login: false },
     article: { skip_examining: true },
-    comment: { skip_examining: true },
     chat: { stranger_msg_enabled: false },
     about: { version: '1.0.0' },
     project: { title: 'JellyBin' },
@@ -51,7 +49,6 @@ describe('applySiteSectionPatch', () => {
     // 兄弟页的字段与无 UI 块一个都不能变（包括对象引用）。
     expect(merged.login).toBe(latest.login)
     expect(merged.article).toBe(latest.article)
-    expect(merged.comment).toBe(latest.comment)
     expect(merged.chat).toBe(latest.chat)
     expect(merged.about).toBe(latest.about)
     expect(merged.project).toBe(latest.project)

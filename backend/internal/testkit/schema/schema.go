@@ -164,6 +164,11 @@ const (
 	// 三张表放同一组：所有点名本组的真 MySQL 夹具一次性建齐，不会出现
 	// 「新表没建 → 表不存在」。两张新表由 #275 / #276 各自接读写，#277 收缩。
 	Outline Group = "outline"
+	// ContentFilter 是关键词风险的命中记录表（ADR-0032 / 票 396）。
+	//
+	// 单开一组：表里没有外键（内容 ID 是多态的，零 DDL 下加不了跨实体外键），
+	// 只有验命中记录的用例才建它 —— 并进别的组会让无关测试都多建一张表。
+	ContentFilter Group = "content_filter"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -258,7 +263,10 @@ var groupModels = map[Group][]any{
 		&CollectionOutlineNodeRow{},
 		&ProjectOutlineNodeRow{},
 	},
-	// All 是**全部 45 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	ContentFilter: {
+		&ContentFilterHitRow{},
+	},
+	// All 是全部表（目前 46 张），只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -310,6 +318,7 @@ var groupModels = map[Group][]any{
 		&AIProviderRow{},
 		&SidebarCardRow{},
 		&SidebarCardBodyRow{},
+		&ContentFilterHitRow{},
 	},
 }
 
@@ -355,6 +364,8 @@ type UserSpec struct {
 	// golden 类测试必须写死，否则响应里的时间每次都变。
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// MuteUntil 是禁言到期时间（票 399）；零值表示不插入禁言（列留 NULL）。
+	MuteUntil *time.Time
 }
 
 // InsertUser 插入一个用户行。
@@ -376,6 +387,7 @@ func InsertUser(t *testing.T, db *gorm.DB, spec UserSpec) {
 	u.Role = spec.Role
 	u.CreatedAt = spec.CreatedAt
 	u.UpdatedAt = spec.UpdatedAt
+	u.MuteUntil = spec.MuteUntil
 	if err := db.Create(&u).Error; err != nil {
 		t.Fatalf("插入用户 %d 失败: %v", spec.ID, err)
 	}

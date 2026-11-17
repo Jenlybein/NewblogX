@@ -203,16 +203,19 @@ export function useStudioPublish(deps: StudioPublishDeps) {
 
       const created = await createArticle(payload);
       publishVisible.value = false;
+      // 命中词替换（票 397 / ADR-0032）：只提示处数、不回显命中了哪个词。
+      // 它不改变"提交成功"这件事，所以拼在成功文案后面而不是单独弹错误。
+      const filteredTip = created.filtered_count > 0 ? `，已过滤 ${created.filtered_count} 处` : "";
       if (status === 1) {
-        message.success("草稿已保存");
+        message.success(`草稿已保存${filteredTip}`);
       } else if (created.publish_status === 3) {
         // 已发布但可能仍处 pending_review：作者立刻拿到"已发布"回执，
         // 对读者可见要等模型判定通过。文案不能承诺"立刻公开"。
-        message.success("已提交，后台评分与审核中，通过后对读者可见");
+        message.success(`已提交，后台评分与审核中，通过后对读者可见${filteredTip}`);
       } else if (created.publish_status === 2) {
-        message.success("已提交，审核通过后会公开展示");
+        message.success(`已提交，审核通过后会公开展示${filteredTip}`);
       } else {
-        message.success("已提交，后台评分与审核中");
+        message.success(`已提交，后台评分与审核中${filteredTip}`);
       }
       await router.push(`/article/${created.id}`);
     } catch (error) {

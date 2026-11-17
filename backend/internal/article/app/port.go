@@ -113,6 +113,18 @@ type UserPort interface {
 	Profiles(ctx context.Context, ids []domain.UserID) (map[domain.UserID]AuthorView, error)
 }
 
+// PublishGate 是发布类动作前的账号闸门（票 399 / ADR-0032 决策 8）。
+//
+// 账号状态（禁用 / 封禁）与禁言期的判定都在 user 模块的一处实现里
+// （user/app.Service.EnsureCanPublish）；article 只知道自己"要写文章"，
+// 不知道 `mute_until` 这列怎么读。
+//
+// 为 nil 表示这个进程不服务用户的发布请求（cron / worker / outbox 中继只做
+// 系统动作），因此不需要闸门；api 角色的装配必然注入（app/publish_gate_wiring.go）。
+type PublishGate interface {
+	EnsureCanPublish(ctx context.Context, userID domain.UserID) error
+}
+
 // TxManager 划定事务边界。
 //
 // 实现放在 adapter（用 platform/mysql 的句柄开事务，
@@ -265,12 +277,6 @@ type ModerationScorePort interface {
 	LatestScores(ctx context.Context, articleIDs []domain.ArticleID) (map[domain.ArticleID]moderation.ScoreFacts, error)
 }
 
-// ModerationWordProvider 现读两档高危词表（机审第①层）。
-//
-// 词表是运行期配置：每次读取都现算，运营在后台改完，下一次列表请求立即
-// 按新词表判，不缓存、不落库。返回的 WordLists 里空清单表示该档关闭。
-type ModerationWordProvider func() moderation.WordLists
-
 // IDGen 是可注入 ID 生成器。
 //
 // 生产用雪花，测试用固定序列；这样 golden 才能逐字节稳定。
@@ -316,11 +322,9 @@ type Service struct {
 	// 生产装配在 backend/app/article_wiring.go 里必然注入 Redis 适配器，
 	// 而适配器在 Redis 不可用时返回错误（失败关闭，不放行提交）。
 	quota SubmitQuotaPort
-	// scores 是机审第②层的评分记录来源（票 311）。为 nil 表示"没有评分数据"，
-	// 此时审核列表只算词表层、不报错；生产装配接到 ai 模块的评分仓储。
+	// scores 是机审评分派生层的评分记录来源（票 311）。为 nil 表示"没有评分数据"，
+	// 此时审核列表不产生任何风险信号、不报错；生产装配接到 ai 模块的评分仓储。
 	scores ModerationScorePort
-	// words 现读机审词表（票 311）。为 nil 表示两档词表都为空。
-	words ModerationWordProvider
 	// quality 是发布质量闸门的评分端口（票 306 / ADR-0023）。
 	//
 	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
@@ -329,6 +333,41 @@ type Service struct {
 	// activity 是创作活动读端口（票 354）。为 nil 表示"没有活动数据"，
 	// 个人概览的热力图退回全零 —— 分析库不可用不该让整页打不开。
 	activity ActivityPort
+	// filter 过滤文章标题 / 摘要 / 正文（票 397）。nil 表示未接入过滤，
+	// 文章按原文落库（与改造前一致）；生产装配必然注入（article_wiring.go）。
+	filter ArticleTextFilterer
+	// collectionFilter 过滤合集标题 / 描述（票 397）。nil 同 filter。
+	collectionFilter CollectionTextFilterer
+	// publishGate 是发布类动作前的账号闸门（票 399）。nil 表示未接入（系统动作）。
+	publishGate PublishGate
+}
+
+// WithPublishGate 注入发布闸门（票 399）。
+//
+// 与内容过滤同一形状的可选注入：New 的参数表已经很长，闸门是"多出来的一道
+// 检查"，没注入的进程角色（系统动作）保持原有行为。
+func (s *Service) WithPublishGate(g PublishGate) *Service {
+	s.publishGate = g
+	return s
+}
+
+// WithContentFilter 接入全站内容过滤（票 397 / ADR-0032）。
+//
+// 用可选注入而不是往 New 的参数表再加两项：New 已经有七个参数、几十处调用点，
+// 为一个"多出来的清洗层"再动一遍全部调用点没有收益。没接入的调用点（旧测试）
+// 行为与改造前完全一致 —— 按原文落库。
+func (s *Service) WithContentFilter(filter ArticleTextFilterer) *Service {
+	s.filter = filter
+	return s
+}
+
+// WithCollectionContentFilter 接入合集文本的内容过滤（票 397）。
+//
+// 与文章面分开注入：两个面的枚举值不同（article / collection），而"哪段文本属于
+// 哪个面"只在装配层的 bridge 里钉死（ADR-0032 决策 4）。
+func (s *Service) WithCollectionContentFilter(filter CollectionTextFilterer) *Service {
+	s.collectionFilter = filter
+	return s
 }
 
 // WithActivity 注入创作活动读端口（票 354）。
@@ -342,18 +381,20 @@ func (s *Service) WithActivity(p ActivityPort) *Service {
 
 // New 构造用例服务。
 //
-// quota / scores / words / quality 为 nil 时分别退化为"不设上限 / 没有评分数据 /
-// 空词表 / 无法评分"（测试装配会这样）；生产装配在 backend/app/article_wiring.go 里给出实现。
+// quota / scores / quality 为 nil 时分别退化为"不设上限 / 没有评分数据 /
+// 无法评分"（测试装配会这样）；生产装配在 backend/app/article_wiring.go 里给出实现。
 func New(
 	tx TxManager, clock Clock, ids IDGen,
-	quota SubmitQuotaPort, scores ModerationScorePort, words ModerationWordProvider,
+	quota SubmitQuotaPort, scores ModerationScorePort,
 	quality QualityGatePort,
 ) *Service {
 	return &Service{
 		tx: tx, clock: clock, ids: ids,
-		quota: quota, scores: scores, words: words, quality: quality,
+		quota: quota, scores: scores, quality: quality,
 	}
 }
+
+// Service 侧的内容过滤端口见 filter.go：ArticleTextFilterer / CollectionTextFilterer。
 
 // ActivityPort 是「某用户最近 N 天每天有多少次创作动作」（票 354）。
 //

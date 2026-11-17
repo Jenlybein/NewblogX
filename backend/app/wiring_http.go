@@ -47,6 +47,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// site 链路：站点配置与轮播图改由 internal/site 提供。
 	WireSite(infra)
 
+	// 内容过滤链路（票 396）：引擎已在 InitRuntimeServices 里按词表构建，
+	// 这里只把「关键词风险」读面的处理器注入路由树。
+	WireFilter(infra)
+
 	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 
@@ -55,6 +59,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 
 	// comment 链路：路由改由 internal/comment 提供。
 	WireComment(infra)
+
+	// 关键词风险的处置写端口（票 398）：必须在文章 / 评论 / 用户三个模块装配
+	// **之后** —— 处置要复用它们各自那一份用例服务，不能另建一份。
+	WireFilterDisposer(infra)
 
 	// notification 链路：站内信与全局公告改由 internal/notification 提供。
 	// 必须早于 outbox：中继的订阅者要靠它发通知。
@@ -73,6 +81,11 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	if chatModule != nil {
 		handlers.Chat = chatModule.Handler
 	}
+
+	// 发布闸门（票 399 / ADR-0032 决策 8）：被禁言者的发布类动作在各模块入口
+	// 拒绝。必须排在 user / article / comment / chat 装配之后 —— 闸门接的是
+	// 它们各自那一份服务实例。
+	WirePublishGate(infra, chatModule)
 
 	// ai 链路：AI 能力改由 internal/ai 提供。
 	WireAI(infra)

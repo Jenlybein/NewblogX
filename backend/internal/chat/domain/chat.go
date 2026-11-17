@@ -374,6 +374,14 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []ctype.ID) (map[ctype.ID]Display, error)
 }
 
+// PublishGate 是发布类动作前的账号闸门（票 399 / ADR-0032 决策 8）。
+//
+// 私信发送属于发布类动作：被禁言者不能发私信，但收发历史、已读、删除都不受影响
+// （那些不是"输出"）。实现由 user 模块提供、装配层注入；nil 表示未接入。
+type PublishGate interface {
+	EnsureCanPublish(ctx context.Context, userID ctype.ID) error
+}
+
 // StrangerVerdict 是陌生人私信的两级判定结论（#247）。
 //
 // 之前只返回 bool：拒绝时只知道"被拒了"，于是读者侧只能看到站点级文案，

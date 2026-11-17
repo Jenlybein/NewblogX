@@ -18,4 +18,6 @@ type RuntimeDefaults struct {
 	Upload  Upload  `yaml:"upload"`
 	Deco    Deco    `yaml:"deco"`
 	ImageGC ImageGC `yaml:"image_gc"`
+	// ContentFilter 是第 11 段（ADR-0032）：词表只给后台读写，默认值只放非涉政种子。
+	ContentFilter ContentFilter `yaml:"content_filter"`
 }

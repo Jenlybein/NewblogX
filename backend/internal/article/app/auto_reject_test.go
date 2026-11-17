@@ -30,7 +30,7 @@ func seedPublishedArticle(t *testing.T, repos *apptest.Repos, articleID uint64) 
 func TestAutoRejectTurnsPublishedIntoRejectedWithPendingTask(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 
 	id := seedPublishedArticle(t, repos, 1)
@@ -70,7 +70,7 @@ func TestAutoRejectTurnsPublishedIntoRejectedWithPendingTask(t *testing.T) {
 func TestAutoRejectSkipsDraft(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 
 	draft := apptest.NewArticle().
@@ -98,7 +98,7 @@ func TestAutoRejectSkipsDraft(t *testing.T) {
 func TestAutoRejectIsIdempotentForRejectedArticle(t *testing.T) {
 	t.Parallel()
 
-	svc, repos := newModerationService(t, nil, nil)
+	svc, repos := newModerationService(t, nil)
 	ctx := context.Background()
 
 	id := seedPublishedArticle(t, repos, 3)

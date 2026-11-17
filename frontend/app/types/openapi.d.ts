@@ -1681,7 +1681,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse"];
                     };
                 };
             };
@@ -2850,42 +2850,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/man": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 评论管理列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/comments/replies": {
         parameters: {
             query?: never;
@@ -2994,6 +2958,174 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/hits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关键词风险列表（管理员） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页条数 */
+                    limit?: number;
+                    /** @description 文本面 */
+                    surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+                    /** @description 处理状态 */
+                    status?: "pending" | "ignored" | "deleted" | "account";
+                    /** @description 用户 ID */
+                    user_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/hits/handle-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批量处置关键词风险记录（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 记录 ID、动作与备注 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_filter_adapter_http.HandleBatchRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/hits/{id}/handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 处置一条关键词风险记录（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 命中记录 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 处置动作、禁言天数与备注 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_filter_adapter_http.HandleHitRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/word-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 词云统计（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5423,6 +5555,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/content_filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 content_filter 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/deco": {
         parameters: {
             query?: never;
@@ -5878,6 +6046,47 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/content_filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 content_filter 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description content_filter 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionContentFilterRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -6739,6 +6948,47 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/admin/unmute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员解除禁言 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 目标用户 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_user_adapter_http.AdminUnmuteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -7692,6 +7942,20 @@ export interface components {
              */
             stiffness: number;
         };
+        "conf.ContentFilterWord": {
+            /**
+             * @description Category 是类目，固定七类，用于词云筛选与风险页归类。
+             * @enum {string}
+             */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            /**
+             * @description Tier 是档位：block（拦截词）/ watch（观察词），两档都替换，颜色不同。
+             * @enum {string}
+             */
+            tier?: "block" | "watch";
+            /** @description Word 是词条原文。不做归一化存储：后台要按运营填的写法展示与编辑。 */
+            word?: string;
+        };
         "conf.DailyLimits": {
             diagnose?: number;
             metainfo?: number;
@@ -7931,6 +8195,7 @@ export interface components {
             category_id?: string;
             comments_toggle?: boolean;
             cover_image_id?: string;
+            filtered_count?: number;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
@@ -8069,7 +8334,7 @@ export interface components {
             reviewed_by?: string;
             /**
              * @description RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
-             *     block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+             *     low_score / dimension_collapse / length_abnormal。
              */
             risk_labels?: string[];
             /** @description RiskLevel 是风险等级：none / low / medium / high。 */
@@ -8108,6 +8373,38 @@ export interface components {
             title?: string;
             /** @enum {string} */
             visibility_status?: "visible" | "user_hidden";
+        };
+        "internal_article_adapter_http.ArticleUpdateResponse": {
+            abstract?: string;
+            author_abstract?: string;
+            author_avatar?: string;
+            author_avatar_image_id?: string;
+            author_created_time?: string;
+            author_id?: string;
+            author_name?: string;
+            author_username?: string;
+            category_id?: string;
+            category_name?: string;
+            comment_count?: number;
+            comments_toggle?: boolean;
+            content?: string;
+            cover?: string;
+            cover_image_id?: string;
+            created_at?: string;
+            digg_count?: number;
+            favor_count?: number;
+            filtered_count?: number;
+            id?: string;
+            is_digg?: boolean;
+            is_favor?: boolean;
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            tag_ids?: string[];
+            tags?: string[];
+            title?: string;
+            updated_at?: string;
+            view_count?: number;
+            visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
         "internal_article_adapter_http.ArticleViewCountRequest": {
             article_id: string;
@@ -8575,6 +8872,106 @@ export interface components {
             reply_count?: number;
             root_id?: string;
         };
+        "internal_filter_adapter_http.HandleBatchItem": {
+            /** @description AlreadyHandled 与单条处置同义。 */
+            already_handled?: boolean;
+            id?: string;
+            /** @description Message 是失败原因的中文提示（成功时为空串）。 */
+            message?: string;
+            /** @description Ok 表示这一条是否处置成功（或本来就已处置、幂等返回）。 */
+            ok?: boolean;
+            /**
+             * @description Status 是处置后的状态；失败且拿不到记录时为空串。
+             * @enum {string}
+             */
+            status?: "pending" | "ignored" | "deleted" | "account";
+        };
+        "internal_filter_adapter_http.HandleBatchRequest": {
+            /** @enum {string} */
+            action?: "delete" | "ignore" | "ban" | "mute";
+            ids?: string[];
+            /** @description MuteDays 与单条处置同义（只有 mute 动作读它）。 */
+            mute_days?: number;
+            note?: string;
+        };
+        "internal_filter_adapter_http.HandleBatchResponse": {
+            results?: components["schemas"]["internal_filter_adapter_http.HandleBatchItem"][];
+        };
+        "internal_filter_adapter_http.HandleHitRequest": {
+            /** @enum {string} */
+            action?: "delete" | "ignore" | "ban" | "mute";
+            /**
+             * @description MuteDays 是禁言天数，只有 mute 动作读它：1–365，缺省（0）按 7 天。
+             *     越界由服务端拒绝（user.mute_days_invalid）。
+             */
+            mute_days?: number;
+            /** @description Note 是可选备注（≤200 字，服务端按 rune 计数）。 */
+            note?: string;
+        };
+        "internal_filter_adapter_http.HandleHitResponse": {
+            /** @description AlreadyHandled 表示这条记录之前已被处置，本次只是返回当前状态（幂等）。 */
+            already_handled?: boolean;
+            hit?: components["schemas"]["internal_filter_adapter_http.HitItem"];
+        };
+        "internal_filter_adapter_http.HitItem": {
+            content_id?: string;
+            created_at?: string;
+            handled_at?: string;
+            /** @description HandlerID / HandledAt / Note 是处置痕迹（处置动作是 #398）。 */
+            handler_id?: string;
+            /** @description HitCount 是命中处数（白名单命中计入，重叠命中按并集算一处）。 */
+            hit_count?: number;
+            id?: string;
+            note?: string;
+            /** @enum {string} */
+            status?: "pending" | "ignored" | "deleted" | "account";
+            /** @enum {string} */
+            surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+            user_id?: string;
+            /** @description UserNickname 是读面现查的展示名，不落库（昵称会变）。 */
+            user_nickname?: string;
+            /** @description Words 是命中明细：词 / 档位 / 类目 / ±20 字上下文。 */
+            words?: components["schemas"]["internal_filter_adapter_http.HitWord"][];
+        };
+        "internal_filter_adapter_http.HitListResponse": {
+            /** @description Count 是满足筛选条件的总条数（不是本页条数）。 */
+            count?: number;
+            list?: components["schemas"]["internal_filter_adapter_http.HitItem"][];
+            /** @description TopUsers 是最近 90 天命中处数最多的几个用户。 */
+            top_users?: components["schemas"]["internal_filter_adapter_http.TopUserItem"][];
+        };
+        "internal_filter_adapter_http.HitSnippet": {
+            end?: number;
+            start?: number;
+            text?: string;
+        };
+        "internal_filter_adapter_http.HitWord": {
+            /** @enum {string} */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            snippets?: components["schemas"]["internal_filter_adapter_http.HitSnippet"][];
+            /** @enum {string} */
+            tier?: "block" | "watch";
+            word?: string;
+        };
+        "internal_filter_adapter_http.TopUserItem": {
+            /** @description HitCount 是窗口内该用户的命中处数（按记录里的命中处数汇总）。 */
+            hit_count?: number;
+            user_id?: string;
+            user_nickname?: string;
+        };
+        "internal_filter_adapter_http.WordStatItem": {
+            /** @enum {string} */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            /** @description Count 是最近 90 天的出现处数（词云字号的数据源）。 */
+            count?: number;
+            /** @enum {string} */
+            tier?: "block" | "watch";
+            word?: string;
+        };
+        "internal_filter_adapter_http.WordStatsResponse": {
+            days?: number;
+            items?: components["schemas"]["internal_filter_adapter_http.WordStatItem"][];
+        };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
             upload_id: string;
@@ -8884,6 +9281,46 @@ export interface components {
             temperature?: number;
             timeout_sec?: number;
         };
+        "internal_site_adapter_http.SiteSectionContentFilterRequest": {
+            /**
+             * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
+             *
+             *     它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
+             *     对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
+             *     所以改它不需要重启。
+             */
+            retain_days?: number;
+            /**
+             * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
+             *     但不替换文本。
+             */
+            whitelist?: string[];
+            /**
+             * @description Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），
+             *     单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。
+             */
+            words?: components["schemas"]["conf.ContentFilterWord"][];
+        };
+        "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+            /**
+             * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
+             *
+             *     它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
+             *     对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
+             *     所以改它不需要重启。
+             */
+            retain_days?: number;
+            /**
+             * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
+             *     但不替换文本。
+             */
+            whitelist?: string[];
+            /**
+             * @description Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），
+             *     单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。
+             */
+            words?: components["schemas"]["conf.ContentFilterWord"][];
+        };
         "internal_site_adapter_http.SiteSectionDecoRequest": {
             charm?: components["schemas"]["conf.Charm"];
             /**
@@ -9028,7 +9465,6 @@ export interface components {
             about?: components["schemas"]["myblogx_conf_site.About"];
             article?: components["schemas"]["myblogx_conf_site.Article"];
             chat?: components["schemas"]["myblogx_conf_site.Chat"];
-            comment?: components["schemas"]["myblogx_conf_site.Comment"];
             login?: components["schemas"]["myblogx_conf_site.Login"];
             project?: components["schemas"]["myblogx_conf_site.Project"];
             /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
@@ -9040,7 +9476,6 @@ export interface components {
             about?: components["schemas"]["myblogx_conf_site.About"];
             article?: components["schemas"]["myblogx_conf_site.Article"];
             chat?: components["schemas"]["myblogx_conf_site.Chat"];
-            comment?: components["schemas"]["myblogx_conf_site.Comment"];
             login?: components["schemas"]["myblogx_conf_site.Login"];
             project?: components["schemas"]["myblogx_conf_site.Project"];
             /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
@@ -9139,6 +9574,9 @@ export interface components {
             status?: number;
             username?: string;
         };
+        "internal_user_adapter_http.AdminUnmuteRequest": {
+            user_id: string;
+        };
         "internal_user_adapter_http.AdminUpdateRequest": {
             abstract?: string;
             avatar_image_id?: string;
@@ -9155,6 +9593,12 @@ export interface components {
             id?: string;
             ip?: string;
             last_login_at?: string;
+            /**
+             * @description MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
+             *
+             *     账号管理页据此展示"禁言至 X（还有 N 天）"并给出「解除禁言」按钮。
+             */
+            mute_until?: string;
             nickname?: string;
             /**
              * @description 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
@@ -9245,17 +9689,8 @@ export interface components {
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
              */
             allow_non_admin_publish?: boolean;
-            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
             /**
-             * @description Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
-             *
-             *     词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
-             *     internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
-             *     自动拒（本票只标红），观察级只标红、处置权交人。
-             *
-             *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
-             *     这里不写第二份字面默认值。
-             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
+             * @description QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
              *
              *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
              *     自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
@@ -9293,32 +9728,6 @@ export interface components {
             rate_window_sec?: number;
             /** @description 允许陌生人发私信 */
             stranger_msg_enabled?: boolean;
-        };
-        "myblogx_conf_site.Comment": {
-            /** @description AI 是评论的 AI 合规判定（票 359）。 */
-            ai?: components["schemas"]["myblogx_conf_site.CommentAI"];
-            /** @description Moderation 是评论的机审词表（与文章同构）。 */
-            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
-            /** @description 免审核（机器+AI 都通过时直发） */
-            skip_examining?: boolean;
-        };
-        "myblogx_conf_site.CommentAI": {
-            /** @description Enabled 打开后，评论在发布前会过一遍 AI 合规判定。 */
-            enabled?: boolean;
-            /**
-             * @description MaxTokens 是单次判定的输出上限，默认 1000。
-             *
-             *     结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本
-             *     控制在可预期量级。
-             */
-            max_tokens?: number;
-            /**
-             * @description TimeoutSec 是单次判定的超时秒数，默认 8。
-             *
-             *     评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求
-             *     挂到分钟级。超时按"未判定"处理（留待人工），不按"通过"处理。
-             */
-            timeout_sec?: number;
         };
         "myblogx_conf_site.Login": {
             captcha?: boolean;
@@ -9360,12 +9769,6 @@ export interface components {
              */
             sms_send_window_second?: number;
             username_pwd_login?: boolean;
-        };
-        "myblogx_conf_site.Moderation": {
-            /** @description BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。 */
-            block_words?: string[];
-            /** @description WatchWords 观察级词表：命中只标红，处置权在人。 */
-            watch_words?: string[];
         };
         "myblogx_conf_site.Project": {
             icon?: string;
@@ -9639,24 +10042,15 @@ export interface components {
         "myblogx_internal_comment_app.CreateResult": {
             article_id?: string;
             content?: string;
+            /**
+             * @description FilteredCount 是内容过滤实际替换的处数（票 396 / ADR-0032）。
+             *     前端据此提示"已过滤 N 处"；**不回显命中词**，否则词表就漏了。
+             */
+            filtered_count?: number;
             id?: string;
             reply_id?: string;
             root_id?: string;
             status?: number;
-        };
-        "myblogx_internal_comment_app.ManageItem": {
-            article_cover?: string;
-            article_id?: string;
-            article_title?: string;
-            content?: string;
-            created_at?: string;
-            digg_count?: number;
-            id?: string;
-            relation?: number;
-            reply_count?: number;
-            user_avatar?: string;
-            user_id?: string;
-            user_nickname?: string;
         };
         "myblogx_internal_comment_app.ReplyItem": {
             content?: string;
@@ -9779,6 +10173,11 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleUpdateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleUpdateResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.CollectionCreatedResponse"];
@@ -9837,6 +10236,26 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
             code?: number;
             data?: components["schemas"]["internal_comment_adapter_http.ReplyListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleBatchResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HandleBatchResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HandleHitResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HandleHitResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.HitListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.WordStatsResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {
@@ -9902,6 +10321,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionAiResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionContentFilterResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionContentFilterResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse": {
@@ -10189,11 +10613,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_search_domain.Response"];
@@ -10349,10 +10768,6 @@ export interface components {
             count?: number;
             list?: components["schemas"]["myblogx_internal_chat_domain.SessionItem"][];
         };
-        "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
-            count?: number;
-            list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
-        };
         /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;
         "myblogx_internal_search_domain.Author": {
@@ -10440,6 +10855,13 @@ export interface components {
             id?: string;
             like_tag_ids?: string[];
             like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];
+            /**
+             * @description MuteUntil 是禁言到期时间（票 399）；nil / 缺省表示未禁言。
+             *
+             *     只出现在"我自己"的详情里：读者设置页据此展示剩余时间，
+             *     发布动作被拒时后端文案也会带上同一个时间点。
+             */
+            mute_until?: string;
             nickname?: string;
             /**
              * @description Phone 是当前用户自己绑定的手机号（完整号码）。

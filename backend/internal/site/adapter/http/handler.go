@@ -55,9 +55,16 @@ func NewHandler(svc *app.Service, onPublicSiteView func(ip, userAgent string), o
 }
 
 // fail 交给统一响应层：apperr 自带中文文案。
+//
+// 参数类失败（协议类别由 apperr 的登记决定，不在 adapter 里再判一遍）用 1001：
+// 后台看到"服务异常"只会重试，不会去改自己填错的词条。
 func fail(c *gin.Context, err error) {
 	if apperr.IsCode(err, apperr.CodeSiteConfigMissing) {
 		res.FailWithMsg("运行时配置服务未初始化", c)
+		return
+	}
+	if apperr.ProtocolOf(err) == apperr.ProtocolValidation {
+		res.FailWithValidError(err, c)
 		return
 	}
 	res.FailWithError(err, c)

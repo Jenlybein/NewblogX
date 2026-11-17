@@ -40,6 +40,9 @@ type ArticleUpdateRequest struct {
 }
 
 // ArticleCreateResponse 创建结果。
+//
+// filtered_count 是内容过滤实际替换的处数（票 397）：前端据此提示「已过滤 N 处」，
+// 永不回显命中了哪个词（ADR-0032 决策 4）。
 type ArticleCreateResponse struct {
 	ID               ctype.ID          `json:"id"`
 	Title            string            `json:"title"`
@@ -50,6 +53,7 @@ type ArticleCreateResponse struct {
 	Status           ArticleStatus     `json:"status"`
 	PublishStatus    ArticleStatus     `json:"publish_status"`
 	VisibilityStatus ArticleVisibility `json:"visibility_status"`
+	FilteredCount    int               `json:"filtered_count"`
 }
 
 // ArticleDetailResponse 详情。字段顺序与改造前一致，便于 diff。
@@ -85,6 +89,16 @@ type ArticleDetailResponse struct {
 	IsFavor             bool              `json:"is_favor"`
 }
 
+// ArticleUpdateResponse 更新结果（票 397）。
+//
+// 详情字段原样内嵌（作者 / 后台仍要拿到更新后的完整文章），过滤处数作为同级
+// 字段。为什么不把 filtered_count 直接加进 ArticleDetailResponse：那个形状也用在
+// 详情读接口上，而"这次写了几处"只属于一次写入，不是文章的一部分。
+type ArticleUpdateResponse struct {
+	ArticleDetailResponse
+	FilteredCount int `json:"filtered_count"`
+}
+
 // ArticleDiggRequest 点赞目标态（ADR-0016 决策 3）。
 //
 // 旧契约没有请求体（toggle）。现在必须显式说"我要它处于已赞还是未赞"：
@@ -117,7 +131,7 @@ type ArticleReviewTaskListRequest struct {
 // 只看标题、风险与合规结论就够判断。要看全文走
 // `GET /article-review-tasks/{id}/content`（ReviewTaskContentResponse）。
 //
-// risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
+// risk_level / risk_labels 是评分派生层（低分 / 维度塌陷 / 篇幅异常）的结论，
 // 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
 // reason_code / reason 是驳回原因的**两个部分**：reason_code 是固定枚举值
 // （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
@@ -141,7 +155,7 @@ type ArticleReviewTaskItem struct {
 	// RiskLevel 是风险等级：none / low / medium / high。
 	RiskLevel ReviewRiskLevel `json:"risk_level" enums:"none,low,medium,high"`
 	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
-	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+	// low_score / dimension_collapse / length_abnormal。
 	RiskLabels []string `json:"risk_labels"`
 	// Compliance 是第③层模型合规结论（票 312 / ADR-0024）。
 	//

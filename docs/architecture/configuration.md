@@ -58,7 +58,7 @@
 CREATE TABLE IF NOT EXISTS `runtime_config_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` / `updated_at` / `deleted_at` datetime(3),
-  `name` varchar(32) NOT NULL,   -- 十段：site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc
+  `name` varchar(32) NOT NULL,   -- 十一段：site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc / content_filter
   `payload` longtext NOT NULL,   -- 一段完整 JSON
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_runtime_config_models_name` (`name`)
@@ -134,9 +134,9 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 五、十个配置段
+## 五、十一个配置段
 
-十段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
+这十一段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
 补种、全量解码、缓存应用与写入校验都从它派生，**漏登记在写库前直接失败**（不再「警告后缓存不更新」）。理由与否决链见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
@@ -151,11 +151,17 @@ type Service struct{ cfg func() conf.Mail }
 | `upload` | `conf.Upload` | 上传格式白名单 | 下一次上传 |
 | `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
 | `image_gc` | `conf.ImageGC` | 孤儿图回收的总开关、宽限期与单批上限 | 下一次回收任务 |
+| `content_filter` | `conf.ContentFilter` | 内容过滤的词表（词 / 档位 / 类目）、白名单、命中记录保留天数 | 保存后原子重建，下一次过滤 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要在注册表里
-补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（现在是第十段：
-`sms` 由手机号登录那一批插在 `oauth` 之后），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
+补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（此后 `sms` 由手机号登录那一批
+插在 `oauth` 之后成为第十段，`content_filter` 在这次改造中成为第十一段），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
+
+`content_filter`（第 11 段，[ADR-0032](../adr/0032-content-filter.md)）**没有公开读端点**：只有
+`GET /site/admin/content_filter` 与 `PUT /site/content_filter`（管理员）。理由是词表本身就是「不能让外部拿到」的数据，
+而 `site` 段有匿名可读的 `GET /site/site`。段内校验在保存期做（词条非空、档位只有 `block` / `watch`、类目只有七类），
+引擎在保存后按新词表**原子重建**（重建失败保留旧词表并记 error，不清空）。
 
 `ai` 段的每日额度（`daily_limits`，ADR-0028）是**唯一一处保存期拒绝非法值**的配置：
 它七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」；其余数值配置（私信限流、
@@ -214,16 +220,17 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 六、后台页面：十个配置段、九个编辑域，一个例外
+## 六、后台页面：十一个配置段、十个编辑域，一个例外
 
 `frontend_admin/app/pages/site/` 下每个编辑域一个页面文件（`index.vue` 是站点域，
 其余是 `ai.vue` / `mail.vue` / …），各自只挂载一个配置组件：
 `SettingsSite` / `SettingsAi` / `SettingsMail` / `SettingsStorage` / `SettingsOAuth` /
 `SettingsSMS` / `SettingsLog` / `SettingsUpload` / `SettingsDeco`。组件本身不改名、不移动。
 
-十个配置段里目前只有这九个有后台编辑页；第十段 `image_gc` 已在注册表与具名端点里，
-但**没有**编辑页/组件——它的生效值仍由默认种子与回收任务读取（展示开关归 #284）。
-`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部十段的清单。
+十一个配置段里目前**十个**有后台编辑页（`settings.ts` 那张清单：`site` / `ai` / `mail` / `storage` /
+`oauth` / `sms` / `log` / `upload` / `deco` / `content_filter`）；唯一没有编辑页的是 `image_gc` —— 它已在注册表与
+具名端点里，但生效值仍由默认种子与回收任务读取（展示开关归 #284）。
+`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部十一段的清单。
 
 路由由 URL 决定（`/site` + `/site/{域}`），刷新停留在当前域、链接可分享。
 菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
@@ -233,7 +240,7 @@ type Service struct{ cfg func() conf.Mail }
 放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
 
-请求/响应形状（十段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
+请求/响应形状（十一段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)）：
 
 | 方向 | 形状 | 契约里是什么 |
 | --- | --- | --- |
@@ -308,9 +315,11 @@ const loaded = ref(false)
 | `settings.yaml` 删掉的业务段 | 4（`upload` / `email` / `qq` / `qiniu`） |
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
-| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是十段，见 §五 / [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md) |
-| 新增接口 | 2 个 setup 接口；配置读写现为十段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
+| 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是十一段，见 §五 / [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md) |
+| 新增接口 | 2 个 setup 接口；配置读写现为十一段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 
 `settings.yaml` 现在只剩进程级配置。业务默认值只有一个来源
 （`site_default_settings.yaml`），不再有两份默认值互相打架。
+
+

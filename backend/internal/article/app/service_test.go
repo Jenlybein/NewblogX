@@ -23,7 +23,7 @@ func newService(t *testing.T) (*app.Service, *apptest.Repos, *apptest.Tx) {
 	t.Helper()
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, nil, nil, nil)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, nil, nil)
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者", Username: "u100"})
 	repos.FakeCategories().Seed()
 	return svc, repos, tx
@@ -49,7 +49,7 @@ func TestCreateDraft(t *testing.T) {
 	svc, repos, tx := newService(t)
 	ctx := context.Background()
 
-	a, err := svc.Create(ctx, app.CreateArticleCmd{
+	res, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "第一篇",
@@ -59,6 +59,7 @@ func TestCreateDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建草稿失败: %v", err)
 	}
+	a := res.Article
 
 	if a.Status() != domain.StatusDraft {
 		t.Fatalf("应为草稿，实际 %s", a.Status())
@@ -85,7 +86,7 @@ func TestCreateCleanSubmitIsPublishedButPendingReview(t *testing.T) {
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
 
-	a, err := svc.Create(ctx, app.CreateArticleCmd{
+	res, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "干净稿",
@@ -96,6 +97,7 @@ func TestCreateCleanSubmitIsPublishedButPendingReview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("提交失败: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished {
 		t.Fatalf("干净文章应立即为已发布，实际 %s", a.Status())
 	}
@@ -128,7 +130,7 @@ func TestCreateSkipExaminingPublishes(t *testing.T) {
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
 
-	a, err := svc.Create(ctx, app.CreateArticleCmd{
+	res, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "直发",
@@ -139,6 +141,7 @@ func TestCreateSkipExaminingPublishes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建失败: %v", err)
 	}
+	a := res.Article
 	if a.Status() != domain.StatusPublished {
 		t.Fatalf("跳过审核应直接发布，实际 %s", a.Status())
 	}

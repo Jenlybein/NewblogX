@@ -300,3 +300,75 @@ func TestDecoReadsShareOneBlock(t *testing.T) {
 		t.Fatalf("管理读与公开读应一致，得到 %+v 与 %+v", adm, pub)
 	}
 }
+
+// ── content_filter 段（第 11 段，ADR-0032）────────────────────────────
+
+// 保存前整理词条：去空白、去重、校验档位/类目/单字词；校验失败不落库。
+func TestUpdateContentFilterNormalizesAndRejectsInvalid(t *testing.T) {
+	env := newEnv()
+
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words: []conf.ContentFilterWord{
+			{Word: "  刷单  ", Tier: "watch", Category: "fraud"},
+			{Word: "刷单", Tier: "watch", Category: "fraud"},
+			{Word: "   ", Tier: "watch", Category: "fraud"},
+		},
+		Whitelist: []string{"  ", "测试"},
+	}); err != nil {
+		t.Fatalf("保存词表失败: %v", err)
+	}
+	got := env.Runtime.ContentFilter()
+	if len(got.Words) != 1 || got.Words[0].Word != "刷单" {
+		t.Fatalf("应只剩去空白后的 1 条词，得到 %+v", got.Words)
+	}
+	if len(got.Whitelist) != 1 || got.Whitelist[0] != "测试" {
+		t.Fatalf("白名单应只剩 1 条，得到 %+v", got.Whitelist)
+	}
+
+	// 校验失败必须拒绝保存：坏词条写进库里只会在启动构建引擎时炸。
+	invalid := map[string]conf.ContentFilterWord{
+		"未知档位": {Word: "冰毒", Tier: "blocked", Category: "drugs"},
+		"未知类目": {Word: "冰毒", Tier: "block", Category: "weapons"},
+		"单字词":  {Word: "毒", Tier: "block", Category: "drugs"},
+	}
+	for name, word := range invalid {
+		if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+			Words: []conf.ContentFilterWord{word},
+		}); err == nil {
+			t.Fatalf("%s 应当拒绝保存", name)
+		}
+	}
+	if after := env.Runtime.ContentFilter(); len(after.Words) != 1 || after.Words[0].Word != "刷单" {
+		t.Fatalf("校验失败不应改动已保存的词表，得到 %+v", after.Words)
+	}
+}
+
+// 保存成功后回调一次（装配层把过滤引擎的重建挂在这里）；校验失败不回调。
+func TestUpdateContentFilterNotifiesEngineOnSuccess(t *testing.T) {
+	env := newEnv()
+	var got []conf.ContentFilter
+	env.Service.SetContentFilterChangedHook(func(contentFilter conf.ContentFilter) {
+		got = append(got, contentFilter)
+	})
+
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words: []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+	}); err != nil {
+		t.Fatalf("保存词表失败: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("保存成功后应回调一次，实际 %d 次", len(got))
+	}
+	if len(got[0].Words) != 1 || got[0].Words[0].Word != "冰毒" {
+		t.Fatalf("回调应拿到整理后的词表，得到 %+v", got[0].Words)
+	}
+
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words: []conf.ContentFilterWord{{Word: "毒", Tier: "block", Category: "drugs"}},
+	}); err == nil {
+		t.Fatal("单字词应被拒绝")
+	}
+	if len(got) != 1 {
+		t.Fatalf("校验失败不应触发回调，实际 %d 次", len(got))
+	}
+}

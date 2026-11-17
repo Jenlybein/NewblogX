@@ -254,7 +254,18 @@ const (
 	CodeUserInvalidCredential Code = "user.invalid_credential"
 	CodeUserAccountDisabled   Code = "user.account_disabled"
 	CodeUserAccountBanned     Code = "user.account_banned"
-	CodeUserPasswordRequired  Code = "user.password_required"
+	// CodeUserMuted 账号处于禁言期（票 399 / ADR-0032 决策 8）。
+	//
+	// 与 account_disabled / account_banned 分开：那两个连登录都不行，禁言只拦
+	// 发布类动作（登录、浏览、点赞、收藏照旧）。混用一个码会让前端把被禁言的人
+	// 当成"账号没了"，也让用户误以为找管理员解禁是唯一出路（到期会自动恢复）。
+	CodeUserMuted Code = "user.muted"
+	// CodeUserMuteDaysInvalid 禁言天数越界（1–365，缺省 7）。
+	//
+	// 与 user.status_invalid 分开：那个是"状态值不是合法状态"，这个是"时长填错了"，
+	// 后台据此提示改天数而不是怀疑账号状态。
+	CodeUserMuteDaysInvalid  Code = "user.mute_days_invalid"
+	CodeUserPasswordRequired Code = "user.password_required"
 	// CodeUserPasswordAlreadySet 表示账号已有密码，应走「修改密码」（要验旧密码），
 	// 而不是「首次设置密码」。两者分开是为了不给免旧密码改密留后门。
 	CodeUserPasswordAlreadySet Code = "user.password_already_set"
@@ -289,11 +300,6 @@ const (
 	CodeCommentDiggChanged    Code = "comment.digg_changed"
 	CodeCommentDiggDuplicated Code = "comment.digg_duplicated"
 	CodeCommentContentEmpty   Code = "comment.content_empty"
-	// CodeCommentBlocked 评论命中阻断词，已拒绝发布（票 359）。
-	//
-	// 与"内容为空"分开：这是审核结论，提示语要说清"内容不被允许"，
-	// 而不是让用户以为是自己漏填了东西。
-	CodeCommentBlocked Code = "comment.blocked"
 )
 
 // 图片与对象存储。
@@ -420,6 +426,29 @@ const (
 	// AI 每日额度的保存期校验（ADR-0028）。与"额度用完"完全不同：
 	// 那是运行期的业务结论，这是保存配置时的参数错误。
 	CodeSiteAIDailyLimitInvalid Code = "site.ai_daily_limit_invalid"
+
+	// 内容过滤词表的保存期校验（ADR-0032）。同样是配置期的参数错误：
+	// 空词条、不认识的档位或类目都该当场拒绝，而不是写进库里等启动时才发现。
+	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
+
+	// 关键词风险页的筛选参数（ADR-0032）。与上面的词表校验分开：
+	// 那是"运营填的词条不合法"（去改词），这是"后台传错了筛选值"（去改请求），
+	// 两条失败指向的动作不同，日志里也该分得开。
+	CodeFilterSurfaceInvalid Code = "filter.surface_invalid"
+	CodeFilterStatusInvalid  Code = "filter.status_invalid"
+
+	// 关键词风险的处置动作（ADR-0032 决策 7 / 票 398）。
+	//
+	// 前五个都是"后台能自己修正"的失败：记录不存在（刷新列表就能看到最新状态）、
+	// 动作写错、备注超长、批量没选、私信面没有可删内容。它们归 1001。
+	CodeFilterHitNotFound    Code = "filter.hit_not_found"
+	CodeFilterActionInvalid  Code = "filter.action_invalid"
+	CodeFilterNoteTooLong    Code = "filter.note_too_long"
+	CodeFilterBatchEmpty     Code = "filter.batch_empty"
+	CodeFilterSurfaceNoContent Code = "filter.surface_no_content"
+	// CodeFilterDisposeUnavailable 不是调用方的问题：处置端口没装配说明
+	// 这条进程的装配漏了一步，属于服务异常（不吞、也不让后台误以为是自己传错了）。
+	CodeFilterDisposeUnavailable Code = "filter.dispose_unavailable"
 
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
@@ -633,6 +662,10 @@ var messages = map[Code]string{
 	CodeUserInvalidCredential:  "账号或密码错误",
 	CodeUserAccountDisabled:    "账号已被禁用",
 	CodeUserAccountBanned:      "账号已被封禁",
+	// 静态文案只是兜底：真正的禁言错误由 user/domain.MuteError 动态生成，
+	// 文案里带到期时间（apperr.Message 取不到时间，只能给一句可读的兜底）。
+	CodeUserMuted:           "账号已被禁言，暂时不能发布内容",
+	CodeUserMuteDaysInvalid: "禁言天数必须是 1–365 天",
 	CodeUserPasswordRequired:   "请先设置密码",
 	CodeUserPasswordAlreadySet: "账号已有密码，请使用修改密码",
 	CodeUserPasswordTooShort:   "密码长度不足",
@@ -658,7 +691,6 @@ var messages = map[Code]string{
 	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
 	CodeCommentDiggDuplicated: "请勿重复点赞",
 	CodeCommentContentEmpty:   "评论内容不能为空",
-	CodeCommentBlocked:        "评论包含不被允许的内容，请修改后再发",
 
 	CodeImageUnavailable:      "图片不存在或不可用",
 	CodeImageUploadDisabled:   "站点未启用图片上传",
@@ -750,6 +782,15 @@ var messages = map[Code]string{
 	CodeRuntimeConfigSecretUnavailable: "未配置主密钥（BLOGX_CONFIG_SECRET_KEY），无法加密保存密钥；请先在环境变量里设置 32 字节密钥",
 	CodeRuntimeConfigTableMissing:      "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
+	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
+	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
+	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
+	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",
+	CodeFilterActionInvalid:            "处置动作不存在（可选：delete / ignore）",
+	CodeFilterNoteTooLong:              "处置备注最多 200 字",
+	CodeFilterBatchEmpty:               "批量处置至少需要选择一条记录",
+	CodeFilterSurfaceNoContent:         "该文本面没有可删除的内容（私信命中只能忽略）",
+	CodeFilterDisposeUnavailable:       "处置能力未装配，请检查服务启动装配",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",
@@ -883,3 +924,4 @@ func Message(code Code) string {
 	}
 	return string(code)
 }
+

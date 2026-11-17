@@ -6,7 +6,10 @@ import (
 
 	authapp "myblogx/internal/auth/app"
 	chatroot "myblogx/internal/chat"
+	chatapp "myblogx/internal/chat/app"
 	chatdomain "myblogx/internal/chat/domain"
+	filterapp "myblogx/internal/filter/app"
+	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/cdc/outboxrelay"
@@ -44,8 +47,36 @@ func WireChat(infra *Infra) *chatroot.Module {
 	)
 	if module != nil {
 		infra.ChatHub = module.Hub
+		// 内容过滤（票 397 / ADR-0032）：私信正文落库前替换命中词。
+		// 挂在模块实例而不是塞进 chatroot.New 的参数表：私信的九个协作者已经在
+		// 那个构造点上，内容过滤是"多出来的一层清洗"，用可选注入更接近既有形状。
+		module.Service.WithContentFilter(chatTextFilterBridge{svc: infra.Filter})
 	}
 	return module
+}
+
+// chatTextFilterBridge 把内容过滤服务接成私信模块的正文端口（票 397）。
+//
+// 面枚举钉死成 chat；私信不做"删除内容"处置（ADR-0032 决策 10 的四个动作
+// 只覆盖文章 / 评论 / 合集 / 用户资料），所以命中记录不携带内容 ID。
+type chatTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterChatText 替换私信正文里的命中词并记一条关键词风险。
+func (b chatTextFilterBridge) FilterChatText(ctx context.Context, in chatapp.FilterText) (chatapp.FilteredText, error) {
+	if b.svc == nil {
+		return chatapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface: filterdomain.SurfaceChat,
+		UserID:  in.UserID,
+		Text:    in.Text,
+	})
+	if err != nil {
+		return chatapp.FilteredText{}, err
+	}
+	return chatapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }
 
 // chatSubscriber 把私信发件箱事件投递成 WebSocket 通知。
@@ -176,3 +207,4 @@ func (b chatAuthBridge) SessionActive(ctx context.Context, userID, sessionID uin
 	// 同设备的非代表会话不会出现在聚合结果中，拿它判断会误判失效。
 	return b.svc.SessionActive(ctx, userID, sessionID)
 }
+

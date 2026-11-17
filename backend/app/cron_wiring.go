@@ -13,6 +13,8 @@ import (
 	"myblogx/internal/article/domain/viewhistory"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
+	filtermysql "myblogx/internal/filter/adapter/mysql"
+	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum/article_review_enum"
 	"myblogx/internal/platform/log/writer"
@@ -21,6 +23,7 @@ import (
 	"myblogx/internal/platform/redis/redis_tag"
 	"myblogx/internal/platform/rediscounter"
 	"myblogx/internal/platform/scheduler"
+	usermysql "myblogx/internal/user/adapter/mysql"
 )
 
 // 并账任务的调度参数。
@@ -36,7 +39,6 @@ const (
 )
 
 // reconcileInterval 返回当前生效的并账周期。
-//
 // 每次注册时现读运行期配置（库里的 site.reconcile 段），缺省 30 分钟。
 // 想改周期不必改代码；但它是**调度注册参数**，与「日志清理每天几点」同一口径：
 // 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0016。
@@ -303,8 +305,14 @@ func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskSched
 	// ── 每日日志清理 ──
 	registerLogCleanup(infra, sch)
 
+	// ── 每小时禁言到期对账（票 399）──
+	registerMuteReconcile(infra, sch)
+
 	// ── 每日浏览历史清理（90 天）──
 	registerViewHistoryCleanup(infra, sch)
+
+	// ── 每日关键词风险记录清理（保留期取运行时配置）──
+	registerContentFilterRetention(infra, sch)
 
 	// ── 每日兜底：额度延迟重审的悬挂文章 ──
 	registerDeferredComplianceSweep(infra, sch)
@@ -318,6 +326,18 @@ func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskSched
 	sch.Start()
 	return nil
 }
+
+// 关键词风险记录清理的调度参数（ADR-0032 决策 10）。
+//
+// 每天一次，错开日志清理（03:30）与浏览历史清理（04:10）：三个任务都要扫表。
+// 与浏览历史不同，**保留天数取运行时配置**（`content_filter.retain_days`）：
+// 命中记录里存着命中位置的上下文片段，留多久是运营的取舍，不该由发版决定。
+// 任务每次执行时现读配置，所以改天数不需要重启。
+const (
+	contentFilterCleanupHour    = 4
+	contentFilterCleanupMinute  = 40
+	contentFilterCleanupLockTTL = 10 * time.Minute
+)
 
 // 浏览历史清理的调度参数。
 //
@@ -455,8 +475,123 @@ func registerViewHistoryCleanup(infra *Infra, sch taskScheduler) {
 		viewHistoryCleanupHour, viewHistoryCleanupMinute, int(viewhistory.Retention/(24*time.Hour)))
 }
 
-// registerLogCleanup 按配置注册日志清理任务。
+// 禁言到期对账的调度参数（票 399 / ADR-0032 决策 8）。
 //
+// 每小时一次而不是每天：禁言是短周期处罚（以天为单位），用户到期后能不能
+// 发布由惰性判定即时生效；对账只负责把过期行擦掉，滞后一小时没有用户可见影响。
+// 锁 TTL 比周期短得多：任务本身只是一条条件 UPDATE。
+const (
+	muteReconcileInterval = time.Hour
+	muteReconcileLockTTL  = 10 * time.Minute
+	muteReconcileLockKey  = "cron:reconcile_mute:lock"
+)
+
+// ReconcileExpiredMutes 执行一次禁言到期对账，返回被清空的账号数。
+//
+// 单独导出是为了让用例能驱动**这条真实的任务体**（sqlite 即可验证
+// 「到期清空 / 未到期不动 / 重跑幂等」），不必等一小时。
+//
+// 与惰性判定（user/domain.CanPublish）结论一致：判定在先，对账只把已经到期的
+// mute_until 擦成 NULL —— 所以对账任务挂掉不影响"到期就能发"，它只影响表里
+// 会不会长期留着过期行。
+func ReconcileExpiredMutes(ctx context.Context, infra *Infra, now time.Time) (int64, error) {
+	if infra == nil || infra.DB == nil {
+		return 0, nil
+	}
+	// 先取"这一轮会恢复哪些账号"，只为了留审计记录（AC："解除与到期都留下记录"）。
+	// 取不到不影响对账本身：清空是条件更新，不做这一步也不会漏清或误清。
+	ids, listErr := usermysql.ExpiredMuteUserIDs(ctx, infra.DB, now)
+	if listErr != nil && infra.Logger != nil {
+		infra.Logger.Errorf("读取到期禁言账号失败（对账继续）: %v", listErr)
+	}
+	cleared, err := usermysql.ClearExpiredMutes(ctx, infra.DB, now)
+	if err != nil {
+		if infra.Logger != nil {
+			infra.Logger.Errorf("禁言到期对账失败: %v", err)
+		}
+		return 0, err
+	}
+	if infra.Logger != nil {
+		for _, id := range ids {
+			infra.Logger.Infof("禁言到期自动恢复: user_id=%d", id)
+		}
+		if cleared > 0 {
+			infra.Logger.Infof("禁言到期对账: 已清空 %d 个账号的禁言", cleared)
+		}
+	}
+	return cleared, nil
+}
+
+// PurgeContentFilterHits 执行一次关键词风险记录清理，返回物理删除的行数。
+//
+// now 由调用方传入（调度任务执行时取 time.Now()，用例传固定时刻），保留期与
+// "恰好 N 天前"的边界因此可以被钉死。retainDays <= 0 时用领域兜底值。
+func PurgeContentFilterHits(ctx context.Context, db *gorm.DB, now time.Time, retainDays int) (int64, error) {
+	if db == nil {
+		return 0, nil
+	}
+	if retainDays <= 0 {
+		retainDays = filterdomain.DefaultRetainDays
+	}
+	cutoff := now.Add(-time.Duration(retainDays) * 24 * time.Hour)
+	return filtermysql.New(db).PurgeBefore(ctx, cutoff)
+}
+
+// registerContentFilterRetention 注册每日关键词风险记录清理任务。
+//
+// 保留天数**每次现读**运行时配置：后台改天数不该等下一次重启才生效。
+// 读不到配置时用领域兜底值（90 天）继续跑，不让一次配置抖动把清理停掉。
+func registerContentFilterRetention(infra *Infra, sch taskScheduler) {
+	if err := sch.Daily(contentFilterCleanupHour, contentFilterCleanupMinute, 0, scheduler.Job{
+		Name:    "关键词风险记录清理",
+		LockKey: "cron:purge_content_filter_hits:lock",
+		LockTTL: contentFilterCleanupLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			retainDays := filterdomain.DefaultRetainDays
+			if infra.RuntimeSite != nil {
+				if days := infra.RuntimeSite.GetRuntimeContentFilter().RetainDays; days > 0 {
+					retainDays = days
+				}
+			}
+			n, err := PurgeContentFilterHits(ctx, infra.DB, time.Now(), retainDays)
+			if err != nil {
+				return 0, err
+			}
+			return int(n), nil
+		},
+	}); err != nil {
+		if infra.Logger != nil {
+			infra.Logger.Errorf("注册关键词风险记录清理任务失败: %v", err)
+		}
+		return
+	}
+	if infra.Logger != nil {
+		infra.Logger.Infof("已注册关键词风险记录清理任务: 每日 %02d:%02d，保留天数取运行时配置",
+			contentFilterCleanupHour, contentFilterCleanupMinute)
+	}
+}
+
+// registerMuteReconcile 注册每小时禁言到期对账任务。
+func registerMuteReconcile(infra *Infra, sch taskScheduler) {
+	if err := sch.Every(muteReconcileInterval, scheduler.Job{
+		Name:    "禁言到期对账",
+		LockKey: muteReconcileLockKey,
+		LockTTL: muteReconcileLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			n, err := ReconcileExpiredMutes(ctx, infra, time.Now())
+			if err != nil {
+				return 0, err
+			}
+			return int(n), nil
+		},
+	}); err != nil {
+		infra.Logger.Errorf("注册禁言到期对账任务失败: %v", err)
+		return
+	}
+	infra.Logger.Infof("已注册禁言到期对账任务: 每 %s 一次", muteReconcileInterval)
+}
+
+// registerLogCleanup 按配置注册日志清理任务。
 // 配置非法时不静默兜底成默认值就当成功：先记一条 Error，
 // 让人知道"你配的那个时间没生效"，然后用默认时间跑。
 func registerLogCleanup(infra *Infra, sch taskScheduler) {

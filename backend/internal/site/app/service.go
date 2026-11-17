@@ -283,17 +283,6 @@ func (s *Service) UpdateLog(log conf.Logrus) error {
 	return s.runtime.UpdateLog(log)
 }
 
-// AdminUpload 返回管理端的上传策略。
-func (s *Service) AdminUpload() conf.Upload { return s.runtime.Upload() }
-
-// UpdateUpload 覆盖上传策略。
-func (s *Service) UpdateUpload(upload conf.Upload) error {
-	if s.runtime == nil {
-		return apperr.New(apperr.CodeSiteConfigMissing)
-	}
-	return s.runtime.UpdateUpload(upload)
-}
-
 // PublicDeco 返回读者站要的装饰配置。
 //
 // 这段没有任何敏感字段，所以公开读与管理读返回同一份。

@@ -16,7 +16,6 @@ const (
 	SectionOAuth   = "oauth"
 	SectionSMS     = "sms"
 	SectionLog     = "log"
-	SectionUpload  = "upload"
 	SectionDeco    = "deco"
 	SectionImageGC = "image_gc"
 	// SectionContentFilter 是第 11 段（ADR-0032）：全站唯一词表，只给后台读写。
@@ -138,20 +137,6 @@ var sectionRegistry = []sectionEntry{
 		},
 	},
 	{
-		Name:     SectionUpload,
-		Defaults: func(d conf.RuntimeDefaults) any { return d.Upload },
-		Decode: func(s *RuntimeConfigService, p map[string]string) any {
-			return decodeOrDefault(SectionUpload, s.defaults.Upload, p, s.logger)
-		},
-		Apply: func(c *RuntimeConfig, v any) bool {
-			typed, ok := v.(conf.Upload)
-			if ok {
-				c.Upload = typed
-			}
-			return ok
-		},
-	},
-	{
 		Name:     SectionDeco,
 		Defaults: func(d conf.RuntimeDefaults) any { return d.Deco },
 		Decode: func(s *RuntimeConfigService, p map[string]string) any {
@@ -221,3 +206,5 @@ func LookupSection(name string) (sectionEntry, bool) {
 	}
 	return sectionEntry{}, false
 }
+
+

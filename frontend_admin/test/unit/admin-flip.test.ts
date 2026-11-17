@@ -214,7 +214,9 @@ describe("每页都有可见且可用的主题开关", () => {
     // #322 新增「标签管理」页后是 23 个。
     // ADR-0029：站点拆出 login / publish / chat（基础页复用 /site）、
     // 媒体运营拆出 banners / images（/media 保留为跳转页），共 29 个（另加站点「短信」配置页）；ADR-0032 新增「内容过滤」页后 30 个；票 396 新增「关键词风险」页后 31 个；ADR-0033 新增「图形验证码」页后 32 个。
-    expect(pages.length).toBe(32);
+    // 票 418 后 upload 段退场，「上传策略」页随之删除：32 → 31。
+  // 票 417 新增「申诉处置」页：31 → 32。
+  expect(pages.length).toBe(32);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);
@@ -318,3 +320,5 @@ describe("封面兜底退场（#210）：后台列表只留空白", () => {
     expect(page).not.toMatch(/BRAND\./u);
   });
 });
+
+

@@ -47,7 +47,7 @@ func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
 // 第十二段 captcha（ADR-0033）同理：图形与时效参数只给后台读写，不混进公开的 site 段。
 func TestSectionRegistryRegistersAllSections(t *testing.T) {
 	want := []string{
-		"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc", "content_filter",
+		"site", "ai", "mail", "storage", "oauth", "sms", "log", "deco", "image_gc", "content_filter",
 		"captcha",
 	}
 	svc, _ := newTestService(t, conf.RuntimeDefaults{})

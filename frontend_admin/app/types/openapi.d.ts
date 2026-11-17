@@ -4787,6 +4787,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 申诉列表 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 状态筛选：pending / approved / rejected */
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_moderation_adapter_http_AppealItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/appeals/{id}/handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 处置申诉 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 申诉 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 处置结果 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_moderation_adapter_http.HandleAppealRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我的违规记录 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_SummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/me/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交申诉 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 申诉内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_moderation_adapter_http.AppealRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects": {
         parameters: {
             query?: never;
@@ -6061,42 +6221,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/site/admin/upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取 upload 段运行时配置（管理员） */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/site/ai": {
         parameters: {
             query?: never;
@@ -6711,47 +6835,6 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionStorageRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/site/upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新 upload 段运行时配置（管理员） */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description upload 段配置 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionUploadRequest"];
                 };
             };
             responses: {
@@ -8379,6 +8462,13 @@ export interface components {
             comment_count?: number;
             comments_toggle?: boolean;
             content?: string;
+            /**
+             * @description ContentDisplay 是**给读者看的**正文：正文里的图片已按用途套上压缩样式，
+             *     未过审的图被换成占位块。Content 保持原样（原图地址），编辑器回填只读它，
+             *     所以保存时不会把样式后缀写进库（ADR-0034）。
+             *     为空表示"没有可派生的内容"（无图片，或未装配派生器），前端回落 Content。
+             */
+            content_display?: string;
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
@@ -8550,6 +8640,13 @@ export interface components {
             comment_count?: number;
             comments_toggle?: boolean;
             content?: string;
+            /**
+             * @description ContentDisplay 是**给读者看的**正文：正文里的图片已按用途套上压缩样式，
+             *     未过审的图被换成占位块。Content 保持原样（原图地址），编辑器回填只读它，
+             *     所以保存时不会把样式后缀写进库（ADR-0034）。
+             *     为空表示"没有可派生的内容"（无图片，或未装配派生器），前端回落 Content。
+             */
+            content_display?: string;
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
@@ -9245,6 +9342,53 @@ export interface components {
             upload_id?: string;
             /** @description URL 同 CompleteTaskResponse：只有审核通过才有值。 */
             url?: string;
+        };
+        "internal_moderation_adapter_http.AppealItem": {
+            created_at?: string;
+            event_id?: string;
+            id?: string;
+            note?: string;
+            reason?: string;
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected";
+            user_id?: string;
+        };
+        "internal_moderation_adapter_http.AppealRequest": {
+            event_id: string;
+            reason: string;
+        };
+        "internal_moderation_adapter_http.EventItem": {
+            /**
+             * @description CanAppeal 是后端算好的"现在还能不能申诉"：窗口判断只在服务端做一次，
+             *     前端不重复实现时间规则。
+             */
+            can_appeal?: boolean;
+            created_at?: string;
+            evidence?: string;
+            id?: string;
+            /** @enum {string} */
+            level?: "keyword" | "image" | "general" | "severe";
+            ref_id?: string;
+            ref_type?: string;
+            score?: number;
+            /** @enum {string} */
+            source?: "machine" | "manual";
+            /** @enum {string} */
+            status?: "active" | "revoked";
+        };
+        "internal_moderation_adapter_http.HandleAppealRequest": {
+            approve?: boolean;
+            note?: string;
+        };
+        "internal_moderation_adapter_http.SummaryResponse": {
+            items?: components["schemas"]["internal_moderation_adapter_http.EventItem"][];
+            /** @enum {string} */
+            punishment?: "none" | "mute_1d" | "mute_7d" | "mute_30d" | "manual_review";
+            /** @description PunishmentLabel 是给用户看的中文档位说明。 */
+            punishment_label?: string;
+            /** @description Score 是有效分（保留一位小数）：衰减是连续函数，取整会让用户对不上账。 */
+            score?: number;
+            user_id?: string;
         };
         "internal_notification_adapter_http.ConfRequest": {
             comment_notice_enabled?: boolean;
@@ -9980,14 +10124,6 @@ export interface components {
              *     的唯一事实源。旧 upload 段在退场前仍保留，读取口径见 domain.EffectiveWhitelist：
              *     本字段非空则以本字段为准，为空才回落旧段，保证迁移期行为不变。
              */
-            whitelist?: string[];
-        };
-        "internal_site_adapter_http.SiteSectionUploadRequest": {
-            /** @description Whitelist 允许上传的图片后缀；前后端与格式探测都会用它 */
-            whitelist?: string[];
-        };
-        "internal_site_adapter_http.SiteSectionUploadResponse": {
-            /** @description Whitelist 允许上传的图片后缀；前后端与格式探测都会用它 */
             whitelist?: string[];
         };
         "internal_user_adapter_http.AdminCreateRequest": {
@@ -10754,6 +10890,16 @@ export interface components {
             data?: components["schemas"]["internal_media_adapter_http.TaskStatusResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_AppealItem": {
+            code?: number;
+            data?: components["schemas"]["internal_moderation_adapter_http.AppealItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_moderation_adapter_http_SummaryResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_moderation_adapter_http.SummaryResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_notification_adapter_http_ConfRequest": {
             code?: number;
             data?: components["schemas"]["internal_notification_adapter_http.ConfRequest"];
@@ -10852,11 +10998,6 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SiteSectionStorageResponse"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse": {
-            code?: number;
-            data?: components["schemas"]["internal_site_adapter_http.SiteSectionUploadResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_user_adapter_http_AdminCreateResponse": {
@@ -11059,6 +11200,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_media_adapter_http_ImageItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_moderation_adapter_http_AppealItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_moderation_adapter_http_AppealItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_user_adapter_http_AdminUserItemResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse"];
@@ -11221,6 +11367,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_media_adapter_http_ImageItem": {
             count?: number;
             list?: components["schemas"]["internal_media_adapter_http.ImageItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_moderation_adapter_http_AppealItem": {
+            count?: number;
+            list?: components["schemas"]["internal_moderation_adapter_http.AppealItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse": {
             count?: number;

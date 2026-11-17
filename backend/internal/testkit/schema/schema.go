@@ -169,6 +169,8 @@ const (
 	// 单开一组：表里没有外键（内容 ID 是多态的，零 DDL 下加不了跨实体外键），
 	// 只有验命中记录的用例才建它 —— 并进别的组会让无关测试都多建一张表。
 	ContentFilter Group = "content_filter"
+	// Moderation 是违规计分账本（ADR-0035）。
+	Moderation Group = "moderation"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -266,6 +268,10 @@ var groupModels = map[Group][]any{
 	ContentFilter: {
 		&ContentFilterHitRow{},
 	},
+	Moderation: {
+		&UserViolationEventRow{},
+		&UserViolationAppealRow{},
+	},
 	// All 是全部表（目前 46 张），只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
@@ -319,6 +325,8 @@ var groupModels = map[Group][]any{
 		&SidebarCardRow{},
 		&SidebarCardBodyRow{},
 		&ContentFilterHitRow{},
+		&UserViolationEventRow{},
+		&UserViolationAppealRow{},
 	},
 }
 

@@ -166,14 +166,6 @@ func (b siteRuntimeBridge) Log() conf.Logrus {
 	return b.inner.GetRuntimeLog()
 }
 
-// Upload 返回当前上传策略。
-func (b siteRuntimeBridge) Upload() conf.Upload {
-	if b.inner == nil {
-		return conf.Upload{}
-	}
-	return b.inner.GetRuntimeUpload()
-}
-
 // Deco 返回当前装饰配置。
 func (b siteRuntimeBridge) Deco() conf.Deco {
 	if b.inner == nil {
@@ -220,14 +212,6 @@ func (b siteRuntimeBridge) UpdateLog(log conf.Logrus) error {
 		return errSiteRuntimeMissing()
 	}
 	return b.inner.UpdateLog(log)
-}
-
-// UpdateUpload 覆盖上传策略。
-func (b siteRuntimeBridge) UpdateUpload(upload conf.Upload) error {
-	if b.inner == nil {
-		return errSiteRuntimeMissing()
-	}
-	return b.inner.UpdateUpload(upload)
 }
 
 // ImageGC 返回当前孤儿图回收运行配置。

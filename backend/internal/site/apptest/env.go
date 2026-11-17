@@ -198,7 +198,6 @@ type Runtime struct {
 	oauth         conf.QQ
 	sms           conf.SMS
 	log           conf.Logrus
-	upload        conf.Upload
 	deco          conf.Deco
 	imageGC       conf.ImageGC
 	contentFilter conf.ContentFilter
@@ -284,13 +283,6 @@ func (r *Runtime) Log() conf.Logrus {
 	return r.log
 }
 
-// Upload 实现 domain.RuntimeConfig。
-func (r *Runtime) Upload() conf.Upload {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.upload
-}
-
 // UpdateMail 实现 domain.RuntimeConfig。
 func (r *Runtime) UpdateMail(mail conf.Mail) error {
 	r.mu.Lock()
@@ -328,14 +320,6 @@ func (r *Runtime) UpdateLog(log conf.Logrus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.log = log
-	return nil
-}
-
-// UpdateUpload 实现 domain.RuntimeConfig。
-func (r *Runtime) UpdateUpload(upload conf.Upload) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.upload = upload
 	return nil
 }
 
@@ -424,3 +408,5 @@ func NewEnv(site conf.Site, ai conf.AI, version, qqURL string) *Env {
 func NewDefaultService() *app.Service {
 	return NewEnv(conf.Site{}, conf.AI{}, "test", "").Service
 }
+
+

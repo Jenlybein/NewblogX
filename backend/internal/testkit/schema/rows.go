@@ -608,12 +608,12 @@ type UserRow struct {
 	TokenVersion          uint32                  `gorm:"default:1" json:"token_version"`
 	LastPasswordChangedAt *time.Time              `json:"last_password_changed_at"`
 	// MuteUntil 是禁言到期时间（票 399）；nil 表示未禁言。
-	MuteUntil *time.Time              `json:"mute_until"`
-	Role      enum.RoleType           `gorm:"default:0" json:"role"`
-	IP                    string                  `gorm:"size:64" json:"ip"`    // 注册时的 IP
-	Addr                  string                  `gorm:"size:256" json:"addr"` // 注册时的地址
-	UserConfModel         *UserConfRow            `gorm:"foreignKey:UserID;" json:"user_conf_model"`
-	UserStatModel         *UserStatRow            `gorm:"foreignKey:UserID;" json:"user_stat_model"`
+	MuteUntil     *time.Time    `json:"mute_until"`
+	Role          enum.RoleType `gorm:"default:0" json:"role"`
+	IP            string        `gorm:"size:64" json:"ip"`    // 注册时的 IP
+	Addr          string        `gorm:"size:256" json:"addr"` // 注册时的地址
+	UserConfModel *UserConfRow  `gorm:"foreignKey:UserID;" json:"user_conf_model"`
+	UserStatModel *UserStatRow  `gorm:"foreignKey:UserID;" json:"user_stat_model"`
 }
 
 func (u *UserRow) BeforeCreate(tx *gorm.DB) (err error) {
@@ -869,3 +869,48 @@ type ContentFilterHitRow struct {
 
 // TableName 固定表名。
 func (ContentFilterHitRow) TableName() string { return "content_filter_hit_models" }
+
+// UserViolationEventRow 对应表 user_violation_events（ADR-0035）。
+//
+// 只追加的违规事件账本：撤销是改 status，不是删行 —— "这个账号曾经被封过"
+// 这件事必须可查。字段与 moderation/adapter/mysql 的 violationEventRow 必须
+// 逐列一致（columns_static_test 默认会比）。
+type UserViolationEventRow struct {
+	BaseRow
+	UserID ctype.ID `gorm:"not null;index:idx_user_violation_user_created,priority:1" json:"user_id"`
+	Level  string   `gorm:"type:varchar(16);not null;default:'" json:"level"`
+	// 分数列与 GORM 默认口径一致（bigint）：schema.sql 与 AutoMigrate 必须逐列相同，
+	// 否则"新装库"和"升级库"会长出不同的列类型。
+	Score      int        `gorm:"not null;default:0" json:"score"`
+	Source     string     `gorm:"type:varchar(16);not null;default:machine" json:"source"`
+	RefType    string     `gorm:"type:varchar(32);not null;default:';uniqueIndex:uk_user_violation_ref,priority:1" json:"ref_type"`
+	RefID      uint64     `gorm:"not null;default:0;uniqueIndex:uk_user_violation_ref,priority:2" json:"ref_id"`
+	Evidence   string     `gorm:"type:varchar(512);not null;default:'" json:"evidence"`
+	Status     string     `gorm:"type:varchar(16);not null;default:active;index:idx_user_violation_status_created,priority:1" json:"status"`
+	RevokedBy  ctype.ID   `gorm:"not null;default:0" json:"revoked_by"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+	RevokeNote string     `gorm:"type:varchar(512);not null;default:'" json:"revoke_note"`
+	IP         string     `gorm:"type:varchar(64);not null;default:'" json:"ip"`
+	Device     string     `gorm:"type:varchar(128);not null;default:'" json:"device"`
+}
+
+// TableName 固定表名。
+func (UserViolationEventRow) TableName() string { return "user_violation_events" }
+
+// UserViolationAppealRow 对应表 user_violation_appeals（ADR-0035）。
+//
+// 一次处罚只能申诉一次（唯一键在 event_id 上）：重复提交在入口就拒，
+// 不留"同一件事被审两遍、结论还不一样"的悬案。
+type UserViolationAppealRow struct {
+	BaseRow
+	EventID   uint64     `gorm:"not null;uniqueIndex:uk_user_violation_appeal_event" json:"event_id"`
+	UserID    ctype.ID   `gorm:"not null;index:idx_user_violation_appeal_user" json:"user_id"`
+	Reason    string     `gorm:"type:varchar(512);not null;default:'" json:"reason"`
+	Status    string     `gorm:"type:varchar(16);not null;default:pending;index:idx_user_violation_appeal_status_created,priority:1" json:"status"`
+	HandledBy ctype.ID   `gorm:"not null;default:0" json:"handled_by"`
+	HandledAt *time.Time `json:"handled_at"`
+	Note      string     `gorm:"type:varchar(512);not null;default:'" json:"note"`
+}
+
+// TableName 固定表名。
+func (UserViolationAppealRow) TableName() string { return "user_violation_appeals" }

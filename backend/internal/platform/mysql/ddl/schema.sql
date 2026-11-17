@@ -811,6 +811,48 @@ CREATE TABLE IF NOT EXISTS `user_top_article_models` (
   CONSTRAINT `fk_user_top_article_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `user_violation_appeals` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `event_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `reason` varchar(512) NOT NULL DEFAULT '',
+  `status` varchar(16) NOT NULL DEFAULT 'pending',
+  `handled_by` bigint unsigned NOT NULL DEFAULT '0',
+  `handled_at` datetime(3) DEFAULT NULL,
+  `note` varchar(512) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_violation_appeal_event` (`event_id`),
+  KEY `idx_user_violation_appeal_status_created` (`status`,`created_at`),
+  KEY `idx_user_violation_appeal_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `user_violation_events` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `level` varchar(16) NOT NULL DEFAULT '',
+  `score` bigint NOT NULL DEFAULT '0',
+  `source` varchar(16) NOT NULL DEFAULT 'machine',
+  `ref_type` varchar(32) NOT NULL DEFAULT '',
+  `ref_id` bigint unsigned NOT NULL DEFAULT '0',
+  `evidence` varchar(512) NOT NULL DEFAULT '',
+  `status` varchar(16) NOT NULL DEFAULT 'active',
+  `revoked_by` bigint unsigned NOT NULL DEFAULT '0',
+  `revoked_at` datetime(3) DEFAULT NULL,
+  `revoke_note` varchar(512) NOT NULL DEFAULT '',
+  `ip` varchar(64) NOT NULL DEFAULT '',
+  `device` varchar(128) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_violation_ref` (`ref_type`,`ref_id`,`user_id`),
+  KEY `idx_user_violation_user_created` (`user_id`,`created_at`),
+  KEY `idx_user_violation_status_created` (`status`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `user_view_daily_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
@@ -866,3 +908,6 @@ CREATE TABLE IF NOT EXISTS `content_filter_hit_models` (
   KEY `idx_content_filter_hit_surface_status_created` (`surface`,`status`,`created_at`),
   KEY `idx_content_filter_hit_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+

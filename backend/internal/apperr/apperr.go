@@ -432,6 +432,10 @@ const (
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
 	// CodeSiteCaptchaInvalid 是图形验证码段（第 12 段）参数不合法。
 	CodeSiteCaptchaInvalid Code = "site.captcha_invalid"
+	// CodeModerationEventNotFound 是违规事件不存在（申诉处置 / 撤销时传错 id）。
+	CodeModerationEventNotFound Code = "moderation.event_not_found"
+	// CodeModerationAppealInvalid 是申诉不合法（超过 7 天窗口、重复提交、理由为空）。
+	CodeModerationAppealInvalid Code = "moderation.appeal_invalid"
 	// CodeSiteStorageInvalid 是对象存储段（图片样式 / 审核开关）参数不合法（ADR-0034）。
 	//
 	// 与"上传被拒"分开：那是运行期的业务结论（格式不在白名单、超出体积），
@@ -792,6 +796,8 @@ var messages = map[Code]string{
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeSiteCaptchaInvalid:             "图形验证码配置不合法：类型、尺寸、有效期、字符集或颜色超出允许范围",
 	CodeSiteStorageInvalid:             "对象存储配置不合法：样式名、分隔符、签名有效期或审核开关超出允许范围",
+	CodeModerationEventNotFound:        "违规事件不存在",
+	CodeModerationAppealInvalid:        "申诉不合法：只能对 7 天内的违规事件申诉，且必须填写理由",
 	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
 	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
 	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",

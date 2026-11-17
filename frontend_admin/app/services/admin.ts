@@ -60,10 +60,10 @@ import type {
   ContentFilterHandleResult,
   ContentFilterHandleBatchResult,
   ContentFilterWordStatsData,
-  UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
   GroupTreeData,
+  ModerationAppealItem,
 } from '~/types/api'
 
 /**
@@ -654,14 +654,6 @@ export function updateLogRuntimeConfig(payload: LogRuntimeConfig) {
   return updateRuntimeSection('log', payload)
 }
 
-export function getUploadRuntimeConfig() {
-  return getRuntimeSection<UploadRuntimeConfig>('upload')
-}
-
-export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
-  return updateRuntimeSection('upload', payload)
-}
-
 /** 装饰段（deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
@@ -816,5 +808,24 @@ export function unmuteAdminUser(userId: string) {
 
 
 
+
+
+
+
+/** 申诉列表（ADR-0035）：按状态筛，空表示全部。 */
+export function getModerationAppeals(status?: string) {
+  return api().request<{ list: ModerationAppealItem[] }>('/moderation/appeals', {
+    method: 'GET',
+    query: status ? { status } : undefined,
+  })
+}
+
+/** 处置一条申诉：approve=true 撤销违规并重算分数，note 驳回时必填。 */
+export function handleModerationAppeal(id: string, payload: { approve: boolean; note: string }) {
+  return api().request<ModerationAppealItem>(`/moderation/appeals/${id}/handle`, {
+    method: 'POST',
+    body: payload,
+  })
+}
 
 

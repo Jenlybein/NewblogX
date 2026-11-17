@@ -17,6 +17,7 @@ import (
 	commenthttp "myblogx/internal/comment/adapter/http"
 	filterhttp "myblogx/internal/filter/adapter/http"
 	mediahttp "myblogx/internal/media/adapter/http"
+	moderationhttp "myblogx/internal/moderation/adapter/http"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	"myblogx/internal/platform/captcha"
 	mw "myblogx/internal/platform/http/middleware"
@@ -78,6 +79,8 @@ func TestContractMatchesRoutes(t *testing.T) {
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
 	router.SetFilterHandler(&filterhttp.Handler{})
+	// 违规计分与申诉（ADR-0035）：零值处理器，只参与路由注册校验。
+	router.SetModerationHandler(&moderationhttp.Handler{})
 
 	// 私信走显式注入（#280）：路由包不再持有它的包级变量。
 	engine := router.NewEngine(mw.RuntimeOptions{}, nil, router.Handlers{Chat: &chathttp.Handler{}})

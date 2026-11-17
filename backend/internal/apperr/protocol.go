@@ -88,6 +88,11 @@ var protocols = map[Code]ProtocolKind{
 	// 而真正的原因（哪个字段越界）就在 UserMessage 里。
 	CodeSiteStorageInvalid: ProtocolValidation,
 
+	// 违规事件与申诉（ADR-0035）：id 传错 / 超窗口 / 重复申诉都是"改一改就能过"，
+	// 归 1001；归 1002 会让前端以为服务坏了、不敢让用户重试。
+	CodeModerationEventNotFound: ProtocolValidation,
+	CodeModerationAppealInvalid: ProtocolValidation,
+
 	CodeSiteCaptchaInvalid: ProtocolValidation,
 
 	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，

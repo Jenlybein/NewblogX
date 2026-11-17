@@ -77,11 +77,11 @@ const EXPECTED_ADMIN_NAV = [
   { label: '第三方登录', path: '/site/oauth', icon: 'settings' },
   { label: '短信', path: '/site/sms', icon: 'settings' },
   { label: '日志', path: '/site/log', icon: 'settings' },
-  { label: '上传策略', path: '/site/upload', icon: 'settings' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: '轮播运营', path: '/media/banners', icon: 'photo' },
   { label: '图片资源库', path: '/media/images', icon: 'photo' },
+  { label: '申诉处置', path: '/moderation/appeals', icon: 'alert' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   { label: '运行日志', path: '/logs', icon: 'database' },
   { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
@@ -139,6 +139,7 @@ describe('后台菜单拍平视图', () => {
       '用户管理',
       '站点配置',
       '媒体运营',
+      '合规与申诉',
       '全局通知',
       '日志中心',
     ])
@@ -659,3 +660,6 @@ describe('pageFileCandidates', () => {
     expect(pageFileCandidates('logs/dead-letter')).toEqual(['logs/dead-letter', 'logs/dead-letter/index'])
   })
 })
+
+
+

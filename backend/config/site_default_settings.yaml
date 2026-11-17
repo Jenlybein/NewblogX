@@ -308,17 +308,6 @@ sms:
   # 单次发码调用的超时秒数；<=0 按 10
   timeout_sec: 10
 
-# 上传策略。
-# 只保留白名单：历史字段 size / upload_dir 全仓零读取，已删除。
-upload:
-  whitelist:
-    - bmp
-    - jpg
-    - jpeg
-    - png
-    - gif
-    - webp
-
 # 孤儿图回收的运行配置（issue #139 只读清单 / issue #140 真删）。
 # 清单（`-t imagegc`）只读，始终可用；enabled 只控制真删（带 -apply）。
 # 这里的值只在数据库没有对应段时生效，实际以库里那份为准。

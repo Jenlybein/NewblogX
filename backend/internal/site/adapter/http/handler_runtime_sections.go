@@ -285,43 +285,6 @@ func (h *Handler) UpdateLogSection(c *gin.Context) {
 	})
 }
 
-// AdminUploadSection 返回 upload 段管理端配置。
-// @Summary 获取 upload 段运行时配置（管理员）
-// @Tags site
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[SiteSectionUploadResponse]
-// @Router /site/admin/upload [get]
-func (h *Handler) AdminUploadSection(c *gin.Context) {
-	res.OkWithData(SiteSectionUploadResponse(h.svc.AdminUpload()), c)
-}
-
-// UpdateUploadSection 覆盖 upload 段运行时配置。
-// @Summary 更新 upload 段运行时配置（管理员）
-// @Tags site
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param body body SiteSectionUploadRequest true "upload 段配置"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
-// @Router /site/upload [put]
-func (h *Handler) UpdateUploadSection(c *gin.Context) {
-	if err := updateNamedSection(c, func(v SiteSectionUploadRequest) error {
-		return h.svc.UpdateUpload(conf.Upload(v))
-	}); err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithMsg("配置更新成功", c)
-	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName: "runtime_config_update",
-		TargetType: "runtime_config",
-		TargetID:   "upload",
-		Success:    true,
-		Message:    "更新运行时配置成功: upload",
-	})
-}
-
 // AdminDecoSection 返回 deco 段管理端配置。
 // @Summary 获取 deco 段运行时配置（管理员）
 // @Tags site

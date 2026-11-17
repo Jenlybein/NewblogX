@@ -104,14 +104,6 @@ const EXPECTED_SECTIONS: ExpectedSection[] = [
   },
   { key: "sms", label: "短信", path: "/site/sms", page: "site/sms", component: "SettingsSMS", depth: 1 },
   { key: "log", label: "日志", path: "/site/log", page: "site/log", component: "SettingsLog", depth: 1 },
-  {
-    key: "upload",
-    label: "上传策略",
-    path: "/site/upload",
-    page: "site/upload",
-    component: "SettingsUpload",
-    depth: 1,
-  },
   { key: "deco", label: "装饰", path: "/site/deco", page: "site/deco", component: "SettingsDeco", depth: 1 },
 ];
 
@@ -143,7 +135,8 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
         component,
       })),
     );
-    expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(14);
+    // 票 418：upload 段退场，「上传策略」编辑域随之删除：14 → 13。
+  expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(13);
     // 站点四页与其余八域在清单里的切分也是固定口径。
     expect(SITE_SETTINGS_PAGES.map((section) => section.key)).toEqual([
       "site-basics",
@@ -151,7 +144,8 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
       "site-publish",
       "site-chat",
     ]);
-    expect(SITE_SETTINGS_SECTIONS).toHaveLength(10);
+    // 票 418：upload 段退场，站点配置编辑域 10 → 9。
+  expect(SITE_SETTINGS_SECTIONS).toHaveLength(9);
   });
 
   it("站点四页各自声明自己拥有的 site 段顶层块，且互不重叠", () => {
@@ -343,3 +337,6 @@ describe("站点配置编辑域页面文件（刷新保持当前域）", () => {
     }
   });
 });
+
+
+

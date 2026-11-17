@@ -409,3 +409,7 @@ export type StudioActivityDay = RequiredSchema<"internal_article_adapter_http.St
 
 /** 个人数据概览的完整读模型。 */
 export type StudioStatsData = RequiredSchema<"internal_article_adapter_http.StudioStatsResponse">;
+export type ModerationSummary = RequiredSchema<"internal_moderation_adapter_http.SummaryResponse">;
+export type ModerationEventItem = RequiredSchema<"internal_moderation_adapter_http.EventItem">;
+export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_http.AppealItem">;
+

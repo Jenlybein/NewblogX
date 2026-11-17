@@ -38,7 +38,6 @@ type RuntimeConfig struct {
 	OAuth         conf.QQ
 	SMS           conf.SMS
 	Log           conf.Logrus
-	Upload        conf.Upload
 	Deco          conf.Deco
 	ImageGC       conf.ImageGC
 	ContentFilter conf.ContentFilter
@@ -90,7 +89,7 @@ func (s *RuntimeConfigService) SetLogApplier(fn func(conf.Logrus)) {
 
 // LoadDefaults 从 site_default_settings.yaml 读业务配置默认值。
 //
-// 只读业务段（site / ai / mail / storage / oauth / upload / deco）；日志默认值
+// 只读业务段（site / ai / mail / storage / oauth / deco）；日志默认值
 // 属于进程级配置，来自 settings.yaml，由装配层填进 RuntimeDefaults.Log。
 func LoadDefaults(configFile string) (conf.RuntimeDefaults, error) {
 	var out conf.RuntimeDefaults
@@ -171,11 +170,6 @@ func (s *RuntimeConfigService) GetRuntimeLog() conf.Logrus {
 	return s.GetRuntimeConfig().Log
 }
 
-// GetRuntimeUpload 返回上传策略。
-func (s *RuntimeConfigService) GetRuntimeUpload() conf.Upload {
-	return s.GetRuntimeConfig().Upload
-}
-
 // GetRuntimeDeco 返回装饰配置。
 func (s *RuntimeConfigService) GetRuntimeDeco() conf.Deco {
 	return s.GetRuntimeConfig().Deco
@@ -222,7 +216,6 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		OAuth:         s.defaults.OAuth,
 		SMS:           s.defaults.SMS,
 		Log:           s.defaults.Log,
-		Upload:        s.defaults.Upload,
 		Deco:          s.defaults.Deco,
 		ImageGC:       s.defaults.ImageGC,
 		ContentFilter: s.defaults.ContentFilter,
@@ -406,11 +399,6 @@ func (s *RuntimeConfigService) UpdateLog(log conf.Logrus) error {
 		apply(log)
 	}
 	return nil
-}
-
-// UpdateUpload 覆盖上传策略并刷新缓存。
-func (s *RuntimeConfigService) UpdateUpload(upload conf.Upload) error {
-	return updateSection(s, SectionUpload, upload)
 }
 
 // UpdateDeco 覆盖装饰配置并刷新缓存。

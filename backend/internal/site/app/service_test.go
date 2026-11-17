@@ -207,20 +207,8 @@ func TestUpdateLogPreservesProcessLevelFields(t *testing.T) {
 	}
 }
 
-func TestUpdateUploadReplacesWhitelist(t *testing.T) {
-	// 白名单是整体替换而不是合并：合并会让"删掉一个后缀"永远删不掉。
-	env := newEnv()
-	if err := env.Service.UpdateUpload(conf.Upload{Whitelist: []string{"jpg", "png", "gif"}}); err != nil {
-		t.Fatalf("更新上传策略失败: %v", err)
-	}
-	if err := env.Service.UpdateUpload(conf.Upload{Whitelist: []string{"webp"}}); err != nil {
-		t.Fatalf("更新上传策略失败: %v", err)
-	}
-	got := env.Runtime.Upload().Whitelist
-	if len(got) != 1 || got[0] != "webp" {
-		t.Fatalf("白名单应整体替换，得到 %v", got)
-	}
-}
+// 白名单的整体替换语义随 upload 段一起搬到 storage 段（票 418）：
+// 现在由 TestUpdateStorage 的 whitelist 断言覆盖，这里不再重复。
 
 // ── deco 段（装饰，九段之一） ────────────────────────────────────────
 

@@ -57,8 +57,6 @@ type RuntimeConfig interface {
 	SMS() conf.SMS
 	// Log 返回当前日志配置。
 	Log() conf.Logrus
-	// Upload 返回当前上传策略。
-	Upload() conf.Upload
 	// Deco 返回当前装饰配置。
 	Deco() conf.Deco
 	// ImageGC 返回当前孤儿图回收运行配置。
@@ -82,8 +80,6 @@ type RuntimeConfig interface {
 	UpdateSMS(sms conf.SMS) error
 	// UpdateLog 覆盖日志配置。
 	UpdateLog(log conf.Logrus) error
-	// UpdateUpload 覆盖上传策略。
-	UpdateUpload(upload conf.Upload) error
 	// UpdateDeco 覆盖装饰配置。
 	UpdateDeco(deco conf.Deco) error
 	// UpdateImageGC 覆盖孤儿图回收运行配置。

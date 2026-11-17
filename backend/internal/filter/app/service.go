@@ -35,6 +35,8 @@ type Service struct {
 	// 同样由装配层注入；nil 表示这一进程没有账号处置能力（失败关闭）。
 	accountDisposer domain.AccountDisposer
 	logger          domain.Logger
+	// violations 是"关键词命中 → 违规计分"的上报口（ADR-0035），可为 nil。
+	violations ViolationRecorder
 }
 
 // New 构造内容过滤服务。
@@ -99,6 +101,30 @@ func (s *Service) Record(ctx context.Context, hit domain.Hit) {
 			"写入关键词命中记录失败（不阻断主流程）: surface=%s content=%d user=%d words=%d err=%v",
 			hit.Surface, hit.ContentID.Uint64(), hit.UserID.Uint64(), len(hit.Words), err,
 		)
+		return
+	}
+	// 计分（ADR-0035）：一次请求命中多个词也只记一次 —— 这是 Record 的调用粒度
+	// （每个文本面每次写入调一次），一条命中记录 = 一个内容单元 = 一次计分。
+	s.recordViolation(ctx, hit)
+}
+
+// ViolationRecorder 是"关键词命中 → 违规计分"的窄端口。
+//
+// 过滤模块只负责说"这条内容命中了规则、属于谁"，怎么折算成分数是计分模块的事。
+type ViolationRecorder interface {
+	RecordKeywordViolation(ctx context.Context, userID, hitID ctype.ID, surface string) error
+}
+
+// SetViolationRecorder 注入计分端口（装配层调用一次；nil 表示不计分）。
+func (s *Service) SetViolationRecorder(recorder ViolationRecorder) { s.violations = recorder }
+
+// recordViolation 上报一次计分（失败不影响过滤主流程）。
+func (s *Service) recordViolation(ctx context.Context, hit domain.Hit) {
+	if s.violations == nil || hit.UserID.IsZero() {
+		return
+	}
+	if err := s.violations.RecordKeywordViolation(ctx, hit.UserID, hit.ID, string(hit.Surface)); err != nil {
+		s.logError("上报关键词违规计分失败: hit=%d user=%d err=%v", hit.ID.Uint64(), hit.UserID.Uint64(), err)
 	}
 }
 

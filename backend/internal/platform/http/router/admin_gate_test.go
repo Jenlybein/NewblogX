@@ -49,6 +49,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediahttp "myblogx/internal/media/adapter/http"
+	moderationhttp "myblogx/internal/moderation/adapter/http"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	"myblogx/internal/platform/captcha"
 	mw "myblogx/internal/platform/http/middleware"
@@ -113,7 +114,6 @@ var adminOnly = []struct {
 	{"GET", "/api/site/admin/oauth"},
 	{"GET", "/api/site/admin/sms"},
 	{"GET", "/api/site/admin/log"},
-	{"GET", "/api/site/admin/upload"},
 	{"GET", "/api/site/admin/deco"},
 	{"GET", "/api/site/admin/image_gc"},
 	{"PUT", "/api/site/site"},
@@ -123,7 +123,6 @@ var adminOnly = []struct {
 	{"PUT", "/api/site/oauth"},
 	{"PUT", "/api/site/sms"},
 	{"PUT", "/api/site/log"},
-	{"PUT", "/api/site/upload"},
 	{"PUT", "/api/site/deco"},
 	{"PUT", "/api/site/image_gc"},
 	// 内容过滤词表（第 11 段，ADR-0032）：只有管理端出入口，匿名与普通用户都读不到。
@@ -149,6 +148,9 @@ var adminOnly = []struct {
 	{"POST", "/api/images/style-probe"},
 	// 人工审核（ADR-0034）：普通用户令牌必须被挡一次。
 	{"POST", "/api/images/1/audit"},
+	// 申诉处置（ADR-0035）：普通用户令牌也必须被挡一次。
+	{"GET", "/api/moderation/appeals"},
+	{"POST", "/api/moderation/appeals/1/handle"},
 	{"GET", "/api/ai/providers"},
 	{"GET", "/api/ai/providers/vendors"},
 	{"POST", "/api/ai/providers"},
@@ -223,6 +225,8 @@ func injectZeroHandlers() router.Handlers {
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
 	router.SetFilterHandler(&filterhttp.Handler{})
+	// 违规计分与申诉（ADR-0035）：零值处理器，只参与路由注册校验。
+	router.SetModerationHandler(&moderationhttp.Handler{})
 	return router.Handlers{Chat: &chathttp.Handler{}}
 }
 

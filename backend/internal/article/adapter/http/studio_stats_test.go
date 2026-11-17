@@ -45,7 +45,7 @@ func newStudioStatsTestHandler(t *testing.T) (*Handler, *apptest.Repos, *fakeAct
 	activity := &fakeActivity{byUser: map[domain.UserID]map[string]int{}}
 	svc := app.New(apptest.NewTx(repos), apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), apptest.NewSubmitQuota(15), nil, nil).
 		WithActivity(activity)
-	return NewHandler(svc, nil, nil, nil, nil), repos, activity
+	return NewHandler(svc, nil, nil, nil, nil, nil), repos, activity
 }
 
 // getStudioStats 发一次请求并解出响应体。
@@ -67,7 +67,7 @@ func getStudioStats(t *testing.T, h *Handler, viewer domain.Viewer) (*httptest.R
 	// 响应是 Envelope：业务数据在 data 里，code 非 0 表示业务失败
 	// （共享响应层把可预期的失败也包在 200 里，靠 code 区分）。
 	var envelope struct {
-		Code int                `json:"code"`
+		Code int                 `json:"code"`
 		Data StudioStatsResponse `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {

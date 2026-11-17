@@ -61,6 +61,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// media 链路：图片能力改由 internal/media + platform/storage 提供。
 	WireMedia(infra)
 
+	// 图片展示派生（ADR-0034）：必须在各业务模块装配**之前** ——
+	// 文章 / 站点 / 用户 / 私信 / 媒体的处理器都要在构造时拿到它。
+	WireImageDisplay(infra)
+
 	// site 链路：站点配置与轮播图改由 internal/site 提供。
 	WireSite(infra)
 

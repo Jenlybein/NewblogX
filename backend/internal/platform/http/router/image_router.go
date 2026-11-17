@@ -31,5 +31,8 @@ func ImageRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	Group.POST("qiniu/audit/callback", app.QiniuAuditCallback)
 
 	adminGroup.GET("", app.List)
+	// 样式探活（ADR-0034）：保存样式名后点一下就知道填没填对。
+	adminGroup.POST("style-probe", app.ProbeStyles)
 	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), app.Remove)
 }
+

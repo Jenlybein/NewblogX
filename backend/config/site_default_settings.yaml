@@ -255,6 +255,29 @@ storage:
     - png
     - gif
     - webp
+  # —— 图片展示样式（ADR-0034）——
+  # 四档样式名必须与七牛控制台里已创建的样式**名字完全一致**；留空表示该档用原图。
+  # 样式是读取时派生的：库里只存原图地址，改这里或清这里都立刻生效，不用回填数据。
+  # 填错样式名不会回退到原图，而是 404 —— 保存后请用后台的「探活检测」按一次。
+  image_style_cover: ""
+  image_style_avatar: ""
+  image_style_content: ""
+  image_style_chat: ""
+  # 样式分隔符，必须与七牛控制台「多媒体样式 → 访问设置」里的一致（默认 "-"）
+  style_delimiter: "-"
+  # 私有空间：为真时所有图片地址都带下载凭证
+  private_read: false
+  # 下载签名有效期（秒）。不要与上传凭证的 expiry 混用：那个只有几十秒
+  download_expiry: 3600
+  # —— 图片内容审核（ADR-0034）——
+  # 审核总开关；关掉等于"不审"，图恢复上传即通过的老行为
+  audit_enabled: true
+  # 等不到审核结论的容忍时长（秒），超过转人工队列；绝不因超时放行
+  audit_timeout_seconds: 60
+  # 判定违规的图立刻删除对象存储文件，且同哈希永久拒收（终局）
+  audit_auto_delete_block: true
+  # 展示闸门：关掉等于"未过审也可展示"，留作审核链路故障时的紧急放行
+  audit_gate_enabled: true
 
 # 第三方登录（QQ 互联）。
 # 注意：读者站目前没有 QQ 登录入口，这段配好了也不会生效（链路待补）。

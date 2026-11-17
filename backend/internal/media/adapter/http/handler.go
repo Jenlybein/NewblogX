@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/imagedisplay"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 )
@@ -20,14 +21,31 @@ import (
 // Handler 是媒体 HTTP 处理器。
 type Handler struct {
 	svc *app.Service
+	// display 是图片展示派生器（ADR-0034）。为 nil 时原样返回库里的地址，
+	// 只在本模块被单独装配（测试）时出现。
+	display *imagedisplay.Resolver
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service) *Handler {
+func NewHandler(svc *app.Service, display *imagedisplay.Resolver) *Handler {
 	if svc == nil {
 		panic("media/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc}
+	return &Handler{svc: svc, display: display}
+}
+
+// displayURL 派生单条图片地址（后台图片列表用）。
+//
+// 后台看的是"审核面"，所以按管理员身份派生：未过审的图也要能预览，
+// 否则管理员没法判断该放行还是驳回。
+func (h *Handler) displayURL(c *gin.Context, purpose imagedisplay.Purpose, raw string) string {
+	if raw == "" {
+		return ""
+	}
+	out := imagedisplay.MustResolve(c.Request.Context(), h.display,
+		imagedisplay.Viewer{IsAdmin: true},
+		[]imagedisplay.Item{{URL: raw, Purpose: purpose}})
+	return out[0]
 }
 
 // CreateTaskRequest 创建上传任务。
@@ -117,6 +135,28 @@ type ListRequest struct {
 	Page  int    `form:"page"`
 	Limit int    `form:"limit"`
 	Key   string `form:"key"`
+}
+
+// StyleProbeRequest 样式探活请求。
+type StyleProbeRequest struct {
+	// ObjectKey 留空时用图库里最新一张图，省得运营去翻 object key。
+	ObjectKey string `json:"object_key,omitempty"`
+}
+
+// StyleProbeItem 一条探活结果。
+type StyleProbeItem struct {
+	Tier      string `json:"tier" enums:"original,cover,avatar,content,chat"`
+	StyleName string `json:"style_name"`
+	URL       string `json:"url"`
+	Status    int    `json:"status"`
+	Size      int64  `json:"size"`
+	Error     string `json:"error"`
+}
+
+// StyleProbeResponse 样式探活结果。
+type StyleProbeResponse struct {
+	ObjectKey string           `json:"object_key"`
+	Items     []StyleProbeItem `json:"items"`
 }
 
 // RemoveRequest 批量删除。
@@ -316,6 +356,48 @@ func (h *Handler) QiniuAuditCallback(c *gin.Context) {
 	res.OkWithMsg("七牛审核回调处理成功", c)
 }
 
+// ProbeStyles 图片样式探活（管理员）。
+//
+// 为什么需要这个端点：七牛对"样式名不存在"的响应是 404，**不会回退原图**。
+// 后台把样式名填错一个字，站内那一档的图片会全部裂掉，而七牛不会报任何错。
+// 这个接口对同一张图分别请求原图与四档样式，把状态码与字节数并排返回，
+// 保存后点一下就能看出配置对不对。
+// @Summary 图片样式探活
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body StyleProbeRequest false "探活参数"
+// @Success 200 {object} kernel.Envelope[StyleProbeResponse]
+// @Router /images/style-probe [post]
+func (h *Handler) ProbeStyles(c *gin.Context) {
+	var req StyleProbeRequest
+	// 允许空请求体：运营想直接探"最新一张图"时不该被迫构造 body。
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			res.FailWithMsg("参数错误", c)
+			return
+		}
+	}
+	report, err := h.svc.ProbeImageStyles(c.Request.Context(), req.ObjectKey)
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	items := make([]StyleProbeItem, 0, len(report.Items))
+	for _, row := range report.Items {
+		items = append(items, StyleProbeItem{
+			Tier:      row.Tier,
+			StyleName: row.StyleName,
+			URL:       row.URL,
+			Status:    row.Status,
+			Size:      row.Size,
+			Error:     row.Error,
+		})
+	}
+	res.OkWithData(StyleProbeResponse{ObjectKey: report.ObjectKey, Items: items}, c)
+}
+
 // List 图片列表（管理员）。
 // @Summary 图片列表
 // @Tags image
@@ -344,7 +426,7 @@ func (h *Handler) List(c *gin.Context) {
 			Bucket:    img.Bucket,
 			ObjectKey: img.ObjectKey,
 			FileName:  img.FileName,
-			URL:       img.URL,
+			URL:       h.displayURL(c, imagedisplay.PurposeCover, img.URL),
 			MimeType:  img.MimeType,
 			Size:      img.Size,
 			Width:     img.Width,

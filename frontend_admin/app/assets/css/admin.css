@@ -719,6 +719,18 @@
     max-width: 760px;
   }
 
+  /* 设置面板内的分组标题：一个面板里塞了三组语义不同的字段（存储与上传 /
+     图片展示样式 / 图片审核）时，用一条分隔线把它们分开，避免"哪个开关属于哪一组"看不清。 */
+  .admin-settings-title {
+    @apply mb-3 mt-8 border-t pt-6 text-base font-semibold;
+
+    border-color: var(--color-border);
+
+    &:first-child {
+      @apply mt-0 border-t-0 pt-0;
+    }
+  }
+
   /* 用户列表的「头像 + 昵称 / 用户名」单元格：用户名常是邮箱，必须能截断。 */
   .admin-user-cell {
     @apply flex min-w-0 items-center gap-3;

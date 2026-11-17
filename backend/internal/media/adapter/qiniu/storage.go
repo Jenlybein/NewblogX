@@ -5,7 +5,9 @@
 package qiniu
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"myblogx/conf"
 	"myblogx/internal/media/domain"
@@ -78,3 +80,19 @@ func (s *Storage) ImageInfo(key string) (domain.ImageInfo, error) {
 
 // ObjectURL 拼接访问地址。
 func (s *Storage) ObjectURL(key string) string { return s.inner().ObjectURL(key) }
+
+// PrivateURL 拼接带下载凭证的访问地址（私有空间）。
+//
+// key 必须是**已经拼好样式后缀**的对象名（见 ADR-0034：先拼样式再签名，
+// 反过来令牌会失效）。有效期取 storage.download_expiry，与上传凭证的 expiry 无关。
+func (s *Storage) PrivateURL(keyWithStyle string) string {
+	cfg := s.cfg()
+	expiry := time.Duration(cfg.DownloadExpiry) * time.Second
+	return s.inner().PrivateURL(keyWithStyle, expiry)
+}
+
+// Probe 探测一条完整 URL 的状态码与字节数（后台样式探活用）。
+func (s *Storage) Probe(ctx context.Context, rawURL string) domain.ProbeResult {
+	got := s.inner().Probe(ctx, rawURL)
+	return domain.ProbeResult{Status: got.Status, Size: got.Size, Error: got.Error}
+}

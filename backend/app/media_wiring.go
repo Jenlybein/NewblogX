@@ -36,6 +36,7 @@ func WireMedia(infra *Infra) {
 			return domain.Config{
 				Enabled:       qiniuCfg.Enable,
 				Bucket:        qiniuCfg.Bucket,
+				Uri:           qiniuCfg.Uri,
 				Prefix:        qiniuCfg.Prefix,
 				Region:        qiniuCfg.Region,
 				SizeMB:        qiniuCfg.Size,
@@ -44,10 +45,24 @@ func WireMedia(infra *Infra) {
 				// 白名单已从「上传策略」段并进 storage 段（票 410），
 				// 迁移期用合并口径：storage 非空取 storage，为空回落旧段。
 				Whitelist: domain.EffectiveWhitelist(qiniuCfg.Whitelist, infra.RuntimeSite.GetRuntimeUpload().Whitelist),
+
+				// 图片展示样式与审核（ADR-0034）：探活端点要能看到样式名，
+				// 审核相关字段供后续闸门使用。
+				StyleCover:       qiniuCfg.ImageStyleCover,
+				StyleAvatar:      qiniuCfg.ImageStyleAvatar,
+				StyleContent:     qiniuCfg.ImageStyleContent,
+				StyleChat:        qiniuCfg.ImageStyleChat,
+				StyleDelimiter:   qiniuCfg.StyleDelimiter,
+				PrivateRead:      qiniuCfg.PrivateRead,
+				DownloadExpiry:   qiniuCfg.DownloadExpiry,
+				AuditEnabled:     qiniuCfg.AuditEnabled,
+				AuditTimeout:     qiniuCfg.AuditTimeoutSeconds,
+				AuditAutoDelete:  qiniuCfg.AuditAutoDeleteBlock,
+				AuditGateEnabled: qiniuCfg.AuditGateEnabled,
 			}
 		},
 	)
-	router.SetImageHandler(mediahttp.NewHandler(svc))
+	router.SetImageHandler(mediahttp.NewHandler(svc, ImageDisplay()))
 }
 
 // mediaIDs 用雪花生成图片与任务 ID。

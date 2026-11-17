@@ -3455,6 +3455,60 @@
                 ],
                 "type": "object"
             },
+            "internal_media_adapter_http.StyleProbeItem": {
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "style_name": {
+                        "type": "string"
+                    },
+                    "tier": {
+                        "enum": [
+                            "original",
+                            "cover",
+                            "avatar",
+                            "content",
+                            "chat"
+                        ],
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_media_adapter_http.StyleProbeRequest": {
+                "properties": {
+                    "object_key": {
+                        "description": "ObjectKey 留空时用图库里最新一张图，省得运营去翻 object key。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_media_adapter_http.StyleProbeResponse": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_media_adapter_http.StyleProbeItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "object_key": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_media_adapter_http.TaskStatusResponse": {
                 "properties": {
                     "error_msg": {
@@ -4660,12 +4714,32 @@
                     "access_key": {
                         "type": "string"
                     },
+                    "audit_auto_delete_block": {
+                        "description": "AuditAutoDeleteBlock 为真时，判定违规的图立刻删掉对象存储里的文件，\n且同哈希永久拒收（终局，不可人工放行）。",
+                        "type": "boolean"
+                    },
+                    "audit_enabled": {
+                        "description": "—— 图片内容审核（ADR-0034）——\nAuditEnabled 是审核总开关。关掉等于\"不审\"，图恢复上传即通过的老行为。",
+                        "type": "boolean"
+                    },
+                    "audit_gate_enabled": {
+                        "description": "AuditGateEnabled 是展示闸门的独立开关。\n关掉它等于\"未过审也可展示\"，留作审核链路故障时的紧急放行手段。",
+                        "type": "boolean"
+                    },
+                    "audit_timeout_seconds": {
+                        "description": "AuditTimeoutSeconds 是\"等不到审核结论\"的容忍时长，超过就转人工队列。\n注意：超时只把图转人工，**绝不**因为超时就放行。",
+                        "type": "integer"
+                    },
                     "bucket": {
                         "type": "string"
                     },
                     "callback_url": {
                         "description": "七牛上传成功后的服务端回调地址",
                         "type": "string"
+                    },
+                    "download_expiry": {
+                        "description": "DownloadExpiry 是下载签名有效期（秒）。\n\n与上面的 Expiry 分开：Expiry 是**上传凭证**的过期时间（默认 60 秒量级），\n拿它给图片链接签名会让页面上的图一分钟后全部 401。",
+                        "type": "integer"
                     },
                     "enable": {
                         "type": "boolean"
@@ -4674,8 +4748,25 @@
                         "description": "上传凭证过期时间，单位秒",
                         "type": "integer"
                     },
+                    "image_style_avatar": {
+                        "type": "string"
+                    },
+                    "image_style_chat": {
+                        "type": "string"
+                    },
+                    "image_style_content": {
+                        "type": "string"
+                    },
+                    "image_style_cover": {
+                        "description": "—— 图片展示样式（ADR-0034）——\n\n四档分别对应七牛控制台里已创建好的样式名。留空表示该档用原图。\n样式是**读取时派生**的：库里只存原图地址，所以改这里、清这里都立刻生效，\n不需要回填数据，也不会污染引用账本（它靠从 URL 反解 object key 工作）。",
+                        "type": "string"
+                    },
                     "prefix": {
                         "type": "string"
+                    },
+                    "private_read": {
+                        "description": "PrivateRead 为真时所有图片地址都要签名（私有空间）。",
+                        "type": "boolean"
                     },
                     "region": {
                         "type": "string"
@@ -4686,6 +4777,10 @@
                     "size": {
                         "description": "上传大小限制，单位 MB",
                         "type": "integer"
+                    },
+                    "style_delimiter": {
+                        "description": "StyleDelimiter 必须与七牛控制台的「样式分隔符」一致，默认 \"-\"。",
+                        "type": "string"
                     },
                     "uri": {
                         "type": "string"
@@ -4706,12 +4801,32 @@
                     "access_key": {
                         "type": "string"
                     },
+                    "audit_auto_delete_block": {
+                        "description": "AuditAutoDeleteBlock 为真时，判定违规的图立刻删掉对象存储里的文件，\n且同哈希永久拒收（终局，不可人工放行）。",
+                        "type": "boolean"
+                    },
+                    "audit_enabled": {
+                        "description": "—— 图片内容审核（ADR-0034）——\nAuditEnabled 是审核总开关。关掉等于\"不审\"，图恢复上传即通过的老行为。",
+                        "type": "boolean"
+                    },
+                    "audit_gate_enabled": {
+                        "description": "AuditGateEnabled 是展示闸门的独立开关。\n关掉它等于\"未过审也可展示\"，留作审核链路故障时的紧急放行手段。",
+                        "type": "boolean"
+                    },
+                    "audit_timeout_seconds": {
+                        "description": "AuditTimeoutSeconds 是\"等不到审核结论\"的容忍时长，超过就转人工队列。\n注意：超时只把图转人工，**绝不**因为超时就放行。",
+                        "type": "integer"
+                    },
                     "bucket": {
                         "type": "string"
                     },
                     "callback_url": {
                         "description": "七牛上传成功后的服务端回调地址",
                         "type": "string"
+                    },
+                    "download_expiry": {
+                        "description": "DownloadExpiry 是下载签名有效期（秒）。\n\n与上面的 Expiry 分开：Expiry 是**上传凭证**的过期时间（默认 60 秒量级），\n拿它给图片链接签名会让页面上的图一分钟后全部 401。",
+                        "type": "integer"
                     },
                     "enable": {
                         "type": "boolean"
@@ -4720,8 +4835,25 @@
                         "description": "上传凭证过期时间，单位秒",
                         "type": "integer"
                     },
+                    "image_style_avatar": {
+                        "type": "string"
+                    },
+                    "image_style_chat": {
+                        "type": "string"
+                    },
+                    "image_style_content": {
+                        "type": "string"
+                    },
+                    "image_style_cover": {
+                        "description": "—— 图片展示样式（ADR-0034）——\n\n四档分别对应七牛控制台里已创建好的样式名。留空表示该档用原图。\n样式是**读取时派生**的：库里只存原图地址，所以改这里、清这里都立刻生效，\n不需要回填数据，也不会污染引用账本（它靠从 URL 反解 object key 工作）。",
+                        "type": "string"
+                    },
                     "prefix": {
                         "type": "string"
+                    },
+                    "private_read": {
+                        "description": "PrivateRead 为真时所有图片地址都要签名（私有空间）。",
+                        "type": "boolean"
                     },
                     "region": {
                         "type": "string"
@@ -4732,6 +4864,10 @@
                     "size": {
                         "description": "上传大小限制，单位 MB",
                         "type": "integer"
+                    },
+                    "style_delimiter": {
+                        "description": "StyleDelimiter 必须与七牛控制台的「样式分隔符」一致，默认 \"-\"。",
+                        "type": "string"
                     },
                     "uri": {
                         "type": "string"
@@ -6638,6 +6774,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_media_adapter_http.CreateTaskResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_media_adapter_http_StyleProbeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_media_adapter_http.StyleProbeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -12284,6 +12434,43 @@
                     }
                 },
                 "summary": "七牛云上传回调",
+                "tags": [
+                    "image"
+                ]
+            }
+        },
+        "/images/style-probe": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_media_adapter_http.StyleProbeRequest",
+                                "summary": "body",
+                                "description": "探活参数"
+                            }
+                        }
+                    },
+                    "description": "探活参数"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_media_adapter_http_StyleProbeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "图片样式探活",
                 "tags": [
                     "image"
                 ]

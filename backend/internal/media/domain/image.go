@@ -166,14 +166,32 @@ type ImageInfo struct {
 
 // Config 是媒体的运行配置。
 type Config struct {
-	Enabled       bool
-	Bucket        string
+	Enabled bool
+	Bucket  string
+	// Uri 是资源访问基址（与 storage.uri 一致），探活要拼完整地址。
+	Uri           string
 	Prefix        string
 	Region        string
 	SizeMB        int
 	ExpirySeconds int
 	CallbackURL   string
 	Whitelist     []string
+
+	// —— 图片展示样式（ADR-0034）——
+	// 四档样式名留空表示该档用原图；分隔符必须与七牛控制台一致。
+	StyleCover     string
+	StyleAvatar    string
+	StyleContent   string
+	StyleChat      string
+	StyleDelimiter string
+	PrivateRead    bool
+	DownloadExpiry int
+
+	// —— 图片内容审核（ADR-0034）——
+	AuditEnabled     bool
+	AuditTimeout     int
+	AuditAutoDelete  bool
+	AuditGateEnabled bool
 }
 
 // MaxSize 返回字节上限。
@@ -237,6 +255,19 @@ type ObjectStorage interface {
 	Delete(bucket, key string) error
 	ImageInfo(key string) (ImageInfo, error)
 	ObjectURL(key string) string
+	// Probe 探测一条完整 URL 的状态码与字节数（后台样式探活用）。
+	Probe(ctx context.Context, rawURL string) ProbeResult
+}
+
+// ProbeResult 是一次 URL 探测的结果。
+//
+// 为什么需要它：七牛的图片样式名填错时返回 **404 而不是回退原图**，
+// 后台没有探活就只能等线上图片全裂才发现。
+type ProbeResult struct {
+	Status int
+	Size   int64
+	// Error 非空表示探测本身失败（网络错误等），此时 Status 为 0。
+	Error string
 }
 
 // IDGenerator 生成图片与任务 ID。

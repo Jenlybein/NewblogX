@@ -24,8 +24,8 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
-	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
@@ -94,7 +94,7 @@ func newRouterWithSite(
 	uow := articlemysql.NewTxManager(db, redis_service.Options{}, nil /* 作者统计不在本测试断言范围 */)
 	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart}, nil, nil, nil)
 
-	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil)
+	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

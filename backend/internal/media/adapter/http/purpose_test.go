@@ -39,7 +39,7 @@ func purposeEngine() *gin.Engine {
 		CallbackURL: "https://example.com/api/images/qiniu/callback",
 		Whitelist:   []string{"png"},
 	}
-	handler := mediahttp.NewHandler(mediaapptest.NewService(cfg))
+	handler := mediahttp.NewHandler(mediaapptest.NewService(cfg), nil)
 	engine.POST("/images/upload-tasks", handler.CreateUploadTask)
 	return engine
 }

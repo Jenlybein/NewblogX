@@ -144,6 +144,12 @@ export type ImageListItem = RequiredSchema<"internal_media_adapter_http.ImageIte
 /** 图片列表载荷。后端 `res.OkWithList` 返回 `{list, count}`，**没有 `has_more`**。 */
 export type ImageListResponseData = ListData<ImageListItem>;
 
+/**
+ * 图片样式探活（ADR-0034）：原图与四档样式的状态码/体积对照。
+ */
+export type StyleProbeItem = RequiredSchema<"internal_media_adapter_http.StyleProbeItem">;
+export type StyleProbeResponse = RequiredSchema<"internal_media_adapter_http.StyleProbeResponse">;
+
 // ── 保留手写的部分（每条都写了理由） ──────────────────────────
 
 /**
@@ -429,4 +435,5 @@ export type ContentFilterHandleBatchItem = RequiredSchema<"internal_filter_adapt
 
 /** 批量处置的 data 载荷：`{results}`。 */
 export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_adapter_http.HandleBatchResponse">
+
 

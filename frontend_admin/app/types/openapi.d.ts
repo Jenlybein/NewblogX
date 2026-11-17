@@ -3733,6 +3733,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/images/style-probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 图片样式探活 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 探活参数 */
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["internal_media_adapter_http.StyleProbeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_StyleProbeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/images/upload-tasks": {
         parameters: {
             query?: never;
@@ -9109,6 +9150,23 @@ export interface components {
         "internal_media_adapter_http.RemoveRequest": {
             id_list: number[];
         };
+        "internal_media_adapter_http.StyleProbeItem": {
+            error?: string;
+            size?: number;
+            status?: number;
+            style_name?: string;
+            /** @enum {string} */
+            tier?: "original" | "cover" | "avatar" | "content" | "chat";
+            url?: string;
+        };
+        "internal_media_adapter_http.StyleProbeRequest": {
+            /** @description ObjectKey 留空时用图库里最新一张图，省得运营去翻 object key。 */
+            object_key?: string;
+        };
+        "internal_media_adapter_http.StyleProbeResponse": {
+            items?: components["schemas"]["internal_media_adapter_http.StyleProbeItem"][];
+            object_key?: string;
+        };
         "internal_media_adapter_http.TaskStatusResponse": {
             error_msg?: string;
             hash?: string;
@@ -9725,17 +9783,59 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionStorageRequest": {
             access_key?: string;
+            /**
+             * @description AuditAutoDeleteBlock 为真时，判定违规的图立刻删掉对象存储里的文件，
+             *     且同哈希永久拒收（终局，不可人工放行）。
+             */
+            audit_auto_delete_block?: boolean;
+            /**
+             * @description —— 图片内容审核（ADR-0034）——
+             *     AuditEnabled 是审核总开关。关掉等于"不审"，图恢复上传即通过的老行为。
+             */
+            audit_enabled?: boolean;
+            /**
+             * @description AuditGateEnabled 是展示闸门的独立开关。
+             *     关掉它等于"未过审也可展示"，留作审核链路故障时的紧急放行手段。
+             */
+            audit_gate_enabled?: boolean;
+            /**
+             * @description AuditTimeoutSeconds 是"等不到审核结论"的容忍时长，超过就转人工队列。
+             *     注意：超时只把图转人工，**绝不**因为超时就放行。
+             */
+            audit_timeout_seconds?: number;
             bucket?: string;
             /** @description 七牛上传成功后的服务端回调地址 */
             callback_url?: string;
+            /**
+             * @description DownloadExpiry 是下载签名有效期（秒）。
+             *
+             *     与上面的 Expiry 分开：Expiry 是**上传凭证**的过期时间（默认 60 秒量级），
+             *     拿它给图片链接签名会让页面上的图一分钟后全部 401。
+             */
+            download_expiry?: number;
             enable?: boolean;
             /** @description 上传凭证过期时间，单位秒 */
             expiry?: number;
+            image_style_avatar?: string;
+            image_style_chat?: string;
+            image_style_content?: string;
+            /**
+             * @description —— 图片展示样式（ADR-0034）——
+             *
+             *     四档分别对应七牛控制台里已创建好的样式名。留空表示该档用原图。
+             *     样式是**读取时派生**的：库里只存原图地址，所以改这里、清这里都立刻生效，
+             *     不需要回填数据，也不会污染引用账本（它靠从 URL 反解 object key 工作）。
+             */
+            image_style_cover?: string;
             prefix?: string;
+            /** @description PrivateRead 为真时所有图片地址都要签名（私有空间）。 */
+            private_read?: boolean;
             region?: string;
             secret_key?: string;
             /** @description 上传大小限制，单位 MB */
             size?: number;
+            /** @description StyleDelimiter 必须与七牛控制台的「样式分隔符」一致，默认 "-"。 */
+            style_delimiter?: string;
             uri?: string;
             /**
              * @description Whitelist 是可上传的文件后缀（不带点，小写）。
@@ -9748,17 +9848,59 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionStorageResponse": {
             access_key?: string;
+            /**
+             * @description AuditAutoDeleteBlock 为真时，判定违规的图立刻删掉对象存储里的文件，
+             *     且同哈希永久拒收（终局，不可人工放行）。
+             */
+            audit_auto_delete_block?: boolean;
+            /**
+             * @description —— 图片内容审核（ADR-0034）——
+             *     AuditEnabled 是审核总开关。关掉等于"不审"，图恢复上传即通过的老行为。
+             */
+            audit_enabled?: boolean;
+            /**
+             * @description AuditGateEnabled 是展示闸门的独立开关。
+             *     关掉它等于"未过审也可展示"，留作审核链路故障时的紧急放行手段。
+             */
+            audit_gate_enabled?: boolean;
+            /**
+             * @description AuditTimeoutSeconds 是"等不到审核结论"的容忍时长，超过就转人工队列。
+             *     注意：超时只把图转人工，**绝不**因为超时就放行。
+             */
+            audit_timeout_seconds?: number;
             bucket?: string;
             /** @description 七牛上传成功后的服务端回调地址 */
             callback_url?: string;
+            /**
+             * @description DownloadExpiry 是下载签名有效期（秒）。
+             *
+             *     与上面的 Expiry 分开：Expiry 是**上传凭证**的过期时间（默认 60 秒量级），
+             *     拿它给图片链接签名会让页面上的图一分钟后全部 401。
+             */
+            download_expiry?: number;
             enable?: boolean;
             /** @description 上传凭证过期时间，单位秒 */
             expiry?: number;
+            image_style_avatar?: string;
+            image_style_chat?: string;
+            image_style_content?: string;
+            /**
+             * @description —— 图片展示样式（ADR-0034）——
+             *
+             *     四档分别对应七牛控制台里已创建好的样式名。留空表示该档用原图。
+             *     样式是**读取时派生**的：库里只存原图地址，所以改这里、清这里都立刻生效，
+             *     不需要回填数据，也不会污染引用账本（它靠从 URL 反解 object key 工作）。
+             */
+            image_style_cover?: string;
             prefix?: string;
+            /** @description PrivateRead 为真时所有图片地址都要签名（私有空间）。 */
+            private_read?: boolean;
             region?: string;
             secret_key?: string;
             /** @description 上传大小限制，单位 MB */
             size?: number;
+            /** @description StyleDelimiter 必须与七牛控制台的「样式分隔符」一致，默认 "-"。 */
+            style_delimiter?: string;
             uri?: string;
             /**
              * @description Whitelist 是可上传的文件后缀（不带点，小写）。
@@ -10524,6 +10666,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CreateTaskResponse": {
             code?: number;
             data?: components["schemas"]["internal_media_adapter_http.CreateTaskResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_media_adapter_http_StyleProbeResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_media_adapter_http.StyleProbeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_TaskStatusResponse": {

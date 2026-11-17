@@ -32,6 +32,7 @@ import type {
   DeadLetterReplayResult,
   ImageListResponseData,
   ListData,
+  StyleProbeResponse,
   CollectionOutlineSavePayload,
   CollectionOutlineTreeResponseData,
   OutlineNodePayload,
@@ -504,6 +505,19 @@ export function deleteImages(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/images', { method: 'DELETE', body: { id_list } })
 }
 
+/**
+ * 图片样式探活（ADR-0034）。
+ *
+ * 为什么值得一个专门的按钮：七牛对"样式名不存在"的响应是 404，**不会回退原图**，
+ * 也不会报任何错。保存样式名后点一下，就能看到原图与四档样式的状态码和体积对照。
+ */
+export function probeImageStyles(object_key?: string) {
+  return api().request<StyleProbeResponse>('/images/style-probe', {
+    method: 'POST',
+    body: object_key ? { object_key } : {},
+  })
+}
+
 export function getGlobalNotifications(query: { type: 1 | 2; page?: number; limit?: number }) {
   return api().request<HasMoreList<GlobalNotifListItem>>('/global_notif', { query })
 }
@@ -794,4 +808,6 @@ export function unmuteAdminUser(userId: string) {
     body: { user_id: userId },
   })
 }
+
+
 

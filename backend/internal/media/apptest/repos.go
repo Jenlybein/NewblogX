@@ -200,6 +200,14 @@ func (Storage) ImageInfo(_ string) (domain.ImageInfo, error) {
 // ObjectURL 实现 domain.ObjectStorage。
 func (Storage) ObjectURL(key string) string { return "https://example.com/" + key }
 
+// Probe 实现 domain.ObjectStorage：测试里不需要真实网络，固定返回 200。
+func (Storage) Probe(_ context.Context, rawURL string) domain.ProbeResult {
+	if rawURL == "" {
+		return domain.ProbeResult{Error: "地址为空"}
+	}
+	return domain.ProbeResult{Status: 200, Size: 1024}
+}
+
 // IDs 是递增 ID 生成器。
 type IDs struct{ n uint64 }
 

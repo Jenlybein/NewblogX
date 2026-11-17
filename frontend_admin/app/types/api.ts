@@ -149,6 +149,7 @@ export type ImageListResponseData = ListData<ImageListItem>;
  */
 export type StyleProbeItem = RequiredSchema<"internal_media_adapter_http.StyleProbeItem">;
 export type StyleProbeResponse = RequiredSchema<"internal_media_adapter_http.StyleProbeResponse">;
+export type AuditResponse = RequiredSchema<"internal_media_adapter_http.AuditResponse">;
 
 // ── 保留手写的部分（每条都写了理由） ──────────────────────────
 
@@ -435,5 +436,6 @@ export type ContentFilterHandleBatchItem = RequiredSchema<"internal_filter_adapt
 
 /** 批量处置的 data 载荷：`{results}`。 */
 export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_adapter_http.HandleBatchResponse">
+
 
 

@@ -187,6 +187,20 @@ type StyleProbeResponse struct {
 	Items     []StyleProbeItem `json:"items"`
 }
 
+// AuditRequest 人工审核一张图。
+type AuditRequest struct {
+	// Action 是处置动作：approve（放行）/ reject（驳回并删对象）。
+	Action string `json:"action" binding:"required" enums:"approve,reject"`
+}
+
+// AuditResponse 人工审核结果。
+type AuditResponse struct {
+	ID          ctype.ID `json:"id"`
+	AuditStatus string   `json:"audit_status"`
+	AuditLabel  string   `json:"audit_label"`
+	URL         string   `json:"url"`
+}
+
 // RemoveRequest 批量删除。
 type RemoveRequest struct {
 	IDList []uint64 `json:"id_list" binding:"required"`
@@ -386,6 +400,56 @@ func (h *Handler) QiniuAuditCallback(c *gin.Context) {
 		return
 	}
 	res.OkWithMsg("七牛审核回调处理成功", c)
+}
+
+// Audit 人工审核一张图（管理员）。
+//
+// 只对"待审核 / 疑似"有意义：放行会把状态推到通过并在存储侧解禁，
+// 驳回会把状态推到违规（终局）并按开关删除对象。违规图不允许放行 ——
+// 对象已经删了，"看起来放行了但打不开"比直接拒绝更糟。
+// @Summary 图片人工审核
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "图片 ID"
+// @Param body body AuditRequest true "审核动作"
+// @Success 200 {object} kernel.Envelope[AuditResponse]
+// @Router /images/{id}/audit [post]
+func (h *Handler) Audit(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	var req AuditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res.FailWithMsg("参数错误", c)
+		return
+	}
+
+	var (
+		image *domain.Image
+		err   error
+	)
+	switch strings.TrimSpace(strings.ToLower(req.Action)) {
+	case "approve":
+		image, err = h.svc.ApproveAudit(c.Request.Context(), domain.ImageID(ctype.NewID(id)))
+	case "reject":
+		image, err = h.svc.RejectAudit(c.Request.Context(), domain.ImageID(ctype.NewID(id)))
+	default:
+		res.FailWithMsg("审核动作不存在（可选：approve / reject）", c)
+		return
+	}
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	res.OkWithData(AuditResponse{
+		ID:          image.ID,
+		AuditStatus: image.Status.String(),
+		AuditLabel:  image.Status.Label(),
+		URL:         h.displayURL(c, imagedisplay.PurposeCover, image.URL),
+	}, c)
 }
 
 // ProbeStyles 图片样式探活（管理员）。

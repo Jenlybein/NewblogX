@@ -3280,6 +3280,39 @@
                 },
                 "type": "object"
             },
+            "internal_media_adapter_http.AuditRequest": {
+                "properties": {
+                    "action": {
+                        "description": "Action 是处置动作：approve（放行）/ reject（驳回并删对象）。",
+                        "enum": [
+                            "approve",
+                            "reject"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "type": "object"
+            },
+            "internal_media_adapter_http.AuditResponse": {
+                "properties": {
+                    "audit_label": {
+                        "type": "string"
+                    },
+                    "audit_status": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_media_adapter_http.CompleteTaskRequest": {
                 "properties": {
                     "object_key": {
@@ -6765,6 +6798,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_filter_adapter_http.WordStatsResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_media_adapter_http_AuditResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_media_adapter_http.AuditResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -12602,6 +12649,55 @@
                     }
                 ],
                 "summary": "查询上传任务状态",
+                "tags": [
+                    "image"
+                ]
+            }
+        },
+        "/images/{id}/audit": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "图片 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_media_adapter_http.AuditRequest",
+                                "summary": "body",
+                                "description": "审核动作"
+                            }
+                        }
+                    },
+                    "description": "审核动作",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_media_adapter_http_AuditResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "图片人工审核",
                 "tags": [
                     "image"
                 ]

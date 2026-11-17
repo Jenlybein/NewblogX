@@ -62,6 +62,8 @@ func WireMedia(infra *Infra) {
 			}
 		},
 	)
+	// 挂到 Infra：审核超时扫描（cron）要复用**这一份**用例服务。
+	infra.MediaService = svc
 	router.SetImageHandler(mediahttp.NewHandler(svc, ImageDisplay()))
 }
 

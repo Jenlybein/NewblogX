@@ -413,6 +413,18 @@ func (s *Service) persist(ctx context.Context, task *domain.Task, verified *veri
 		s.logger.Warnf("保存完成的上传任务状态失败: task=%d err=%v", task.ID, err)
 	}
 	s.applyPendingAudit(ctx, &image)
+
+	// 主动审核兜底：回调可能永远不来（域名封禁期回调地址进不来、或控制台漏配），
+	// 所以入库后立刻自己跑一次审核。失败只记日志，图保持待审核转人工队列。
+	//
+	// 同步调用是有意的：私信发图、设置封面这类场景需要"立刻知道能不能用"，
+	// 异步化会把不确定性推给用户。单次调用是秒级，落在一次 HTTP 请求里可接受。
+	if image.Status == domain.StatusPending {
+		if err := s.CensorNow(ctx, &image); err != nil && s.logger != nil {
+			s.logger.Warnf("入库后主动审核未完成（图保持待审核）: image=%d err=%v", image.ID, err)
+		}
+	}
+
 	return &ConfirmResult{Task: task, Image: &image}, nil
 }
 

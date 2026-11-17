@@ -33,6 +33,7 @@ import type {
   ImageListResponseData,
   ListData,
   StyleProbeResponse,
+  AuditResponse,
   CollectionOutlineSavePayload,
   CollectionOutlineTreeResponseData,
   OutlineNodePayload,
@@ -511,6 +512,10 @@ export function deleteImages(id_list: string[]) {
  * 为什么值得一个专门的按钮：七牛对"样式名不存在"的响应是 404，**不会回退原图**，
  * 也不会报任何错。保存样式名后点一下，就能看到原图与四档样式的状态码和体积对照。
  */
+export function auditImage(id: string, action: 'approve' | 'reject') {
+  return api().request<AuditResponse>(`/images/${id}/audit`, { method: 'POST', body: { action } })
+}
+
 export function probeImageStyles(object_key?: string) {
   return api().request<StyleProbeResponse>('/images/style-probe', {
     method: 'POST',
@@ -808,6 +813,7 @@ export function unmuteAdminUser(userId: string) {
     body: { user_id: userId },
   })
 }
+
 
 
 

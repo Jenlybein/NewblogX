@@ -3895,6 +3895,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/images/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 图片人工审核 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 图片 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 审核动作 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_media_adapter_http.AuditRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_AuditResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs/action": {
         parameters: {
             query?: never;
@@ -9090,6 +9134,19 @@ export interface components {
             days?: number;
             items?: components["schemas"]["internal_filter_adapter_http.WordStatItem"][];
         };
+        "internal_media_adapter_http.AuditRequest": {
+            /**
+             * @description Action 是处置动作：approve（放行）/ reject（驳回并删对象）。
+             * @enum {string}
+             */
+            action: "approve" | "reject";
+        };
+        "internal_media_adapter_http.AuditResponse": {
+            audit_label?: string;
+            audit_status?: string;
+            id?: string;
+            url?: string;
+        };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
             upload_id: string;
@@ -10670,6 +10727,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse": {
             code?: number;
             data?: components["schemas"]["internal_filter_adapter_http.WordStatsResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_media_adapter_http_AuditResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_media_adapter_http.AuditResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {

@@ -91,6 +91,20 @@ func (s *Storage) PrivateURL(keyWithStyle string) string {
 	return s.inner().PrivateURL(keyWithStyle, expiry)
 }
 
+// Censor 主动调用七牛图片内容审核。
+func (s *Storage) Censor(ctx context.Context, bucket, objectKey string) (string, error) {
+	got, err := s.inner().CensorImage(ctx, bucket, objectKey)
+	if err != nil {
+		return "", err
+	}
+	return got.Suggestion, nil
+}
+
+// SetEnabled 在存储侧启用/禁用对象。
+func (s *Storage) SetEnabled(ctx context.Context, bucket, objectKey string, enabled bool) error {
+	return s.inner().SetObjectEnabled(ctx, bucket, objectKey, enabled)
+}
+
 // Probe 探测一条完整 URL 的状态码与字节数（后台样式探活用）。
 func (s *Storage) Probe(ctx context.Context, rawURL string) domain.ProbeResult {
 	got := s.inner().Probe(ctx, rawURL)

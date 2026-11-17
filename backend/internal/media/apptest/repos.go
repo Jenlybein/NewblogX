@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
 )
@@ -199,6 +200,19 @@ func (Storage) ImageInfo(_ string) (domain.ImageInfo, error) {
 
 // ObjectURL 实现 domain.ObjectStorage。
 func (Storage) ObjectURL(key string) string { return "https://example.com/" + key }
+
+// Censor 实现 domain.ObjectStorage：默认"审核通道不可用"。
+//
+// 为什么默认失败而不是默认 pass：大多数用例关心的是上传/确认主链路，
+// 若审核默认通过，`initialStatus` 的那条"新图默认待审核"就被悄悄绕过了。
+// 默认失败既贴近"没配审核"的真实环境，也让"图停在待审核"成为可观察的基线。
+// 需要审核给出结论的用例自己覆盖这个方法。
+func (Storage) Censor(_ context.Context, _, _ string) (string, error) {
+	return "", apperr.New(apperr.CodeImageAuditInvalid)
+}
+
+// SetEnabled 实现 domain.ObjectStorage（测试里不关心存储侧开关）。
+func (Storage) SetEnabled(_ context.Context, _, _ string, _ bool) error { return nil }
 
 // Probe 实现 domain.ObjectStorage：测试里不需要真实网络，固定返回 200。
 func (Storage) Probe(_ context.Context, rawURL string) domain.ProbeResult {

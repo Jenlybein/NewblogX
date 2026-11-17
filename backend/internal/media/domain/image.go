@@ -304,6 +304,13 @@ type ObjectStorage interface {
 	ObjectURL(key string) string
 	// Probe 探测一条完整 URL 的状态码与字节数（后台样式探活用）。
 	Probe(ctx context.Context, rawURL string) ProbeResult
+	// Censor 主动调用内容审核，返回管控建议（pass / review / block）。
+	//
+	// 返回 error 表示审核没跑起来（网络/鉴权/接口变更），调用方必须保持待审核，
+	// 不能把"调用失败"当成"通过"。
+	Censor(ctx context.Context, bucket, objectKey string) (suggestion string, err error)
+	// SetEnabled 在存储侧启用/禁用对象（疑似违规时禁掉，人工放行时解禁）。
+	SetEnabled(ctx context.Context, bucket, objectKey string, enabled bool) error
 }
 
 // ProbeResult 是一次 URL 探测的结果。

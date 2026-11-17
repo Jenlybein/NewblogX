@@ -308,6 +308,11 @@ func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskSched
 	// ── 每小时禁言到期对账（票 399）──
 	registerMuteReconcile(infra, sch)
 
+	// 图片审核超时转人工（ADR-0034）：等太久没结论的图进人工队列，
+	// **不因为超时就放行**。间隔取一分钟：待审核的图对作者是"看不见"的状态，
+	// 让它在一分钟内进队列比让它挂一小时更符合预期。
+	registerImageAuditSweep(infra, sch)
+
 	// ── 每日浏览历史清理（90 天）──
 	registerViewHistoryCleanup(infra, sch)
 
@@ -485,6 +490,42 @@ const (
 	muteReconcileLockTTL  = 10 * time.Minute
 	muteReconcileLockKey  = "cron:reconcile_mute:lock"
 )
+
+// imageAuditSweepInterval 是审核超时扫描的周期。
+//
+// 一分钟一次：它只扫"待审核 / 疑似"两档的前 100 条，成本很低；
+// 而积压的图对作者的表现是"传完一直看不见"，越早进人工队列越好。
+const (
+	imageAuditSweepInterval = time.Minute
+	imageAuditSweepLockTTL  = 30 * time.Second
+	imageAuditSweepLockKey  = "cron:image_audit_sweep:lock"
+)
+
+// registerImageAuditSweep 注册审核超时扫描任务。
+func registerImageAuditSweep(infra *Infra, sch taskScheduler) {
+	svc := infra.MediaService
+	if svc == nil {
+		return
+	}
+	if err := sch.Every(imageAuditSweepInterval, scheduler.Job{
+		Name:    "图片审核超时转人工",
+		LockKey: imageAuditSweepLockKey,
+		LockTTL: imageAuditSweepLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			// 超时口径每次现读运行时配置：后台调完时限不用重启。
+			timeout := infra.RuntimeSite.GetRuntimeStorage().AuditTimeoutSeconds
+			if timeout <= 0 {
+				timeout = 60
+			}
+			deadline := time.Now().Add(-time.Duration(timeout) * time.Second)
+			return svc.SweepAuditTimeout(ctx, deadline.Unix())
+		},
+	}); err != nil {
+		infra.Logger.Errorf("注册图片审核超时扫描任务失败: %v", err)
+		return
+	}
+	infra.Logger.Infof("已注册图片审核超时转人工任务: 每 %s 一次", imageAuditSweepInterval)
+}
 
 // ReconcileExpiredMutes 执行一次禁言到期对账，返回被清空的账号数。
 //

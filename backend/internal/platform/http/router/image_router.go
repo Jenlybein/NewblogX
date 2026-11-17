@@ -33,6 +33,7 @@ func ImageRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup.GET("", app.List)
 	// 样式探活（ADR-0034）：保存样式名后点一下就知道填没填对。
 	adminGroup.POST("style-probe", app.ProbeStyles)
+	// 人工审核（ADR-0034）：待审核/疑似的图由管理员放行或驳回。
+	adminGroup.POST(":id/audit", app.Audit)
 	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), app.Remove)
 }
-

@@ -147,6 +147,8 @@ var adminOnly = []struct {
 	{"DELETE", "/api/images"},
 	// 样式探活（ADR-0034）：普通用户的令牌必须被挡一次。
 	{"POST", "/api/images/style-probe"},
+	// 人工审核（ADR-0034）：普通用户令牌必须被挡一次。
+	{"POST", "/api/images/1/audit"},
 	{"GET", "/api/ai/providers"},
 	{"GET", "/api/ai/providers/vendors"},
 	{"POST", "/api/ai/providers"},

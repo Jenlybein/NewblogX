@@ -11,7 +11,7 @@
 import { h } from 'vue'
 import { NButton, NCard, NDataTable, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 
-import { deleteImages, getImages } from '~/services/admin'
+import { auditImage, deleteImages, getImages } from '~/services/admin'
 import type { ImageListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
 import { hasNextPage } from '~/utils/pagination'
@@ -92,13 +92,34 @@ const imageColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 100,
-    render: (row: ImageListItem) =>
-      h(
-        NButton,
-        { size: 'small', tertiary: true, type: 'error', disabled: !row.id, onClick: () => removeImage(row) },
-        { default: () => '删除' },
-      ),
+    width: 210,
+    render: (row: ImageListItem) => {
+      // 只有"还没有结论"的图能放行：违规是终局（对象已删），放行没有意义。
+      const pending = row.audit_status === 'pending' || row.audit_status === 'review'
+      const buttons = []
+      if (pending) {
+        buttons.push(
+          h(
+            NButton,
+            { size: 'small', tertiary: true, type: 'primary', disabled: !row.id, onClick: () => handleAudit(row, 'approve') },
+            { default: () => '放行' },
+          ),
+          h(
+            NButton,
+            { size: 'small', tertiary: true, type: 'warning', disabled: !row.id, onClick: () => handleAudit(row, 'reject') },
+            { default: () => '驳回' },
+          ),
+        )
+      }
+      buttons.push(
+        h(
+          NButton,
+          { size: 'small', tertiary: true, type: 'error', disabled: !row.id, onClick: () => removeImage(row) },
+          { default: () => '删除' },
+        ),
+      )
+      return h('div', { class: 'flex gap-2' }, buttons)
+    },
   },
 ]
 
@@ -122,8 +143,32 @@ async function refreshImages() {
   }
 }
 
-function removeImage(row: ImageListItem) {
+/**
+ * 人工审核一张图：放行（→ 通过并在存储侧解禁）或驳回（→ 违规并删对象）。
+ *
+ * 驳回是不可逆的，所以走二次确认；放行只改状态，直接执行。
+ */
+function handleAudit(row: ImageListItem, action: 'approve' | 'reject') {
   if (!row.id) return
+  const run = async () => {
+    await auditImage(String(row.id), action)
+    message.success(action === 'approve' ? '已放行' : '已驳回')
+    await refreshImages()
+  }
+  if (action === 'approve') {
+    void run()
+    return
+  }
+  dialog.warning({
+    title: '驳回图片',
+    content: '驳回后该图会被判定违规并删除存储里的文件，无法恢复。确定吗？',
+    positiveText: '驳回',
+    negativeText: '取消',
+    onPositiveClick: run,
+  })
+}
+
+function removeImage(row: ImageListItem) {  if (!row.id) return
   dialog.warning({
     title: '删除图片',
     content: String(row.id),

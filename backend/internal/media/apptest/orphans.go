@@ -277,6 +277,16 @@ func (s *CountingStorage) ImageInfo(key string) (domain.ImageInfo, error) {
 // ObjectURL 实现 domain.ObjectStorage。
 func (s *CountingStorage) ObjectURL(key string) string { return Storage{}.ObjectURL(key) }
 
+// Censor 实现 domain.ObjectStorage（孤儿扫描不审核）。
+func (s *CountingStorage) Censor(ctx context.Context, bucket, objectKey string) (string, error) {
+	return Storage{}.Censor(ctx, bucket, objectKey)
+}
+
+// SetEnabled 实现 domain.ObjectStorage。
+func (s *CountingStorage) SetEnabled(ctx context.Context, bucket, objectKey string, enabled bool) error {
+	return Storage{}.SetEnabled(ctx, bucket, objectKey, enabled)
+}
+
 // Probe 实现 domain.ObjectStorage（孤儿扫描不探活，这里只是满足接口）。
 func (s *CountingStorage) Probe(ctx context.Context, rawURL string) domain.ProbeResult {
 	return Storage{}.Probe(ctx, rawURL)

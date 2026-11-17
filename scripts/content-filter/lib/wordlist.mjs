@@ -7,6 +7,11 @@
 //   0 政治 / 1 毒品 / 2 色情 / 3 赌博 / 4 违法
 // 本站有 7 类：politics drugs porn gambling fraud fake_docs violence
 // 所以 "违法" 必须再细分 —— 这是本仓库对词表做的**改动之一**（见 docs/third-party）。
+//
+// **暴恐词表不进仓库**（ADR-0032 决策 8 / issue #393 US34）：涉政与暴恐类词只进
+// 数据库。所以这里只保留"怎么细分"的规则，枪爆刀那类词从部署侧的 gitignored 文件
+// 读（见 lib/violenceHints.mjs）；文件缺失时这类词兜底归 fraud —— 少一个类目
+// 比把词写进 git 安全。
 
 /** 上游数字标签 → 含义（仅用于日志与错误文案）。 */
 export const UPSTREAM_TAGS = {
@@ -44,6 +49,9 @@ export const TIER_BY_CATEGORY = {
  *
  * 只放"看到就基本能确定"的词，宁可漏判回落到 fraud，也不要把"病毒"判成毒品这类
  * 事故写进表里（所以用"冰毒/大麻"而不是单字"毒"）。
+ *
+ * 这里**没有 violence 组**：枪爆刀类词属暴恐类，按 ADR-0032 决策 8 只进数据库，
+ * 仓库里不出现。运行期由 buildWordlist 的 violenceHints 参数注入（见 lib/violenceHints.mjs）。
  */
 const ILLEGAL_KEYWORDS = [
   {
@@ -52,13 +60,6 @@ const ILLEGAL_KEYWORDS = [
       "发票", "假证", "办证", "证件", "文凭", "学历", "证书", "刻章", "假币", "伪币",
       "钞票", "印章", "公章", "车牌", "身份证", "护照", "户口", "驾照", "执照",
       "合格证", "税票", "代开", "印花税",
-    ],
-  },
-  {
-    category: "violence",
-    words: [
-      "枪", "弹药", "炸弹", "雷管", "炸药", "火药", "军火", "弓弩", "弩", "子弹",
-      "刀具", "匕首", "管制刀", "砍", "肢解", "爆头", "血腥", "斩首", "屠",
     ],
   },
   {
@@ -143,7 +144,7 @@ export function runeLength(word) {
  *
  * 多标签取 TAG_PRIORITY 里最靠前的那个；"违法" 走 ILLEGAL_KEYWORDS 细分，兜底 fraud。
  */
-export function mapCategory(word, tags) {
+export function mapCategory(word, tags, violenceHints = []) {
   const ordered = [...new Set(tags)].sort(
     (a, b) => TAG_PRIORITY.indexOf(a) - TAG_PRIORITY.indexOf(b),
   );
@@ -158,7 +159,7 @@ export function mapCategory(word, tags) {
       case "3":
         return "gambling";
       case "4":
-        return classifyIllegal(word);
+        return classifyIllegal(word, violenceHints);
       default:
         break;
     }
@@ -166,13 +167,21 @@ export function mapCategory(word, tags) {
   return null;
 }
 
-/** "违法" 再细分：假证发票 / 暴恐 / 毒品，兜底诈骗。 */
-export function classifyIllegal(word) {
+/**
+ * "违法" 再细分：假证发票 / 暴恐 / 毒品，兜底诈骗。
+ *
+ * violenceHints 是**部署侧**注入的暴恐词（仓库里没有这份清单）。为空时这类词
+ * 归 fraud —— 类目会不准，但词本身不会漏（词条仍进库、仍拦截）。
+ */
+export function classifyIllegal(word, violenceHints = []) {
   const text = String(word ?? "");
   for (const rule of ILLEGAL_KEYWORDS) {
     if (rule.words.some((keyword) => text.includes(keyword))) {
       return rule.category;
     }
+  }
+  if (violenceHints.some((keyword) => text.includes(keyword))) {
+    return "violence";
   }
   return "fraud";
 }
@@ -186,7 +195,15 @@ export function classifyIllegal(word) {
  *   - untagged：只出现在 dict 里、没有标签，默认丢弃（没有可信类目）；
  *   - dirty：含制表符/控制字符，写不进 TSV。
  */
-export function buildCandidates({ tags, dictWords = [], includeUntagged = false, minCjk = 2, maxRunes = 24 }) {
+export function buildCandidates({
+  tags,
+  dictWords = [],
+  includeUntagged = false,
+  minCjk = 2,
+  maxRunes = 24,
+  // violenceHints 是部署侧注入的暴恐词（仓库里没有这份清单），见 lib/violenceHints.mjs。
+  violenceHints = [],
+}) {
   const entries = [];
   const dropped = { cjkShort: 0, tooLong: 0, untagged: 0, dirty: 0, noCategory: 0 };
   const seen = new Set();
@@ -204,7 +221,7 @@ export function buildCandidates({ tags, dictWords = [], includeUntagged = false,
       dropped.tooLong += 1;
       return;
     }
-    const category = mapCategory(word, tagset);
+    const category = mapCategory(word, tagset, violenceHints);
     if (!category) {
       dropped.noCategory += 1;
       return;
@@ -363,3 +380,5 @@ export function summarize(entries) {
   }
   return { total: entries.length, tiers, categories };
 }
+
+

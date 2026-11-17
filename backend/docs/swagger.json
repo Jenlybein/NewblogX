@@ -3234,6 +3234,52 @@
                 },
                 "type": "object"
             },
+            "internal_filter_adapter_http.WordStatItem": {
+                "properties": {
+                    "category": {
+                        "enum": [
+                            "drugs",
+                            "gambling",
+                            "fraud",
+                            "porn",
+                            "fake_docs",
+                            "politics",
+                            "violence"
+                        ],
+                        "type": "string"
+                    },
+                    "count": {
+                        "description": "Count 是最近 90 天的出现处数（词云字号的数据源）。",
+                        "type": "integer"
+                    },
+                    "tier": {
+                        "enum": [
+                            "block",
+                            "watch"
+                        ],
+                        "type": "string"
+                    },
+                    "word": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_filter_adapter_http.WordStatsResponse": {
+                "properties": {
+                    "days": {
+                        "type": "integer"
+                    },
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_filter_adapter_http.WordStatItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_media_adapter_http.CompleteTaskRequest": {
                 "properties": {
                     "object_key": {
@@ -4065,6 +4111,10 @@
             },
             "internal_site_adapter_http.SiteSectionContentFilterRequest": {
                 "properties": {
+                    "retain_days": {
+                        "description": "RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。\n\n它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营\n对\"审计价值 vs 数据量\"的取舍，不该由一次发版决定。清理任务每天读一次现值，\n所以改它不需要重启。",
+                        "type": "integer"
+                    },
                     "whitelist": {
                         "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
                         "items": {
@@ -4086,6 +4136,10 @@
             },
             "internal_site_adapter_http.SiteSectionContentFilterResponse": {
                 "properties": {
+                    "retain_days": {
+                        "description": "RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。\n\n它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营\n对\"审计价值 vs 数据量\"的取舍，不该由一次发版决定。清理任务每天读一次现值，\n所以改它不需要重启。",
+                        "type": "integer"
+                    },
                     "whitelist": {
                         "description": "Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），\n但不替换文本。",
                         "items": {
@@ -6373,6 +6427,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_filter_adapter_http.HitListResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_filter_adapter_http.WordStatsResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -11331,7 +11399,8 @@
                             "enum": [
                                 "pending",
                                 "ignored",
-                                "deleted"
+                                "deleted",
+                                "account"
                             ],
                             "type": "string"
                         }
@@ -11450,6 +11519,31 @@
                     }
                 ],
                 "summary": "处置一条关键词风险记录（管理员）",
+                "tags": [
+                    "content-filter"
+                ]
+            }
+        },
+        "/content-filter/word-stats": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "词云统计（管理员）",
                 "tags": [
                     "content-filter"
                 ]

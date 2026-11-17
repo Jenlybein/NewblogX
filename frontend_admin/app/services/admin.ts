@@ -56,6 +56,7 @@ import type {
   ContentFilterHitListData,
   ContentFilterHandleResult,
   ContentFilterHandleBatchResult,
+  ContentFilterWordStatsData,
   UploadRuntimeConfig,
   UserListResponseData,
   GroupOrderPayload,
@@ -713,6 +714,16 @@ export function getContentFilterHits(query: {
   user_id?: string
 }) {
   return api().request<ContentFilterHitListData>('/content-filter/hits', { query })
+}
+
+/**
+ * 词云统计（管理员，ADR-0032 决策 9）：最近 90 天每个命中词的出现处数。
+ *
+ * 窗口由后端定并在响应里回显 `days`，前端不自算 90 —— 口径只有一处。
+ * 读不到时页面退化成「全部 0 次」，不阻断词表编辑。
+ */
+export function getContentFilterWordStats() {
+  return api().request<ContentFilterWordStatsData>('/content-filter/word-stats')
 }
 /**
  * 处置一条命中记录（票 398 / 399）：内容动作（删除 / 忽略）或账号动作（封禁 / 禁言）。

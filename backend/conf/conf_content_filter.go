@@ -15,6 +15,12 @@ type ContentFilter struct {
 	// Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
 	// 但不替换文本。
 	Whitelist []string `yaml:"whitelist" json:"whitelist"`
+	// RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
+	//
+	// 它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
+	// 对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
+	// 所以改它不需要重启。
+	RetainDays int `yaml:"retain_days" json:"retain_days" min:"1" max:"3650"`
 }
 
 // ContentFilterWord 是词表里的一条。

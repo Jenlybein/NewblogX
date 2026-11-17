@@ -149,6 +149,36 @@ func (s *Service) List(ctx context.Context, in ListInput) (ListResult, error) {
 	return result, nil
 }
 
+// WordStatsDays 是词云统计的窗口（天）。
+//
+// 与风险页 Top 用同一个 90 天：两个视图在同一页上（词云在设置页、Top 在风险页），
+// 窗口不一致会让运营对"哪个数字可信"产生疑问。
+const WordStatsDays = domain.TopWindowDays
+
+// WordStatsResult 是词云数据：窗口内的词与各自出现处数。
+type WordStatsResult struct {
+	Days  int
+	Words []domain.WordStat
+}
+
+// WordStats 返回词云数据（词云字号的数据源，ADR-0032 决策 9）。
+//
+// 窗口固定为 90 天，与 Top 同一口径；失败时返回空集而不是报错 —— 词云是
+// 设置页的一个辅助展示，读不到不该让"词表编辑"整页不可用。
+func (s *Service) WordStats(ctx context.Context) WordStatsResult {
+	result := WordStatsResult{Days: WordStatsDays}
+	if s.hits == nil {
+		return result
+	}
+	stats, err := s.hits.WordStats(ctx, time.Now().AddDate(0, 0, -WordStatsDays))
+	if err != nil {
+		s.logError("读取词云统计失败（词表页照常可用）: %v", err)
+		return result
+	}
+	result.Words = stats
+	return result
+}
+
 // toWords 把引擎的命中明细转成领域形状。
 func toWords(hits []contentfilter.Hit) []domain.Word {
 	out := make([]domain.Word, 0, len(hits))

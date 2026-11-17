@@ -131,6 +131,7 @@ var adminOnly = []struct {
 	{"PUT", "/api/site/content_filter"},
 	// 关键词风险列表（ADR-0032 决策 7 / 票 396）：命中记录属敏感信息，整段管理员专属。
 	{"GET", "/api/content-filter/hits"},
+	{"GET", "/api/content-filter/word-stats"},
 	{"POST", "/api/content-filter/hits/handle-batch"},
 	{"POST", "/api/content-filter/hits/:id/handle"},
 	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
@@ -322,4 +323,5 @@ func TestAdminOnlyListCoversContract(t *testing.T) {
 		}
 	}
 }
+
 

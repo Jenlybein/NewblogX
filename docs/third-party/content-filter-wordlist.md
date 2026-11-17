@@ -25,6 +25,10 @@
    上游 `4 违法` 按关键词表再细分为 `fake_docs`（发票、证件、印章、假币…）、
    `violence`（枪支、弹药、刀械、爆炸物…）、`drugs`（冰毒、大麻、海洛因…），
    都不命中时兜底 `fraud`（诈骗、刷单、代开发票以外的推广话术）。
+   **`violence` 的细分词表不在仓库里**：它是暴恐类词，按 ADR-0032 决策 8 只允许存在
+   于部署侧，构建时由 `BLOGX_VIOLENCE_HINTS` 指向的 gitignored 文件注入
+   （`scripts/content-filter/lib/violenceHints.mjs`）；没注入时这类词兜底归 `fraud`
+   —— 类目会不准，但词本身仍进库、仍拦截。
 2. **多标签重排**：一个词带上游多个标签时按 `政治 > 毒品 > 违法 > 赌博 > 色情`
    取第一个，目的是让 block 档类目优先于 watch 档类目。
 3. **档位**：`politics / drugs / violence / fake_docs / fraud → block`（拦截词），
@@ -37,7 +41,8 @@
 5. **默认排除 `politics` 与 `violence`**：这两类的词条只允许在**部署侧**直接导入数据库，
    不进仓库、不进默认 `settings.yaml`、不进 CI 与日志（见 ADR-0032 的安全约束）。
    默认输出**不含**这两类；只有显式 `--include-politics` / `--include-violence` /
-   `--include-all` 才会生成。
+   `--include-all` 才会生成。注意这不只是「输出时排除」：连**用来判类目的触发词**
+   也不在仓库里（`violence` 那一组原本写在 `lib/wordlist.mjs`，已移出，见第 1 条）。
 6. **未标注词默认不用**：上游黑名单里没有标签的 2 万余条词没有可信类目，默认丢弃；
    `--include-untagged` 会把它们按"违法 → 兜底诈骗"纳入。
 
@@ -72,6 +77,16 @@ backend -f config/settings.yaml -filter-import .gotmp/content-filter-words.tsv -
 
 部署侧需要 `politics` / `violence` 词条时，在**部署机**上另行生成一份
 （`--include-politics --include-violence`），只导入数据库，不提交、不外传。
+生成前先把暴恐触发词写进部署侧的 `violence-hints.txt`（每行一词，gitignored）：
+
+```bash
+BLOGX_VIOLENCE_HINTS=/srv/blogx/private/violence-hints.txt \
+  node scripts/content-filter/build-wordlist.mjs --include-all --out /tmp/words.tsv
+```
+
+没设 `BLOGX_VIOLENCE_HINTS` 或文件不存在时脚本**不报错**：暴恐词兜底归 `fraud`
+（词仍进库、仍拦截，只是风险页里类目显示为诈骗）。日志只打印来源路径与条数，
+从不打印任何词。
 
 ## 分发时的义务
 

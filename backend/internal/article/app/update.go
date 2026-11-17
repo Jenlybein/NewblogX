@@ -19,15 +19,6 @@ import (
 // 会不会提交"以及"提交的标题/正文是什么"，然后预占配额、在事务外评分，
 // 最后才进写事务（写事务会重新读一遍文章，以它读到的状态为准）。
 func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResult, error) {
-	// 账号闸门（票 399 / ADR-0032 决策 8）：更新文章属于发布类动作。
-	// 与 Create 同一口径 —— 只有登录用户才会走到这里（匿名在 previewUpdate 里被拒），
-	// 闸门放在最前面，被禁言的人不会先看到"文章不存在"。
-	if s.publishGate != nil {
-		if err := s.publishGate.EnsureCanPublish(ctx, cmd.Actor.UserID); err != nil {
-			return nil, err
-		}
-	}
-
 	var result *UpdateResult
 	// 投稿配额的预占点在这里而不是事务之前：这次更新到底会不会"提交"，
 	// 要读到文章当前状态才知道（草稿提交 vs 已发布文章编辑后自动送审）。
@@ -67,6 +58,18 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		return err
 	}); err != nil {
 		return nil, err
+	}
+
+	// 账号闸门（票 399 / ADR-0032 决策 8、10）：禁言 / 禁用 / 封禁只拦**发布类**动作。
+	//
+	// 位置在只读预演**之后**：这次更新到底会不会"提交"（草稿提交 vs 已发布文章的
+	// 编辑后自动送审 vs 纯编辑草稿）必须先读到文章当前状态才知道。代价是被禁言的
+	// 人可能先看到"文章不存在"而不是"你被禁言了" —— 这是刻意接受的：把闸门提前
+	// 就等于连"整理草稿"一起拦掉，比文档口径更严。
+	if preview.NeedsSubmit && s.publishGate != nil {
+		if err := s.publishGate.EnsureCanPublish(ctx, cmd.Actor.UserID); err != nil {
+			return nil, err
+		}
 	}
 
 	// 预演说"这次会提交"就在事务外把配额、风险扫描、评分一次做完。

@@ -119,7 +119,9 @@ func (s *Service) filterOne(
 	ctx context.Context, userID domain.UserID, contentID ctype.ID, text string,
 	apply func(context.Context, FilterText) (FilteredText, error),
 ) (string, int) {
-	if apply == nil || strings.TrimSpace(text) == "" {
+	// apply 恒非 nil：调用方（filterArticleText / filterCollectionText）已经各判过一次
+	// "端口没装配"，方法值也永远不是 nil。这里只判"这段文本是不是空的"。
+	if strings.TrimSpace(text) == "" {
 		return text, 0
 	}
 	got, err := apply(ctx, FilterText{UserID: userID, ContentID: contentID, Text: text})
@@ -131,3 +133,4 @@ func (s *Service) filterOne(
 	}
 	return got.Masked, got.FilteredCount
 }
+

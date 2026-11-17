@@ -2982,7 +2982,7 @@ export interface paths {
                     /** @description 文本面 */
                     surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
                     /** @description 处理状态 */
-                    status?: "pending" | "ignored" | "deleted";
+                    status?: "pending" | "ignored" | "deleted" | "account";
                     /** @description 用户 ID */
                     user_id?: string;
                 };
@@ -3090,6 +3090,42 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content-filter/word-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 词云统计（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8923,6 +8959,19 @@ export interface components {
             user_id?: string;
             user_nickname?: string;
         };
+        "internal_filter_adapter_http.WordStatItem": {
+            /** @enum {string} */
+            category?: "drugs" | "gambling" | "fraud" | "porn" | "fake_docs" | "politics" | "violence";
+            /** @description Count 是最近 90 天的出现处数（词云字号的数据源）。 */
+            count?: number;
+            /** @enum {string} */
+            tier?: "block" | "watch";
+            word?: string;
+        };
+        "internal_filter_adapter_http.WordStatsResponse": {
+            days?: number;
+            items?: components["schemas"]["internal_filter_adapter_http.WordStatItem"][];
+        };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
             upload_id: string;
@@ -9234,6 +9283,14 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionContentFilterRequest": {
             /**
+             * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
+             *
+             *     它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
+             *     对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
+             *     所以改它不需要重启。
+             */
+            retain_days?: number;
+            /**
              * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
              *     但不替换文本。
              */
@@ -9245,6 +9302,14 @@ export interface components {
             words?: components["schemas"]["conf.ContentFilterWord"][];
         };
         "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+            /**
+             * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
+             *
+             *     它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
+             *     对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
+             *     所以改它不需要重启。
+             */
+            retain_days?: number;
             /**
              * @description Whitelist 是白名单：词或短语。命中白名单仍会记录一条命中（用于统计误伤），
              *     但不替换文本。
@@ -10186,6 +10251,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_HitListResponse": {
             code?: number;
             data?: components["schemas"]["internal_filter_adapter_http.HitListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_filter_adapter_http_WordStatsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_filter_adapter_http.WordStatsResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {

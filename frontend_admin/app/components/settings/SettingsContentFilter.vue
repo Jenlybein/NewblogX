@@ -10,9 +10,9 @@
  *      按正常写法填即可，不需要把变体逐个加进去；
  *   3. **保存即生效**：后端写完缓存就按新词表重建过滤引擎，不需要重启。
  *
- * 词云：字号 = 近 90 天命中次数、颜色 = 档位。命中统计的接口在后续票里接（风险页那批），
- * 本轮所有词条的次数都是 0，于是字号统一 —— 布局与颜色先按最终形状做出来，
- * 不造假数据。
+ * 词云：字号 = 近 90 天命中处数、颜色 = 档位。次数来自
+ * `GET /content-filter/word-stats`（窗口由后端定，响应回显 days，前端不自算 90）。
+ * 统计读不到时不影响本页：词表照常可编辑，字号退化成统一 14px（不伪造差异）。
  */
 import {
   NAlert,
@@ -21,6 +21,7 @@ import {
   NDynamicTags,
   NFormItem,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
@@ -29,7 +30,11 @@ import {
   NTag,
   useMessage,
 } from 'naive-ui'
-import { getContentFilterRuntimeConfig, updateContentFilterRuntimeConfig } from '~/services/admin'
+import {
+  getContentFilterRuntimeConfig,
+  getContentFilterWordStats,
+  updateContentFilterRuntimeConfig,
+} from '~/services/admin'
 import type { ContentFilterRuntimeConfig, ContentFilterWord } from '~/types/api'
 
 type Tier = ContentFilterWord['tier']
@@ -46,6 +51,8 @@ const activeTab = ref('words')
 const keyword = ref('')
 const categoryFilter = ref('all')
 const hitCounts = ref<Record<string, number>>({})
+// 窗口天数由后端响应回显：页面上要显示"最近 N 天"，N 不该在这里写死。
+const hitWindowDays = ref(90)
 
 const TIER_OPTIONS: { label: string, value: Tier }[] = [
   { label: '拦截词（明确违法/高危）', value: 'block' },
@@ -68,7 +75,7 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
 const words = computed<ContentFilterWord[]>(() => config.value.words ?? [])
 const whitelist = computed<string[]>(() => config.value.whitelist ?? [])
 
-/** 近 90 天命中次数（本轮无数据源，先全部按 0）。 */
+/** 窗口内命中处数（来自 word-stats；没有命中记录时为 0）。 */
 function hitCountOf(word: string): number {
   return hitCounts.value[word] ?? 0
 }
@@ -106,12 +113,26 @@ async function load() {
     config.value = {
       words: current.words ?? [],
       whitelist: current.whitelist ?? [],
+      retain_days: current.retain_days ?? 90,
     }
     loaded.value = true
   } catch {
     message.error('内容过滤配置加载失败')
   } finally {
     loading.value = false
+  }
+  // 词云统计单独拉：它失败不该让整页打不开（词表编辑才是本页的主功能）。
+  await loadWordStats()
+}
+
+/** 拉一次词云统计；失败只记一次提示，不清空既有值。 */
+async function loadWordStats() {
+  try {
+    const stats = await getContentFilterWordStats()
+    hitWindowDays.value = stats.days || 90
+    hitCounts.value = Object.fromEntries(stats.items.map(item => [item.word, item.count]))
+  } catch {
+    // 统计是辅助展示：静默退化成"全部 0 次"，不打断词表编辑。
   }
 }
 
@@ -121,6 +142,7 @@ async function save() {
     await updateContentFilterRuntimeConfig({
       words: words.value,
       whitelist: whitelist.value,
+      retain_days: config.value.retain_days,
     })
     message.success('词表已保存；过滤器按新词表重建，立即生效')
   } catch {
@@ -287,8 +309,8 @@ onMounted(load)
           </div>
 
           <NAlert type="info" :bordered="false" class="mb-4">
-            字号 = 近 90 天命中次数，颜色 = 档位。命中统计随风险页一起接入，本轮尚未有数据，
-            所以字号暂时统一；点任意一个词可以改档位、改类目或删除，改动先落在本页，点「保存词表」才写进后端。
+            字号 = 最近 {{ hitWindowDays }} 天的命中处数（来自后端统计），颜色 = 档位；没有命中记录的词统一小字号。
+            点任意一个词可以改档位、改类目或删除，改动先落在本页，点「保存词表」才写进后端。
           </NAlert>
 
           <div v-if="filteredWords.length > 0" class="cf-cloud" data-role="content-filter-cloud">
@@ -299,7 +321,7 @@ onMounted(load)
               class="cf-word"
               :class="entry.tier === 'block' ? 'cf-word--block' : 'cf-word--watch'"
               :style="{ fontSize: fontSizeOf(entry.word) }"
-              :title="`${TIER_LABEL[entry.tier]} · ${CATEGORY_LABEL[entry.category]} · 近 90 天命中 ${hitCountOf(entry.word)} 次`"
+              :title="`${TIER_LABEL[entry.tier]} · ${CATEGORY_LABEL[entry.category]} · 最近 ${hitWindowDays} 天命中 ${hitCountOf(entry.word)} 处`"
               @click="openEditor(entry)">
               {{ entry.word }}
             </button>
@@ -321,6 +343,25 @@ onMounted(load)
             <NDynamicTags v-model:value="config.whitelist" data-role="content-filter-whitelist" />
           </NFormItem>
           <NButton type="primary" :loading="saving" @click="save">保存白名单</NButton>
+        </NCard>
+      </NTabPane>
+
+      <NTabPane name="retention" tab="命中记录保留">
+        <NCard class="admin-card mb-4" size="small" title="命中记录保留期">
+          <NAlert type="info" :bordered="false" class="mb-4">
+            关键词风险记录（命中词 + 命中位置前后 20 字上下文）保留多久由这里决定，
+            默认 90 天。清理任务每天读一次现值，改完保存即生效，不需要重启。
+            记录是<strong>物理删除</strong>：过期之后连上下文片段都不在库里了。
+          </NAlert>
+          <NFormItem label="保留天数（1–3650）">
+            <NInputNumber
+              v-model:value="config.retain_days"
+              :min="1"
+              :max="3650"
+              class="admin-field--number"
+              data-role="content-filter-retain-days" />
+          </NFormItem>
+          <NButton type="primary" :loading="saving" @click="save">保存保留期</NButton>
         </NCard>
       </NTabPane>
     </NTabs>
@@ -421,3 +462,4 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+

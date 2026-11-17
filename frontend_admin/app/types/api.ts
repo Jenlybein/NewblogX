@@ -279,6 +279,14 @@ export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.Si
  * 这一段只有后台具名端点（`GET /site/admin/content_filter` / `PUT /site/content_filter`），
  * 读者站与任何匿名端点都拿不到它 —— 词表公开等于把"该绕开哪些词"告诉所有人。
  */
+/** 词云一格：词 + 窗口内出现处数 + 展示用档位与类目。 */
+export type ContentFilterWordStatItem =
+  RequiredSchema<"internal_filter_adapter_http.WordStatItem">
+
+/** 词云数据的 data 载荷：`{days, items}`（days 由后端定并在响应里回显）。 */
+export type ContentFilterWordStatsData =
+  RequiredSchema<"internal_filter_adapter_http.WordStatsResponse">
+
 export type ContentFilterRuntimeConfig =
   RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterResponse">
 /** 词表里的一条：词 + 档位（block/watch）+ 类目（固定七类）。 */
@@ -412,3 +420,4 @@ export type ContentFilterHandleBatchItem = RequiredSchema<"internal_filter_adapt
 
 /** 批量处置的 data 载荷：`{results}`。 */
 export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_adapter_http.HandleBatchResponse">
+

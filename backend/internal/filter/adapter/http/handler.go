@@ -41,7 +41,7 @@ func NewHandler(svc *app.Service) *Handler {
 // @Param page query int false "页码"
 // @Param limit query int false "每页条数"
 // @Param surface query string false "文本面" Enums(article,comment,nickname,abstract,chat,collection)
-// @Param status query string false "处理状态" Enums(pending,ignored,deleted)
+// @Param status query string false "处理状态" Enums(pending,ignored,deleted,account)
 // @Param user_id query string false "用户 ID"
 // @Success 200 {object} kernel.Envelope[HitListResponse]
 // @Router /content-filter/hits [get]
@@ -57,6 +57,30 @@ func (h *Handler) ListHits(c *gin.Context) {
 		return
 	}
 	res.OkWithData(toListResponse(result), c)
+}
+
+// WordStats 返回词云数据（管理员）：最近 90 天每个命中词的出现处数。
+//
+// 字号口径在后端定（ADR-0032 决策 9）：前端只负责按 count 画大小，不自己算窗口。
+// 读不到统计时返回空集而不是报错 —— 词云是词表页的辅助展示，不该让整页不可用。
+// @Summary 词云统计（管理员）
+// @Tags content-filter
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[WordStatsResponse]
+// @Router /content-filter/word-stats [get]
+func (h *Handler) WordStats(c *gin.Context) {
+	result := h.svc.WordStats(c.Request.Context())
+	items := make([]WordStatItem, 0, len(result.Words))
+	for _, stat := range result.Words {
+		items = append(items, WordStatItem{
+			Word:     stat.Word,
+			Count:    stat.Count,
+			Tier:     string(stat.Tier),
+			Category: string(stat.Category),
+		})
+	}
+	res.OkWithData(WordStatsResponse{Days: result.Days, Items: items}, c)
 }
 
 // HandleHit 处置一条关键词风险记录（管理员）。
@@ -275,3 +299,4 @@ func toHitItem(row domain.Hit) HitItem {
 
 // timeLayout 是后台列表统一的时间格式（与评论管理列表一致）。
 const timeLayout = "2006-01-02 15:04:05"
+

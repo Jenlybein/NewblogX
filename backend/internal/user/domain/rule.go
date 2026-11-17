@@ -168,6 +168,13 @@ func (e *MuteError) Error() string {
 // Unwrap 让 errors.Is / apperr.CodeOf 能拿到错误码（文案由 Error 覆盖）。
 func (e *MuteError) Unwrap() error { return apperr.New(apperr.CodeUserMuted) }
 
+// UserMessage 让共享响应层用这句动态文案，而不是消息表里那句静态的。
+//
+// 禁言的静态文案只有「账号已被禁言」，而「到哪天、还有几天」正是用户唯一想知道的。
+// res.Fail 只在 ProtocolValidation 上认这个方法，所以它不会把服务异常的内部细节
+// 带进响应（这条通道不给别的错误用）。
+func (e *MuteError) UserMessage() string { return e.Error() }
+
 func (e *MuteError) remainingDays() int {
 	now := e.Now
 	if now.IsZero() {
@@ -416,3 +423,4 @@ func ValidatePassword(s string) error {
 	}
 	return nil
 }
+

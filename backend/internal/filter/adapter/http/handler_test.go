@@ -197,3 +197,14 @@ func (r *fakeRepo) MarkHandled(_ context.Context, _ ctype.ID, _ domain.Handle) (
 	return false, nil
 }
 
+// PurgeBefore 是保留期清理（ADR-0032 决策 10）加进仓储端口的方法。
+// 本文件关心的是读面 / 处置，清理行为由 cron 侧用例覆盖，这里给"什么都不删"的最简实现。
+func (r *fakeRepo) PurgeBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
+// WordStats 是词云统计（ADR-0032 决策 9）加进仓储端口的方法。
+// 本文件不验证词云口径，给"空集"最简实现；口径由 adapter 与装配层用例覆盖。
+func (r *fakeRepo) WordStats(_ context.Context, _ time.Time) ([]domain.WordStat, error) {
+	return nil, nil
+}

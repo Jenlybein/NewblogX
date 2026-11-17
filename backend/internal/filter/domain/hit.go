@@ -184,10 +184,15 @@ type TopUser struct {
 
 // TopWindowDays 是"命中用户 Top"的统计窗口（天）。
 //
-// 与风险记录保留期一致（ADR-0032 决策 10 的 90 天）。保留期目前还没有配置项，
-// 等清理任务那张票把它搬进运行时配置时，这里跟着改成注入值 —— 现在写死一个
-// 常量，比先编一个没人读的配置键好。
+// 它与**保留期**是两件独立的事，刻意不共用配置：Top 是一个固定口径的展示
+// （"最近 90 天谁命中最多"），保留期是运营对审计数据的取舍（`content_filter.retain_days`）。
+// 把两者绑在一起会让"调长保留期"顺手改掉 Top 的含义。
 const TopWindowDays = 90
+
+// DefaultRetainDays 是命中记录保留天数的兜底值（配置里没写或写歪时用它）。
+//
+// 领域层写一份而不是从 conf 读：清理任务的输入是"天数"，它不该反过来依赖配置包。
+const DefaultRetainDays = 90
 
 // Repository 是命中记录的持久化端口。
 type Repository interface {
@@ -205,6 +210,26 @@ type Repository interface {
 	// 并发下两个管理员同时点处置，第二个会拿到 false，应用层据此重读当前状态
 	// 并幂等返回 —— 而不是覆盖第一个人的处理痕迹。
 	MarkHandled(ctx context.Context, id ctype.ID, h Handle) (bool, error)
+	// PurgeBefore 物理删除 createdAt 早于 cutoff 的记录，返回删除条数。
+	//
+	// 物理删除而不是软删：命中记录本身就是审计副本，软删只会在同一张表里
+	// 留一份"看不见但还在"的上下文片段 —— 那与"保留 90 天"的承诺相反。
+	PurgeBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	// WordStats 统计 since 之后每个命中词的出现处数（词云字号的数据源）。
+	//
+	// 按**处数**而不是按记录数：同一个词出现在三篇文章里，词云上的字号该更大。
+	// 类目与档位取该词最近一次记录里的值（同一个词在两处被标了不同档位时以最新为准）。
+	WordStats(ctx context.Context, since time.Time) ([]WordStat, error)
+}
+
+// WordStat 是一个命中词在统计窗口内的出现处数（词云的一格）。
+type WordStat struct {
+	Word string
+	// Tier / Category 只用于颜色与筛选，不参与排序。
+	Tier     contentfilter.Tier
+	Category contentfilter.Category
+	// Count 是窗口内的出现处数（同一记录里同一个词命中多处时按处数累加）。
+	Count int
 }
 
 // Logger 是窄日志接口。

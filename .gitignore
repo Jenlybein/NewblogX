@@ -58,3 +58,9 @@ deploy/docker/clickhouse/users.d/default-user.xml
 # 本地视觉核对用的截图与临时 harness
 .shots/
 .harness/
+
+# 内容过滤的暴恐词表（ADR-0032 决策 8）：只存部署侧，不进仓库、不进 CI。
+# 构建词表时用 BLOGX_VIOLENCE_HINTS 指向它（见 scripts/content-filter/lib/violenceHints.mjs）。
+violence-hints.txt
+wordlist-*.tsv
+wordlist-*.ndjson

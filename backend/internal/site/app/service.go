@@ -364,8 +364,9 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 	}
 
 	out := conf.ContentFilter{
-		Words:     make([]conf.ContentFilterWord, 0, len(normalized)),
-		Whitelist: contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
+		Words:      make([]conf.ContentFilterWord, 0, len(normalized)),
+		Whitelist:  contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
+		RetainDays: normalizeRetainDays(contentFilter.RetainDays),
 	}
 	for _, entry := range normalized {
 		out.Words = append(out.Words, conf.ContentFilterWord{
@@ -375,6 +376,29 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 		})
 	}
 	return out, nil
+}
+
+// DefaultContentFilterRetainDays 是命中记录保留天数的缺省值（与 ADR-0032 决策 10 一致）。
+const DefaultContentFilterRetainDays = 90
+
+// MaxContentFilterRetainDays 是保留天数的上限（十年）。
+//
+// 上限不是为了"数据量"（十年早就该归档了），而是为了让越界值有一个确定的落点：
+// 0 / 负数当缺省（老配置没有这个键时就是 0），超上限钳到上限，都不报错 ——
+// 与 deco 的 Normalize 同一口径（配置写歪不该让运营保存不了词表）。
+const MaxContentFilterRetainDays = 3650
+
+// normalizeRetainDays 把保留天数钳进 [1, MaxContentFilterRetainDays]。
+//
+// 0 表示"老配置里没有这个键"，按缺省值处理；负数与超上限钳到边界，不报错。
+func normalizeRetainDays(days int) int {
+	if days <= 0 {
+		return DefaultContentFilterRetainDays
+	}
+	if days > MaxContentFilterRetainDays {
+		return MaxContentFilterRetainDays
+	}
+	return days
 }
 
 // UpdateDeco 覆盖装饰配置。

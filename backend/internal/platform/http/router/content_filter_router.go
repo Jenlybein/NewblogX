@@ -40,4 +40,6 @@ func ContentFilterRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup.GET("hits", app.ListHits)
 	adminGroup.POST("hits/handle-batch", app.HandleBatchHits)
 	adminGroup.POST("hits/:id/handle", app.HandleHit)
+	// 词云统计（ADR-0032 决策 9）：字号 = 最近 90 天出现处数。
+	adminGroup.GET("word-stats", app.WordStats)
 }

@@ -62,13 +62,19 @@ test("mapCategory：上游五类一一对应", () => {
   assert.equal(mapCategory("某词", ["3"]), "gambling");
 });
 
-test("classifyIllegal：发票假证 → fake_docs，枪爆刀 → violence，毒品 → drugs，其余兜底 fraud", () => {
+test("classifyIllegal：发票假证 → fake_docs，毒品 → drugs，其余兜底 fraud", () => {
   assert.equal(classifyIllegal("代开增值税发票"), "fake_docs");
   assert.equal(classifyIllegal("办假证"), "fake_docs");
-  assert.equal(classifyIllegal("仿真枪买卖"), "violence");
-  assert.equal(classifyIllegal("炸药店"), "violence");
   assert.equal(classifyIllegal("冰毒批发"), "drugs");
   assert.equal(classifyIllegal("刷单日结"), "fraud");
+});
+
+// 暴恐词表**不在仓库里**（ADR-0032 决策 8）：没有注入时这类词兜底 fraud，
+// 注入后归 violence。这条用例同时守住"仓库里不得出现暴恐词"这件事：
+// 词表只能从 violenceHints 参数来，不能写死在 lib/wordlist.mjs 里。
+test("classifyIllegal：没有注入暴恐词时兜底 fraud，注入后归 violence", () => {
+  assert.equal(classifyIllegal("某违禁品交易"), "fraud");
+  assert.equal(classifyIllegal("某违禁品交易", ["违禁品"]), "violence");
 });
 
 test("mapCategory：多标签按 block 档优先归类", () => {
@@ -138,14 +144,19 @@ test("buildCandidates：默认丢弃无标签词，--include-untagged 时按违�
 
 test("excludeCategories：默认排除 politics 与 violence 后输出里不含这两类", () => {
   const { entries } = buildCandidates({
+    // 暴恐词由部署侧注入（仓库里没有这份清单）：这里显式喂一条，才能证明
+    // "violence 类目确实会被排除"，而不是"根本没产生 violence 类目"。
+    violenceHints: ["违禁品"],
     tags: new Map([
       ["某政治词", ["0"]],
-      ["仿真枪", ["4"]],
+      ["某违禁品", ["4"]],
       ["冰毒", ["1"]],
       ["成人视频", ["2"]],
       ["某赌博词", ["3"]],
     ]),
   });
+  // 先确认输入确实产生了 violence 类目（否则下面的排除断言是空转）。
+  assert.equal(entries.some((entry) => entry.category === "violence"), true);
   const kept = excludeCategories(entries, ["politics", "violence"]);
   const categories = new Set(kept.map((entry) => entry.category));
   assert.equal(categories.has("politics"), false);
@@ -245,3 +256,4 @@ test("parseArgs：非法参数给出中文错误而不是静默忽略", () => {
   assert.throws(() => parseArgs(["--nope"]), /不认识的参数/);
   assert.throws(() => parseArgs(["--source"]), /需要一个值/);
 });
+

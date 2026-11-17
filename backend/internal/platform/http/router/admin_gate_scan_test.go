@@ -111,6 +111,7 @@ var adminRouteTemplates = []string{
 	"GET /api/content-filter/hits",
 	"POST /api/content-filter/hits/:id/handle",
 	"POST /api/content-filter/hits/handle-batch",
+	"GET /api/content-filter/word-stats",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",
@@ -418,4 +419,5 @@ func TestClassificationGateIsNotAlwaysGreen(t *testing.T) {
 		t.Fatal("canary 失效：未归类判定恒为假，门禁永远不会红")
 	}
 }
+
 

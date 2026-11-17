@@ -337,6 +337,9 @@ content_filter:
       category: fraud
   # 白名单：词或短语。命中白名单仍会记一条命中（用于统计误伤），但不替换文本。
   whitelist: []
+  # 命中记录的保留天数（1–3650）。记录里存着 ±20 字上下文，留多久是运营对
+  # "审计价值 vs 数据量"的取舍；清理任务每天读一次现值，改这里不需要重启。
+  retain_days: 90
 # Generated from config/deco-charm-parameters.json by scripts/generate-deco-parameters.mjs; DO NOT EDIT.
 # 装饰配置只放纯装饰参数：改错了最多难看，不会让任何业务链路坏掉。
 deco:

@@ -131,3 +131,21 @@ type HandleBatchItem struct {
 type HandleBatchResponse struct {
 	Results []HandleBatchItem `json:"results"`
 }
+
+// WordStatItem 是词云里的一格：词 + 窗口内出现处数 + 展示用的档位与类目。
+type WordStatItem struct {
+	Word string `json:"word"`
+	// Count 是最近 90 天的出现处数（词云字号的数据源）。
+	Count    int    `json:"count"`
+	Tier     string `json:"tier" enums:"block,watch"`
+	Category string `json:"category" enums:"drugs,gambling,fraud,porn,fake_docs,politics,violence"`
+}
+
+// WordStatsResponse 是词云数据的 data 载荷。
+//
+// 带 days 而不是让前端硬编码 90：窗口是后端口径（与风险页 Top 共用），
+// 前端只负责展示，不该自己再记一个数字。
+type WordStatsResponse struct {
+	Days  int            `json:"days"`
+	Items []WordStatItem `json:"items"`
+}

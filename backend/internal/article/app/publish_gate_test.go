@@ -40,28 +40,30 @@ func newMuteError(days int) error {
 	return userdomain.NewMuteError(apptest.DefaultTime.Add(time.Duration(days)*24*time.Hour), apptest.DefaultTime)
 }
 
-// TestCreateRejectsMutedAuthor 被禁言者不能创建文章（草稿也算）。
-func TestCreateRejectsMutedAuthor(t *testing.T) {
+// TestCreateRejectsMutedAuthorOnSubmit 被禁言者**提交审核**被拒、**存草稿**放行。
+//
+// 口径是"只拦发布类动作"（ADR-0032 决策 8、10）：草稿不进公开面、也不占投稿配额，
+// 拦它比文档更严且没有任何收益 —— 被禁言的人连整理草稿都做不到。
+func TestCreateRejectsMutedAuthorOnSubmit(t *testing.T) {
 	t.Parallel()
 
 	gate := &fakePublishGate{err: newMuteError(7)}
 	svc, repos := newGatedService(t, gate)
 	ctx := context.Background()
 
-	for _, target := range []domain.Status{domain.StatusDraft, domain.StatusExamining} {
-		_, err := svc.Create(ctx, app.CreateArticleCmd{
-			Actor:        authorViewer(),
-			Policy:       domain.OpenWritePolicy(),
-			Title:        "禁言期间的发文",
-			Content:      "正文",
-			TargetStatus: target,
-		})
-		if !apperr.IsCode(err, apperr.CodeUserMuted) {
-			t.Fatalf("目标状态 %s：应返回 user.muted，实际 %v", target, err)
-		}
+	// 提交审核：拒绝，且闸门问询一次。
+	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
+		Title:        "禁言期间的投稿",
+		Content:      "正文",
+		TargetStatus: domain.StatusExamining,
+	})
+	if !apperr.IsCode(err, apperr.CodeUserMuted) {
+		t.Fatalf("提交审核应返回 user.muted，实际 %v", err)
 	}
-	if len(gate.called) != 2 || gate.called[0] != author {
-		t.Fatalf("闸门应对作者问询，实际 %v", gate.called)
+	if len(gate.called) != 1 || gate.called[0] != author {
+		t.Fatalf("闸门应对作者问询一次，实际 %v", gate.called)
 	}
 	if len(repos.FakeArticles().IDs()) != 0 {
 		t.Fatal("被拒的文章不该落库")
@@ -69,26 +71,61 @@ func TestCreateRejectsMutedAuthor(t *testing.T) {
 	if len(repos.FakeOutbox().Names()) != 0 {
 		t.Fatalf("被拒的文章不该发事件: %v", repos.FakeOutbox().Names())
 	}
+
+	// 存草稿：放行，且**不问闸门**（问一次就说明还在无条件拦）。
+	if _, err := svc.Create(ctx, app.CreateArticleCmd{
+		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
+		Title:        "禁言期间的草稿",
+		Content:      "正文",
+		TargetStatus: domain.StatusDraft,
+	}); err != nil {
+		t.Fatalf("存草稿不该被禁言拦住: %v", err)
+	}
+	if len(gate.called) != 1 {
+		t.Fatalf("存草稿不该问询闸门，实际问询 %d 次", len(gate.called))
+	}
 }
 
-// TestUpdateRejectsMutedAuthor 被禁言者不能更新文章。
-func TestUpdateRejectsMutedAuthor(t *testing.T) {
+// TestUpdateRejectsMutedAuthorOnlyOnSubmit 被禁言者改草稿放行、把草稿提交被拒。
+//
+// 与 Create 同一口径：闸门挂在"这次更新真的会提交"（preview.NeedsSubmit）上，
+// 而不是挂在"调了 Update"上。
+func TestUpdateRejectsMutedAuthorOnlyOnSubmit(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
+	// 场景一：改草稿（不提交）——放行，且不问闸门。
 	gate := &fakePublishGate{err: newMuteError(1)}
 	svc, repos := newGatedService(t, gate)
 	seedArticle(t, repos, domain.ArticleID("3001"), author, domain.StatusDraft)
-	ctx := context.Background()
-
 	title := "改个标题"
-	_, err := svc.Update(ctx, app.UpdateArticleCmd{
+	if _, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     authorViewer(),
 		ArticleID: domain.ArticleID("3001"),
 		Title:     &title,
 		Policy:    domain.OpenWritePolicy(),
+	}); err != nil {
+		t.Fatalf("改草稿不该被禁言拦住: %v", err)
+	}
+	if len(gate.called) != 0 {
+		t.Fatalf("改草稿不该问询闸门，实际 %d 次", len(gate.called))
+	}
+
+	// 场景二：把草稿提交审核——拒绝。
+	gate2 := &fakePublishGate{err: newMuteError(1)}
+	svc2, repos2 := newGatedService(t, gate2)
+	seedArticle(t, repos2, domain.ArticleID("3002"), author, domain.StatusDraft)
+	submit := domain.StatusExamining
+	_, err := svc2.Update(ctx, app.UpdateArticleCmd{
+		Actor:         authorViewer(),
+		ArticleID:     domain.ArticleID("3002"),
+		TargetStatus:  &submit,
+		Policy:        domain.OpenWritePolicy(),
 	})
 	if !apperr.IsCode(err, apperr.CodeUserMuted) {
-		t.Fatalf("应返回 user.muted，实际 %v", err)
+		t.Fatalf("提交审核应返回 user.muted，实际 %v", err)
 	}
 }
 
@@ -105,11 +142,11 @@ func TestPublishGateAllowsNormalAuthor(t *testing.T) {
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "正常发文",
 		Content:      "正文",
-		TargetStatus: domain.StatusDraft,
+		TargetStatus: domain.StatusExamining,
 	}); err != nil {
 		t.Fatalf("闸门放行时发文应成功: %v", err)
 	}
 	if len(gate.called) != 1 {
-		t.Fatalf("闸门应被问询一次，实际 %d 次", len(gate.called))
+		t.Fatalf("提交审核时闸门应被问询一次，实际 %d 次", len(gate.called))
 	}
 }

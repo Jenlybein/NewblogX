@@ -784,7 +784,7 @@ var messages = map[Code]string{
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
-	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted）",
+	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
 	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",
 	CodeFilterActionInvalid:            "处置动作不存在（可选：delete / ignore）",
 	CodeFilterNoteTooLong:              "处置备注最多 200 字",
@@ -924,3 +924,4 @@ func Message(code Code) string {
 	}
 	return string(code)
 }
+

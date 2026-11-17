@@ -33,6 +33,7 @@ import {
   selectWithinLimit,
   summarize,
 } from "./lib/wordlist.mjs";
+import { loadViolenceHints } from "./lib/violenceHints.mjs";
 
 /** 上游仓库与资源目录（两份文件都在这里）。 */
 const UPSTREAM_REPO = "houbb/sensitive-word-data";
@@ -221,12 +222,15 @@ export async function buildWordlist(opts, logger = console.log) {
   logger(`数据源: ${resolved.origin}`);
   logger(`上游: 标签词 ${tags.size} 条，黑名单 ${dictWords.length} 条`);
 
+  const violence = loadViolenceHints();
+  logger(`暴恐词表: ${violence.source}`);
   const { entries, dropped } = buildCandidates({
     tags,
     dictWords,
     includeUntagged: opts.includeUntagged,
     minCjk: opts.minCjk,
     maxRunes: opts.maxRunes,
+    violenceHints: violence.hints,
   });
 
   // 默认排除 politics 与 violence；`--exclude` 显式给出时以它为准（完全替代默认值，
@@ -291,3 +295,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.exitCode = 1;
   }
 }
+

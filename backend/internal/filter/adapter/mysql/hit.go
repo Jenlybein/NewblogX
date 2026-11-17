@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -252,6 +253,88 @@ func (r *Repo) MarkHandled(ctx context.Context, id ctype.ID, h domain.Handle) (b
 	return res.RowsAffected > 0, nil
 }
 
+// PurgeBefore 物理删除 cutoff 之前的记录（保留期清理，ADR-0032 决策 10）。
+//
+// 不走软删：命中记录本身就是审计副本，软删等于在同一张表里继续留着那些
+// ±20 字上下文片段，与"保留 90 天"的承诺相反。分批删除由调度侧的调用频率兜住
+// （每天一次，单次删掉的量就是一天新增的量）。
+func (r *Repo) PurgeBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	if cutoff.IsZero() {
+		// 零值 cutoff 会删掉全部记录：宁可什么都不做，也不接受一个"没算出来"的时间。
+		return 0, nil
+	}
+	res := r.db.WithContext(ctx).
+		Where("created_at < ?", cutoff).
+		Delete(&contentFilterHitRow{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
+// WordStats 统计 since 之后每个命中词的出现处数（词云字号的数据源）。
+//
+// 为什么在 Go 里聚合而不是用 SQL 的 JSON 函数：命中明细是一段 words_json
+// （词 / 档位 / 类目 / 上下文片段），按词拆开需要读 JSON 数组；MySQL 的
+// JSON_TABLE 在 5.7 上没有，仓库也没引 8.0 专有语法。窗口内的记录数
+// （默认 90 天、个人博客量级）足够小，一次读出来在 Go 里数一遍就够。
+func (r *Repo) WordStats(ctx context.Context, since time.Time) ([]domain.WordStat, error) {
+	var rows []contentFilterHitRow
+	err := r.db.WithContext(ctx).Model(&contentFilterHitRow{}).
+		Select("id, created_at, hits_json").
+		Where("created_at >= ?", since).
+		Order("created_at DESC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]*domain.WordStat, len(rows))
+	for _, row := range rows {
+		words, decodeErr := decodeWords(row.HitsJSON)
+		if decodeErr != nil {
+			// 一条坏记录不该让整张词云空掉：跳过它，其余照常统计。
+			continue
+		}
+		for _, word := range words {
+			existing, ok := stats[word.Word]
+			if !ok {
+				stats[word.Word] = &domain.WordStat{
+					Word:     word.Word,
+					Tier:     word.Tier,
+					Category: word.Category,
+					// 记录按 created_at 倒序读，所以第一次见到的就是"最近一次"的档位。
+					Count: countWordOccurrences(word),
+				}
+				continue
+			}
+			existing.Count += countWordOccurrences(word)
+		}
+	}
+
+	out := make([]domain.WordStat, 0, len(stats))
+	for _, stat := range stats {
+		out = append(out, *stat)
+	}
+	// 处数倒序、同处数按词排序：词云要稳定（两次请求的顺序一致，运营才不会
+	// 以为自己看错了）。
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Word < out[j].Word
+	})
+	return out, nil
+}
+
+// countWordOccurrences 是一条记录里某个词的命中处数（上下文片段数；没有片段时算一处）。
+func countWordOccurrences(word domain.Word) int {
+	if len(word.Snippets) > 0 {
+		return len(word.Snippets)
+	}
+	return 1
+}
+
 // nicknameOf 现查一个用户的昵称（读面展示字段，不落库）。
 func (r *Repo) nicknameOf(userID ctype.ID) string {
 	displays, err := readmodel.LoadUserDisplayMap(r.db, []ctype.ID{userID})
@@ -371,3 +454,4 @@ func decodeWords(payload string) ([]domain.Word, error) {
 	}
 	return words, nil
 }
+

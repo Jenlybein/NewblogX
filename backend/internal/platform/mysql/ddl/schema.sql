@@ -828,6 +828,7 @@ CREATE TABLE IF NOT EXISTS `user_violation_appeals` (
   KEY `idx_user_violation_appeal_status_created` (`status`,`created_at`),
   KEY `idx_user_violation_appeal_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `user_violation_events` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
@@ -851,6 +852,7 @@ CREATE TABLE IF NOT EXISTS `user_violation_events` (
   KEY `idx_user_violation_user_created` (`user_id`,`created_at`),
   KEY `idx_user_violation_status_created` (`status`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `user_view_daily_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
@@ -906,5 +908,6 @@ CREATE TABLE IF NOT EXISTS `content_filter_hit_models` (
   KEY `idx_content_filter_hit_surface_status_created` (`surface`,`status`,`created_at`),
   KEY `idx_content_filter_hit_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 

@@ -11,9 +11,10 @@ import {
 /**
  * 历史记录按天分组（#241）。
  *
- * 分组的判据是**本地日历日**差，不是"距今多少小时"：今天 00:10 读的文章和昨天
- * 23:50 读的只差 20 分钟，却必须落在「今天」和「昨天」两个分组里。写错不会报错，
- * 只会让分组的边界在每天的凌晨到早上之间漂移 —— 所以用固定时刻钉住。
+ * 分组的判据是**站点日历日**（`Asia/Shanghai`，票 #436）差，不是"距今多少小时"：
+ * 今天 00:10 读的文章和昨天 23:50 读的只差 20 分钟，却必须落在「今天」和「昨天」
+ * 两个分组里。日期全部用带 `+08:00` 的显式偏移，所以 CI 跑在 UTC 时也不会
+ * 因为 `Date` 的本机投影而改变分组边界。
  */
 function item(articleId: string, updatedAt: string): HistoryArticleItem {
   return {
@@ -27,21 +28,22 @@ function item(articleId: string, updatedAt: string): HistoryArticleItem {
   };
 }
 
-// 本地时间构造：`new Date(2026, 10, 4, 12)` 是 2026-11-04 12:00（本地时区）。
-function local(year: number, month: number, day: number, hour = 12, minute = 0) {
-  return new Date(year, month - 1, day, hour, minute);
+/** 站点时间（`+08:00`）的显式时刻。 */
+function at(year: number, month: number, day: number, hour = 12, minute = 0) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+08:00`);
 }
 
-const NOW = local(2026, 11, 4);
+const NOW = at(2026, 11, 4);
 
-describe("历史分组：今天 / 昨天 / 近一周 / 更早", () => {
-  it("按本地日历日差归类，顺序固定", () => {
+describe("历史分组：今天 / 昨天 / 近一周 / 更早（站点时区）", () => {
+  it("按站点日历日差归类，顺序固定", () => {
     const groups = groupHistoryItems(
       [
-        item("a1", local(2026, 11, 4, 9).toISOString()), // 今天 09:00
-        item("a2", local(2026, 11, 3, 23, 50).toISOString()), // 昨天 23:50（只差 9 小时）
-        item("a3", local(2026, 11, 1, 10).toISOString()), // 3 天前 → 近一周
-        item("a4", local(2026, 10, 27, 8).toISOString()), // 8 天前 → 更早
+        item("a1", "2026-11-04T09:00:00+08:00"), // 今天 09:00
+        item("a2", "2026-11-03T23:50:00+08:00"), // 昨天 23:50（只差 9 小时）
+        item("a3", "2026-11-01T10:00:00+08:00"), // 3 天前 → 近一周
+        item("a4", "2026-10-27T08:00:00+08:00"), // 8 天前 → 更早
       ],
       NOW,
     );
@@ -55,19 +57,33 @@ describe("历史分组：今天 / 昨天 / 近一周 / 更早", () => {
     ]);
   });
 
+  it("UTC 同一天、站点已是次日的记录算「今天」（不依赖本机投影）", () => {
+    // UTC 2026-11-03 16:30 = 站点 2026-11-04 00:30。
+    const groups = groupHistoryItems(
+      [item("a1", "2026-11-03T16:30:00Z"), item("a2", "2026-11-03T23:50:00+08:00")],
+      NOW,
+    );
+
+    expect(groups.map((group) => group.label)).toEqual(["今天", "昨天"]);
+    expect(groups.map((group) => group.items.map((entry) => entry.article_id))).toEqual([
+      ["a1"],
+      ["a2"],
+    ]);
+  });
+
   it("近一周的边界：6 天前仍在「近一周」，7 天前落到「更早」", () => {
-    expect(historyGroupKeyOf(local(2026, 10, 29), NOW)).toBe("recent"); // 6 天前
-    expect(historyGroupKeyOf(local(2026, 10, 28), NOW)).toBe("older"); // 7 天前
-    expect(historyGroupKeyOf(local(2026, 11, 1), NOW)).toBe("recent"); // 3 天前
-    expect(historyGroupKeyOf(local(2026, 11, 3), NOW)).toBe("yesterday");
-    expect(historyGroupKeyOf(local(2026, 11, 4), NOW)).toBe("today");
+    expect(historyGroupKeyOf(at(2026, 10, 29), NOW)).toBe("recent"); // 6 天前
+    expect(historyGroupKeyOf(at(2026, 10, 28), NOW)).toBe("older"); // 7 天前
+    expect(historyGroupKeyOf(at(2026, 11, 1), NOW)).toBe("recent"); // 3 天前
+    expect(historyGroupKeyOf(at(2026, 11, 3), NOW)).toBe("yesterday");
+    expect(historyGroupKeyOf(at(2026, 11, 4), NOW)).toBe("today");
   });
 
   it("未来时间（本机时钟偏差）归入「今天」，不新开分组", () => {
-    expect(historyGroupKeyOf(local(2026, 11, 5, 8), NOW)).toBe("today");
+    expect(historyGroupKeyOf(at(2026, 11, 5, 8), NOW)).toBe("today");
 
     const groups = groupHistoryItems(
-      [item("a1", local(2026, 11, 4, 9).toISOString()), item("a2", local(2026, 11, 5, 8).toISOString())],
+      [item("a1", "2026-11-04T09:00:00+08:00"), item("a2", "2026-11-05T08:00:00+08:00")],
       NOW,
     );
     expect(groups.map((group) => group.label)).toEqual(["今天"]);
@@ -78,23 +94,35 @@ describe("历史分组：今天 / 昨天 / 近一周 / 更早", () => {
     expect(groupHistoryItems([], NOW)).toEqual([]);
 
     const groups = groupHistoryItems(
-      [item("a1", local(2026, 10, 1).toISOString()), item("a2", local(2026, 11, 4).toISOString())],
+      [item("a1", "2026-10-01T12:00:00+08:00"), item("a2", "2026-11-04T12:00:00+08:00")],
       NOW,
     );
     expect(groups.map((group) => group.key)).toEqual(["today", "older"]);
   });
 
   it("日历日差不含时分：同一天的任意时刻差都是 0", () => {
-    expect(calendarDayDiff(NOW, local(2026, 11, 4, 0, 1))).toBe(0);
-    expect(calendarDayDiff(NOW, local(2026, 11, 5, 23, 59))).toBe(-1); // "明天"的 23:59
-    expect(calendarDayDiff(NOW, local(2026, 11, 3, 23, 59))).toBe(1);
+    expect(calendarDayDiff(NOW, at(2026, 11, 4, 0, 1))).toBe(0);
+    expect(calendarDayDiff(NOW, at(2026, 11, 5, 23, 59))).toBe(-1); // "明天"的 23:59
+    expect(calendarDayDiff(NOW, at(2026, 11, 3, 23, 59))).toBe(1);
+  });
+
+  it("站点午夜的差 1 天：23:30 与次日 00:30 落在两个分组", () => {
+    expect(
+      calendarDayDiff(at(2026, 11, 4, 0, 30), at(2026, 11, 3, 23, 30)),
+    ).toBe(1);
   });
 });
 
 describe("跨页连续：追加下一页不打断分组", () => {
   it("两页拼起来后，同一天的文章合并进同一个分组而不是出现两个「今天」", () => {
-    const page1 = [item("a1", local(2026, 11, 4, 11).toISOString()), item("a2", local(2026, 11, 3, 9).toISOString())];
-    const page2 = [item("a3", local(2026, 11, 4, 8).toISOString()), item("a4", local(2026, 10, 20).toISOString())];
+    const page1 = [
+      item("a1", "2026-11-04T11:00:00+08:00"),
+      item("a2", "2026-11-03T09:00:00+08:00"),
+    ];
+    const page2 = [
+      item("a3", "2026-11-04T08:00:00+08:00"),
+      item("a4", "2026-10-20T12:00:00+08:00"),
+    ];
 
     const appended = groupHistoryItems([...page1, ...page2], NOW);
 
@@ -105,7 +133,7 @@ describe("跨页连续：追加下一页不打断分组", () => {
   });
 
   it("第二排序键与游标同口径：同刻按 article_id 倒序，分组内顺序不被重排改变", () => {
-    const halfHour = local(2026, 11, 4, 10).toISOString();
+    const halfHour = "2026-11-04T10:00:00+08:00";
     const groups = groupHistoryItems([item("b", halfHour), item("c", halfHour), item("a", halfHour)], NOW);
 
     expect(groups[0]!.items.map((entry) => entry.article_id)).toEqual(["b", "c", "a"]);

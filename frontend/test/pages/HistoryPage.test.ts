@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { blockAfter, stripComments } from "../helpers/designFiles";
 import HistoryPage from "~/pages/history.vue";
 import type { HistoryArticleItem } from "~/types/api";
+import { siteDateKey } from "~/utils/format";
 
 /**
  * 浏览历史独立页 `/history`（#241）。
@@ -123,19 +124,27 @@ const ProfileEmptyStateStub = defineComponent({
   },
 });
 
-/** 今天的某个整点（无论现在几点，都会落在本地日历日「今天」）。 */
-function todayAt(hour = 9): string {
-  const date = new Date();
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
+/**
+ * 站点时区（`Asia/Shanghai`）里「今天 / N 天前」的某个整点，带显式 `+08:00`。
+ *
+ * 不能拿本机 `setHours()` 造时间：分组口径固定站点时区（票 #436），测试跑在
+ * UTC 的 CI 上时，本机 21:00 已经是站点次日，断言「昨天」会红。
+ */
+function siteDayAt(daysAgo: number, hour = 9): string {
+  const [year, month, day] = siteDateKey(new Date()).split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day! - daysAgo));
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(hour)}:00:00+08:00`;
 }
 
-/** n 个自然日之前的某个整点。 */
+/** 站点时区里今天的某个整点。 */
+function todayAt(hour = 9): string {
+  return siteDayAt(0, hour);
+}
+
+/** 站点时区里 n 个自然日之前的某个整点。 */
 function daysAgoAt(days: number, hour = 9): string {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
+  return siteDayAt(days, hour);
 }
 
 function historyItem(overrides: Partial<HistoryArticleItem> = {}): HistoryArticleItem {

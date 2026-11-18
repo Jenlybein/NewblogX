@@ -101,11 +101,20 @@ const onSubmit = handleSubmit(async (formValues) => {
 <template>
   <NForm @submit.prevent="onSubmit">
     <NFormItem label="邮箱" :feedback="errors.email">
-      <NInput v-model:value="email" v-bind="emailProps" placeholder="输入邮箱" />
+      <NInput
+        v-model:value="email"
+        v-bind="emailProps"
+        type="email"
+        placeholder="输入邮箱"
+        :input-props="{ autocomplete: 'email', spellcheck: 'false' }" />
     </NFormItem>
     <NFormItem label="验证码" :feedback="errors.email_code">
       <div class="flex w-full gap-3">
-        <NInput v-model:value="emailCode" v-bind="emailCodeProps" placeholder="输入邮箱验证码" />
+        <NInput
+          v-model:value="emailCode"
+          v-bind="emailCodeProps"
+          placeholder="输入邮箱验证码"
+          :input-props="{ inputmode: 'numeric', autocomplete: 'one-time-code' }" />
         <NButton secondary :disabled="sendDisabled" @click="handleSendCode">
           {{ sendLabel }}
         </NButton>
@@ -127,6 +136,7 @@ const onSubmit = handleSubmit(async (formValues) => {
         type="password"
         show-password-on="click"
         placeholder="设置密码"
+        :input-props="{ autocomplete: 'new-password' }"
       />
     </NFormItem>
     <NButton type="primary" attr-type="submit" block :loading="authStore.pending">

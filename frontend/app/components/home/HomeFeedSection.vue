@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
@@ -7,6 +7,7 @@ import { useSectionReveal } from "~/composables/useSectionReveal";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import type { SearchArticleItem } from "~/types/api";
 import { homeSearchLocation, resolveHomeSectionState } from "~/utils/home";
+import { MOTION_EASE } from "~/utils/motion";
 
 const props = withDefaults(
   defineProps<{
@@ -23,7 +24,52 @@ const emit = defineEmits<{ retry: [] }>();
 
 // 列表入场：只动 opacity/translateY，错峰 40ms；减少动态时归零（静态出现）。
 // SSR 的 initial 会内联成 opacity:0，app.vue 的 <noscript> 兜底样式保证无 JS 仍可读。
-const { entranceProps } = useStaggerEntrance();
+const { entranceProps: staggerEntranceProps } = useStaggerEntrance();
+
+/**
+ * 「已入场」标记（票 433）：只活在本组件内，不落 session 存储。
+ *
+ * 首次进入该区块的那一批照常逐条错峰；翻页之后批次换了，新一批**直接出现** ——
+ * 读者不用在每次点"下一页"后等半秒。空批次（加载中 / 空态）不消耗入场。
+ * 用批次 id 的序列当身份，是为了区分"翻页换了内容"与"同一批数据的原地刷新"
+ * （后者不该改变入场判定，Motion 也不会因为同 key 重播）。
+ */
+const firstBatchKey = ref<string | null>(null);
+const hasEntered = ref(false);
+
+watch(
+  () => JSON.stringify(props.articles.map((article) => article.id)),
+  (batchKey) => {
+    if (batchKey === "[]") {
+      return;
+    }
+    if (firstBatchKey.value === null) {
+      firstBatchKey.value = batchKey;
+      return;
+    }
+    if (batchKey !== firstBatchKey.value) {
+      hasEntered.value = true;
+    }
+  },
+  { immediate: true },
+);
+
+/**
+ * 条目的入场 props：首批逐条错峰；已入场后返回"立即可见"（不隐藏、不延迟、时长 0），
+ * 新一批因此直接出现，而不是又播一遍错峰的隐藏初态。
+ */
+function entranceProps(index: number) {
+  if (!hasEntered.value) {
+    return staggerEntranceProps(index);
+  }
+
+  return {
+    initial: { opacity: 1, y: 0 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0, delay: 0, ease: MOTION_EASE },
+  };
+}
+
 // 区块级滚动进场：只给布局容器（段落/条目不动），位移 ≤12px、只进一次。
 const { target: revealTarget, revealStyle } = useSectionReveal();
 const state = computed(() =>
@@ -50,7 +96,12 @@ const searchTo = homeSearchLocation();
       </div>
     </header>
 
-    <div v-if="articles.length" class="flex flex-col gap-4" data-role="feed-list">
+    <div
+      v-if="articles.length"
+      class="flex flex-col gap-4"
+      data-role="feed-list"
+      :data-entrance="hasEntered ? 'instant' : 'stagger'"
+    >
       <Motion
         v-for="(article, index) in articles"
         :key="article.id"

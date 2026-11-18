@@ -132,10 +132,11 @@ async function submitCategory() {
       <NCard title="发布文章" :bordered="false" closable class="publish-modal-card" @close="show = false">
         <div class="publish-form">
           <div class="publish-form__row">
-            <label class="publish-form__label">分类</label>
+            <label class="publish-form__label" for="publish-category-control">分类</label>
             <div class="publish-category">
               <ChipSelect
                 v-model="categoryId"
+                control-id="publish-category-control"
                 :options="props.categoryOptions || []"
                 placeholder="请选择分类"
                 data-role="publish-category" />
@@ -155,12 +156,14 @@ async function submitCategory() {
               <!-- 新建分类就地展开：不跳分类管理页，创建成功后自动选中（issue 127）。 -->
               <template v-if="props.canCreateCategory">
                 <div v-if="categoryCreateOpen" class="publish-category__create">
+                  <label class="sr-only" for="publish-new-category-control">新分类名称</label>
                   <NInput
                     v-model:value="newCategoryTitle"
                     size="small"
                     maxlength="256"
                     placeholder="新分类名称"
                     class="publish-category__input"
+                    :input-props="{ id: 'publish-new-category-control' }"
                     @keyup.enter="submitCategory" />
                   <NButton
                     type="primary"
@@ -180,10 +183,11 @@ async function submitCategory() {
           </div>
 
           <div class="publish-form__row">
-            <label class="publish-form__label">添加标签</label>
+            <label class="publish-form__label" for="publish-tags-control">添加标签</label>
             <div class="publish-tags">
               <ChipSelect
                 v-model="tagIds"
+                control-id="publish-tags-control"
                 multiple
                 :options="props.tagOptions || []"
                 :max-tag-count="4"
@@ -198,8 +202,9 @@ async function submitCategory() {
           </div>
 
           <div class="publish-form__row publish-form__row--top">
-            <label class="publish-form__label">文章封面</label>
+            <label class="publish-form__label" for="publish-cover-control">文章封面</label>
             <StudioCoverUploadPanel
+              control-id="publish-cover-control"
               :busy="props.coverUploading"
               :preview-url="props.coverPreviewUrl"
               :stage="props.coverStage"
@@ -210,29 +215,35 @@ async function submitCategory() {
           </div>
 
           <div class="publish-form__row publish-form__row--top">
-            <label class="publish-form__label">编辑摘要</label>
+            <label class="publish-form__label" for="publish-abstract-control">编辑摘要</label>
             <div class="publish-summary">
               <NInput
-v-model:value="abstractText" type="textarea" maxlength="180"
+                v-model:value="abstractText"
+                type="textarea"
+                maxlength="180"
+                :input-props="{ id: 'publish-abstract-control' }"
                 :autosize="{ minRows: 5, maxRows: 8 }" placeholder="请输入文章摘要" />
               <span class="publish-summary__count">{{ abstractText.length }}/180</span>
             </div>
           </div>
 
           <div class="publish-form__row">
-            <label class="publish-form__label">可见范围</label>
+            <label class="publish-form__label" for="publish-visibility-control">可见范围</label>
             <ChipSelect
               v-model="visibility"
+              control-id="publish-visibility-control"
               :options="props.visibilityOptions"
               placeholder="请选择文章可见范围"
               data-role="publish-visibility" />
           </div>
 
           <div class="publish-form__row">
-            <label class="publish-form__label">评论开关</label>
+            <!-- 开关本身是 labelable 之外的 role=switch 控件：字段名走 aria-label，
+                 不能和裸 <label> 拼成"看得见却指不到控件"的假关联。 -->
+            <span class="publish-form__label">评论开关</span>
             <div class="publish-form__switch">
               <span class="muted">{{ commentsToggle ? "文章发布后允许评论" : "文章发布后将关闭评论区" }}</span>
-              <NSwitch v-model:value="commentsToggle" />
+              <NSwitch v-model:value="commentsToggle" aria-label="评论开关" />
             </div>
           </div>
 

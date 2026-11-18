@@ -7,8 +7,8 @@ import type { JellyVisualState } from "~/composables/useJellyAssistant";
 
 // 角色组件（JellyLauncher）的渲染冒烟。
 //
-// 分工是刻意的：**状态**归 useJellyAssistant（它有 33 个行为用例），这里只验证
-// 外观组件把六态正确映射成 class / aria / 事件接线。所以 composable 被整个替换成
+// 分工是刻意的：**状态**归 useJellyAssistant（它有 59 个行为用例），这里只验证
+// 外观组件把七态正确映射成 class / aria / 事件接线。所以 composable 被整个替换成
 // 可控假实现 —— 不断言像素、不断言样式值，只断言「状态名 → 可观察的 DOM 契约」。
 const apiRef = vi.hoisted(() => ({ current: null as unknown }));
 
@@ -24,11 +24,14 @@ function makeApi() {
     state: ref<JellyVisualState>("idle"),
     isAvailable: ref(true),
     isOpen: ref(false),
+    isCollapsed: ref(false),
+    isChipPinned: ref(false),
     isReducedMotion: ref(false),
     shouldAnimate: ref(true),
     shouldRender: ref(true),
     breathDurationMs: ref(4_000),
     position: ref({ x: 100, y: 120 }),
+    collapsedPosition: ref({ x: 980, y: 120 }),
     bubbleText: ref<string | null>(null),
     hintText: ref<string | null>(null),
     isDragged: ref(false),
@@ -36,6 +39,10 @@ function makeApi() {
     open: vi.fn(),
     close: vi.fn(),
     toggle: vi.fn(),
+    collapse: vi.fn(),
+    expand: vi.fn(),
+    pinCollapseChip: vi.fn(),
+    dismissCollapseChip: vi.fn(),
     pointerEnter: vi.fn(),
     pointerLeave: vi.fn(),
     pointerDown: vi.fn(),
@@ -50,13 +57,16 @@ function makeApi() {
     stopSession: vi.fn(),
   };
 
-  // 假实现要带真实语义：beginDrag 之后 isDragged 才是 true，否则组件无法
-  // 「拖完松手不当点击」——那正是这里要验的行为。
+
+  // 假实现要带真实语义：beginDrag 之后 isDragged 与 state 都要变，否则组件无法
+  // 「拖完松手不当点击」/「拖拽期不挂过渡」——那正是这里要验的行为。
   api.beginDrag.mockImplementation(() => {
     api.isDragged.value = true;
+    api.state.value = "dragging";
   });
   api.endDrag.mockImplementation(() => {
     api.isDragged.value = false;
+    api.state.value = "idle";
   });
 
   return api;
@@ -88,11 +98,12 @@ describe("JellyLauncher · 渲染", () => {
     wrapper.unmount();
   });
 
-  it.each<JellyVisualState>(["idle", "hover", "press", "open", "dragging", "disabled"])(
-    "六态之一 %s 映射成对应的 class",
+  it.each<JellyVisualState>(["idle", "hover", "press", "open", "collapsed", "dragging", "disabled"])(
+    "七态之一 %s 映射成对应的 class",
     async (state) => {
       const { api, wrapper } = setup();
       api.state.value = state;
+      api.isCollapsed.value = state === "collapsed";
       await wrapper.vm.$nextTick();
       expect(wrapper.classes()).toContain(`jelly-launcher--${state}`);
 
@@ -174,13 +185,14 @@ describe("JellyLauncher · 渲染", () => {
 });
 
 describe("JellyLauncher · 指针与拖拽", () => {
-  it("悬停/离开翻译成 composable 的指针动作", async () => {
+  it("悬停/离开翻译成 composable 的指针动作（判定挂在外层 cluster 上）", async () => {
     const { api, wrapper } = setup();
+    const cluster = wrapper.find(".jelly-launcher__cluster");
 
-    await launcherButton(wrapper).trigger("pointerenter");
+    await cluster.trigger("pointerenter");
     expect(api.pointerEnter).toHaveBeenCalled();
 
-    await launcherButton(wrapper).trigger("pointerleave");
+    await cluster.trigger("pointerleave");
     expect(api.pointerLeave).toHaveBeenCalled();
 
     wrapper.unmount();
@@ -342,16 +354,233 @@ function dragAndRelease(wrapper: ReturnType<typeof mount>) {
   window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 220, clientY: 240 }));
 }
 
+describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
+  /** `(pointer: coarse)` 长按唤出只在触摸设备上生效，用例按需把这一档打开。 */
+  function stubCoarsePointer() {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  function collapseChip(wrapper: ReturnType<typeof mount>) {
+    return wrapper.find("button.jelly-collapse-chip");
+  }
+
+  it("收起态渲染贴右边缘的把手而不是捏捏本体（把手 aria-label 为「展开捏捏」）", async () => {
+    const { api, wrapper } = setup();
+
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.classes()).toContain("jelly-launcher--collapsed");
+    expect(wrapper.find("button.jelly-launcher__button").exists()).toBe(false);
+
+    const handle = wrapper.find("button.jelly-launcher__handle");
+    expect(handle.exists()).toBe(true);
+    expect(handle.attributes("type")).toBe("button");
+    expect(handle.attributes("aria-label")).toBe("展开捏捏");
+
+    // 位置来自 composable 的派生坐标（贴右边缘），组件不自己算。
+    expect(wrapper.find(".jelly-launcher").attributes("style")).toContain(
+      `translate3d(${api.collapsedPosition.value.x}px, ${api.collapsedPosition.value.y}px, 0)`,
+    );
+
+    wrapper.unmount();
+  });
+
+  it("点把手调用 expand()（回到收起前的自由位置）", async () => {
+    const { api, wrapper } = setup();
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find("button.jelly-launcher__handle").trigger("click");
+
+    expect(api.expand).toHaveBeenCalledTimes(1);
+    expect(api.collapse).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it("收起期间不渲染气泡，状态提示仍然走 role=status", async () => {
+    const { api, wrapper } = setup();
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    api.bubbleText.value = "捏我一下，问我点什么吧。";
+    api.hintText.value = "捏捏收进右边缘了，点把手叫它出来";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find("button.jelly-bubble").exists()).toBe(false);
+
+    const hint = wrapper.find(".jelly-hint");
+    expect(hint.exists()).toBe(true);
+    expect(hint.attributes("role")).toBe("status");
+    expect(hint.text()).toContain("收进右边缘");
+
+    wrapper.unmount();
+  });
+
+  it("悬停捏捏时渲染右上角的收起 chip", async () => {
+    const { api, wrapper } = setup();
+    api.state.value = "hover";
+    await wrapper.vm.$nextTick();
+
+    const chip = collapseChip(wrapper);
+    expect(chip.exists()).toBe(true);
+    expect(chip.attributes("type")).toBe("button");
+    expect(chip.attributes("aria-label")).toBe("收起捏捏");
+
+    wrapper.unmount();
+  });
+
+  it("键盘焦点落在捏捏（cluster focus-within）时也渲染 chip，离开焦点后消失", async () => {
+    const { wrapper } = setup();
+    const cluster = wrapper.find(".jelly-launcher__cluster");
+
+    await cluster.trigger("focusin");
+    expect(collapseChip(wrapper).exists()).toBe(true);
+
+    await cluster.trigger("focusout");
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("长按唤出（isChipPinned）时 chip 常显，直到被 dismiss", async () => {
+    const { api, wrapper } = setup();
+
+    api.isChipPinned.value = true;
+    await wrapper.vm.$nextTick();
+    expect(collapseChip(wrapper).exists()).toBe(true);
+
+    api.isChipPinned.value = false;
+    await wrapper.vm.$nextTick();
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("面板开着或已经收起时 chip 不出现（此时捏捏是面板把手 / 只剩边缘把手）", async () => {
+    const { api, wrapper } = setup();
+
+    api.state.value = "hover";
+    api.isOpen.value = true;
+    await wrapper.vm.$nextTick();
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    api.isOpen.value = false;
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("chip 在 Tab 序列里紧跟捏捏，点击调用 collapse()", async () => {
+    const { api, wrapper } = setup();
+    api.state.value = "hover";
+    await wrapper.vm.$nextTick();
+
+    const buttons = wrapper.findAll(".jelly-launcher__cluster > button");
+    expect(buttons[0].classes()).toContain("jelly-launcher__button");
+    expect(buttons[1].classes()).toContain("jelly-collapse-chip");
+
+    await buttons[1].trigger("click");
+    expect(api.collapse).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+  });
+
+  it("按 Esc 收掉 chip（调用 dismissCollapseChip，焦点留在捏捏上）", async () => {
+    const { api, wrapper } = setup();
+    api.state.value = "hover";
+    await wrapper.vm.$nextTick();
+
+    await launcherButton(wrapper).trigger("keydown", { key: "Escape" });
+
+    expect(api.dismissCollapseChip).toHaveBeenCalledTimes(1);
+    expect(api.collapse).not.toHaveBeenCalled();
+    // 悬停条件还在，但 Esc 之后 chip 不能立刻再弹回来（指针离开 / 重新进入才复位）。
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("收起态下 pointerdown 不接受拖拽（收起是显式动作，展开是把手的事）", async () => {
+    const { api, wrapper } = setup();
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+
+    const handle = wrapper.find("button.jelly-launcher__handle").element;
+    handle.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 1_000, clientY: 300 }));
+    window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 800, clientY: 300 }));
+
+    expect(api.pointerDown).not.toHaveBeenCalled();
+    expect(api.beginDrag).not.toHaveBeenCalled();
+    expect(api.moveTo).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it("粗指针长按 500ms 唤出 chip；位移超过拖拽阈值则取消这次长按", async () => {
+    stubCoarsePointer();
+    vi.useFakeTimers();
+    const { api, wrapper } = setup();
+
+    launcherButton(wrapper).element.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }),
+    );
+    vi.advanceTimersByTime(500);
+    expect(api.pinCollapseChip).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+
+    // 第二条：按下后开始拖拽（位移 > 6px），长按计时必须被取消。
+    const { api: draggedApi, wrapper: draggedWrapper } = setup();
+    launcherButton(draggedWrapper).element.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }),
+    );
+    window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 220, clientY: 240 }));
+    vi.advanceTimersByTime(1_000);
+
+    expect(draggedApi.pinCollapseChip).not.toHaveBeenCalled();
+
+    draggedWrapper.unmount();
+  });
+
+  it("收起 / 展开只动 transform 与 opacity 的 transition（可中途反向，不用 keyframes）", async () => {
+    const { wrapper } = setup();
+
+    const style = wrapper.find(".jelly-launcher").attributes("style") ?? "";
+    expect(style).toContain("transition: transform var(--motion-base)");
+    expect(style).toContain("opacity var(--motion-base)");
+    expect(style).not.toContain("animation");
+
+    wrapper.unmount();
+  });
+});
+
 describe("JellyLauncher · 拖拽跟手与松手弹簧落位", () => {
   it("拖拽期位置直写、根元素不参与过渡（指针与角色 1:1）", async () => {
     const { api, wrapper } = setup();
     const element = launcherButton(wrapper).element;
 
-    // 位置要么直写（拖拽）、要么逐帧弹簧（松手），CSS 过渡一律不参与。
-    expect(wrapper.find(".jelly-launcher").attributes("style")).toContain("transition: none");
-
     element.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }));
     window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 220, clientY: 240 }));
+    await wrapper.vm.$nextTick();
+
+    // 位置要么直写（拖拽）、要么逐帧弹簧（松手落位），CSS 过渡一律不参与。
+    expect(wrapper.find(".jelly-launcher").attributes("style")).toContain("transition: none");
 
     // 按下点在角色左上角右侧 20px：指针走 100px，位置也走 100px，中间没有补间。
     expect(api.beginDrag).toHaveBeenCalled();

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { IconChevronLeft, IconX } from "@tabler/icons-vue";
 
 import {
   clampJellyPosition,
@@ -14,10 +15,14 @@ import { brandAiName, brandAssetUrl } from "~/utils/brand";
 
 // 「捏捏」的外观组件（票 #9）。
 //
-// 这个文件**不含状态**：六态、可用性、气泡、位置全部由 useJellyAssistant 决定
+// 这个文件**不含状态**：七态、可用性、气泡、位置全部由 useJellyAssistant 决定
 // （它是唯一真相源，#10 的 AI 面板消费同一实例）。这里只做两件事：
 //   1. 把状态渲染成外观（class + 无障碍属性 + 位置）；
 //   2. 把指针/键盘事件翻译成 composable 的动作（悬停、按压、拖拽、触发）。
+//
+// 票 425 之后多了收进右边缘这件事：收起态不画角色本体，改画贴右边缘的把手
+// （44×56 命中区里的 16×56 薄玻璃胶囊）；位置来自 composable 的派生坐标
+// `collapsedPosition`，组件不另算一份 —— 拖动与收起因此永远不会各说各话。
 //
 // 票 424 之后多了第三件事：**拖拽松手后的落位**。位置仍然只有 composable 一份（拖拽期
 // 直写、视口边界即时钳制），这里只在松手那一刻把指针速度交给登记过的弹簧
@@ -36,14 +41,21 @@ const {
   state,
   isAvailable,
   isOpen,
+  isCollapsed,
+  isChipPinned,
   isReducedMotion,
   shouldRender,
   breathDurationMs,
   position,
+  collapsedPosition,
   bubbleText,
   hintText,
   isDragged,
   activate,
+  collapse,
+  expand,
+  pinCollapseChip,
+  dismissCollapseChip,
   pointerEnter,
   pointerLeave,
   pointerDown,
@@ -59,6 +71,9 @@ const {
 
 /** 拖动阈值：小于它的位移算手抖，仍按点击处理。 */
 const DRAG_THRESHOLD_PX = 6;
+
+/** 触摸设备长按唤出收起按钮的时间（毫秒）：与拖拽阈值互斥，移动即取消。 */
+const LONG_PRESS_MS = 500;
 
 /** 松手速度采样窗口（毫秒）：只取最后一小段指针历史，甩出去的手感才跟得上。 */
 const RELEASE_WINDOW_MS = 80;
@@ -91,6 +106,8 @@ let velocitySamples: Array<{ x: number; y: number; t: number }> = [];
 
 /** 落位偏移（相对松手点）；只改视觉，不回写 composable 的 position。 */
 const settleOffset = ref<JellyPosition>({ x: 0, y: 0 });
+/** 落位帧循环是否在跑：跑的时候根元素不能有 CSS 过渡（否则逐帧值会被补间拖慢）。 */
+const settleRunning = ref(false);
 let settle: { x: number; y: number; vx: number; vy: number } | null = null;
 let settleFrame: number | null = null;
 let settleLastTimestamp: number | null = null;
@@ -103,11 +120,24 @@ const settleMotion = computed(() =>
   resolveSpringMotion(SPRING_LAUNCHER_SETTLE, isReducedMotion.value),
 );
 
-const rootStyle = computed(() => ({
-  // 位置要么直写（拖拽 1:1）、要么逐帧弹簧（松手落位）：CSS 过渡一律不参与。
-  transform: `translate3d(${position.value.x + settleOffset.value.x}px, ${position.value.y + settleOffset.value.y}px, 0)`,
-  transition: "none",
-}));
+/**
+ * 根元素位置：收起态用派生坐标（贴右边缘），展开态用自由位置 + 落位偏移。
+ *
+ * `transition` 只在"可以补间"的时候挂上（收起 / 展开 200ms、可中途反向）；
+ * 拖拽与落位期一律 `none` —— 这两种状态的位置是直写的，过渡会让手感脱钩。
+ */
+const rootStyle = computed(() => {
+  const target = isCollapsed.value ? collapsedPosition.value : position.value;
+  const offset = isCollapsed.value ? { x: 0, y: 0 } : settleOffset.value;
+  const animatable = state.value !== "dragging" && !settleRunning.value;
+
+  return {
+    transform: `translate3d(${target.x + offset.x}px, ${target.y + offset.y}px, 0)`,
+    transition: animatable
+      ? "transform var(--motion-base) var(--motion-ease), opacity var(--motion-base) var(--motion-ease)"
+      : "none",
+  };
+});
 
 const bodyStyle = computed(() => ({
   animationDuration: `${breathDurationMs.value}ms`,
@@ -116,6 +146,94 @@ const bodyStyle = computed(() => ({
 const ariaLabel = computed(() =>
   isAvailable.value ? `${assistantName}：AI 助手` : `${assistantName}：AI 助手（当前已关闭）`,
 );
+
+/** 捏捏与收起按钮共享的外层 cluster 是否持有焦点（键盘用户不需要 hover 也能收起）。 */
+const clusterFocused = ref(false);
+/** Esc 刚刚放弃过这颗 chip：在焦点离开 / 指针重新进入 cluster 之前不再浮出来。 */
+const chipDismissed = ref(false);
+
+/**
+ * 收起按钮的出现条件（spec 的显式口径）：悬停捏捏（含悬停 chip 自身）**或**
+ * cluster 内有焦点**或**长按唤出（pin）时可见；面板开着或已经收起时不出现 ——
+ * 那时捏捏分别是面板把手 / 只剩边缘把手，都不该再给一颗"收起"。
+ *
+ * `chipDismissed` 是 Esc 的落点：没有它，键盘焦点还在捏捏上时 focus-within 会
+ * 让刚被 Esc 收掉的 chip 立刻重新出现，"Esc 收 chip"就名存实亡。
+ */
+const showCollapseChip = computed(
+  () =>
+    !chipDismissed.value &&
+    !isOpen.value &&
+    !isCollapsed.value &&
+    (state.value === "hover" || clusterFocused.value || isChipPinned.value),
+);
+
+/** 长按唤出收起按钮的计时器（仅粗指针；位移超过拖拽阈值即取消）。 */
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearLongPress() {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+/** 触摸设备（`pointer: coarse`）才启用长按：鼠标有 hover，不需要另一套手势。 */
+function isCoarsePointer(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  try {
+    return Boolean(window.matchMedia("(pointer: coarse)").matches);
+  } catch {
+    return false;
+  }
+}
+
+function scheduleLongPress() {
+  clearLongPress();
+  if (!isCoarsePointer()) return;
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    pinCollapseChip();
+  }, LONG_PRESS_MS);
+}
+
+/** 点收起：先把落位收尾（别把弹簧偏移带进收起态），再交给 composable。 */
+function handleCollapse() {
+  endSettle();
+  collapse();
+}
+
+/** 点把手 / 键盘触发：回到自由位置（composable 决定位置，组件只负责收尾落位）。 */
+function handleExpand() {
+  endSettle();
+  expand();
+}
+
+/** Esc：放弃这次收起（焦点留在捏捏上，不触发任何动作）。 */
+function handleEscape() {
+  clearLongPress();
+  chipDismissed.value = true;
+  dismissCollapseChip();
+}
+
+/** 悬停判定挂在 cluster 上：从捏捏移到右上角 chip 不会触发离开，按钮不会闪断。 */
+function handlePointerEnter() {
+  chipDismissed.value = false;
+  pointerEnter();
+}
+
+function handlePointerLeave() {
+  pointerLeave();
+}
+
+function handleClusterFocusIn() {
+  clusterFocused.value = true;
+}
+
+function handleClusterFocusOut() {
+  clusterFocused.value = false;
+  chipDismissed.value = false;
+}
 
 function attachPointerListeners() {
   window.addEventListener("pointermove", onPointerMove);
@@ -235,6 +353,7 @@ function endSettle() {
   settle = null;
   settleLastTimestamp = null;
   settleOffset.value = { x: 0, y: 0 };
+  settleRunning.value = false;
 }
 
 function scheduleSettleFrame() {
@@ -287,11 +406,14 @@ function startSettle(velocity: { x: number; y: number }) {
   settle = { x: 0, y: 0, vx: velocity.x, vy: velocity.y };
   settleLastTimestamp = null;
   settleOffset.value = { x: 0, y: 0 };
+  settleRunning.value = true;
   scheduleSettleFrame();
 }
 
 function onPointerDown(event: PointerEvent) {
   if (event.button !== 0) return;
+  // 收起态不接受拖拽：那时页面上只有边缘把手，按它应该是"展开"，不是"拖动"。
+  if (isCollapsed.value) return;
 
   endSettle();
   velocitySamples = [{ x: event.clientX, y: event.clientY, t: event.timeStamp }];
@@ -303,6 +425,7 @@ function onPointerDown(event: PointerEvent) {
     y: event.clientY - position.value.y,
   };
   attachPointerListeners();
+  scheduleLongPress();
 }
 
 function onPointerMove(event: PointerEvent) {
@@ -311,6 +434,8 @@ function onPointerMove(event: PointerEvent) {
   if (!isDragged.value) {
     const distance = Math.hypot(event.clientX - pressOrigin.x, event.clientY - pressOrigin.y);
     if (distance < DRAG_THRESHOLD_PX) return;
+    // 一开始拖，长按就作废：拖拽与"唤出收起按钮"是两个互不干扰的手势。
+    clearLongPress();
     beginDrag();
   }
 
@@ -324,6 +449,7 @@ function onPointerMove(event: PointerEvent) {
 function onPointerUp(event: PointerEvent) {
   detachPointerListeners();
   draggingByPointer.value = false;
+  clearLongPress();
 
   if (isDragged.value) {
     // 拖完松手不是一次点击：记下松手速度 → 持久化位置 → 交给弹簧把余劲走完。
@@ -358,6 +484,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   detachPointerListeners();
+  clearLongPress();
   window.removeEventListener("resize", handleWindowResize);
   endSettle();
   stopSession();
@@ -371,51 +498,92 @@ onBeforeUnmount(() => {
     :class="[`jelly-launcher--${state}`, { 'jelly-launcher--reduced': isReducedMotion }]"
     :style="rootStyle"
   >
-    <button
-      type="button"
-      class="jelly-launcher__button"
-      :aria-label="ariaLabel"
-      :aria-expanded="isOpen ? 'true' : 'false'"
-      @pointerenter="pointerEnter"
-      @pointerleave="pointerLeave"
-      @pointerdown="onPointerDown"
-      @keydown.enter.prevent="handleEnter"
-      @keydown.space.prevent="pointerDown"
-      @keyup.space.prevent="pointerUp"
+    <div
+      class="jelly-launcher__cluster"
+      @pointerenter="handlePointerEnter"
+      @pointerleave="handlePointerLeave"
+      @focusin="handleClusterFocusIn"
+      @focusout="handleClusterFocusOut"
+      @keydown.esc.stop="handleEscape"
     >
-      <span class="jelly-launcher__body" :style="bodyStyle">
-        <img
-          class="jelly-launcher__glyph"
-          :src="glyphUrl"
-          alt=""
-          aria-hidden="true"
-          draggable="false"
-          width="56"
-          height="56"
+      <button
+        v-if="!isCollapsed"
+        type="button"
+        class="jelly-launcher__button"
+        :aria-label="ariaLabel"
+        :aria-expanded="isOpen ? 'true' : 'false'"
+        @pointerdown="onPointerDown"
+        @keydown.enter.prevent="handleEnter"
+        @keydown.space.prevent="pointerDown"
+        @keyup.space.prevent="pointerUp"
+      >
+        <span class="jelly-launcher__body" :style="bodyStyle">
+          <img
+            class="jelly-launcher__glyph"
+            :src="glyphUrl"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            width="56"
+            height="56"
+          >
+        </span>
+      </button>
+
+      <Transition v-else name="jelly-handle" appear>
+        <button
+          type="button"
+          class="jelly-launcher__handle"
+          aria-label="展开捏捏"
+          @click.stop="handleExpand"
         >
-      </span>
-    </button>
+          <span class="jelly-launcher__handle-capsule glass-thin">
+            <IconChevronLeft
+              :size="12"
+              :stroke-width="2"
+              class="jelly-launcher__handle-arrow"
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+      </Transition>
 
-    <button
-      v-if="bubbleText"
-      type="button"
-      class="jelly-bubble glass-thin"
-      @click.stop="dismissBubble"
-      @pointermove="handlePointerMove"
-    >
-      {{ bubbleText }}
-    </button>
+      <!-- 收起 chip：紧跟在捏捏之后（Tab 序列相邻），命中区 28×28 内是一颗 20×20 的纸面 -->
+      <button
+        v-if="showCollapseChip"
+        type="button"
+        class="jelly-collapse-chip"
+        aria-label="收起捏捏"
+        @click.stop="handleCollapse"
+        @keydown.esc.stop="handleEscape"
+      >
+        <span class="jelly-collapse-chip__face">
+          <IconX :size="10" :stroke-width="2" aria-hidden="true" />
+        </span>
+      </button>
 
-    <p v-if="hintText" class="jelly-hint" role="status">
-      {{ hintText }}
-    </p>
+      <button
+        v-if="!isCollapsed && bubbleText"
+        type="button"
+        class="jelly-bubble glass-thin"
+        @click.stop="dismissBubble"
+        @pointermove="handlePointerMove"
+      >
+        {{ bubbleText }}
+      </button>
+
+      <p v-if="hintText" class="jelly-hint" role="status">
+        {{ hintText }}
+      </p>
+    </div>
   </div>
 </template>
 
 <style scoped>
 /* 位置：固定定位 + transform（只动 transform，不触发布局）。
  * 位置更新要么直写（拖拽 1:1）、要么逐帧弹簧（松手落位），CSS 过渡一律不参与 ——
- * 根元素的 inline `transition: none` 就是这条契约的显式声明（票 424）。 */
+ * 拖拽 / 落位期根元素的 inline `transition: none` 就是这条契约的显式声明（票 424）。
+ * 收起 / 展开则相反：只有 transform 与 opacity 的 200ms transition，可中途反向。 */
 .jelly-launcher {
   position: fixed;
   top: 0;
@@ -425,6 +593,21 @@ onBeforeUnmount(() => {
   height: 56px;
   will-change: transform;
   pointer-events: none;
+}
+
+/* 收起态：根元素变窄（44px 命中区，可见胶囊只有 16px），右边缘齐平贴边。 */
+.jelly-launcher--collapsed {
+  width: 44px;
+  height: 56px;
+}
+
+/* 悬停判定挂在包含捏捏与 chip 的外层 cluster 上（cluster 吃指针事件）：
+ * 从捏捏移到右上角 chip 上时不会触发 pointerleave，按钮不会闪断。 */
+.jelly-launcher__cluster {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
 }
 
 .jelly-launcher__button {
@@ -463,7 +646,122 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-/* 六态：悬停挤压、按压先捏、打开压成把手、拖拽放大一点、禁用低饱和。 */
+/* 收起态把手：命中区 44×56（透明），可见胶囊 16×56 右对齐贴边、左侧圆角。
+ * 命中区靠按钮本身的宽度拿到，不用负 inset 撑出布局 —— 贴边元素不能外扩 outline。 */
+.jelly-launcher__handle {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: 100% 50%;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.jelly-launcher__handle-capsule {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 56px;
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+  color: var(--color-ink-muted);
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
+.jelly-launcher__handle-arrow {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+/* 把手三态：hover 可见宽度 20px + 箭头左移 2px；按下 scale(.96)；焦点用内嵌环。 */
+.jelly-launcher__handle:hover .jelly-launcher__handle-capsule {
+  width: 20px;
+  color: var(--color-ink);
+}
+
+.jelly-launcher__handle:hover .jelly-launcher__handle-arrow {
+  transform: translateX(-2px);
+}
+
+.jelly-launcher__handle:active {
+  transform: scale(0.96);
+}
+
+.jelly-launcher__handle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -3px;
+}
+
+/* 把手进场：opacity + 4px translateX，120ms；减少动态由 token 归零。 */
+.jelly-handle-enter-active {
+  transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+}
+
+.jelly-handle-enter-from {
+  opacity: 0;
+  transform: translateX(4px);
+}
+
+.jelly-handle-leave-active {
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.jelly-handle-leave-to {
+  opacity: 0;
+}
+
+/* 收起 chip：捏捏右上角。视觉 20×20（纸面 + 1px 结构线 + ×），命中区 28×28。 */
+.jelly-collapse-chip {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.jelly-collapse-chip__face {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-page);
+  color: var(--color-ink-muted);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.jelly-collapse-chip:hover .jelly-collapse-chip__face {
+  border-color: var(--color-ink-faint);
+  color: var(--color-ink);
+}
+
+.jelly-collapse-chip:active .jelly-collapse-chip__face {
+  transform: scale(0.96);
+}
+
+.jelly-collapse-chip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 七态：悬停挤压、按压先捏、打开压成把手、收起只剩边缘把手、拖拽放大一点、禁用低饱和。 */
 .jelly-launcher--hover .jelly-launcher__button {
   transform: scale(1.08, 0.94);
 }
@@ -530,6 +828,13 @@ onBeforeUnmount(() => {
   pointer-events: auto;
   animation: jelly-bubble-in var(--motion-base) var(--motion-ease);
   transform-origin: 100% 100%;
+}
+
+/* 收起态的状态提示挂在把手左侧（贴边元素没有上方空间，不能向上弹）。 */
+.jelly-launcher--collapsed .jelly-hint {
+  right: calc(100% + 8px);
+  top: 0;
+  bottom: auto;
 }
 
 /* 不可用提示：同一位置，但用次级色，读屏可读（role=status）。 */

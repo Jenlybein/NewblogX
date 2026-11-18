@@ -4,10 +4,17 @@ import { defineComponent, h, ref, type Ref } from "vue";
 
 import {
   JELLY_BUBBLE_COUNT_KEY,
+  JELLY_BUBBLE_LIMIT,
   JELLY_BUBBLE_TEXTS,
   JELLY_BREATH_MS,
+  JELLY_CHIP_PIN_MS,
+  JELLY_COLLAPSE_HINT,
   JELLY_DISABLED_BREATH_MS,
   JELLY_DISABLED_HINT,
+  JELLY_DRAWER_COLLAPSED_KEY,
+  JELLY_EXPAND_HINT,
+  JELLY_HANDLE_HEIGHT,
+  JELLY_HANDLE_HIT_WIDTH,
   JELLY_IDLE_BUBBLE_MS,
   JELLY_LAUNCHER_SIZE,
   JELLY_POSITION_KEY,
@@ -25,7 +32,7 @@ import {
 //
 // 这个 composable 是「捏捏」的**唯一状态真相源**：外观组件只读它的状态、只调它的动作，
 // #10 的 AI 面板也消费同一个实例。所以这里不测 DOM、不测样式，只钉对外可观察的行为：
-//   - 六种视觉状态怎么切、谁压过谁（状态机）；
+//   - 七种视觉状态怎么切、谁压过谁（状态机）；
 //   - 可用性两条不可用路径（AI 总闸关闭、未登录）不能变成失败面板；
 //   - 气泡节奏（每会话 ≤2、闲置 90s、点击即关）；
 //   - 位置持久化与视口钳制（刷新回原位、越界收回来）；
@@ -217,7 +224,7 @@ describe("useJellyAssistant · 未登录路径", () => {
   });
 });
 
-describe("useJellyAssistant · 六态切换", () => {
+describe("useJellyAssistant · 视觉状态切换", () => {
   it("悬停 → hover，离开 → idle", () => {
     const { api } = harness();
 
@@ -261,6 +268,279 @@ describe("useJellyAssistant · 六态切换", () => {
 
     expect(api.isOpen.value).toBe(false);
     expect(api.isDragged.value).toBe(false);
+  });
+});
+
+describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
+  it("collapse() 进入 collapsed 态，压过 hover / idle", () => {
+    const { api } = harness();
+
+    api.collapse();
+    expect(api.isCollapsed.value).toBe(true);
+    expectState(api, "collapsed");
+
+    // collapsed 让位给 dragging / press / open，但压过悬停与闲置。
+    api.pointerEnter();
+    expectState(api, "collapsed");
+    api.pointerLeave();
+    expectState(api, "collapsed");
+  });
+
+  it("面板开着时 collapse() 先关面板（不留「面板悬空、角色不见」）", () => {
+    const { api } = harness();
+
+    api.open();
+    expect(api.isOpen.value).toBe(true);
+
+    api.collapse();
+    expect(api.isOpen.value).toBe(false);
+    expect(api.isCollapsed.value).toBe(true);
+    expectState(api, "collapsed");
+  });
+
+  it("收起期间不改写自由位置；expand() 回到收起前的位置，之后仍可拖拽", () => {
+    const { api, local } = harness();
+
+    api.beginDrag();
+    api.dragTo({ x: 160, y: 220 });
+    api.endDrag();
+    expect(local.getItem(JELLY_POSITION_KEY)).toBe(JSON.stringify({ x: 160, y: 220 }));
+
+    api.collapse();
+    // 派生位置贴右边缘（x = 视口宽 - 命中区宽），y 取自由位置的 y。
+    expect(api.collapsedPosition.value).toEqual({
+      x: 1024 - JELLY_HANDLE_HIT_WIDTH,
+      y: 220,
+    });
+    // 收起**不改写**自由位置与它的持久化键。
+    expect(api.position.value).toEqual({ x: 160, y: 220 });
+    expect(local.getItem(JELLY_POSITION_KEY)).toBe(JSON.stringify({ x: 160, y: 220 }));
+
+    api.expand();
+    expect(api.isCollapsed.value).toBe(false);
+    expect(api.position.value).toEqual({ x: 160, y: 220 });
+    expectState(api, "idle");
+
+    api.beginDrag();
+    api.dragTo({ x: 300, y: 400 });
+    expect(api.position.value).toEqual({ x: 300, y: 400 });
+  });
+
+  it("拖到贴近右边缘不会被误判成已收起（收起是显式动作）", () => {
+    const { api } = harness();
+
+    api.beginDrag();
+    api.dragTo({ x: 1024 - JELLY_HANDLE_HIT_WIDTH, y: 300 });
+    api.endDrag();
+
+    expect(api.isCollapsed.value).toBe(false);
+  });
+
+  it("拖拽进行中 collapse()：先结束这次拖拽再收起，不留半收起", () => {
+    const { api } = harness();
+
+    api.pointerDown();
+    api.beginDrag();
+    api.dragTo({ x: 300, y: 300 });
+    expectState(api, "dragging");
+
+    api.collapse();
+
+    expect(api.isDragged.value).toBe(false);
+    expect(api.isCollapsed.value).toBe(true);
+    expect(api.position.value).toEqual({ x: 300, y: 300 });
+    expectState(api, "collapsed");
+  });
+
+  it("收起态下视口变小（resize / 旋转）：把手重新钳制并整块留在视口内", () => {
+    const { api, nextViewport } = harness({ viewport: { width: 1024, height: 768 } });
+
+    api.collapse();
+    expect(api.collapsedPosition.value).toEqual({ x: 1024 - JELLY_HANDLE_HIT_WIDTH, y: 700 });
+
+    nextViewport({ width: 400, height: 300 });
+    api.handleViewportResize();
+
+    const handle = api.collapsedPosition.value;
+    expect(handle.x).toBe(400 - JELLY_HANDLE_HIT_WIDTH);
+    expect(handle.y).toBe(300 - JELLY_HANDLE_HEIGHT - JELLY_VIEWPORT_MARGIN);
+    expect(handle.x + JELLY_HANDLE_HIT_WIDTH).toBeLessThanOrEqual(400);
+    expect(handle.y + JELLY_HANDLE_HEIGHT).toBeLessThanOrEqual(300);
+  });
+});
+
+describe("useJellyAssistant · 收起状态持久化（脏值一律按展开）", () => {
+  it("collapse() / expand() 把 \"1\" / \"0\" 写进同一个 localStore", () => {
+    const { api, local } = harness();
+
+    api.collapse();
+    expect(local.getItem(JELLY_DRAWER_COLLAPSED_KEY)).toBe("1");
+
+    api.expand();
+    expect(local.getItem(JELLY_DRAWER_COLLAPSED_KEY)).toBe("0");
+  });
+
+  it("新会话恢复为收起态，且恢复时不排闲置气泡", () => {
+    vi.useFakeTimers();
+    const local = memoryStorage({ [JELLY_DRAWER_COLLAPSED_KEY]: "1" });
+    const { api } = harness({ local });
+
+    api.startSession();
+
+    expect(api.isCollapsed.value).toBe(true);
+    expect(api.bubbleText.value).toBeNull();
+
+    vi.advanceTimersByTime(JELLY_IDLE_BUBBLE_MS * 3);
+    expect(api.bubbleText.value).toBeNull();
+  });
+
+  it.each<Readonly<[string, string | null]>>([
+    ["缺失", null],
+    ["显式展开 \"0\"", "0"],
+    ["脏值 \"true\"", "true"],
+    ["空串", ""],
+    ["带空格的 \"1 \"（不是精确的 \"1\"）", "1 "],
+  ])("存储里是 %s 时一律按展开处理", (label, stored) => {
+    const local = memoryStorage(
+      stored === null ? {} : { [JELLY_DRAWER_COLLAPSED_KEY]: stored },
+    );
+    const { api } = harness({ local });
+
+    api.startSession();
+
+    expect(api.isCollapsed.value, label).toBe(false);
+  });
+
+  it("没有可用存储（隐私模式）时按展开；收起/展开仍只是内存状态", () => {
+    const { api } = harness({ local: null });
+
+    api.startSession();
+    expect(api.isCollapsed.value).toBe(false);
+
+    api.collapse();
+    expect(api.isCollapsed.value).toBe(true);
+
+    api.expand();
+    expect(api.isCollapsed.value).toBe(false);
+  });
+
+  it("读取存储抛异常时按展开，不把异常冒到页面", () => {
+    const local: JellyStorageAdapter = {
+      getItem: (key) => {
+        if (key === JELLY_DRAWER_COLLAPSED_KEY) throw new Error("storage denied");
+        return null;
+      },
+      setItem: () => undefined,
+    };
+    const { api } = harness({ local });
+
+    api.startSession();
+
+    expect(api.isCollapsed.value).toBe(false);
+  });
+});
+
+describe("useJellyAssistant · 收起与气泡节奏", () => {
+  it("收起时清空当前气泡与瞬时提示、停掉闲置计时，并播一句收起状态", () => {
+    vi.useFakeTimers();
+    const { api } = harness();
+
+    api.startSession();
+    expect(api.bubbleText.value).toBe(JELLY_BUBBLE_TEXTS[0]);
+
+    api.dismissBubble();
+    vi.advanceTimersByTime(30_000);
+    api.collapse();
+
+    expect(api.bubbleText.value).toBeNull();
+    expect(api.hintText.value).toBe(JELLY_COLLAPSE_HINT);
+
+    vi.advanceTimersByTime(JELLY_IDLE_BUBBLE_MS * 2);
+    expect(api.bubbleText.value).toBeNull();
+    expect(api.hintText.value).toBeNull();
+  });
+
+  it("收起态不再弹第 2 句；展开后按原节奏重新排一次（每会话 ≤2 不变）", () => {
+    vi.useFakeTimers();
+    const { api, session } = harness();
+
+    api.startSession();
+    api.dismissBubble();
+    api.collapse();
+    vi.advanceTimersByTime(JELLY_IDLE_BUBBLE_MS * 3);
+    expect(api.bubbleText.value).toBeNull();
+
+    api.expand();
+    vi.advanceTimersByTime(JELLY_IDLE_BUBBLE_MS);
+    expect(api.bubbleText.value).toBe(JELLY_BUBBLE_TEXTS[1]);
+    expect(session.getItem(JELLY_BUBBLE_COUNT_KEY)).toBe("2");
+
+    api.dismissBubble();
+    vi.advanceTimersByTime(JELLY_IDLE_BUBBLE_MS * 3);
+    expect(api.bubbleText.value).toBeNull();
+    expect(JELLY_BUBBLE_LIMIT).toBe(2);
+  });
+
+  it("收起 / 展开各播一句中文状态，复用 2.5s 瞬时提示机制", () => {
+    vi.useFakeTimers();
+    const { api } = harness();
+
+    api.collapse();
+    expect(api.hintText.value).toBe(JELLY_COLLAPSE_HINT);
+
+    api.expand();
+    expect(api.hintText.value).toBe(JELLY_EXPAND_HINT);
+
+    vi.advanceTimersByTime(2_500);
+    expect(api.hintText.value).toBeNull();
+  });
+});
+
+describe("useJellyAssistant · 长按唤出的收起按钮（chip）", () => {
+  it("pinCollapseChip() 挂起 chip，dismissCollapseChip() 收起", () => {
+    const { api } = harness();
+
+    expect(api.isChipPinned.value).toBe(false);
+
+    api.pinCollapseChip();
+    expect(api.isChipPinned.value).toBe(true);
+
+    api.dismissCollapseChip();
+    expect(api.isChipPinned.value).toBe(false);
+  });
+
+  it("长按唤出的 chip 在 4 秒后自动消失（JELLY_CHIP_PIN_MS）", () => {
+    vi.useFakeTimers();
+    const { api } = harness();
+
+    api.pinCollapseChip();
+    expect(api.isChipPinned.value).toBe(true);
+
+    vi.advanceTimersByTime(JELLY_CHIP_PIN_MS);
+    expect(api.isChipPinned.value).toBe(false);
+  });
+
+  it("pin 期间松手不触发 activate()（长按只是叫出收起按钮，不是「误开面板」）", () => {
+    const { api } = harness();
+
+    api.pointerDown();
+    api.pinCollapseChip();
+    api.pointerUp();
+
+    expect(api.isOpen.value).toBe(false);
+    expectState(api, "idle");
+  });
+
+  it("收起 / 展开都会顺手收掉 chip（不留下过期的挂起态）", () => {
+    const { api } = harness();
+
+    api.pinCollapseChip();
+    api.collapse();
+    expect(api.isChipPinned.value).toBe(false);
+
+    api.pinCollapseChip();
+    api.expand();
+    expect(api.isChipPinned.value).toBe(false);
   });
 });
 

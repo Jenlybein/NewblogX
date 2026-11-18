@@ -24,8 +24,15 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
 //
 // 边界：本模块只做状态，不发请求（流式对话是 #10 的 AI 服务层的事）。
 
-/** 六种视觉状态：角色外观只认这六个数。 */
-export type JellyVisualState = "idle" | "hover" | "press" | "open" | "dragging" | "disabled";
+/** 七种视觉状态：角色外观只认这七个数（`collapsed` = 收进右边缘，只留把手）。 */
+export type JellyVisualState =
+  | "idle"
+  | "hover"
+  | "press"
+  | "open"
+  | "collapsed"
+  | "dragging"
+  | "disabled";
 
 /** 位置语义：左上角像素坐标（固定定位元素的 left/top）。 */
 export interface JellyPosition {
@@ -66,6 +73,8 @@ export interface JellyAssistantOptions {
 
 /** 位置持久化键（中性新名，不改既有 `blogx_*` 内部标识）。 */
 export const JELLY_POSITION_KEY = "jelly:launcher-position";
+/** 收起状态持久化键：`"1"` = 收起，`"0"`（或其它任何值）= 展开。 */
+export const JELLY_DRAWER_COLLAPSED_KEY = "jelly:drawer-collapsed";
 /** 气泡计数键：每会话最多两次（首次进入 + 闲置 90s）。 */
 export const JELLY_BUBBLE_COUNT_KEY = "jelly:bubble-count";
 
@@ -73,6 +82,21 @@ export const JELLY_BUBBLE_COUNT_KEY = "jelly:bubble-count";
 export const JELLY_LAUNCHER_SIZE = 56;
 /** 与视口边缘的最小留白（px）。 */
 export const JELLY_VIEWPORT_MARGIN = 12;
+
+/** 收起态把手的可见宽度（px）：只留一条薄玻璃边。 */
+export const JELLY_HANDLE_WIDTH = 16;
+/** 收起态把手的高度（px）。 */
+export const JELLY_HANDLE_HEIGHT = 56;
+/**
+ * 收起态把手的命中区宽度（px）：可见胶囊只有 16px，但按钮取 44px，
+ * 透明部分向左延伸 —— 保证命中区 ≥44×44 又不撑大任何布局。
+ */
+export const JELLY_HANDLE_HIT_WIDTH = 44;
+/** 长按唤出的收起按钮自动消失的时间（毫秒）。 */
+export const JELLY_CHIP_PIN_MS = 4_000;
+/** 收起 / 展开时经 `role="status"` 播的一句状态（复用 2.5s 瞬时提示机制）。 */
+export const JELLY_COLLAPSE_HINT = "捏捏收进右边缘了，点把手叫它出来";
+export const JELLY_EXPAND_HINT = "捏捏回来了";
 
 /** 闲置多久后弹第二句气泡（毫秒）。 */
 export const JELLY_IDLE_BUBBLE_MS = 90_000;
@@ -107,6 +131,31 @@ export function clampJellyPosition(
   return {
     x: Math.min(Math.max(x, margin), maxX),
     y: Math.min(Math.max(y, margin), maxY),
+  };
+}
+
+/**
+ * 收起态把手的派生位置（纯函数）：右边缘齐平、y 取自由位置的 y 并重新钳制。
+ *
+ * **不合成自由位置**：收起只借用自由位置的 y，x 由视口宽度算出；所以展开就是
+ * 回到 `position` 本身，不需要第二份坐标，也就不会出现"展开回错地方"。
+ * 只动 `transform`（位置语义仍是左上角），不写 `right/bottom`，避免与拖拽坐标系分叉。
+ */
+export function collapsedHandlePosition(
+  position: JellyPosition,
+  viewport: { width: number; height: number },
+): JellyPosition {
+  const width = Math.max(0, Math.round(viewport.width));
+  const height = Math.max(0, Math.round(viewport.height));
+  const y = Number.isFinite(position.y) ? Math.round(position.y) : JELLY_VIEWPORT_MARGIN;
+  const maxY = Math.max(
+    JELLY_VIEWPORT_MARGIN,
+    height - JELLY_HANDLE_HEIGHT - JELLY_VIEWPORT_MARGIN,
+  );
+
+  return {
+    x: Math.max(0, width - JELLY_HANDLE_HIT_WIDTH),
+    y: Math.min(Math.max(y, JELLY_VIEWPORT_MARGIN), maxY),
   };
 }
 
@@ -167,8 +216,14 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   const isAvailable = computed(() => resolveAiEnabled());
   const shouldRender = computed(() => !resolveStudioRoute());
   const isOpen = ref(false);
+  /** 收起态：自由位置不动，界面换成贴右边缘的把手。 */
+  const isCollapsed = ref(false);
+  /** 长按唤出的收起按钮是否还挂着（触摸设备没有 hover）。 */
+  const isChipPinned = ref(false);
+  /** 最近一次读到的视口；resize 时更新，派生位置据此重算。 */
+  const viewportSize = ref(resolveViewport());
 
-  // 指针阶段的原始状态；视觉状态是"可用性 + 拖拽 + 按压 + 打开 + 悬停"的优先级结果。
+  // 指针阶段的原始状态；视觉状态是"可用性 + 拖拽 + 按压 + 打开 + 收起 + 悬停"的优先级结果。
   const phase = ref<"idle" | "hover" | "press" | "dragging">("idle");
   const isDragged = ref(false);
   // 本次按下已经变成拖拽：松手时不触发点击（否则拖完就打开面板）。
@@ -179,6 +234,7 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     if (phase.value === "dragging") return "dragging";
     if (phase.value === "press") return "press";
     if (isOpen.value) return "open";
+    if (isCollapsed.value) return "collapsed";
     if (phase.value === "hover") return "hover";
     return "idle";
   });
@@ -195,6 +251,14 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   }
 
   const position = ref<JellyPosition>(defaultPosition());
+
+  /**
+   * 收起态的派生位置：贴右边缘（x 由命中区宽度算出）、y 取自由位置并重新钳制。
+   * 展开即回到 `position` 本身 —— 收起从不改写自由位置，所以没有"第二份坐标"。
+   */
+  const collapsedPosition = computed<JellyPosition>(() =>
+    collapsedHandlePosition(position.value, viewportSize.value),
+  );
 
   /** 瞬时提示（目前只有 AI 关闭这一句）；过了 JELLY_HINT_MS 自己消失。 */
   const hintText = ref<string | null>(null);
@@ -282,8 +346,13 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   function startSession() {
     if (sessionStarted) return;
     sessionStarted = true;
+    viewportSize.value = resolveViewport();
     restorePosition();
+    restoreCollapsed();
     bubbleCount = readBubbleCount();
+
+    // 收起态恢复：右边缘不挂半句话 —— 不弹第一句，也不排闲置气泡。
+    if (isCollapsed.value) return;
 
     if (bubbleCount === 0) {
       // 首次进入：立刻弹一次（新访客才知道有这么个入口）。
@@ -298,6 +367,7 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   function stopSession() {
     sessionStarted = false;
     clearIdleTimer();
+    clearChipPinTimer();
   }
 
   function open() {
@@ -318,6 +388,32 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     } else {
       open();
     }
+  }
+
+  /** 长按唤出的收起按钮自动消失的计时器（4s，`JELLY_CHIP_PIN_MS`）。 */
+  let chipPinTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearChipPinTimer() {
+    if (chipPinTimer !== null) {
+      clearTimeout(chipPinTimer);
+      chipPinTimer = null;
+    }
+  }
+
+  /** 长按捏捏唤出收起按钮：挂起就代表"这颗按钮还在"，松手不会变成一次点击。 */
+  function pinCollapseChip() {
+    clearChipPinTimer();
+    isChipPinned.value = true;
+    chipPinTimer = setTimeout(() => {
+      chipPinTimer = null;
+      isChipPinned.value = false;
+    }, JELLY_CHIP_PIN_MS);
+  }
+
+  /** 收起按钮退场（Esc / 点收起 / 收起态切换都走这里）。 */
+  function dismissCollapseChip() {
+    clearChipPinTimer();
+    isChipPinned.value = false;
   }
 
   function persistPosition() {
@@ -358,7 +454,74 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
 
   /** 视口变化（窗口缩放 / 旋转 / 软键盘顶起）后重新钳制，别让角色跑到点不到的地方。 */
   function handleViewportResize() {
-    position.value = clampJellyPosition(position.value, resolveViewport());
+    viewportSize.value = resolveViewport();
+    position.value = clampJellyPosition(position.value, viewportSize.value);
+  }
+
+  /**
+   * 收起状态持久化：`"1"` = 收起，其它任何取值都按展开。
+   *
+   * 为什么阈值定得这么死：藏起来比露出来更糟 —— 读不到存储、写入失败、
+   * 脏数据（`"true"` / `"1 "` / 空串）时宁可让捏捏露出来，读者至少能找到它。
+   */
+  function readCollapsed(): boolean {
+    try {
+      return localStore?.getItem(JELLY_DRAWER_COLLAPSED_KEY) === "1";
+    } catch {
+      // 隐私模式 / 策略禁用时访问会抛：按展开处理，功能降级但不崩。
+      return false;
+    }
+  }
+
+  function persistCollapsed(collapsed: boolean) {
+    try {
+      localStore?.setItem(JELLY_DRAWER_COLLAPSED_KEY, collapsed ? "1" : "0");
+    } catch {
+      // 写不进去就算了：状态仍在内存里，刷新后按展开处理。
+    }
+  }
+
+  function restoreCollapsed() {
+    isCollapsed.value = readCollapsed();
+  }
+
+  /**
+   * 收进窗口右边缘。
+   *
+   * - 防御性先关面板：否则会出现"面板悬空、角色不见"；
+   * - 拖拽进行中调用时先结束这次拖拽（位置照常持久化），再收起 —— 不产生半收起；
+   * - 自由位置与 `jelly:launcher-position` 一律不改写，展开即回原位；
+   * - 气泡 / 瞬时提示清空、闲置计时停掉，然后用同一个 `role="status"` 通道播一句状态。
+   */
+  function collapse() {
+    if (isCollapsed.value) return;
+
+    if (phase.value === "dragging") {
+      // 先结束这次拖拽：位置照常持久化，`suppressClick` 还留着，松手不会变成点击。
+      endDrag();
+      isDragged.value = false;
+    }
+
+    close();
+    dismissCollapseChip();
+    dismissBubble();
+    dismissHint();
+    clearIdleTimer();
+
+    isCollapsed.value = true;
+    persistCollapsed(true);
+    showHint(JELLY_COLLAPSE_HINT);
+  }
+
+  /** 从右边缘出来：回到收起前的自由位置（`position` 从未被收起改写），并按原节奏重排闲置气泡。 */
+  function expand() {
+    if (!isCollapsed.value) return;
+
+    dismissCollapseChip();
+    isCollapsed.value = false;
+    persistCollapsed(false);
+    showHint(JELLY_EXPAND_HINT);
+    scheduleIdleBubble();
   }
 
   function activate() {
@@ -402,6 +565,8 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     }
     if (phase.value !== "press") return;
     phase.value = "idle";
+    // 长按唤出的收起按钮还挂着：松手只是"叫出按钮"，不是打开面板。
+    if (isChipPinned.value) return;
     activate();
   }
 
@@ -421,6 +586,7 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     onScopeDispose(() => {
       clearHintTimer();
       clearIdleTimer();
+      clearChipPinTimer();
       stopSession();
       motion.dispose?.();
     });
@@ -431,11 +597,14 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     state,
     isAvailable,
     isOpen,
+    isCollapsed,
+    isChipPinned,
     isReducedMotion,
     shouldAnimate,
     breathDurationMs,
     shouldRender,
     position,
+    collapsedPosition,
     bubbleText,
     hintText,
     isDragged,
@@ -444,6 +613,10 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     open,
     close,
     toggle,
+    collapse,
+    expand,
+    pinCollapseChip,
+    dismissCollapseChip,
     pointerEnter,
     pointerLeave,
     pointerDown,

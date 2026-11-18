@@ -1,4 +1,5 @@
 import type { ThemeMode } from "~/types/api";
+import type { ThemeColorPalette } from "~/utils/themeColor";
 
 /**
  * 明暗主题的"初始偏好"：系统偏好 vs 用户选择（cookie）的解析。
@@ -61,8 +62,29 @@ export function resolveThemeMode(input: ThemePreferenceInput = {}): ThemeMode {
  * 直接把根元素类钉成最终值，颜色由 CSS 变量瞬间生效，不产生闪烁、也不改字号/间距。
  *
  * 只做 class 增删（连同 `dark`，Tailwind `dark:` 工具类才跟着走），不写样式、不抛错。
+ *
+ * 传入 `themeColors` 时（票 434）同一段脚本还把 head 里的 `theme-color` 定成最终主题：
+ * SSR 只读得到 cookie，没有 cookie 的新访客要跟随系统暗色，服务端会先输出浅色
+ * meta —— 这段脚本在绘制前原地改写它，状态栏就不会先亮后暗。取值来自
+ * `parseThemeColorPalette(tokens.css)`，调用点与 head 的 meta 共用同一份。
  */
-export function buildThemeInitScript(): string {
+export function buildThemeInitScript(themeColors?: ThemeColorPalette): string {
+  const themeColorLines = themeColors
+    ? [
+        '    var colorMeta = document.querySelector(\'meta[name="theme-color"]\');',
+        "    if (!colorMeta) {",
+        "      colorMeta = document.createElement('meta');",
+        "      colorMeta.setAttribute('name', 'theme-color');",
+        "      document.head.appendChild(colorMeta);",
+        "    }",
+        "    colorMeta.setAttribute('content', theme === \"dark\" ? " +
+          JSON.stringify(themeColors.dark) +
+          " : " +
+          JSON.stringify(themeColors.light) +
+          ");",
+      ]
+    : [];
+
   return [
     "(function () {",
     "  try {",
@@ -74,6 +96,7 @@ export function buildThemeInitScript(): string {
     '    root.classList.remove("theme-light", "theme-dark", "dark");',
     '    root.classList.add(theme === "dark" ? "theme-dark" : "theme-light");',
     '    if (theme === "dark") { root.classList.add("dark"); }',
+    ...themeColorLines,
     "  } catch (error) {",
     "    /* 首屏脚本失败也不拦渲染，退化为默认浅色 */",
     "  }",

@@ -6,15 +6,15 @@ import { describe, expect, it } from "vitest";
 import { blockAfter, stripComments } from "../helpers/designFiles";
 
 /**
- * 捏捏的安全区让位设计测试（票 426，spec #423 的 D20）。
+ * 捏捏的安全区设计测试（票 426，spec 的 D20）。
  *
  * 为什么单列一个文件：安全区是**纯 CSS 的渲染层让位**，JS 侧一行都不该动 ——
- * 位置语义（左上角 transform）、`clampJellyPosition`、拖拽采样与持久化必须保持
- * 与 #425 完全一致。这里的断言就是守住这条边界：
- *   1. `env(safe-area-inset-bottom)` 只注入到根元素的 CSS 变量里；
- *   2. 让位量只在角色贴视口底时非零（有 0 下限，按视口高度算），不是整体上移；
- *   3. 根元素包住本体与把手，所以两者共享同一个让位量；
- *   4. composable 不掺安全区（读了也不会用）。
+ * 固定定位之后更是如此：根元素用 `right/bottom` 直接吃 `env(safe-area-inset-*)`，
+ * 不再有坐标 / translate 让位。这里的断言守住这条边界：
+ *   1. `env(safe-area-inset-right/bottom)` 只出现在根元素与把手的固定定位里；
+ *   2. 收起把手在右边缘垂直中部，不被底部进度条 / 页脚 / iPhone 手势条压住；
+ *   3. composable 不掺安全区（读了也不会用）；
+ *   4. 组件不再写 `translate3d` / `--jelly-y`。
  *
  * 不断言像素值（无法也没有必要在这里看真实渲染），也不模拟 iPhone——真机安全区
  * 属于"真机未验"的验收项，见实现报告。
@@ -29,49 +29,49 @@ function launcherRootBlock(): string {
   return blockAfter(launcherSource, ".jelly-launcher {");
 }
 
-describe("捏捏安全区让位 · 渲染层与 JS 坐标语义的边界", () => {
-  it("根元素把 env(safe-area-inset-bottom) 注入成 CSS 变量", () => {
+describe("捏捏安全区 · 固定定位与 JS 坐标语义的边界", () => {
+  it("根元素把 safe-area-inset-right / bottom 直接写进固定定位", () => {
     const block = launcherRootBlock();
 
-    expect(block).toContain("--jelly-safe-bottom: env(safe-area-inset-bottom, 0px)");
-    // 让位量是 translate 的一部分（与 inline 的 transform 叠加，不是替换它）。
-    expect(block).toContain("translate:");
-    expect(block).toContain("var(--jelly-safe-bottom)");
+    expect(block).toContain("position: fixed");
+    expect(block).toContain("right: max(var(--jelly-margin), env(safe-area-inset-right))");
+    expect(block).toContain("bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom))");
+    // 固定定位后不再有 JS 坐标与 translate 让位。
+    expect(block).not.toContain("--jelly-safe-bottom");
+    expect(block).not.toContain("--jelly-y");
+    expect(block).not.toMatch(/^\s*translate:/mu);
   });
 
-  it("只在贴底时上抬：有 0 下限、以视口高度为界，不是把角色整体上移", () => {
-    const block = launcherRootBlock();
-
-    // 纵向坐标由组件以只读 CSS 变量抄给样式表。
-    expect(block).toContain("--jelly-y");
-    // 让位量按「角色底边 - (视口底 - 安全区)」算，因此高处为 0、贴底最多抬一个安全区。
-    expect(block).toContain("100dvh");
-    expect(block).toMatch(/max\(\s*0px/u);
-    expect(block).toContain("var(--jelly-size)");
-    expect(block).toContain("var(--jelly-margin)");
-  });
-
-  it("本体与把手共享同一个让位量：整个组件只有根元素带 translate，把手不另开 fixed 定位", () => {
-    // `.jelly-launcher` 根元素包住 cluster（本体 / 把手都在里面）；只有一个 translate。
-    const translateDeclarations = launcherSource.match(/^\s*translate:/gmu) ?? [];
-    expect(translateDeclarations).toHaveLength(1);
-
+  it("收起把手避开底部：右边缘垂直中部 + 安全区，不贴 bottom", () => {
     const handleBlock = blockAfter(launcherSource, ".jelly-launcher__handle {");
-    expect(handleBlock).not.toContain("position: fixed");
-    expect(handleBlock).not.toContain("bottom:");
+
+    expect(handleBlock).toContain("position: fixed");
+    expect(handleBlock).toContain("top: 45%");
+    expect(handleBlock).toMatch(/translate:\s*0\s+-50%/u);
+    expect(handleBlock).toContain("env(safe-area-inset-right)");
+    expect(handleBlock).not.toMatch(/\bbottom:/u);
+    // 不另开第二套底部让位变量。
+    expect(handleBlock).not.toContain("dvh");
   });
 
-  it("JS 坐标语义不变：clampJellyPosition / 持久化里不掺安全区，仍只信 inline transform", () => {
+  it("JS 坐标语义退场：composable 不掺安全区，组件不写 translate3d", () => {
     const composableCode = stripComments(composableSource);
+    const launcherCode = stripComments(launcherSource);
 
     expect(composableCode).not.toContain("safe-area");
     expect(composableCode).not.toContain("env(");
 
-    // 位置仍然由组件 inline 的 translate3d 写入；CSS 只负责叠一个让位量。
-    expect(launcherSource).toContain(
-      "transform: `translate3d(${target.x + offset.x}px, ${target.y + offset.y}px, 0)`",
-    );
-    // `--jelly-y` 只是同一坐标的只读副本，两者必须写在同一份 rootStyle 里。
-    expect(launcherSource).toContain('"--jelly-y": `${target.y + offset.y}px`');
+    expect(launcherCode).not.toContain("translate3d");
+    expect(launcherCode).not.toContain("--jelly-y");
+    expect(launcherCode).not.toContain("100dvh");
+  });
+
+  it("收起提示跟着把手：固定在垂直中部左侧，而不是右下角", () => {
+    const block = blockAfter(launcherSource, ".jelly-launcher--collapsed .jelly-hint {");
+
+    expect(block).toContain("position: fixed");
+    expect(block).toContain("top: 45%");
+    expect(block).toContain("calc(max(var(--jelly-margin), env(safe-area-inset-right))");
+    expect(block).toMatch(/translate:\s*0\s+-50%/u);
   });
 });

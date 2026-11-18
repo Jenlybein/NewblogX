@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  JELLY_RELEASE_VELOCITY_WINDOW_MS,
   releaseVelocity,
   SHEET_RELEASE_VELOCITY_WINDOW_MS,
 } from "~/utils/releaseVelocity";
@@ -9,8 +8,8 @@ import {
 /**
  * 松手瞬时速度的唯一实现（票 423）。
  *
- * 捏捏落位与评论面板下滑关闭共用这里；两个窗口各登记一条命名常量，
- * 测试按"最后 80 / 100ms"分别钉住边界。单位是 px/ms —— 捏捏自己换算成 px/s。
+ * 评论面板下滑关闭用这里的算法；采样窗口登记成命名常量，测试按"最后 100ms"
+ * 钉住边界。单位是 px/ms。捏捏的拖拽落位已随「固定右下角、不可拖」退场。
  */
 
 function sample(x: number, y: number, t: number) {
@@ -37,7 +36,7 @@ describe("releaseVelocity：窗口内最早一点 → 松手点", () => {
     });
   });
 
-  it("两个轴各自求差（捏捏按 x/y 分轴把初速交给弹簧）", () => {
+  it("两个轴各自求差（调用方按 x/y 分轴使用初速）", () => {
     const release = releaseVelocity([sample(10, 20, 960), sample(30, 0, 1_000)], 1_000, 80);
 
     expect(release.x).toBeCloseTo(20 / 40);
@@ -64,8 +63,7 @@ describe("releaseVelocity：窗口内最早一点 → 松手点", () => {
     });
   });
 
-  it("两个消费者用各自登记的窗口（80ms / 100ms）", () => {
-    expect(JELLY_RELEASE_VELOCITY_WINDOW_MS).toBe(80);
+  it("评论面板的窗口是登记过的常量（100ms）；窗口长度确实参与判定", () => {
     expect(SHEET_RELEASE_VELOCITY_WINDOW_MS).toBe(100);
 
     // 起点 910：80ms 窗口从 920 起算，910 落在窗外 → 没有证据。

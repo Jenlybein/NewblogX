@@ -396,8 +396,8 @@ _Avoid_: 让前端读 `.env`（不读；且每份 env 只能写本应用前缀�
 ## 八、前端呈现与品牌
 
 **Jelly（捏捏）**：
-读者站右下角常驻的果冻方块软体角色，同时是读者站 **AI 的唯一入口**：点它打开 AI 面板，面板从它所在的位置生长出来、打开期间它被压成面板右下角的把手（非遮罩，可边读边问）；创作区 `/studio/**` 不渲染它，后台也没有它。它也能**收进窗口右边缘**：收起后只留一个贴边薄玻璃把手（可见 16px、命中区 ≥44×44），收起状态存 `jelly:drawer-collapsed`（脏值 / 读不到存储时一律按展开）。
-位置：读者站 `frontend/app/` 下的角色组件（只负责外观与指针交互）与状态 composable（唯一状态真相源，在 `composables/`）；AI 面板复用既有 `frontend/app/services/ai.ts` 流式服务层。取舍见 [ADR-0010](./docs/adr/0010-jelly-replaces-traditional-ai-entry.md)。
+读者站右下角常驻的果冻方块软体角色，同时是读者站 **AI 的唯一入口**：点它打开 AI 面板，面板从它所在的位置生长出来、打开期间它被压成面板右下角的把手（非遮罩，可边读边问）；创作区 `/studio/**` 不渲染它，后台也没有它。位置**纯 CSS 固定右下角、不可拖拽**（`position: fixed` + `right`/`bottom` 吃安全区，不持久化坐标）。它也能**收进窗口右边缘**：收起后只留一个贴右边缘**垂直中部**的薄玻璃把手（可见 16px、命中区 ≥44×44、`z-index: 50`），避开底部进度条 / 页脚 / 移动端底栏；收起状态存 `jelly:drawer-collapsed`（脏值 / 读不到存储时一律按展开）。
+位置：读者站 `frontend/app/` 下的角色组件（只负责外观与指针交互）与状态 composable（唯一状态真相源，六态 `idle` / `hover` / `press` / `open` / `collapsed` / `disabled`，在 `composables/`）；AI 面板复用既有 `frontend/app/services/ai.ts` 流式服务层。取舍见 [ADR-0010](./docs/adr/0010-jelly-replaces-traditional-ai-entry.md)。
 _Avoid_: 叫它"AI 对话框""聊天机器人"（它是入口角色，不是对话组件）；旧入口"首页右栏 AI 卡片 + 居中模态框"也不指代它。
 
 **JellyBin（果冻盒）**：
@@ -486,7 +486,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前有四处消费者（标题大纲飞行器、消息中心接缝位移、首屏像素尾迹、捏捏拖拽松手落位），是登记过的例外；CSS 侧的三档界面时长 + 单一缓动照旧。**三档之外另有登记的表达型时长**（`MOTION_EXPRESSIVE_MS`：`countUp` / `dragSettle` / `chartReveal` / `bannerCrossfade`），组件不得内联毫秒。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。布局属性动画同样只有两处登记例外：消息中心接缝的 `margin-left` 与折叠/展开类容器的 `grid-template-rows: 0fr ↔ 1fr`（评论子楼、`AppHeader` 手机面板、`GroupedReaderList` 折叠面板；只在展开/收起那一刻改轨道，不逐帧）。`clip-path`（碎玻璃标题的碎片裁切 / 入场遮罩）是"只动 transform/opacity"的登记例外：不触发布局，逐帧只改合成 / 遮罩。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前有三处消费者（标题大纲飞行器、消息中心接缝位移、首屏像素尾迹），是登记过的例外；CSS 侧的三档界面时长 + 单一缓动照旧。**三档之外另有登记的表达型时长**（`MOTION_EXPRESSIVE_MS`：`countUp` / `dragSettle` / `chartReveal` / `bannerCrossfade`），组件不得内联毫秒。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。布局属性动画同样只有两处登记例外：消息中心接缝的 `margin-left` 与折叠/展开类容器的 `grid-template-rows: 0fr ↔ 1fr`（评论子楼、`AppHeader` 手机面板、`GroupedReaderList` 折叠面板；只在展开/收起那一刻改轨道，不逐帧）。`clip-path`（碎玻璃标题的碎片裁切 / 入场遮罩）是"只动 transform/opacity"的登记例外：不触发布局，逐帧只改合成 / 遮罩。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
 
 **合集/项目文件夹卡（folder card）**：

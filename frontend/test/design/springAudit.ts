@@ -49,7 +49,7 @@ const BARE_SPRING_NUMBER = /\b(stiffness|damping)\s*:\s*-?\d/gu;
 /**
  * 预设引用：名字由 `SPRING_PRESETS` 的键生成，新增预设自动进扫描面。
  *
- * camelCase 键（`trailTail` / `pixelPop` / `launcherSettle`）对应的常数写的是
+ * camelCase 键（`trailTail` / `pixelPop` / `pixelGlow`）对应的常数写的是
  * `SPRING_TRAIL_TAIL` 这种**带下划线**的形式，所以两种写法都要收进正则：
  * 只按 `name.toUpperCase()` 生成会把下划线版漏出审计 —— 新预设登记了却没有门禁。
  */

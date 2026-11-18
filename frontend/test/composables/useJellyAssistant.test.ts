@@ -13,32 +13,27 @@ import {
   JELLY_DISABLED_HINT,
   JELLY_DRAWER_COLLAPSED_KEY,
   JELLY_EXPAND_HINT,
-  JELLY_HANDLE_HEIGHT,
-  JELLY_HANDLE_HIT_WIDTH,
+  JELLY_HINT_MS,
   JELLY_IDLE_BUBBLE_MS,
-  JELLY_LAUNCHER_SIZE,
-  JELLY_POSITION_KEY,
-  JELLY_VIEWPORT_MARGIN,
   provideJellyAssistant,
   useJellyAssistant,
   useJellyAssistantContext,
   type JellyAssistantOptions,
-  type JellyPosition,
   type JellyStorageAdapter,
   type JellyVisualState,
 } from "~/composables/useJellyAssistant";
 
-// useJellyAssistant 的用例（票 #9 的 S1 接缝）。
+// useJellyAssistant 的用例（票 9 的 S1 接缝）。
 //
 // 这个 composable 是「捏捏」的**唯一状态真相源**：外观组件只读它的状态、只调它的动作，
-// #10 的 AI 面板也消费同一个实例。所以这里不测 DOM、不测样式，只钉对外可观察的行为：
-//   - 七种视觉状态怎么切、谁压过谁（状态机）；
+// 票 10 的 AI 面板也消费同一个实例。所以这里不测 DOM、不测样式，只钉对外可观察的行为：
+//   - 六种视觉状态怎么切、谁压过谁（状态机）；
 //   - 可用性两条不可用路径（AI 总闸关闭、未登录）不能变成失败面板；
 //   - 气泡节奏（每会话 ≤2、闲置 90s、点击即关）；
-//   - 位置持久化与视口钳制（刷新回原位、越界收回来）；
+//   - 收起 / 展开与状态提示（不再有位置持久化：角色固定右下角，由 CSS 负责定位）；
 //   - 「减少动态」的取值与静态退化。
 //
-// 依赖全部注入：假存储、假视口、假登录态、假 AI 总闸、假 matchMedia —— 不碰真实网络/浏览器。
+// 依赖全部注入：假存储、假登录态、假 AI 总闸、假 matchMedia —— 不碰真实网络/浏览器。
 
 /** 内存版 Storage（localStorage / sessionStorage 的最小接口）。 */
 function memoryStorage(initial: Record<string, string> = {}): JellyStorageAdapter & {
@@ -61,7 +56,6 @@ interface HarnessOptions {
   reducedMotion?: boolean;
   local?: JellyStorageAdapter;
   session?: JellyStorageAdapter;
-  viewport?: { width: number; height: number };
 }
 
 interface Harness {
@@ -70,7 +64,6 @@ interface Harness {
   session: JellyStorageAdapter;
   requestLogin: ReturnType<typeof vi.fn>;
   motion: Ref<boolean>;
-  nextViewport: (size: { width: number; height: number }) => void;
 }
 
 function harness(options: HarnessOptions = {}): Harness {
@@ -78,7 +71,6 @@ function harness(options: HarnessOptions = {}): Harness {
   const session = options.session ?? memoryStorage();
   const requestLogin = vi.fn();
   const motion = ref(options.reducedMotion ?? false);
-  let viewport = options.viewport ?? { width: 1024, height: 768 };
 
   const api = useJellyAssistant({
     isAiEnabled: () => options.aiEnabled ?? true,
@@ -88,7 +80,6 @@ function harness(options: HarnessOptions = {}): Harness {
     motion: { prefersReducedMotion: motion },
     localStore: local,
     sessionStore: session,
-    viewport: () => viewport,
   } satisfies JellyAssistantOptions);
 
   return {
@@ -97,9 +88,6 @@ function harness(options: HarnessOptions = {}): Harness {
     session,
     requestLogin,
     motion,
-    nextViewport: (size) => {
-      viewport = size;
-    },
   };
 }
 
@@ -179,7 +167,7 @@ describe("useJellyAssistant · 可用性与开关", () => {
     expect(api.isOpen.value).toBe(true);
   });
 
-  it("open 压过 hover：面板打开后指针停在把手上，状态不能倒回 hover（#10 要的把手态）", () => {
+  it("open 压过 hover：面板打开后指针停在把手上，状态不能倒回 hover（票 10 要的把手态）", () => {
     const { api } = harness();
 
     api.open();
@@ -213,7 +201,6 @@ describe("useJellyAssistant · 未登录路径", () => {
       motion: { prefersReducedMotion: ref(false) },
       localStore: memoryStorage(),
       sessionStore: memoryStorage(),
-      viewport: () => ({ width: 1024, height: 768 }),
     } satisfies JellyAssistantOptions);
 
     api.activate();
@@ -235,7 +222,7 @@ describe("useJellyAssistant · 视觉状态切换", () => {
     expectState(api, "idle");
   });
 
-  it("按下 → press，松开（没拖动）→ 先捏再触发：打开面板", () => {
+  it("按下 → press，松开（就是一次点击）→ 打开面板", () => {
     const { api } = harness();
 
     api.pointerDown();
@@ -246,32 +233,21 @@ describe("useJellyAssistant · 视觉状态切换", () => {
     expectState(api, "open");
   });
 
-  it("拖拽中 → dragging，压过 hover / press", () => {
-    const { api } = harness();
-
-    api.pointerEnter();
-    api.pointerDown();
-    api.beginDrag();
-    expectState(api, "dragging");
-
-    api.endDrag();
-    expectState(api, "idle");
-  });
-
-  it("拖动结束时不会被当成一次点击（松手不开面板）", () => {
+  it("按压后没有拖拽态可切换：pointerUp 直接结算为一次点击，不再有拖拽分支", () => {
     const { api } = harness();
 
     api.pointerDown();
-    api.beginDrag();
-    api.endDrag();
+    // 旧口径在这里会先进入 dragging；固定定位后 pointerDown/Up 之间没有位置语义。
     api.pointerUp();
 
-    expect(api.isOpen.value).toBe(false);
-    expect(api.isDragged.value).toBe(false);
+    expect(api.isOpen.value).toBe(true);
+    expect(api).not.toHaveProperty("isDragged");
+    expect(api).not.toHaveProperty("beginDrag");
+    expect(api).not.toHaveProperty("endDrag");
   });
 });
 
-describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
+describe("useJellyAssistant · 收进窗口右边缘（六态）", () => {
   it("collapse() 进入 collapsed 态，压过 hover / idle", () => {
     const { api } = harness();
 
@@ -279,10 +255,36 @@ describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
     expect(api.isCollapsed.value).toBe(true);
     expectState(api, "collapsed");
 
-    // collapsed 让位给 dragging / press / open，但压过悬停与闲置。
+    // collapsed 让位给 press / open，但压过悬停与闲置。
     api.pointerEnter();
     expectState(api, "collapsed");
     api.pointerLeave();
+    expectState(api, "collapsed");
+  });
+
+  it("收起态让位给按压：pointerDown 进入 press，离开后回到 collapsed", () => {
+    const { api } = harness();
+
+    api.collapse();
+    expectState(api, "collapsed");
+
+    api.pointerDown();
+    expectState(api, "press");
+
+    api.pointerLeave();
+    expectState(api, "collapsed");
+  });
+
+  it("open 压过 collapsed：收起态下打开面板，关闭后回到 collapsed", () => {
+    const { api } = harness();
+
+    api.collapse();
+    api.open();
+
+    expect(api.isOpen.value).toBe(true);
+    expectState(api, "open");
+
+    api.close();
     expectState(api, "collapsed");
   });
 
@@ -298,80 +300,26 @@ describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
     expectState(api, "collapsed");
   });
 
-  it("收起期间不改写自由位置；expand() 回到收起前的位置，之后仍可拖拽", () => {
-    const { api, local } = harness();
-
-    api.beginDrag();
-    api.dragTo({ x: 160, y: 220 });
-    api.endDrag();
-    expect(local.getItem(JELLY_POSITION_KEY)).toBe(JSON.stringify({ x: 160, y: 220 }));
+  it("收起 / 展开只切换 isCollapsed；位置不再由 composable 记账（固定右下角）", () => {
+    const { api } = harness();
 
     api.collapse();
-    // 派生位置贴右边缘（x = 视口宽 - 角色本体边长；根元素宽度不因收起而变），y 取自由位置的 y。
-    expect(api.collapsedPosition.value).toEqual({
-      x: 1024 - JELLY_LAUNCHER_SIZE,
-      y: 220,
-    });
-    // 收起**不改写**自由位置与它的持久化键。
-    expect(api.position.value).toEqual({ x: 160, y: 220 });
-    expect(local.getItem(JELLY_POSITION_KEY)).toBe(JSON.stringify({ x: 160, y: 220 }));
+    expect(api.isCollapsed.value).toBe(true);
 
     api.expand();
     expect(api.isCollapsed.value).toBe(false);
-    expect(api.position.value).toEqual({ x: 160, y: 220 });
     expectState(api, "idle");
 
-    api.beginDrag();
-    api.dragTo({ x: 300, y: 400 });
-    expect(api.position.value).toEqual({ x: 300, y: 400 });
-  });
-
-  it("拖到贴近右边缘不会被误判成已收起（收起是显式动作）", () => {
-    const { api } = harness();
-
-    api.beginDrag();
-    api.dragTo({ x: 1024 - JELLY_LAUNCHER_SIZE, y: 300 });
-    api.endDrag();
-
-    expect(api.isCollapsed.value).toBe(false);
-  });
-
-  it("拖拽进行中 collapse()：先结束这次拖拽再收起，不留半收起", () => {
-    const { api } = harness();
-
-    api.pointerDown();
-    api.beginDrag();
-    api.dragTo({ x: 300, y: 300 });
-    expectState(api, "dragging");
-
-    api.collapse();
-
-    expect(api.isDragged.value).toBe(false);
-    expect(api.isCollapsed.value).toBe(true);
-    expect(api.position.value).toEqual({ x: 300, y: 300 });
-    expectState(api, "collapsed");
-  });
-
-  it("收起态下视口变小（resize / 旋转）：把手重新钳制并整块留在视口内", () => {
-    const { api, nextViewport } = harness({ viewport: { width: 1024, height: 768 } });
-
-    api.collapse();
-    expect(api.collapsedPosition.value).toEqual({ x: 1024 - JELLY_LAUNCHER_SIZE, y: 700 });
-
-    nextViewport({ width: 400, height: 300 });
-    api.handleViewportResize();
-
-    const handle = api.collapsedPosition.value;
-    // 根元素始终是 JELLY_LAUNCHER_SIZE 宽（收起只动 transform，不改宽度）；
-    // 把手按钮在根内右对齐、自身 44px 宽，所以命中区是 [根右缘 - 44, 根右缘]。
-    expect(handle.x).toBe(400 - JELLY_LAUNCHER_SIZE);
-    expect(handle.y).toBe(300 - JELLY_HANDLE_HEIGHT - JELLY_VIEWPORT_MARGIN);
-
-    const hitLeft = handle.x + (JELLY_LAUNCHER_SIZE - JELLY_HANDLE_HIT_WIDTH);
-    expect(hitLeft).toBe(400 - JELLY_HANDLE_HIT_WIDTH);
-    expect(hitLeft + JELLY_HANDLE_HIT_WIDTH).toBeLessThanOrEqual(400);
-    expect(handle.x + JELLY_LAUNCHER_SIZE).toBeLessThanOrEqual(400);
-    expect(handle.y + JELLY_HANDLE_HEIGHT).toBeLessThanOrEqual(300);
+    for (const gone of [
+      "position",
+      "collapsedPosition",
+      "moveTo",
+      "dragTo",
+      "persistPosition",
+      "handleViewportResize",
+    ]) {
+      expect(api, missingApiMessage(gone)).not.toHaveProperty(gone);
+    }
   });
 });
 
@@ -497,8 +445,25 @@ describe("useJellyAssistant · 收起与气泡节奏", () => {
     api.expand();
     expect(api.hintText.value).toBe(JELLY_EXPAND_HINT);
 
-    vi.advanceTimersByTime(2_500);
+    vi.advanceTimersByTime(JELLY_HINT_MS);
     expect(api.hintText.value).toBeNull();
+  });
+
+  it("提示文案收短、不自称「捏捏」：收起「我先躲起来」、展开「我回来了」", () => {
+    expect(JELLY_COLLAPSE_HINT).toBe("我先躲起来");
+    expect(JELLY_EXPAND_HINT).toBe("我回来了");
+
+    for (const text of [JELLY_COLLAPSE_HINT, JELLY_EXPAND_HINT]) {
+      expect(text).not.toContain("捏捏");
+      expect(text).not.toContain("右边缘");
+    }
+  });
+
+  it("气泡文案里也不出现「捏捏」这个名字（保留「捏」这个动作可以）", () => {
+    for (const text of JELLY_BUBBLE_TEXTS) {
+      expect(text).not.toContain("捏捏");
+    }
+    expect(JELLY_BUBBLE_TEXTS[0]).toContain("捏");
   });
 });
 
@@ -590,11 +555,53 @@ describe("useJellyAssistant · 创作区不渲染", () => {
   });
 });
 
-describe("useJellyAssistant · 位置默认值", () => {
-  it("未持久化时落在右下角（视口内留边）", () => {
+describe("useJellyAssistant · 六种视觉状态（固定定位后不再有 dragging）", () => {
+  it("状态机只产出 idle / hover / press / open / collapsed / disabled 这六种", () => {
+    const { api } = harness();
+    const seen = new Set<JellyVisualState>();
+    const record = () => seen.add(api.state.value);
+
+    record(); // idle
+    api.pointerEnter();
+    record(); // hover
+    api.pointerDown();
+    record(); // press
+    api.pointerUp();
+    record(); // open
+    api.activate();
+    record(); // idle
+    api.collapse();
+    record(); // collapsed
+
+    seen.add(harness({ aiEnabled: false }).api.state.value); // disabled
+
+    expect([...seen].sort()).toEqual([
+      "collapsed",
+      "disabled",
+      "hover",
+      "idle",
+      "open",
+      "press",
+    ]);
+  });
+
+  it("拖拽 / 位置持久化入口整体退场（API 只剩状态与动作）", () => {
     const { api } = harness();
 
-    expect(api.position.value).toEqual(defaultLauncherPosition());
+    for (const gone of [
+      "position",
+      "collapsedPosition",
+      "isDragged",
+      "beginDrag",
+      "endDrag",
+      "moveTo",
+      "dragTo",
+      "persistPosition",
+      "restorePosition",
+      "handleViewportResize",
+    ]) {
+      expect(api, missingApiMessage(gone)).not.toHaveProperty(gone);
+    }
   });
 });
 
@@ -693,84 +700,6 @@ describe("useJellyAssistant · 气泡节奏（每会话 ≤2）", () => {
   });
 });
 
-describe("useJellyAssistant · 位置持久化与视口钳制", () => {
-  it("拖拽结束后写 localStorage；换一个实例（模拟刷新）恢复原位", () => {
-    const local = memoryStorage();
-    const first = harness({ local });
-
-    first.api.beginDrag();
-    first.api.dragTo({ x: 160, y: 220 });
-    first.api.endDrag();
-
-    expect(JSON.parse(local.getItem(JELLY_POSITION_KEY) || "{}")).toEqual({ x: 160, y: 220 });
-
-    const refreshed = harness({ local });
-    refreshed.api.startSession();
-    expect(refreshed.api.position.value).toEqual({ x: 160, y: 220 });
-  });
-
-  it("拖到视口外会被钳制回视口（右下角左上角都收得住）", () => {
-    const { api } = harness();
-
-    api.beginDrag();
-    api.dragTo({ x: 9_999, y: 9_999 });
-    expect(api.position.value).toEqual({ x: 956, y: 700 });
-
-    api.dragTo({ x: -9_999, y: -9_999 });
-    expect(api.position.value).toEqual({ x: JELLY_VIEWPORT_MARGIN, y: JELLY_VIEWPORT_MARGIN });
-  });
-
-  it("恢复时把存下来的越界位置钳制回当前视口（换小屏后仍点得到）", () => {
-    const local = memoryStorage({
-      [JELLY_POSITION_KEY]: JSON.stringify({ x: 5_000, y: -40 }),
-    });
-    const { api } = harness({ local });
-
-    api.startSession();
-    expect(api.position.value).toEqual({ x: 956, y: JELLY_VIEWPORT_MARGIN });
-  });
-
-  it("视口变小后重新钳制（避免角色跑到屏幕外点不到）", () => {
-    const view = { width: 1024, height: 768 };
-    const local = memoryStorage({ [JELLY_POSITION_KEY]: JSON.stringify({ x: 956, y: 700 }) });
-    const { api, nextViewport } = harness({ local, viewport: view });
-
-    api.startSession();
-    expect(api.position.value).toEqual({ x: 956, y: 700 });
-
-    nextViewport({ width: 400, height: 300 });
-    api.handleViewportResize();
-    expect(api.position.value).toEqual({ x: 332, y: 232 });
-  });
-
-  it("存储里是脏 JSON / 缺字段时回落默认位置，不崩", () => {
-    const local = memoryStorage({ [JELLY_POSITION_KEY]: "{oops" });
-    const { api } = harness({ local });
-
-    api.startSession();
-    expect(api.position.value).toEqual(defaultLauncherPosition());
-  });
-
-  it("位置永远是整数（避免半像素让拖拽抖动）", () => {
-    const { api } = harness();
-
-    api.beginDrag();
-    api.dragTo({ x: 110.4, y: 220.7 });
-
-    expect(api.position.value).toEqual({ x: 110, y: 221 });
-  });
-
-  it("没有可用存储时不影响拖拽（隐私模式降级）", () => {
-    const { api } = harness({ local: null });
-
-    api.beginDrag();
-    api.dragTo({ x: 100, y: 100 });
-    api.endDrag();
-
-    expect(api.position.value).toEqual({ x: 100, y: 100 });
-  });
-});
-
 describe("useJellyAssistant · 减少动态", () => {
   it("注入「减少动态」为 true 时：状态不变，但动效退化为静态", () => {
     const { api } = harness({ reducedMotion: true });
@@ -781,7 +710,7 @@ describe("useJellyAssistant · 减少动态", () => {
     expect(api.state.value).toBe("idle");
   });
 
-  it("默认走 #3 的 useMotionPreference（读系统设置）", () => {
+  it("默认走票 3 的 useMotionPreference（读系统设置）", () => {
     const quiet = useJellyAssistant();
 
     expect(quiet.isReducedMotion.value).toBe(false);
@@ -822,7 +751,7 @@ describe("useJellyAssistant · 减少动态", () => {
   });
 });
 
-describe("useJellyAssistant · 页面级共享实例（#10 的接缝）", () => {
+describe("useJellyAssistant · 页面级共享实例（票 10 的接缝）", () => {
   it("provideJellyAssistant 提供的实例能被 useJellyAssistantContext 读到（同一对象）", () => {
     let provided: ReturnType<typeof provideJellyAssistant> | null = null;
     let injected: ReturnType<typeof useJellyAssistantContext> = null;
@@ -844,7 +773,6 @@ describe("useJellyAssistant · 页面级共享实例（#10 的接缝）", () => 
           motion: { prefersReducedMotion: ref(false) },
           localStore: memoryStorage(),
           sessionStore: memoryStorage(),
-          viewport: () => ({ width: 1024, height: 768 }),
         });
         return () => h(Child);
       },
@@ -871,10 +799,7 @@ describe("useJellyAssistant · 页面级共享实例（#10 的接缝）", () => 
   });
 });
 
-/** 右下角默认位置（与常量同一套口径，但这里写死数值，防止实现改了常量还自洽）。 */
-function defaultLauncherPosition(): JellyPosition {
-  return {
-    x: 1024 - JELLY_LAUNCHER_SIZE - JELLY_VIEWPORT_MARGIN,
-    y: 768 - JELLY_LAUNCHER_SIZE - JELLY_VIEWPORT_MARGIN,
-  };
+/** 给 `not.toHaveProperty` 的失败信息带上被检查的名字（否则报错只说「false」）。 */
+function missingApiMessage(property: string): string {
+  return `API 不应再暴露 ${property}`;
 }

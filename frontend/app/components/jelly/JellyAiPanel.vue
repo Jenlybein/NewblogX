@@ -7,6 +7,7 @@ import MarkdownRenderSurface from "~/components/common/MarkdownRenderSurface.vue
 import { useJellyPanel } from "~/composables/useJellyPanel";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import type { JellyAssistantApi } from "~/composables/useJellyAssistant";
+import { JELLY_LAUNCHER_SIZE, JELLY_VIEWPORT_MARGIN } from "~/composables/useJellyAssistant";
 import type { SiteAiInfo } from "~/types/api";
 import { brandAiName, brandAssetUrl } from "~/utils/brand";
 import { MOTION_DURATIONS_MS, MOTION_EASE, motionSeconds } from "~/utils/motion";
@@ -64,7 +65,6 @@ const viewport = ref({ width: 0, height: 0 });
 const threadRef = ref<HTMLElement | null>(null);
 const composerRef = ref<HTMLTextAreaElement | null>(null);
 
-const JELLY_SIZE = 56;
 const isMobile = computed(() => viewport.value.width > 0 && viewport.value.width <= 640);
 
 function syncViewport() {
@@ -74,9 +74,12 @@ function syncViewport() {
 
 /**
  * 面板定位：
- * - 桌面：右下角生长，右边/下边贴着手柄（捏捏当前位置的右下角），左边界会被钳进视口；
+ * - 桌面：右下角生长，右边 / 下边贴着**固定定位的角色**（同一组 CSS 常量：
+ *   角色 right = 12px、bottom = 12px + 56px），左边界会被钳进视口；
  * - 手机：底部抽屉，不挤压正文，原点落在**底边中点**（`50% 100%`）——
  *   从底边升起来，而不是从右下角缩出来（票 424）。
+ *
+ * 角色不可拖拽、固定右下角，所以面板也不需要读任何坐标：位置与角色同源。
  */
 const panelStyle = computed(() => {
   if (isMobile.value) {
@@ -93,14 +96,11 @@ const panelStyle = computed(() => {
   const vw = viewport.value.width || 1024;
   const vh = viewport.value.height || 768;
   const width = Math.min(420, vw - 24);
-  const launcherRight = props.assistant.position.value.x + JELLY_SIZE;
-  // 面板底边落在捏捏上沿：角色本体（打开时压成把手）就是面板右下角的那一角，
+  const right = JELLY_VIEWPORT_MARGIN;
+  // 面板底边落在角色上沿：角色本体（打开时压成把手）就是面板右下角的那一角，
   // 既不会盖住输入区，视觉上又是"面板从它身上长出来"。
-  const launcherTop = props.assistant.position.value.y;
-  // 面板右边贴着捏捏右边，但整块必须留在视口内（拖到左边时也不会溢出屏幕外）。
-  const right = Math.min(Math.max(vw - launcherRight, 8), Math.max(8, vw - width - 8));
-  const bottom = Math.max(8, vh - launcherTop);
-  const maxHeight = Math.max(240, Math.min(640, launcherTop - 8));
+  const bottom = JELLY_VIEWPORT_MARGIN + JELLY_LAUNCHER_SIZE;
+  const maxHeight = Math.max(240, Math.min(640, vh - bottom - 8));
 
   return {
     right: `${right}px`,
@@ -170,7 +170,7 @@ onBeforeUnmount(() => {
       :transition="panelMotion.transition"
       role="dialog"
       aria-modal="false"
-      :aria-label="`${assistantName} AI 对话面板`"
+      aria-label="AI 助手对话面板"
       @keydown.esc="closePanel()"
       @pointermove="handlePointerMove"
     >
@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
           >
             清空对话
           </button>
-          <button type="button" class="jelly-panel__close" aria-label="关闭捏捏面板" @click="closePanel()">
+          <button type="button" class="jelly-panel__close" aria-label="关闭 AI 面板" @click="closePanel()">
             ×
           </button>
         </div>
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
           rows="3"
           name="jelly-ai-draft"
           autocomplete="off"
-          aria-label="向捏捏提问"
+          aria-label="向 AI 助手提问"
           :placeholder="isAvailable ? '问点什么…（Enter 发送，Shift + Enter 换行）' : 'AI 还开着小差，暂时不能提问'"
           @keydown="handleComposerKeydown"
         />

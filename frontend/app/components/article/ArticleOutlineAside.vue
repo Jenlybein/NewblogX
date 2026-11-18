@@ -190,7 +190,7 @@ onBeforeUnmount(() => {
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   background: var(--color-surface);
   color: var(--color-ink-muted);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 0.8125rem;
   cursor: pointer;
   pointer-events: auto;
@@ -301,11 +301,11 @@ onBeforeUnmount(() => {
 .outline-rail__heading {
   margin: 0.3rem 0 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.375rem;
   font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: var(--type-tracking-md);
+  line-height: var(--type-leading-md);
 }
 
 .outline-rail__close {

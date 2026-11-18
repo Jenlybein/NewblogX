@@ -69,7 +69,7 @@ const count = computed(() => views.value.length);
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: var(--type-tracking-title);
+  letter-spacing: var(--type-tracking-md);
   color: var(--color-line-strong);
 }
 

@@ -26,6 +26,7 @@ const SOURCES = collectFiles(appDir, extensionFilter("vue", "ts", "css")).map((a
 }));
 
 const indexVue = read("app/pages/index.vue");
+const glassVue = read("app/components/brand/GlassHeroTitle.vue");
 const bannerVue = read("app/components/article/BannerCarousel.vue");
 const headerVue = read("app/components/layout/AppHeader.vue");
 const footerVue = read("app/components/layout/AppFooter.vue");
@@ -166,13 +167,22 @@ describe("首页唯一的 h1 = JellyBin.", () => {
     }
   });
 
-  it("h1 字号 clamp(2rem, 9vw, 6rem)、字距 -0.04em、700，字体走 --font-title", () => {
+  it("h1 字号 clamp(2rem, 9vw, 6rem)、700，字体走 --font-title；行高/字距不再声明", () => {
     const title = blockAfter(indexVue, ".home-cover__title {");
 
     expect(title).toContain("font-family: var(--font-title)");
     expect(title).toContain("font-size: clamp(2rem, 9vw, 6rem)");
-    expect(title).toContain("letter-spacing: -0.04em");
     expect(title).toMatch(/font-weight:\s*(?:700|var\(--type-weight-title\))/u);
+    // 票 430：h1 上的 line-height / letter-spacing 从来打不到字（内层 .glass-title
+    // 会重新声明），等于死声明。删掉它们，字标的 1.34 / -0.015em 成为唯一来源。
+    expect(title).not.toMatch(/(?:line-height|letter-spacing)\s*:/u);
+  });
+
+  it("字标的行高/字距是唯一来源（字形盒 1.34 + -0.015em）", () => {
+    const glass = blockAfter(glassVue, ".glass-title {");
+
+    expect(glass).toContain("line-height: 1.34");
+    expect(glass).toContain("letter-spacing: -0.015em");
   });
 });
 

@@ -209,11 +209,11 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
 .grouped-reader-list__title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: clamp(1.125rem, 1.6vw, 1.375rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   text-wrap: balance;
 }
 

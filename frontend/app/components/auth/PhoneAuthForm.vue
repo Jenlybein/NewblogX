@@ -89,11 +89,22 @@ const onSubmit = handleSubmit(async (formValues) => {
 <template>
   <NForm @submit.prevent="onSubmit">
     <NFormItem label="手机号" :feedback="errors.phone">
-      <NInput v-model:value="phone" v-bind="phoneProps" maxlength="11" placeholder="输入 11 位手机号" />
+      <NInput
+        v-model:value="phone"
+        v-bind="phoneProps"
+        type="tel"
+        maxlength="11"
+        placeholder="输入 11 位手机号"
+        :input-props="{ inputmode: 'tel', autocomplete: 'tel' }" />
     </NFormItem>
     <NFormItem label="验证码" :feedback="errors.code">
       <div class="flex w-full gap-3">
-        <NInput v-model:value="code" v-bind="codeProps" maxlength="8" placeholder="输入短信验证码" />
+        <NInput
+          v-model:value="code"
+          v-bind="codeProps"
+          maxlength="8"
+          placeholder="输入短信验证码"
+          :input-props="{ inputmode: 'numeric', autocomplete: 'one-time-code' }" />
         <NButton secondary :disabled="sendDisabled" @click="handleSendCode">
           {{ sendLabel }}
         </NButton>

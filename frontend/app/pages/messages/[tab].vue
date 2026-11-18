@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 
 import InboxChatView from "~/components/inbox/InboxChatView.vue";
 import InboxMessageList from "~/components/inbox/InboxMessageList.vue";
@@ -27,6 +27,7 @@ definePageMeta({
 
 const route = useRoute();
 const message = useMessage();
+const dialog = useDialog();
 const messageStore = useMessageStore();
 
 const activeTab = computed(() => resolveMessageCenterTab(route.params.tab));
@@ -67,7 +68,23 @@ async function handleClearGroup() {
   }
 }
 
-async function handleRemove(id: string) {
+/**
+ * 单条消息删除前先问一次（票 435 / 票 423 第 23 项）。
+ *
+ * 与全站其它删除同一口径：`dialog.warning` + 「删除 / 取消」，
+ * 点确认之前不调用 removeEntry。
+ */
+function handleRemove(id: string) {
+  dialog.warning({
+    title: "删除消息",
+    content: "删除后这条消息不可恢复。确定删除？",
+    positiveText: "删除",
+    negativeText: "取消",
+    onPositiveClick: () => removeMessageEntry(id),
+  });
+}
+
+async function removeMessageEntry(id: string) {
   try {
     await removeEntry(id);
     message.success("已删除这条消息");

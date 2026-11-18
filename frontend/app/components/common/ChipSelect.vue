@@ -34,6 +34,13 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   /** 用于测试与可访问性：触发器与面板的稳定标识。 */
   dataRole?: string
+  /**
+   * 触发器按钮的 DOM id。
+   *
+   * 发布弹窗里的字段名是裸 `<label>`：只有把 id 落到真正接收点击的触发按钮上，
+   * `label[for]` 才会在点标签时开合下拉（票 435）。
+   */
+  controlId?: string
 }>(), {
   multiple: false,
   placeholder: '请选择',
@@ -41,6 +48,7 @@ const props = withDefaults(defineProps<{
   maxTagCount: 3,
   disabled: false,
   dataRole: 'chip-select',
+  controlId: undefined,
 })
 
 /** 单选绑字符串、多选绑字符串数组：与 NSelect 的 v-model 语义一致。 */
@@ -169,6 +177,7 @@ watch(open, async (value) => {
     class="chip-select__popover">
     <template #trigger>
       <button
+        :id="props.controlId"
         ref="triggerRef"
         type="button"
         class="chip-select__trigger"

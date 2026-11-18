@@ -1248,13 +1248,17 @@
     width: min(92vw, 640px);
     max-height: 60dvh;
     overflow-y: auto;
-    padding: 0.5rem 1rem 1rem;
+    /* 面板内滚到底不把整页带着滚（spec 423 第 3 批第 19 条）：读者不会丢阅读位置。 */
+    overscroll-behavior: contain;
+    /* 底部避让 iPhone 的 Home 指示条：安全区叠加在常规内边距上，不是替换。 */
+    padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
     border: 1px solid var(--color-line);
     border-bottom: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     background: var(--color-surface);
     box-shadow: 0 -16px 40px var(--color-shadow);
-    /* 时长走 token（三层预算的 slow 档）：减少动态时 token 归零，无需另写覆盖。 */
+    /* 进场时长走 token（slow 档）；退场由组件写内联 transition（fast 档），
+       减少动态时 token 归零且组件直接卸载，不靠一个不会来的 transitionend。 */
     animation: comment-sheet-rise var(--motion-slow) var(--motion-ease);
   }
 
@@ -1268,12 +1272,36 @@
     }
   }
 
+  /* 把手命中区：视觉条只有 4px 高，但可拖区域做成 28px 高，手机上不用瞄准。 */
+  .comment-sheet__handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    margin: 0.25rem auto 0.5rem;
+    cursor: grab;
+    /* 拖把手时不要被浏览器的纵向滚动接管（否则手势变成滚页面）。 */
+    touch-action: none;
+    user-select: none;
+  }
+
+  .comment-sheet__handle:active {
+    cursor: grabbing;
+  }
+
   .comment-sheet__grabber {
     width: 2.5rem;
     height: 4px;
-    margin: 0.25rem auto 0.5rem;
     border-radius: var(--radius-pill);
     background: var(--color-line-strong);
+  }
+
+  /* 拖拽 / 弹回 / 退场时停掉进场 keyframes：否则打开后 320ms 内关闭会"先升一下再跳"。
+     这里的动画只有"停掉"这一种用法，真正的进场在 .comment-sheet__panel 上。 */
+  .comment-sheet__panel--dragging,
+  .comment-sheet__panel--settling,
+  .comment-sheet__panel--leaving {
+    animation: none;
   }
 
   .comment-sheet__close {

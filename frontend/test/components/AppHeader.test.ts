@@ -818,5 +818,39 @@ describe("页头：滚动方向感知与阈值", () => {
     expect(header.classes()).not.toContain("is-scrolled");
     expect(header.classes()).not.toContain("is-hidden");
   });
+
+  /*
+   * 隐藏态的键盘可达性（#434，spec #423 第 3 批第 46 条）。
+   *
+   * 页头隐藏只动 transform，DOM 还在、控件也还在 Tab 序列里 —— 键盘用户会
+   * Tab 到一个看不见的搜索框。契约：`is-hidden` 时页头整体 `inert`，滚回来
+   * 立刻撤掉；静止/可见时不得 inert（否则键盘永远进不去页头）。
+   */
+  it("下滚隐藏后页头整体 inert（Tab 不会落到看不见的搜索框）", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    expect(header.classes()).toContain("is-hidden");
+    expect(header.attributes("inert")).toBeDefined();
+  });
+
+  it("滚回来立刻恢复可聚焦：inert 与隐藏一起撤掉", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    expect(header.attributes("inert")).toBeDefined();
+
+    await scrollTo(90);
+    expect(header.classes()).not.toContain("is-hidden");
+    expect(header.attributes("inert")).toBeUndefined();
+  });
+
+  it("页头可见时没有 inert（正常状态仍能 Tab 进搜索与导航）", async () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.get("header").attributes("inert")).toBeUndefined();
+  });
 });
 

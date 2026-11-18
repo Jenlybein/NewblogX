@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import ActivityHeatmap from '~/components/studio/ActivityHeatmap.vue'
 import MetricCard from '~/components/studio/MetricCard.vue'
+import { stripComments } from '../helpers/designFiles'
 
 /**
  * 个人数据概览的两个新件（票 354）。
@@ -102,5 +103,21 @@ describe("数据概览：分类来源", () => {
     // 「还没有分类」。这条断言钉的是数据源，不是渲染。
     expect(source).toContain("getProfileCategories");
     expect(source).not.toContain("user.value?.like_tag_items");
+  });
+});
+
+describe("数据概览：日期口径（票 #436）", () => {
+  it("日期走站点时区格式化（formatDateLabel），不再手拼 YYYY/MM/DD", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const source = stripComments(
+      readFileSync(resolve(process.cwd(), "app/pages/studio/dashboard.vue"), "utf8"),
+    );
+
+    // 手拼日期（getFullYear/getMonth/getDate + padStart）会跟运行环境时区走：
+    // 容器 UTC 时，站点凌晨发布的文章会显示成前一天。统一走 utils/format。
+    expect(source).toContain("formatDateLabel");
+    expect(source).not.toContain("getFullYear");
+    expect(source).not.toMatch(/padStart\(2,\s*"0"\)/u);
   });
 });

@@ -75,7 +75,8 @@ function syncViewport() {
 /**
  * 面板定位：
  * - 桌面：右下角生长，右边/下边贴着手柄（捏捏当前位置的右下角），左边界会被钳进视口；
- * - 手机：底部抽屉，不挤压正文。
+ * - 手机：底部抽屉，不挤压正文，原点落在**底边中点**（`50% 100%`）——
+ *   从底边升起来，而不是从右下角缩出来（票 424）。
  */
 const panelStyle = computed(() => {
   if (isMobile.value) {
@@ -85,7 +86,7 @@ const panelStyle = computed(() => {
       bottom: "0",
       width: "100%",
       height: "78vh",
-      transformOrigin: "100% 100%",
+      transformOrigin: "50% 100%",
     };
   }
 

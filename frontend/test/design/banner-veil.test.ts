@@ -33,7 +33,8 @@ const veilBlock = () => blockAfter(bannerVue, VEIL);
 /** `<template>` 段（不扫 `<style>`，避免把声明当成结构）。 */
 function templateOf(source: string): string {
   const start = source.indexOf("<template>");
-  const end = source.indexOf("</template>");
+  // 用最后一个闭合标签：模板内部允许嵌套 `<template v-for>`，第一个闭合标签不是整段结尾。
+  const end = source.lastIndexOf("</template>");
   expect(start, "组件没有 <template> 段").toBeGreaterThan(-1);
   expect(end, "组件没有 </template> 段").toBeGreaterThan(start);
   return source.slice(start, end);

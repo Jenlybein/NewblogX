@@ -74,6 +74,39 @@ export function blockAfter(source: string, marker: string, last = false): string
 }
 
 /**
+ * 取**包含指定选择器**的那个 `marker` 块（同一 at-rule 在文件里可能有多段）。
+ *
+ * 为什么需要：`blockAfter(..., true)` 假设"最后一段就是我要的那段"，但按下态（票 427）
+ * 在文件末尾追加了自己的 `prefers-reduced-motion` 块，位置假设就会把用例指到别的块。
+ * 按内容定位（像 motion-foundation.test.ts 的 `mediaBlock` 一样）才不依赖章节顺序。
+ *
+ * @param source CSS 源码
+ * @param marker at-rule / 选择器（如 `"@media (prefers-reduced-motion: reduce)"`）
+ * @param needle 该块必须包含的选择器或声明
+ */
+export function blockAfterContaining(source: string, marker: string, needle: string): string {
+  let from = 0;
+  for (;;) {
+    const start = source.indexOf(marker, from);
+    expect(start, `找不到包含 ${needle} 的 ${marker} 块`).toBeGreaterThan(-1);
+    const open = source.indexOf("{", start);
+    let depth = 0;
+    for (let index = open; index < source.length; index += 1) {
+      if (source[index] === "{") depth += 1;
+      if (source[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          const block = source.slice(open + 1, index);
+          if (block.includes(needle)) return block;
+          from = start + 1;
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
  * 去掉 CSS / TS / Vue 源码里的注释。
  *
  * 注释里提到旧 token 名或旧写法（为了可读性）不该被当成"还在消费"，所有扫描类断言

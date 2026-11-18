@@ -3724,3 +3724,176 @@ html {
   cursor: progress;
   opacity: 0.6;
 }
+
+/* ============================================================================
+ * 按下态（票 427）：自绘可点面统一回弹（spec 423 第 1 批第 1 条）
+ *
+ * 问题：全站自绘可点面在 pointer-down 那一刻什么都不发生，反馈要等到松手后的
+ * hover 变色 —— 这是"手感发木"最大的单一来源。按下瞬间缩一档、松手弹回，
+ * 点击才"有回应"。
+ *
+ * 三条纪律：
+ *   1. **只缩放、不换色**：颜色反馈仍归各控件自己的 hover / 选中态，以及 Naive
+ *      按钮组件库的 pressed 主题；
+ *   2. **取值只走 token**：时长 `var(--motion-fast)`、缓动 `var(--motion-ease)`，
+ *      不写裸毫秒/曲线，也不新增裸色值；
+ *   3. **不放进 `@media (hover: hover)`**：按下不是悬停效果，`(hover: none)` 的
+ *      触屏也要有。减少动态下位移归零、改走底色/描边（见本节末尾的 reduce 块）。
+ *
+ * 词表 = 下面两组选择器。新增自绘可点面（按钮 / 页签 / 条目卡 / 卡片内动作）时把
+ * 类名登记到两组里，不要在组件里逐个抄同样的规则。
+ *
+ * 轮播箭头/圆点是 BannerCarousel.vue 的 scoped 类，全局再声明同名类会撞
+ * `global-class-collision` 门禁（组件没声明的属性会被全局补齐），所以它们的按下态
+ * 写在组件自己的样式块里，取值与本词表同一档。
+ * ========================================================================== */
+
+/* 基态：登记 transform 过渡（松手才回弹）。CSS 没有「追加过渡」语法，所以这里
+   把按下/hover 用到的颜色与透明度属性一并写进同一条 transition —— 只写 transform
+   会整条覆盖掉各控件原有的过渡，hover 反馈反而退化成瞬变。
+
+   **这一段必须留在文件末尾**：词表里不少类在后面还有自己的定义，同特异性下靠后的
+   `transition` 会整条覆盖这里（例如 `.favorite-chooser-row` 只写 background-color，
+   后定义就把 transform 吃掉，按下能缩、松手瞬跳）。位置由 `press-feedback.test.ts`
+   的「词表位置」用例钉住。 */
+.blueprint-tab,
+.soft-tab,
+.search-result-tab,
+.settings-tabs__tab,
+.message-center-tab,
+.article-action,
+.article-actions-bar__button,
+.comment-action,
+.comment-page-button,
+.comment-capsule,
+.comment-sheet__close,
+.profile-category-action,
+.studio-filter-chip,
+.studio-sidebar__link,
+.studio-sidebar__profile-link,
+.activity-heatmap__cell,
+.studio-article-row__action,
+.studio-folder-card__open,
+.article-grid-card__action,
+.message-row__delete,
+.favorite-chooser-row__toggle,
+.chip-select__trigger,
+.chip-select__chip,
+.chip-select__clear,
+.feed-entry,
+.article-grid-card,
+.studio-folder-card,
+.studio-article-row,
+.profile-folder-card,
+.profile-category-card,
+.favorite-chooser-row,
+.studio-chat-session {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+
+/* 按下：全站统一一档。 */
+.blueprint-tab:active,
+.soft-tab:active,
+.search-result-tab:active,
+.settings-tabs__tab:active,
+.message-center-tab:active,
+.article-action:active,
+.article-actions-bar__button:active,
+.comment-action:active,
+.comment-page-button:active,
+.comment-capsule:active,
+.comment-sheet__close:active,
+.profile-category-action:active,
+.studio-filter-chip:active,
+.studio-sidebar__link:active,
+.studio-sidebar__profile-link:active,
+.activity-heatmap__cell:active,
+.studio-article-row__action:active,
+.studio-folder-card__open:active,
+.article-grid-card__action:active,
+.message-row__delete:active,
+.favorite-chooser-row__toggle:active,
+.chip-select__trigger:active,
+.chip-select__chip:active,
+.chip-select__clear:active,
+.feed-entry:active,
+.article-grid-card:active,
+.studio-folder-card:active,
+.studio-article-row:active,
+.profile-folder-card:active,
+.profile-category-card:active,
+.favorite-chooser-row:active,
+.studio-chat-session:active {
+  transform: scale(0.97);
+}
+
+/* Naive 按钮（NButton，含弹窗里的次按钮）：颜色反馈由组件库自带的 :active /
+ * pressed 主题负责，这里只补同一档缩放 —— 一条规则覆盖全站，不逐组件抄。
+ * 基态把 transform 并入组件库原有的那条颜色过渡（320ms ≈ slow 档），不整条替换。
+ *
+ * 为什么写两遍类名：组件库的 `.n-button { transition: ... }` 是 css-render 运行时
+ * 注入的，顺序可能排在本文件之后；同特异性下后者会整条吃掉 transform 这一档，
+ * 按下能缩、松手瞬跳。提高一档特异性（与既有的 `.blueprint-actions .n-button`
+ * 同一手法），不靠文件顺序。 */
+.n-button.n-button {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    color var(--motion-slow) var(--motion-ease),
+    background-color var(--motion-slow) var(--motion-ease),
+    border-color var(--motion-slow) var(--motion-ease),
+    opacity var(--motion-slow) var(--motion-ease);
+}
+
+.n-button:active {
+  transform: scale(0.97);
+}
+
+/* 减少动态：位移归零（不是"慢慢缩"），但按下反馈不能整段失效 ——
+ * 自绘面改走底色 + 描边；Naive 按钮保留组件库自己的 pressed 颜色反馈。 */
+@media (prefers-reduced-motion: reduce) {
+  .blueprint-tab:active,
+  .soft-tab:active,
+  .search-result-tab:active,
+  .settings-tabs__tab:active,
+  .message-center-tab:active,
+  .article-action:active,
+  .article-actions-bar__button:active,
+  .comment-action:active,
+  .comment-page-button:active,
+  .comment-capsule:active,
+  .comment-sheet__close:active,
+  .profile-category-action:active,
+  .studio-filter-chip:active,
+  .studio-sidebar__link:active,
+  .studio-sidebar__profile-link:active,
+  .activity-heatmap__cell:active,
+  .studio-article-row__action:active,
+  .studio-folder-card__open:active,
+  .article-grid-card__action:active,
+  .message-row__delete:active,
+  .favorite-chooser-row__toggle:active,
+  .chip-select__trigger:active,
+  .chip-select__chip:active,
+  .chip-select__clear:active,
+  .feed-entry:active,
+  .article-grid-card:active,
+  .studio-folder-card:active,
+  .studio-article-row:active,
+  .profile-folder-card:active,
+  .profile-category-card:active,
+  .favorite-chooser-row:active,
+  .studio-chat-session:active {
+    transform: none;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-line-strong);
+  }
+
+  .n-button:active {
+    transform: none;
+  }
+}

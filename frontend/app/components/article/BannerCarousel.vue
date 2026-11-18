@@ -1,12 +1,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from "vue";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlayerPause,
+  IconPlayerPlay,
+} from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
 import { bannerTitleText } from "~/utils/bannerTitle";
+import { MOTION_EXPRESSIVE_MS } from "~/utils/motion";
 
 /** 默认停留时长：够看清一张图的构图，又不至于让人等得不耐烦。 */
 const BANNER_AUTOPLAY_INTERVAL_MS = 6000;
+
+/**
+ * 换图交叉淡入时长（票 432）：160ms。
+ *
+ * 它不是三档界面时长之一，所以登记在 `utils/motion.ts` 的表达型预设表里，
+ * 组件只引用名字；样式层通过根节点的 `--banner-crossfade` 变量消费 ——
+ * 组件里不写裸毫秒（ADR-0011 决策 7 要求动效预算只有一个来源）。
+ */
+const CROSSFADE_MS = MOTION_EXPRESSIVE_MS.bannerCrossfade;
 
 const props = withDefaults(
   defineProps<{
@@ -21,6 +36,26 @@ const props = withDefaults(
 );
 
 const currentIndex = ref(0);
+
+/**
+ * 媒体层的一帧。
+ *
+ * 换图时旧帧不立刻消失：它留在画面上淡出（`leaving`），新帧直接落在它下面，
+ * 叠起来就是一次交叉淡入。`key` 是稳定渲染键 —— 同一张图切回来也算新的一帧。
+ */
+interface BannerFrame {
+  key: number;
+  banner: BannerItem;
+  /** 该帧对应的轮播序号（alt 文案用）。 */
+  index: number;
+  leaving: boolean;
+  failed: boolean;
+}
+
+const frames = ref<BannerFrame[]>([]);
+let frameSeq = 0;
+/** 正在淡出的帧 → 卸载它的定时器；卸载、反向切换或更新数据前统一清掉。 */
+const leavingFrameTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
 const currentBanner = computed(() => props.banners[currentIndex.value] ?? null);
 
@@ -39,12 +74,89 @@ const hasControls = computed(() => props.banners.length > 1);
  */
 const singleWithoutControls = computed(() => Boolean(titleText.value) && !hasControls.value);
 
-/** 当前这张图加载失败：只把底图层切到失败态，切换下一张时复位。 */
-const imageFailed = ref(false);
+/* ------------------------------------------------------------------------------------
+ * 换图帧与交叉淡入（票 432）
+ * ---------------------------------------------------------------------------------- */
 
-watch(currentBanner, () => {
-  imageFailed.value = false;
-});
+/** 订阅过「减少动态」变化后留着的查询对象，卸载时摘掉监听。 */
+let reducedMotionQuery: MediaQueryList | null = null;
+const reducedMotion = ref(false);
+
+/** 系统「减少动态」偏好；SSR / 没有 matchMedia 时按 false（不减少）兜底。 */
+function readReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+/** 一帧对应哪张轮播图：数据刷新后据此判断画面要不要重建。 */
+function bannerKeyOf(banner: BannerItem | null | undefined): string {
+  if (!banner) return "";
+  return `${banner.id ?? ""}|${banner.cover ?? ""}|${banner.href ?? ""}`;
+}
+
+function createFrame(index: number): BannerFrame | null {
+  const banner = props.banners[index];
+  if (!banner) return null;
+  frameSeq += 1;
+  return { key: frameSeq, banner, index, leaving: false, failed: false };
+}
+
+function clearLeavingTimers() {
+  for (const timer of leavingFrameTimers.values()) clearTimeout(timer);
+  leavingFrameTimers.clear();
+}
+
+/** 卸载一帧（淡出结束 / 被更晚的切换挤掉 / 减少动态）。 */
+function dropFrame(key: number) {
+  const timer = leavingFrameTimers.get(key);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    leavingFrameTimers.delete(key);
+  }
+  frames.value = frames.value.filter((frame) => frame.key !== key);
+}
+
+/** 硬切到当前帧（数据变化 / 减少动态）：不摆任何出场帧。 */
+function resetFrames() {
+  clearLeavingTimers();
+  const frame = createFrame(currentIndex.value);
+  frames.value = frame ? [frame] : [];
+}
+
+/**
+ * 切到某一帧：新帧放在数组最前（先绘制、叠在旧帧下面），旧帧留在画面上淡出。
+ * 两帧叠起来就是一次 A→B 的交叉淡入；减少动态则直接换，不留过渡帧。
+ */
+function showFrame(index: number) {
+  const frame = createFrame(index);
+  if (!frame) {
+    resetFrames();
+    return;
+  }
+
+  if (reducedMotion.value) {
+    clearLeavingTimers();
+    frames.value = [frame];
+    return;
+  }
+
+  for (const previous of frames.value) {
+    previous.leaving = true;
+    leavingFrameTimers.set(
+      previous.key,
+      setTimeout(() => dropFrame(previous.key), CROSSFADE_MS),
+    );
+  }
+
+  frames.value = [frame, ...frames.value];
+  // 极快连点时最多留两帧：更早的出场帧直接卸载，避免底图叠成一摞。
+  for (const extra of frames.value.slice(2)) dropFrame(extra.key);
+}
+
+/** 交叉淡入时长交给样式层：组件里只有 `var(--banner-crossfade)`，没有裸毫秒。 */
+const crossfadeStyle = computed<CSSProperties>(() => ({
+  "--banner-crossfade": `${CROSSFADE_MS}ms`,
+}));
 
 function switchBanner(step: number) {
   if (!props.banners.length) return;
@@ -56,24 +168,27 @@ function goToBanner(index: number) {
   currentIndex.value = index;
 }
 
-/*
- * 自动轮播。
+/* ------------------------------------------------------------------------------------
+ * 自动轮播
  *
  * 只在"真的能看"的条件下走：≥2 张、页面可见、系统没要求减少动态、间隔 > 0。
  * 指针停上去 / 键盘焦点进入 / 标签页切到后台就停表 —— 用户在读标题或操作控件时，
  * 图不该自己跑掉。
  *
  * 手动切换后重新计时（而不是"到点立刻跳"），否则刚点完下一张就会被打断。
- */
+ * 读者按下暂停后，这些"被动暂停"不再能把它偷偷恢复：`userPaused` 只有再点一次才翻。
+ * ---------------------------------------------------------------------------------- */
 let timer: ReturnType<typeof setInterval> | null = null;
+const userPaused = ref(false);
 
 /** 是否允许自动轮播（纯判定，方便阅读与测试）。 */
 function autoPlayEnabled(): boolean {
   return (
     props.autoPlayInterval > 0 &&
     props.banners.length > 1 &&
+    !userPaused.value &&
+    !reducedMotion.value &&
     typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches !== true &&
     document.visibilityState === "visible"
   );
 }
@@ -102,41 +217,129 @@ function onVisibilityChange() {
   }
 }
 
+/** 播放/暂停按钮的文案随状态变化（暂停轮播 / 继续轮播）。 */
+const playbackLabel = computed(() => (userPaused.value ? "继续轮播" : "暂停轮播"));
+
+/**
+ * 只在自动播放真的能跑时才给播放/暂停控件。
+ * 「减少动态」下自动播放永远启动不了，摆一个按了没反应的按钮比不摆更糟。
+ */
+const showPlaybackControl = computed(
+  () => props.autoPlayInterval > 0 && props.banners.length > 1 && !reducedMotion.value,
+);
+
+function toggleAutoPlay() {
+  userPaused.value = !userPaused.value;
+  if (userPaused.value) stopAutoPlay();
+  else restartAutoPlay();
+}
+
+/* ------------------------------------------------------------------------------------
+ * 预载下一张（票 432）
+ *
+ * 用 `new Image()` 提前拉下一张封面，让换图时新图已经在缓存里。
+ * 调度放在空闲回调里（没有 requestIdleCallback 的环境退到下一帧），
+ * 不与首屏正在加载的这张最大图抢带宽；不引新依赖。
+ * ---------------------------------------------------------------------------------- */
+const preloadedCovers = new Set<string>();
+let cancelPreload: (() => void) | null = null;
+
+function schedulePreload() {
+  if (typeof window === "undefined" || props.banners.length < 2) return;
+
+  const nextCover = props.banners[(currentIndex.value + 1) % props.banners.length]?.cover;
+  if (!nextCover || preloadedCovers.has(nextCover) || cancelPreload) return;
+
+  const runPreload = () => {
+    cancelPreload = null;
+    // 排队期间可能已经换图：按当时的下一张取，而不是排队那一刻的。
+    const cover = props.banners[(currentIndex.value + 1) % props.banners.length]?.cover;
+    if (!cover || preloadedCovers.has(cover) || typeof Image === "undefined") return;
+    preloadedCovers.add(cover);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = cover;
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(runPreload);
+    cancelPreload = () => window.cancelIdleCallback(handle);
+  } else {
+    const handle = window.requestAnimationFrame(runPreload);
+    cancelPreload = () => window.cancelAnimationFrame(handle);
+  }
+}
+
+function onReducedMotionChange(event: MediaQueryListEvent) {
+  reducedMotion.value = event.matches;
+  if (event.matches) stopAutoPlay();
+  else restartAutoPlay();
+}
+
+/* ------------------------------------------------------------------------------------
+ * 生命周期与数据 / 索引联动
+ * ---------------------------------------------------------------------------------- */
+resetFrames();
+
+// 换图：更新媒体层帧，并重新计时（避免"刚点完就被自动切走"）。
+watch(currentIndex, (index) => {
+  showFrame(index);
+  if (timer !== null) restartAutoPlay();
+  schedulePreload();
+});
+
+/** 轮播数据指纹：同一份数据重复计算不算变化，避免父组件重渲染就重建画面。 */
+const bannersFingerprint = computed(() => props.banners.map(bannerKeyOf).join("||"));
+
+watch(bannersFingerprint, () => {
+  const outOfRange = currentIndex.value >= props.banners.length;
+  if (outOfRange) {
+    currentIndex.value = 0;
+  }
+  if (!outOfRange) {
+    // 当前帧对应的轮播项变了（首屏数据到达 / 运营改了图）：重建，避免渲染旧封面。
+    if (bannerKeyOf(frames.value[0]?.banner) !== bannerKeyOf(props.banners[currentIndex.value])) {
+      resetFrames();
+    }
+  } else if (!props.banners.length) {
+    resetFrames();
+  }
+  restartAutoPlay();
+  schedulePreload();
+});
+
 onMounted(() => {
+  reducedMotion.value = readReducedMotion();
   restartAutoPlay();
   document.addEventListener("visibilitychange", onVisibilityChange);
+
+  const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  if (query?.addEventListener) {
+    reducedMotionQuery = query;
+    query.addEventListener("change", onReducedMotionChange);
+  }
+
+  schedulePreload();
 });
 
 onBeforeUnmount(() => {
   stopAutoPlay();
+  clearLeavingTimers();
+  cancelPreload?.();
+  cancelPreload = null;
   document.removeEventListener("visibilitychange", onVisibilityChange);
+  reducedMotionQuery?.removeEventListener("change", onReducedMotionChange);
 });
 
-/** 指针进入 / 键盘聚焦：暂停。 */
+/** 指针进入 / 键盘聚焦：暂停（被动暂停，不改 `userPaused`）。 */
 function pauseAutoPlay() {
   stopAutoPlay();
 }
 
-/** 指针离开 / 焦点移出：重新开始一轮。 */
+/** 指针离开 / 焦点移出：重新开始一轮（读者显式暂停时不会恢复）。 */
 function resumeAutoPlay() {
   restartAutoPlay();
 }
-
-// 手动切换（点箭头 / 点圆点）后重新计时，避免"刚点完就被自动切走"。
-watch(currentIndex, () => {
-  if (timer !== null) restartAutoPlay();
-});
-
-// 张数变化（例如首屏数据到达 / 运营删了轮播）时重新评估。
-watch(
-  () => props.banners.length,
-  () => {
-    if (currentIndex.value >= props.banners.length) {
-      currentIndex.value = 0;
-    }
-    restartAutoPlay();
-  },
-);
 </script>
 
 <template>
@@ -149,6 +352,7 @@ watch(
   <div
     class="banner-carousel"
     :class="currentBanner ? 'banner-stage' : 'banner-empty'"
+    :style="crossfadeStyle"
     data-home-section="banner"
     @mouseenter="pauseAutoPlay"
     @mouseleave="resumeAutoPlay"
@@ -159,34 +363,39 @@ watch(
       <!--
         底图与视差分属两层：视差（photoStyle 的 translateY）只在外层 .banner-photo，
         内层图片只负责铺满（object-fit: cover、固定居中）。封面不再消费取景参数（票 204）。
+
+        换图时这里会短暂同时存在两帧（票 432）：新帧在最前、先绘制（叠在下面），
+        旧帧带 `is-leaving` 淡出 —— 两帧叠起来就是交叉淡入，不是硬切。
       -->
-      <NuxtLink
-        v-if="currentBanner.href"
-        :to="currentBanner.href"
-        class="banner-photo"
-        :class="{ 'is-failed': imageFailed }"
-        :style="photoStyle"
-      >
-        <img
-          class="banner-photo__img"
-          :src="currentBanner.cover"
-          :alt="`首页轮播图 ${currentIndex + 1}`"
-          @error="imageFailed = true"
-        />
-      </NuxtLink>
-      <div
-        v-else
-        class="banner-photo"
-        :class="{ 'is-failed': imageFailed }"
-        :style="photoStyle"
-      >
-        <img
-          class="banner-photo__img"
-          :src="currentBanner.cover"
-          :alt="`首页轮播图 ${currentIndex + 1}`"
-          @error="imageFailed = true"
-        />
-      </div>
+      <template v-for="frame in frames" :key="frame.key">
+        <NuxtLink
+          v-if="frame.banner.href"
+          :to="frame.banner.href"
+          class="banner-photo"
+          :class="{ 'is-failed': frame.failed, 'is-leaving': frame.leaving }"
+          :style="photoStyle"
+        >
+          <img
+            class="banner-photo__img"
+            :src="frame.banner.cover"
+            :alt="`首页轮播图 ${frame.index + 1}`"
+            @error="frame.failed = true"
+          />
+        </NuxtLink>
+        <div
+          v-else
+          class="banner-photo"
+          :class="{ 'is-failed': frame.failed, 'is-leaving': frame.leaving }"
+          :style="photoStyle"
+        >
+          <img
+            class="banner-photo__img"
+            :src="frame.banner.cover"
+            :alt="`首页轮播图 ${frame.index + 1}`"
+            @error="frame.failed = true"
+          />
+        </div>
+      </template>
 
       <!--
         底部渐黑区：上半完全透明、深墨只往底部过渡，用来承载控件与标题。
@@ -208,19 +417,33 @@ watch(
           -->
           <p v-if="titleText" class="banner-title">{{ titleText }}</p>
           <div v-if="banners.length > 1" class="banner-controls" role="group" aria-label="轮播控件">
-            <div class="banner-dots">
+            <!-- 左半边：显式的播放/暂停 + 圆点；箭头仍在右端。整行还是渐黑区里的内容。 -->
+            <div class="banner-left">
               <button
-                v-for="(banner, index) in banners"
-                :key="banner.id || index"
+                v-if="showPlaybackControl"
                 type="button"
-                class="banner-dot"
-                :class="{ 'is-active': index === currentIndex }"
-                :aria-label="`切换到第 ${index + 1} 张轮播图`"
-                :aria-current="index === currentIndex ? 'true' : undefined"
-                @click="goToBanner(index)"
+                class="banner-playback"
+                :aria-label="playbackLabel"
+                @click="toggleAutoPlay"
               >
-                <span aria-hidden="true" />
+                <IconPlayerPause v-if="!userPaused" :size="18" aria-hidden="true" />
+                <IconPlayerPlay v-else :size="18" aria-hidden="true" />
               </button>
+
+              <div class="banner-dots">
+                <button
+                  v-for="(banner, index) in banners"
+                  :key="banner.id || index"
+                  type="button"
+                  class="banner-dot"
+                  :class="{ 'is-active': index === currentIndex }"
+                  :aria-label="`切换到第 ${index + 1} 张轮播图`"
+                  :aria-current="index === currentIndex ? 'true' : undefined"
+                  @click="goToBanner(index)"
+                >
+                  <span aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             <div class="banner-arrows">
@@ -304,6 +527,20 @@ watch(
 
 .banner-photo.is-failed .banner-photo__img {
   opacity: 0;
+}
+
+/*
+ * 换图交叉淡入（票 432）：出场帧留在画面上淡出，新帧已叠在它下面 —— 两帧一起
+ * 读出来就是一次 A→B 的交叉，而不是硬切。
+ *
+ * 只动 opacity；用 transition 而不是 keyframes：过渡中途反向切换时由新值接管，
+ * 不会把一整段动画重播一遍。时长来自根节点的 `--banner-crossfade`（motion.ts 的
+ * 命名预设），减少动态下直接切（见文件末尾的媒体查询）。
+ */
+.banner-photo.is-leaving {
+  opacity: 0;
+  transition: opacity var(--banner-crossfade) var(--motion-ease);
+  pointer-events: none;
 }
 
 /*
@@ -414,6 +651,30 @@ watch(
   gap: 0.125rem;
 }
 
+/* 控件行左侧：显式播放/暂停 + 圆点，靠左成一组；箭头仍靠右。 */
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/*
+ * 播放/暂停（票 432）：读者能明确让轮播停下来，不必靠悬停"碰巧"暂停。
+ * 命中区 44px（与圆点/箭头同一档），图形走反白 token，仍在渐黑区这一行里。
+ */
+.banner-playback {
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-inverse);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .banner-arrow {
   display: inline-flex;
   min-height: 44px;
@@ -459,8 +720,24 @@ watch(
   background: var(--color-on-inverse);
 }
 
+/*
+ * 按下态（票 427）：与 tailwind.css 的按钮词表同一档 —— 按下缩 .97、松手弹回。
+ * 这两个是 scoped 类，全局再声明同名类会撞 `global-class-collision` 门禁，所以规则
+ * 落在这里。基态登记 transform 过渡（圆点自身的 width 过渡留在内部 span 上）。
+ */
+.banner-arrow,
+.banner-dot {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.banner-arrow:active,
+.banner-dot:active {
+  transform: scale(0.97);
+}
+
 /* 键盘焦点：功能蓝描边压一圈深墨垫环 —— 任意底图上都 ≥3:1，焦点环不会被照片吃掉。 */
 .banner-arrow:focus-visible,
+.banner-playback:focus-visible,
 .banner-dot:focus-visible span {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
@@ -470,6 +747,26 @@ watch(
 @media (prefers-reduced-motion: reduce) {
   .banner-dot span {
     transition: none;
+  }
+
+  /* 减少动态：换图直接切，出场帧不再淡出（JS 侧也不再安排出场帧）。 */
+  .banner-photo.is-leaving {
+    transition: none;
+  }
+
+  /* 按下态（票 427）：减少动态下不缩放，改走反白描边/底色 —— 反馈仍在，只是不位移。 */
+  .banner-arrow:active {
+    transform: none;
+    background-color: color-mix(in srgb, var(--color-on-inverse) 16%, transparent);
+  }
+
+  .banner-dot:active {
+    transform: none;
+  }
+
+  .banner-dot:active span {
+    background-color: var(--color-on-inverse-muted);
+    border-color: var(--color-on-inverse);
   }
 }
 </style>

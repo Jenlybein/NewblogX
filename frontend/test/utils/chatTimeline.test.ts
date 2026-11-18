@@ -11,8 +11,9 @@ import {
 /**
  * 私信时间线的纯函数对账单。
  *
- * 这里刻意不 mock 时区：所有断言都用带 +08:00 偏移的字面量或本地 Date 构造，
- * 无论 CI 跑在哪个时区，结果都只取决于「Date 的本地投影」。
+ * 日期口径固定站点时区（`Asia/Shanghai`，票 #436）：所有时间字面量都带 `+08:00`
+ * 或 `Z` 显式偏移，「今天 / 昨天 / 跨午夜」这些边界不再依赖 `Date` 的本机投影——
+ * CI 跑在 UTC 时旧的本地实现会在这里红。
  */
 
 function message(id: string, sendTime: string, overrides: Partial<ChatMessageItem> = {}): ChatMessageItem {
@@ -31,33 +32,35 @@ function message(id: string, sendTime: string, overrides: Partial<ChatMessageIte
   };
 }
 
-/** 本地时区的 ISO 串：让「今天 / 昨天 / 跨年」断言不受运行环境时区影响。 */
-function localIso(year: number, month: number, day: number, hour = 10, minute = 0, second = 0) {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const date = new Date(year, month - 1, day, hour, minute, second);
-  const offsetMinutes = -date.getTimezoneOffset();
-  const sign = offsetMinutes >= 0 ? "+" : "-";
-  const abs = Math.abs(offsetMinutes);
-  const offset = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
-  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}${offset}`;
-}
-
 const T1 = "2026-11-05T10:00:00.000000000+08:00";
 const T2 = "2026-11-05T10:01:00+08:00";
 const T3 = "2026-11-05T10:02:00+08:00";
 
 describe("buildChatTimeline（唯一持有者交给面板的结果）", () => {
   it("按自然日切段：每天第一条之前插一个日期分隔条，同一天只有一个", () => {
-    const day1a = message("a", localIso(2026, 11, 4, 23, 58));
-    const day1b = message("b", localIso(2026, 11, 4, 23, 59));
-    const day2 = message("c", localIso(2026, 11, 5, 0, 1));
-    const now = new Date(2026, 10, 5, 12, 0, 0);
+    const day1a = message("a", "2026-11-04T23:58:00+08:00");
+    const day1b = message("b", "2026-11-04T23:59:00+08:00");
+    const day2 = message("c", "2026-11-05T00:01:00+08:00");
+    const now = new Date("2026-11-05T12:00:00+08:00");
 
     const timeline = buildChatTimeline([day1a, day1b, day2], now);
     const kinds = timeline.map((entry) => entry.kind);
 
     expect(kinds).toEqual(["date", "group", "date", "group"]);
     const dates = timeline.filter((entry) => entry.kind === "date");
+    expect(dates).toHaveLength(2);
+    expect(dates[1]).toMatchObject({ label: "今天" });
+    expect(dates[0]).toMatchObject({ label: "昨天" });
+  });
+
+  it("站点午夜切段：UTC 同一天、站点跨天的两条消息分成两段", () => {
+    // UTC 2026-11-05 15:59 / 16:00 = 站点 11-05 23:59 / 11-06 00:00。
+    const beforeMidnight = message("a", "2026-11-05T15:59:00Z");
+    const afterMidnight = message("b", "2026-11-05T16:00:00Z");
+
+    const timeline = buildChatTimeline([beforeMidnight, afterMidnight], new Date("2026-11-06T12:00:00+08:00"));
+    const dates = timeline.filter((entry) => entry.kind === "date");
+
     expect(dates).toHaveLength(2);
     expect(dates[1]).toMatchObject({ label: "今天" });
     expect(dates[0]).toMatchObject({ label: "昨天" });
@@ -191,21 +194,26 @@ describe("isSameChatGroup", () => {
     expect(isSameChatGroup(a, b)).toBe(false);
   });
 
-  it("跨午夜即使只差 1 分钟也拆组（本地日历日不同）", () => {
-    const a = message("a", localIso(2026, 11, 5, 23, 59));
-    const b = message("b", localIso(2026, 11, 6, 0, 0));
+  it("跨站点午夜即使只差 1 分钟也拆组", () => {
+    // 站点 11-05 23:59 = UTC 11-05 15:59；站点 11-06 00:00 = UTC 11-05 16:00。
+    // 按本机（UTC）投影这两条落在同一个日历日，旧口径会把它们粘成一组。
+    const a = message("a", "2026-11-05T23:59:00+08:00");
+    const b = message("b", "2026-11-06T00:00:00+08:00");
+    const utcA = message("a", "2026-11-05T15:59:00Z");
+    const utcB = message("b", "2026-11-05T16:00:00Z");
 
     expect(isSameChatGroup(a, b)).toBe(false);
+    expect(isSameChatGroup(utcA, utcB)).toBe(false);
   });
 
   it("跨年、跨月、跨天都拆组", () => {
     expect(isSameChatGroup(
-      message("a", localIso(2025, 12, 31, 23, 59)),
-      message("b", localIso(2026, 1, 1, 0, 0)),
+      message("a", "2025-12-31T23:59:00+08:00"),
+      message("b", "2026-01-01T00:00:00+08:00"),
     )).toBe(false);
     expect(isSameChatGroup(
-      message("a", localIso(2026, 10, 31, 12, 0)),
-      message("b", localIso(2026, 11, 1, 12, 0)),
+      message("a", "2026-10-31T12:00:00+08:00"),
+      message("b", "2026-11-01T12:00:00+08:00"),
     )).toBe(false);
   });
 
@@ -226,28 +234,35 @@ describe("isSameChatGroup", () => {
 });
 
 describe("chatDateSeparatorLabel", () => {
-  const now = new Date(2026, 10, 5, 15, 30, 0); // 本地 2026-11-05
+  // 站点 2026-11-05 15:30（UTC 07:30）。
+  const now = new Date("2026-11-05T15:30:00+08:00");
 
-  it("今天 / 昨天", () => {
-    expect(chatDateSeparatorLabel(localIso(2026, 11, 5, 8, 0), now)).toBe("今天");
-    expect(chatDateSeparatorLabel(localIso(2026, 11, 4, 23, 59), now)).toBe("昨天");
+  it("今天 / 昨天（按站点日历日）", () => {
+    expect(chatDateSeparatorLabel("2026-11-05T08:00:00+08:00", now)).toBe("今天");
+    expect(chatDateSeparatorLabel("2026-11-05T00:01:00+08:00", now)).toBe("今天");
+    expect(chatDateSeparatorLabel("2026-11-04T23:59:00+08:00", now)).toBe("昨天");
+  });
+
+  it("UTC 同一天、站点已是次日的消息算「今天」", () => {
+    // UTC 2026-11-04 17:30 = 站点 2026-11-05 01:30。
+    expect(chatDateSeparatorLabel("2026-11-04T17:30:00Z", now)).toBe("今天");
   });
 
   it("同年更早的日期 → M月D日（不补零）", () => {
-    expect(chatDateSeparatorLabel(localIso(2026, 3, 7, 9, 5), now)).toBe("3月7日");
-    expect(chatDateSeparatorLabel(localIso(2026, 11, 3, 9, 5), now)).toBe("11月3日");
+    expect(chatDateSeparatorLabel("2026-03-07T09:05:00+08:00", now)).toBe("3月7日");
+    expect(chatDateSeparatorLabel("2026-11-03T09:05:00+08:00", now)).toBe("11月3日");
   });
 
   it("不同年份 → YYYY年M月D日", () => {
-    expect(chatDateSeparatorLabel(localIso(2025, 12, 31, 23, 0), now)).toBe("2025年12月31日");
-    expect(chatDateSeparatorLabel(localIso(2027, 1, 2, 0, 0), now)).toBe("2027年1月2日");
+    expect(chatDateSeparatorLabel("2025-12-31T23:00:00+08:00", now)).toBe("2025年12月31日");
+    expect(chatDateSeparatorLabel("2027-01-02T00:00:00+08:00", now)).toBe("2027年1月2日");
   });
 
-  it("跨月 / 跨年的「昨天」仍按日历日判定", () => {
-    const newYear = new Date(2026, 0, 1, 12, 0);
-    expect(chatDateSeparatorLabel(localIso(2025, 12, 31, 23, 0), newYear)).toBe("昨天");
-    const firstOfMarch = new Date(2026, 2, 1, 12, 0);
-    expect(chatDateSeparatorLabel(localIso(2026, 2, 28, 23, 0), firstOfMarch)).toBe("昨天");
+  it("跨月 / 跨年的「昨天」仍按站点日历日判定", () => {
+    const newYear = new Date("2026-01-01T12:00:00+08:00");
+    expect(chatDateSeparatorLabel("2025-12-31T23:00:00+08:00", newYear)).toBe("昨天");
+    const firstOfMarch = new Date("2026-03-01T12:00:00+08:00");
+    expect(chatDateSeparatorLabel("2026-02-28T23:00:00+08:00", firstOfMarch)).toBe("昨天");
   });
 
   it("RFC3339Nano 的 9 位小数秒能解析", () => {
@@ -265,17 +280,15 @@ describe("chatDateSeparatorLabel", () => {
 });
 
 describe("fullChatTimestamp", () => {
-  it("完整 YYYY-MM-DD HH:mm:ss 本地时间", () => {
-    expect(fullChatTimestamp(localIso(2026, 3, 7, 9, 5, 6))).toBe("2026-03-07 09:05:06");
+  it("完整 YYYY-MM-DD HH:mm:ss，固定站点时区", () => {
+    expect(fullChatTimestamp("2026-03-07T09:05:06+08:00")).toBe("2026-03-07 09:05:06");
   });
 
-  it("RFC3339 带时区时转成等价的本地时间", () => {
-    // 01:07 UTC = 09:07 (+08:00)，这里只断言形状与本地投影一致。
-    const value = fullChatTimestamp("2026-11-05T01:07:00.123456789Z");
-    const expected = new Date("2026-11-05T01:07:00.123Z");
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const local = `${expected.getFullYear()}-${pad(expected.getMonth() + 1)}-${pad(expected.getDate())} ${pad(expected.getHours())}:${pad(expected.getMinutes())}:${pad(expected.getSeconds())}`;
-    expect(value).toBe(local);
+  it("RFC3339 带时区时转成站点时间（不是运行环境的投影）", () => {
+    // 01:07 UTC = 09:07 站点；旧实现用本机投影，CI 在 UTC 时会得到 01:07。
+    expect(fullChatTimestamp("2026-11-05T01:07:00.123456789Z")).toBe("2026-11-05 09:07:00");
+    // 13:30 UTC = 21:30 站点（晚 8 点的消息）。
+    expect(fullChatTimestamp("2026-11-10T13:30:00Z")).toBe("2026-11-10 21:30:00");
   });
 
   it("非法 / 空日期 → 空串", () => {

@@ -263,7 +263,8 @@ describe("用户选择后根类跟着走：htmlAttrs 也由 store 驱动", () =>
   });
 
   it("首屏脚本 + htmlAttrs 都在：前者防闪白，后者保证切换生效", () => {
-    expect(appSource).toContain("buildThemeInitScript()");
+    // #434 起首屏脚本还要一起对齐 theme-color，所以入参是同一份 token 配色。
+    expect(appSource).toContain("buildThemeInitScript(themeColorPalette)");
     expect(appSource).toContain("bodyAttrs");
   });
 });

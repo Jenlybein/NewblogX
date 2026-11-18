@@ -104,6 +104,7 @@ async function submitSearch() {
   <header
     class="site-header"
     :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
+    :inert="hidden ? true : undefined"
     @pointermove="handlePointerMove"
   >
     <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>

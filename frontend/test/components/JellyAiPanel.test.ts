@@ -148,7 +148,7 @@ describe("JellyAiPanel · 形态与无障碍", () => {
     wrapper.unmount();
   });
 
-  it("手机宽度下变成底部抽屉：移动端 class + 78vh 高", async () => {
+  it("手机宽度下变成底部抽屉：移动端 class + 78vh 高 + 从底边中点生长", async () => {
     const originalWidth = window.innerWidth;
     window.innerWidth = 480;
 
@@ -158,7 +158,28 @@ describe("JellyAiPanel · 形态与无障碍", () => {
 
       expect(panel.classes()).toContain("jelly-panel--mobile");
       expect(panel.attributes("style")).toContain("78vh");
+      // 底部抽屉从底边中点升起（原点在底边中央），不是从右下角缩出来。
+      expect(panel.attributes("style")).toContain("transform-origin: 50% 100%");
       wrapper.unmount();
+    } finally {
+      window.innerWidth = originalWidth;
+    }
+  });
+
+  it("桌面与手机的 transform-origin 各归各的（桌面仍是右下角）", async () => {
+    const { wrapper } = await setup();
+    expect(wrapper.find(".jelly-panel").attributes("style")).toContain("transform-origin: 100% 100%");
+    wrapper.unmount();
+
+    const originalWidth = window.innerWidth;
+    window.innerWidth = 480;
+
+    try {
+      const mobile = await setup();
+      expect(mobile.wrapper.find(".jelly-panel").attributes("style")).toContain(
+        "transform-origin: 50% 100%",
+      );
+      mobile.wrapper.unmount();
     } finally {
       window.innerWidth = originalWidth;
     }

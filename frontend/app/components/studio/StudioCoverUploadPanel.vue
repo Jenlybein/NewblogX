@@ -30,6 +30,10 @@ const props = defineProps<{
   onFileChange: (event: Event) => void;
   /** 移除已选封面。 */
   onClear: () => void;
+  /**
+   * 主选图按钮的 DOM id：发布弹窗用裸 `<label for>` 关联「文章封面」字段（票 435）。
+   */
+  controlId?: string;
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -83,6 +87,7 @@ function pickCover() {
       @change="props.onFileChange">
 
     <button
+      :id="props.controlId"
       type="button"
       class="cover-panel__picker"
       :class="{ 'cover-panel__picker--busy': props.busy }"

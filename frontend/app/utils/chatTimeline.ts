@@ -1,5 +1,11 @@
 import type { ChatMessageItem } from "~/types/api";
 import { resolveChatMessageContent, type ResolvedChatMessage } from "~/utils/chatMessage";
+import {
+  formatSiteTimestamp,
+  siteCalendarDayDiff,
+  siteDateKey,
+  siteDateParts,
+} from "~/utils/format";
 
 /**
  * 私信时间线的纯函数（唯一实现）。
@@ -9,6 +15,10 @@ import { resolveChatMessageContent, type ResolvedChatMessage } from "~/utils/cha
  * **不再有任何反转**。日期分组、2 分钟合并分组与回执也都在这里算好，交给面板
  * 只画结果 —— 组件里不再有第二份日期键或排序。
  *
+ * 日期口径固定站点时区（`Asia/Shanghai`，票 #436）：分组、分隔条与完整时间戳都走
+ * `utils/format` 的站点时区实现，不读运行环境时区——否则 CI（UTC）与读者（UTC+8）
+ * 会在同一个 `send_time` 上得到不同的「今天 / 昨天」。
+ *
  * 另一条硬约束：消息 id 是 FNV 哈希字符串，**不是**单调递增的数字。任何用
  * `Number(id)` 排序的逻辑都会把历史顺序打乱；这里只有「新追加的那一批」之间
  * 用 `send_time` 做个提示性的稳定排序，已累积的历史永远保持原样。
@@ -16,10 +26,6 @@ import { resolveChatMessageContent, type ResolvedChatMessage } from "~/utils/cha
 
 /** 两分钟合并分组的窗口（用于气泡连排，不是分页窗口）。 */
 const CHAT_GROUP_WINDOW_MS = 2 * 60 * 1000;
-
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
-}
 
 /**
  * 解析后端时间字符串。RFC3339Nano（9 位小数秒）与不带小数秒的 RFC3339 都会进来，
@@ -36,15 +42,10 @@ function parseChatTime(sendTime: string): Date | null {
   return new Date(timestamp);
 }
 
-/** 本地时区的日历日 `YYYY-MM-DD`（不碰 UTC，跨午夜按用户所在时区判定）。 */
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-/** 时间串 → 本地日历日键；非法 / 空时间归到同一段「未知日期」。 */
+/** 时间串 → 站点时区日历日键；非法 / 空时间归到同一段「未知日期」。 */
 function chatDayKey(sendTime: string): string {
   const date = parseChatTime(sendTime);
-  return date ? localDateKey(date) : "unknown";
+  return date ? siteDateKey(date) : "unknown";
 }
 
 /**
@@ -109,8 +110,8 @@ export function mergeChatMessages(
 /**
  * 相邻两条是否属于同一个「两分钟合并组」。
  *
- * 三个条件同时成立：同一个发送者、本地日历日相同、时间差绝对值不超过 2 分钟。
- * 用绝对值是为了让「传参顺序颠倒」也不影响判定（调用方本应按升序传入）；跨午夜
+ * 三个条件同时成立：同一个发送者、同一个站点日历日、时间差绝对值不超过 2 分钟。
+ * 用绝对值是为了让「传参顺序颠倒」也不影响判定（调用方本应按升序传入）；跨站点午夜
  * （23:59 → 00:01）即使只差 2 分钟也因为日历日不同而拆成两组。
  * 任一时间缺失/非法 → false（宁可多一个分组头，也不要把不确定的消息粘在一起）。
  */
@@ -123,7 +124,7 @@ export function isSameChatGroup(a: ChatMessageItem, b: ChatMessageItem): boolean
   if (!dateA || !dateB) {
     return false;
   }
-  if (localDateKey(dateA) !== localDateKey(dateB)) {
+  if (siteDateKey(dateA) !== siteDateKey(dateB)) {
     return false;
   }
   return Math.abs(dateB.getTime() - dateA.getTime()) <= CHAT_GROUP_WINDOW_MS;
@@ -132,8 +133,9 @@ export function isSameChatGroup(a: ChatMessageItem, b: ChatMessageItem): boolean
 /**
  * 日期分隔条的文案：今天 / 昨天 / `M月D日` / 跨年时 `YYYY年M月D日`。
  *
- * 全部用本地时区的年月日判定；`now` 可注入以便测试。昨天是「`now` 的本地日历日
- * 减一天」，用 Date 构造而不是减 86400000 毫秒，才不会被夏令时切换带偏。
+ * 全部用**站点时区**（`Asia/Shanghai`）的年月日判定；`now` 可注入以便测试。
+ * 昨天是「`now` 的站点日历日减一天」—— 用日历日差而不是减 86400000 毫秒，
+ * 客户端时钟或跨午夜都不会把两天的消息算进同一个分组。
  * 时间非法时返回空串，由调用方跳过这个分隔条。
  */
 export function chatDateSeparatorLabel(sendTime: string, now: Date = new Date()): string {
@@ -142,25 +144,24 @@ export function chatDateSeparatorLabel(sendTime: string, now: Date = new Date())
     return "";
   }
 
-  const targetKey = localDateKey(target);
-  if (targetKey === localDateKey(now)) {
+  const dayDiff = siteCalendarDayDiff(now, target);
+  if (dayDiff === 0) {
     return "今天";
   }
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (targetKey === localDateKey(yesterday)) {
+  if (dayDiff === 1) {
     return "昨天";
   }
 
-  const month = target.getMonth() + 1;
-  const day = target.getDate();
-  if (target.getFullYear() !== now.getFullYear()) {
-    return `${target.getFullYear()}年${month}月${day}日`;
+  const targetParts = siteDateParts(target);
+  const nowYear = siteDateParts(now).year;
+  if (targetParts.year !== nowYear) {
+    return `${targetParts.year}年${targetParts.month}月${targetParts.day}日`;
   }
-  return `${month}月${day}日`;
+  return `${targetParts.month}月${targetParts.day}日`;
 }
 
 /**
- * 悬停 `title` 用的完整本地时间 `YYYY-MM-DD HH:mm:ss`。
+ * 悬停 `title` 用的完整站点时间 `YYYY-MM-DD HH:mm:ss`。
  * 时间非法 → 空串（渲染出来的是空 title，而不是 `Invalid Date`）。
  */
 export function fullChatTimestamp(sendTime: string): string {
@@ -168,7 +169,7 @@ export function fullChatTimestamp(sendTime: string): string {
   if (!date) {
     return "";
   }
-  return `${localDateKey(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+  return formatSiteTimestamp(date);
 }
 
 /** 日期分隔条（每个自然日一段）。 */

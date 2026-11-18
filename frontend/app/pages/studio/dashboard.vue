@@ -23,7 +23,7 @@ import { getStudioStats } from "~/services/article";
 import { getProfileCategories } from "~/services/category";
 import { getOwnFavoriteFolders } from "~/services/favorite";
 import { getMessageSummary, getSelfUserDetail, getUserBaseInfo } from "~/services/user";
-import { formatCount } from "~/utils/format";
+import { formatCount, formatDateLabel } from "~/utils/format";
 
 definePageMeta({
   layout: "studio",
@@ -145,16 +145,6 @@ function topBarWidth(viewCount: number) {
   return `${Math.max(4, Math.round((viewCount / topMax.value) * 100))}%`;
 }
 
-function formatDay(iso?: string) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}/${m}/${d}`;
-}
-
 useSeoMeta({ title: "个人中心 - 数据概览" });
 useNoIndexPage();
 </script>
@@ -206,7 +196,7 @@ useNoIndexPage();
         <ol v-else-if="stats?.recent.length" class="overview__list" data-role="studio-recent">
           <li v-for="item in stats.recent" :key="item.id" class="overview__row">
             <NuxtLink :to="`/article/${item.id}`" class="overview__row-title">{{ item.title }}</NuxtLink>
-            <span class="overview__row-meta">{{ formatDay(item.created_at) }}</span>
+            <span class="overview__row-meta">{{ formatDateLabel(item.created_at) }}</span>
           </li>
         </ol>
         <p v-else class="overview__empty">还没有文章。去「写一篇」写第一篇。</p>

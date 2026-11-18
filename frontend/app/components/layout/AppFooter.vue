@@ -7,9 +7,12 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
 import { useSiteStore } from "~/stores/site";
 import { brandCopyright } from "~/utils/brand";
 import { footerNavItems } from "~/utils/chrome";
+import { siteDateParts } from "~/utils/format";
 
 const links = footerNavItems();
-const copyrightLine = computed(() => brandCopyright(new Date().getFullYear()));
+// 版权年份按站点时区取：页脚在 SSR 里渲染，跟本机时区走的话跨年夜会让服务端
+// （UTC）与浏览器（UTC+8）各算一年，水合文本直接不一致（票 436）。
+const copyrightLine = computed(() => brandCopyright(siteDateParts(new Date()).year));
 const site = useSiteStore();
 // 备案号来自运行时站点配置（后台可改），不再写死；空值 / 尚未取回时整行不渲染。
 const beianLine = computed(() => (site.runtimeConfig?.site_info?.beian ?? "").trim());

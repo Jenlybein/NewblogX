@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AppFooter from "~/components/layout/AppFooter.vue";
 import { brandCopyright } from "~/utils/brand";
@@ -81,11 +81,27 @@ function mountFooter() {
 
 let scrollToSpy: ReturnType<typeof vi.fn>;
 
+/**
+ * 站点时区（`Asia/Shanghai`）下的年份。
+ *
+ * 测试里独立算一遍，而不是拿被测代码的 helper 当期望值：跨年夜直接用本机投影
+ * （`new Date().getFullYear()`）会在 UTC 的 CI 上差一年。
+ */
+function siteYear(now: Date): number {
+  return Number(
+    new Intl.DateTimeFormat("en-CA", { year: "numeric", timeZone: "Asia/Shanghai" }).format(now),
+  );
+}
+
 beforeEach(() => {
   scrollToSpy = vi.fn();
   vi.stubGlobal("scrollTo", scrollToSpy);
   // Logo 组件要读 app.baseURL 拼品牌资产路径。
   vi.stubGlobal("__useRuntimeConfigMock", () => ({ app: { baseURL: "/" }, public: {} }));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("页脚：品牌与文案", () => {
@@ -99,11 +115,21 @@ describe("页脚：品牌与文案", () => {
 
   it("版权行来自品牌模块（brandCopyright），不在模板里硬编码", () => {
     const wrapper = mountFooter();
-    const expected = brandCopyright(new Date().getFullYear());
+    const expected = brandCopyright(siteYear(new Date()));
 
     expect(wrapper.text()).toContain(expected);
     // 反向证明：模板里没有可直接写死的年份/品牌串，改了品牌名这里会跟着变。
     expect(footerSource).toContain("brandCopyright");
+  });
+
+  it("版权年份按站点时区取：UTC 还停在除夕、站点已是新年", () => {
+    vi.useFakeTimers();
+    // UTC 2026-12-31 20:00 = 站点 2027-01-01 04:00：跟本机时区走会渲染成 © 2026。
+    vi.setSystemTime(new Date("2026-12-31T20:00:00Z"));
+
+    const wrapper = mountFooter();
+
+    expect(wrapper.get(".site-footer__meta").text()).toContain(brandCopyright(2027));
   });
 
   it("带上少量站内链接（行为不变）", () => {
@@ -133,7 +159,7 @@ describe("页脚：备案号取自运行时站点配置（不再写死）", () =
     // 只留版权行那一个 span。
     expect(wrapper.get(".site-footer__meta").findAll("span")).toHaveLength(1);
     expect(wrapper.get(".site-footer__meta").text()).toContain(
-      brandCopyright(new Date().getFullYear()),
+      brandCopyright(siteYear(new Date())),
     );
 
     // 引导请求还没回来（runtimeConfig 仍是 null）也走同一条「不渲染」路径。

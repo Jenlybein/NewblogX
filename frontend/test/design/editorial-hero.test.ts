@@ -167,15 +167,18 @@ describe("首页唯一的 h1 = JellyBin.", () => {
     }
   });
 
-  it("h1 字号 clamp(2rem, 9vw, 6rem)、700，字体走 --font-title；行高/字距不再声明", () => {
+  it("h1 字号 clamp(2rem, 9vw, 6rem)、700，字体走 --font-title；行高只压 strut", () => {
     const title = blockAfter(indexVue, ".home-cover__title {");
 
     expect(title).toContain("font-family: var(--font-title)");
     expect(title).toContain("font-size: clamp(2rem, 9vw, 6rem)");
     expect(title).toMatch(/font-weight:\s*(?:700|var\(--type-weight-title\))/u);
-    // 票 430：h1 上的 line-height / letter-spacing 从来打不到字（内层 .glass-title
-    // 会重新声明），等于死声明。删掉它们，字标的 1.34 / -0.015em 成为唯一来源。
-    expect(title).not.toMatch(/(?:line-height|letter-spacing)\s*:/u);
+    // 票 430 删掉了 h1 上的 1.34 / -0.015em（打不到字）；但票 437 评审发现：
+    // line-height 留空会让 strut 回落到 preflight 的 1.5，比字标的 1.34 还高约 12%，
+    // 首屏大字仍被撑开。所以只给 strut 一个 1 —— 行盒由内层 1.34 的字标决定。
+    expect(title).toMatch(/line-height:\s*1;/u);
+    expect(title).not.toMatch(/line-height:\s*(?:1\.34|1\.5)/u);
+    expect(title).not.toMatch(/letter-spacing\s*:/u);
   });
 
   it("字标的行高/字距是唯一来源（字形盒 1.34 + -0.015em）", () => {

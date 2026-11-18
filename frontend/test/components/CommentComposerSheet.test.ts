@@ -3,7 +3,11 @@ import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CommentComposerSheet from "~/components/comment/CommentComposerSheet.vue";
-import { sheetDragOffset, shouldDismissSheetDrag } from "~/utils/commentSheetDrag";
+import {
+  sheetDragOffset,
+  sheetReleaseVelocityPxPerMs,
+  shouldDismissSheetDrag,
+} from "~/utils/commentSheetDrag";
 
 /**
  * 评论输入面板（决定清单 §4 第 19–22 条 + 票 #431）。
@@ -347,34 +351,109 @@ describe("CommentComposerSheet：把手下滑关闭", () => {
   });
 });
 
-describe("shouldDismissSheetDrag：位移 > 高度 30% 或速度 > 0.11 px/ms", () => {
-  it("位移超过面板高度 30% 就关闭", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 181, elapsedMs: 5000, panelHeightPx: 600 })).toBe(true);
+describe("shouldDismissSheetDrag：位移 > 高度 30% 或最后 100ms 速度 > 0.11 px/ms", () => {
+  /** 一次拖动的采样简写：`[时间, 位移]`。 */
+  function samples(pairs: Array<[number, number]>) {
+    return pairs.map(([atMs, offsetPx]) => ({ atMs, offsetPx }));
+  }
+
+  it("位移超过面板高度 30% 就关闭（不需要速度证据）", () => {
+    expect(
+      shouldDismissSheetDrag({ offsetPx: 181, panelHeightPx: 600, releaseAtMs: 5000, samples: [] }),
+    ).toBe(true);
   });
 
-  it("位移刚好等于 30% 不算（严格大于）", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 180, elapsedMs: 5000, panelHeightPx: 600 })).toBe(false);
+  it("位移刚好等于 30% 不算（严格大于），且没有速度证据", () => {
+    expect(
+      shouldDismissSheetDrag({ offsetPx: 180, panelHeightPx: 600, releaseAtMs: 5000, samples: [] }),
+    ).toBe(false);
   });
 
-  it("位移不足但甩得快就关闭", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 40, elapsedMs: 100, panelHeightPx: 600 })).toBe(true);
+  it("位移不足但最后 100ms 甩得快就关闭", () => {
+    // 慢拖 1 秒才到 100px，最后 100ms 又甩出 70px（0.7 px/ms）。
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 170,
+        panelHeightPx: 600,
+        releaseAtMs: 1100,
+        samples: samples([[0, 0], [1000, 100], [1100, 170]]),
+      }),
+    ).toBe(true);
+  });
+
+  it("慢拖后急甩要关：全程平均速度很低，但松手瞬间在甩（评审判据）", () => {
+    // 按下到松手跨 5 秒、全程平均只有 0.034 px/ms；最后 60ms 却甩出 100px。
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 170,
+        panelHeightPx: 600,
+        releaseAtMs: 5060,
+        samples: samples([[0, 0], [2000, 40], [4000, 70], [5000, 70], [5060, 170]]),
+      }),
+    ).toBe(true);
+  });
+
+  it("快拖后停手不关：最后 100ms 没有位移，速度按 0 处理", () => {
+    // 前 100ms 拖出 120px（本来很快），随后停手 700ms 再松开。
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 120,
+        panelHeightPx: 600,
+        releaseAtMs: 800,
+        samples: samples([[0, 0], [100, 120], [800, 120]]),
+      }),
+    ).toBe(false);
   });
 
   it("速度刚好 0.11 px/ms 不算（严格大于）", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 110, elapsedMs: 1000, panelHeightPx: 600 })).toBe(false);
-  });
-
-  it("慢速小幅拖动弹回", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 60, elapsedMs: 2000, panelHeightPx: 600 })).toBe(false);
+    // 最后 100ms 内恰好 11px → 0.11 px/ms。
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 11,
+        panelHeightPx: 600,
+        releaseAtMs: 1000,
+        samples: samples([[900, 0], [1000, 11]]),
+      }),
+    ).toBe(false);
   });
 
   it("面板高度未知时只按速度判定（不会因为高度 0 就一拖就关）", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 100, elapsedMs: 5000, panelHeightPx: 0 })).toBe(false);
-    expect(shouldDismissSheetDrag({ offsetPx: 40, elapsedMs: 100, panelHeightPx: 0 })).toBe(true);
+    expect(
+      shouldDismissSheetDrag({ offsetPx: 100, panelHeightPx: 0, releaseAtMs: 5000, samples: [] }),
+    ).toBe(false);
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 40,
+        panelHeightPx: 0,
+        releaseAtMs: 100,
+        samples: samples([[0, 0], [100, 40]]),
+      }),
+    ).toBe(true);
   });
 
-  it("时长缺失时不算速度（只按位移判定）", () => {
-    expect(shouldDismissSheetDrag({ offsetPx: 40, elapsedMs: 0, panelHeightPx: 600 })).toBe(false);
+  it("窗口内没有采样时退回位移阈值（不猜速度、不除出 Infinity）", () => {
+    expect(
+      shouldDismissSheetDrag({ offsetPx: 40, panelHeightPx: 600, releaseAtMs: 900, samples: [] }),
+    ).toBe(false);
+    expect(
+      shouldDismissSheetDrag({
+        offsetPx: 40,
+        panelHeightPx: 600,
+        releaseAtMs: 0,
+        samples: samples([[0, 0]]),
+      }),
+    ).toBe(false);
+  });
+
+  it("窗口外的旧采样不参与速度（只有松手前 100ms 内的才算）", () => {
+    const velocity = sheetReleaseVelocityPxPerMs({
+      offsetPx: 120,
+      releaseAtMs: 800,
+      samples: samples([[0, 0], [100, 120], [800, 120]]),
+    });
+
+    expect(velocity).toBe(0);
+    expect(sheetReleaseVelocityPxPerMs({ offsetPx: 0, releaseAtMs: 0, samples: [] })).toBe(0);
   });
 });
 

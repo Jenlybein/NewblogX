@@ -11,7 +11,7 @@ import type { MessageCenterEntry } from "~/utils/messageCenter";
  *   - 列表行 = 文章标题 + 一行内容摘要 + 时间；
  *   - 未读 = 左侧强调条 + 标题加粗 + 右上小圆点（**不用「未读」chip**）；
  *   - 删除按钮 hover 才出现（样式门禁在 test/design/message-center.test.ts）；
- *   - 批量动作只有「全部已读 / 清空当前分组（二次确认）/ 单条删除」，不做多选；
+ *   - 批量动作只有「全部已读 / 清空当前分组（页面 dialog 二次确认）/ 单条删除」，不做多选；
  *   - 滚动加载更多（每页 20，由 composable 保证），底部「没有更多了」收尾。
  */
 
@@ -107,33 +107,16 @@ describe("消息中心批量动作", () => {
     expect(wrapper.emitted("markAllRead")).toHaveLength(1);
   });
 
-  it("清空当前分组必须二次确认：第一次点击只出确认条，确认后才触发", async () => {
+  it("清空当前分组只 emit 一次，确认交给页面（不再保留第二条确认条）", async () => {
     const wrapper = mountList();
     const clear = wrapper.findAll("button").find((item) => item.text() === "清空当前分组");
 
     await clear!.trigger("click");
-    expect(wrapper.emitted("clearGroup")).toBeUndefined();
-    expect(wrapper.text()).toContain("清空后不可恢复");
-
-    await wrapper
-      .findAll("button")
-      .find((item) => item.text() === "确认清空")!
-      .trigger("click");
+    // 一次点击只 emit 一次：页面的 `dialog.warning` 是唯一的确认口径，
+    // 列表若也弹确认条就变成"两步确认 + 一个对话框"。
     expect(wrapper.emitted("clearGroup")).toHaveLength(1);
-  });
-
-  it("确认条可以取消，取消后不触发清空", async () => {
-    const wrapper = mountList();
-    const clear = wrapper.findAll("button").find((item) => item.text() === "清空当前分组");
-
-    await clear!.trigger("click");
-    await wrapper
-      .findAll("button")
-      .find((item) => item.text() === "取消")!
-      .trigger("click");
-
-    expect(wrapper.emitted("clearGroup")).toBeUndefined();
     expect(wrapper.text()).not.toContain("清空后不可恢复");
+    expect(wrapper.find(".message-center-confirm").exists()).toBe(false);
   });
 });
 

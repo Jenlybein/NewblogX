@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, useTemplateRef, watch } from "vue";
+import { nextTick, useTemplateRef, watch } from "vue";
 import { IconTrash } from "@tabler/icons-vue";
 import { NButton } from "naive-ui";
 
@@ -14,8 +14,8 @@ import { formatDateTimeLabel } from "~/utils/format";
  * 左侧强调条 + 标题加粗 + 右上小圆点表达（不用 chip）。删除按钮默认 opacity:0，
  * hover / focus 才出现（CSS 在 tailwind.css）。
  *
- * 批量动作刻意只有三个：全部已读、清空当前分组（二次确认）、单条删除。
- * **不做多选**——消息中心的使用场景是"扫一眼清掉"，多选态没有真实需求。
+ * 批量动作刻意只有三个：全部已读、清空当前分组（由页面 `dialog.warning` 二次确认）、
+ * 单条删除。**不做多选**——消息中心的使用场景是"扫一眼清掉"，多选态没有真实需求。
  */
 const props = defineProps<{
   items: MessageCenterEntry[];
@@ -33,29 +33,9 @@ const emit = defineEmits<{
   loadMore: [];
 }>();
 
-// "清空当前分组"是不可逆操作：第一次点击只展开确认条，第二次点击才真正执行。
-const confirmingClear = ref(false);
-
-watch(
-  () => props.activeTab,
-  () => {
-    confirmingClear.value = false;
-  },
-);
-
-function requestClearGroup() {
-  if (!confirmingClear.value) {
-    confirmingClear.value = true;
-    return;
-  }
-  confirmingClear.value = false;
-  emit("clearGroup");
-}
-
-function cancelClear() {
-  confirmingClear.value = false;
-}
-
+// "清空当前分组"是不可逆操作，但确认不归这里：全站统一由页面用
+// `dialog.warning`（`utils/confirmDestructive.ts`）问一次。列表只负责 emit，
+// 不再自己维护一条"确认条"——否则会变成两步确认 + 一个对话框。
 const listScrollerRef = useTemplateRef<HTMLDivElement>("listScroller");
 
 function tryLoadMore() {
@@ -99,15 +79,7 @@ watch(
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <NButton quaternary size="small" @click="emit('markAllRead')">全部已读</NButton>
-        <NButton quaternary size="small" @click="requestClearGroup()">清空当前分组</NButton>
-      </div>
-    </div>
-
-    <div v-if="confirmingClear" class="message-center-confirm" role="alertdialog" aria-label="确认清空当前分组">
-      <span>清空后不可恢复，确定继续？</span>
-      <div class="flex flex-wrap items-center gap-2">
-        <NButton size="small" @click="cancelClear()">取消</NButton>
-        <NButton size="small" type="error" @click="requestClearGroup()">确认清空</NButton>
+        <NButton quaternary size="small" @click="emit('clearGroup')">清空当前分组</NButton>
       </div>
     </div>
 

@@ -4,6 +4,9 @@ import { IconChevronLeft, IconX } from "@tabler/icons-vue";
 
 import {
   clampJellyPosition,
+  JELLY_HANDLE_HEIGHT,
+  JELLY_HANDLE_HIT_WIDTH,
+  JELLY_HANDLE_WIDTH,
   JELLY_LAUNCHER_SIZE,
   JELLY_VIEWPORT_MARGIN,
   useJellyAssistant,
@@ -136,6 +139,13 @@ const rootStyle = computed(() => {
     // 只读副本：样式表靠它算「贴底时才上抬多少」的安全区让位（票 426）。
     // JS 的坐标语义（左上角 transform、clampJellyPosition）一概不动。
     "--jelly-y": `${target.y + offset.y}px`,
+    // 几何常量只有一个来源（composable）：组件把它们写成 CSS 自定义属性，
+    // 样式块只消费 `var(--jelly-*)`，不再在 CSS 里重抄 56px / 44px / 16px（票 437 评审）。
+    "--jelly-size": `${JELLY_LAUNCHER_SIZE}px`,
+    "--jelly-margin": `${JELLY_VIEWPORT_MARGIN}px`,
+    "--jelly-handle-width": `${JELLY_HANDLE_WIDTH}px`,
+    "--jelly-handle-height": `${JELLY_HANDLE_HEIGHT}px`,
+    "--jelly-handle-hit": `${JELLY_HANDLE_HIT_WIDTH}px`,
     transition: animatable
       ? "transform var(--motion-base) var(--motion-ease), opacity var(--motion-base) var(--motion-ease)"
       : "none",
@@ -551,8 +561,8 @@ onBeforeUnmount(() => {
             alt=""
             aria-hidden="true"
             draggable="false"
-            width="56"
-            height="56"
+            :width="JELLY_LAUNCHER_SIZE"
+            :height="JELLY_LAUNCHER_SIZE"
           >
         </span>
       </button>
@@ -611,14 +621,20 @@ onBeforeUnmount(() => {
 /* 位置：固定定位 + transform（只动 transform，不触发布局）。
  * 位置更新要么直写（拖拽 1:1）、要么逐帧弹簧（松手落位），CSS 过渡一律不参与 ——
  * 拖拽 / 落位期根元素的 inline `transition: none` 就是这条契约的显式声明（票 424）。
- * 收起 / 展开则相反：只有 transform 与 opacity 的 200ms transition，可中途反向。 */
+ * 收起 / 展开则相反：只有 transform 与 opacity 的 200ms transition，可中途反向。
+ *
+ * **根元素尺寸恒定**（票 437 评审）：以前收起态把 width 从 56px 改成 44px，等于
+ * 每次收起/展开都动一次布局属性。现在根元素始终是角色本体边长（`--jelly-size`，
+ * 由 composable 注入），贴边对齐靠 transform + 把手按钮在根内右对齐 ——
+ * 收起/展开只动 transform/opacity，不产生任何重排。 */
 .jelly-launcher {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 40;
-  width: 56px;
-  height: 56px;
+  /* 几何常量来自 composable（`rootStyle` 写成的 CSS 变量），样式表不再重抄像素值。 */
+  width: var(--jelly-size);
+  height: var(--jelly-size);
   will-change: transform;
   pointer-events: none;
 
@@ -629,8 +645,6 @@ onBeforeUnmount(() => {
    * 的那一段，所以角色在视口中高处时恒为 0（不会整体上移），贴底时最多抬
    * env(safe-area-inset-bottom)。`dvh` 与 JS 的 innerHeight 同源；不支持它的浏览器
    * 整条声明失效、退化为不让位（不写死像素，也不会抬错）。 */
-  --jelly-size: 56px;
-  --jelly-margin: 12px;
   --jelly-safe-bottom: env(safe-area-inset-bottom, 0px);
   translate: 0px calc(-1 * max(
     0px,
@@ -639,10 +653,10 @@ onBeforeUnmount(() => {
   ));
 }
 
-/* 收起态：根元素变窄（44px 命中区，可见胶囊只有 16px），右边缘齐平贴边。 */
-.jelly-launcher--collapsed {
-  width: 44px;
-  height: 56px;
+/* 收起态：根元素**尺寸不变**，只是本体让位给把手；根左侧那 12px 是透明的，
+ * 不能让 cluster 吃掉页面点击 —— 只留把手按钮可交互。 */
+.jelly-launcher--collapsed .jelly-launcher__cluster {
+  pointer-events: none;
 }
 
 /* 悬停判定挂在包含捏捏与 chip 的外层 cluster 上（cluster 吃指针事件）：
@@ -691,12 +705,16 @@ onBeforeUnmount(() => {
 }
 
 /* 收起态把手：命中区 44×56（透明），可见胶囊 16×56 右对齐贴边、左侧圆角。
- * 命中区靠按钮本身的宽度拿到，不用负 inset 撑出布局 —— 贴边元素不能外扩 outline。 */
+ * 命中区靠按钮本身的宽度拿到（`--jelly-handle-hit`，由 composable 注入），
+ * 按钮在**尺寸恒定的根元素内右对齐** —— 不用负 inset、也不改根宽度（票 437 评审）。
+ * 贴边元素不能外扩 outline，所以焦点环用负 offset 内嵌。 */
 .jelly-launcher__handle {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
   display: block;
-  width: 100%;
-  height: 100%;
+  width: var(--jelly-handle-hit);
+  height: var(--jelly-handle-height);
   padding: 0;
   border: 0;
   background: transparent;
@@ -712,20 +730,21 @@ onBeforeUnmount(() => {
   right: 0;
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 56px;
+  width: var(--jelly-handle-width);
+  height: var(--jelly-handle-height);
   border-radius: var(--radius-pill) 0 0 var(--radius-pill);
   color: var(--color-ink-muted);
-  transition: color var(--motion-fast) var(--motion-ease);
+  transition: color var(--motion-fast) var(--motion-ease), width var(--motion-fast) var(--motion-ease);
 }
 
 .jelly-launcher__handle-arrow {
   transition: transform var(--motion-fast) var(--motion-ease);
 }
 
-/* 把手三态：hover 可见宽度 20px + 箭头左移 2px；按下 scale(.96)；焦点用内嵌环。 */
+/* 把手三态：hover 可见宽度 = 可见宽 + 4px（20px）+ 箭头左移 2px；按下 scale(.96)；
+ * 焦点用内嵌环。宽度差写成 `calc()`：16/20 这两个数只由 `--jelly-handle-width` 派生。 */
 .jelly-launcher__handle:hover .jelly-launcher__handle-capsule {
-  width: 20px;
+  width: calc(var(--jelly-handle-width) + 4px);
   color: var(--color-ink);
 }
 

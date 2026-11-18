@@ -12,7 +12,8 @@ import { blockAfter, blockAfterContaining, stripComments } from "../helpers/desi
  *   1. 首页置顶卡此前是直角，压在 20px 圆角的 blueprint-panel 上，网格里一眼就是
  *      "卡没做完"；这里钉它取卡片圆角 token（--radius-lg / rounded-card）。
  *   2. 页脚版权行上方那条 1px 线此前借了次级字色（72% 反白），比正文还抢眼；
- *      这里钉它降到 12–16% 反白档，且由反白 token 经 color-mix 派生（不写裸 rgba）。
+ *      这里钉它降到 12–16% 反白档，且由语义 token（token 层三元组派生）给出，
+ *      不写裸 rgba、也不再用 color-mix（票 437 评审：ADR-0011 约束 3）。
  *   3. 条目卡 hover 只给极轻回应：纸面差 ≤3%、1px 位移、不加重阴影；且只放在
  *      `(hover: hover)` 里 —— 触屏的 sticky hover 会让点过的卡片一直亮着。
  *
@@ -82,20 +83,25 @@ describe("页脚版权行：1px 线降到 12–16% 反白档", () => {
     return blockAfter(scopedStyle(footerVue, "AppFooter.vue"), ".site-footer__meta {");
   }
 
-  it("线色由反白 token 经 color-mix 派生，落在 12–16% 档（不再是 72% 那档）", () => {
+  it("线色由语义 token 派生（token 层走三元组），落在 12–16% 档（不再是 72% 那档）", () => {
     const block = footerMetaBlock();
-    const match =
-      /border-top:\s*1px solid color-mix\(in srgb, var\(--color-on-inverse\) ([0-9.]+)%, transparent\)/u.exec(
-        block,
-      );
+    // 票 437 评审：ADR-0011 约束 3 要求带透明度的颜色一律 `rgb(var(--*-rgb) / α)`。
+    // 组件只消费语义层 `--color-on-inverse-line`；α 档位在 token 层断言。
+    const match = /border-top:\s*1px solid var\(--color-on-inverse-line\)/u.exec(block);
 
-    expect(
-      match,
-      "版权行上方的线必须写成 color-mix(in srgb, var(--color-on-inverse) <12–16>%, transparent)",
-    ).not.toBeNull();
-    const percent = Number(match![1]);
-    expect(percent).toBeGreaterThanOrEqual(12);
-    expect(percent).toBeLessThanOrEqual(16);
+    expect(match, "版权行上方的线必须消费语义 token --color-on-inverse-line").not.toBeNull();
+
+    const light = rootBlock();
+    const dark = darkBlock();
+    for (const [label, sourceBlock] of [
+      ["亮色", light],
+      ["暗色", dark],
+    ] as const) {
+      const triplet = /--color-on-inverse-line:\s*([^;]+);/u.exec(sourceBlock);
+      expect(triplet, `${label} 缺少 --color-on-inverse-line`).not.toBeNull();
+      expect(triplet![1]!.trim()).toMatch(/^rgb\(var\(--[a-z0-9-]+-rgb\) \/ 0\.14\)$/u);
+    }
+    expect(stripComments(block)).not.toContain("color-mix");
   });
 
   it("次级反白字色不再兼任线色（72% 那档只留给文字）", () => {
@@ -109,7 +115,9 @@ describe("页脚版权行：1px 线降到 12–16% 反白档", () => {
   it("页脚仍没有裸色值：线色也只能从 token 派生", () => {
     const code = stripComments(footerVue);
 
-    expect(code).not.toMatch(/(?:rgba?|hsla?)\(/u);
+    // 允许三元组派生 `rgb(var(--*-rgb) / α)`；禁止的是写死的通道值 / hsl。
+    expect(code).not.toMatch(/\brgba?\(\s*\d+/u);
+    expect(code).not.toMatch(/\bhsla?\(/u);
     expect(code).not.toMatch(/#[0-9a-fA-F]{3,8}(?![0-9a-zA-Z-])/u);
   });
 });

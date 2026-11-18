@@ -1,5 +1,9 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
+import { MOBILE_PANEL_QUERY } from "~/utils/breakpoints";
+
+export { MOBILE_PANEL_QUERY };
+
 /**
  * 手机断点（页头折叠面板）的视口判定（票 437）。
  *
@@ -7,23 +11,17 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
  * 轨道过渡），而 `inert` 是属性、不能由媒体查询开关。它又**只能**在手机断点挂：
  * 桌面断点下面板一直可见，挂上会把整条导航锁死。
  *
- * SSR 默认 false（桌面口径）：服务端没有视口，宁可先渲染成"可聚焦"，也不要让
- * 桌面用户在水合前点不动导航；手机端在水合阶段立刻按真实视口补上 inert。
- *
- * 查询字符串与 `AppHeader.vue` 里 `.site-header__panel` 的折叠断点同源（640px）；
- * 改断点必须两处同改。
+ * **水合安全**（票 437 评审）：`isMobile` 在 setup 阶段恒为 `false`（服务端按桌面
+ * 口径渲染，水合首帧与 SSR 完全一致），真实视口值在 `onMounted` 之后才补上。
+ * 以前在 setup 里读 `matchMedia`，客户端首次渲染就是 `true`，SSR 却是 `false`，
+ * `inert` 属性在挂载瞬间跳变 —— 正是 Vue 水合不一致的典型来源。
+ * 查询串与 `AppHeader.vue` 里 `.site-header__panel` 的折叠断点同源
+ * （`app/utils/breakpoints.ts` 的 `TABLET_BREAKPOINT_PX`），由
+ * `test/design/header-breakpoints.test.ts` 断言两处一致。
  */
-export const MOBILE_PANEL_QUERY = "(max-width: 639px)";
-
-function initialMatches(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return Boolean(window.matchMedia(MOBILE_PANEL_QUERY).matches);
-}
-
 export function useHeaderMobilePanel() {
-  const isMobile = ref(initialMatches());
+  // 恒 false 起步：服务端 / 水合首帧按桌面口径（面板可见、不挂 inert）。
+  const isMobile = ref(false);
   let mobileQuery: MediaQueryList | null = null;
 
   function sync(event?: MediaQueryListEvent) {
@@ -34,7 +32,7 @@ export function useHeaderMobilePanel() {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return;
     }
-    // setup 阶段已读过一次（水合期就用真实视口）；这里只负责后续的断点变化。
+    // 挂载后才按真实视口补：这一帧是客户端自己的更新，不会参与水合比对。
     mobileQuery = window.matchMedia(MOBILE_PANEL_QUERY);
     sync();
     mobileQuery.addEventListener("change", sync);

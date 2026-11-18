@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
@@ -434,6 +434,9 @@ describe("BannerCarousel：播放/暂停控件", () => {
 
   it("默认播放（标签为「暂停轮播」）；点击后暂停、不再自动翻页，再点恢复", async () => {
     const wrapper = mountPlaying();
+    // 水合安全：`userPaused` 初始 true（按钮先显示「继续轮播」），挂载后非 reduce
+    // 才切回默认播放；等一次 nextTick 让初始渲染的更新落盘。
+    await nextTick();
 
     expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("暂停轮播");
 
@@ -479,7 +482,7 @@ describe("BannerCarousel：播放/暂停控件", () => {
     wrapper.unmount();
   });
 
-  it("减少动态下不自动播放，也不摆一个按了没反应的播放控件", async () => {
+  it("减少动态下默认不自动播放，但播放/暂停控件仍在、aria-label 正确、可显式开启", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("prefers-reduced-motion"),
       media: query,
@@ -493,9 +496,20 @@ describe("BannerCarousel：播放/暂停控件", () => {
 
     const wrapper = mountPlaying();
 
+    // 默认暂停：30 秒都不换图。
     await vi.advanceTimersByTimeAsync(30000);
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
-    expect(wrapper.find(".banner-playback").exists()).toBe(false);
+
+    // spec 432：控件行提供播放/暂停切换 —— 减少动态下也要在，只是不自动播放。
+    const playback = wrapper.get(".banner-playback");
+    expect(playback.attributes("aria-label")).toBe("继续轮播");
+
+    // 读者显式点「继续轮播」后才会动（此时换图直接切，不做交叉淡入）。
+    await playback.trigger("click");
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("暂停轮播");
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
 
     wrapper.unmount();
   });

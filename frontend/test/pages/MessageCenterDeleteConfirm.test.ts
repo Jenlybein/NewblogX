@@ -27,6 +27,7 @@ const center = vi.hoisted(() => ({
   pending: false,
   hasMore: false,
   removeEntry: vi.fn(async (_id: string) => {}),
+  clearCurrentGroup: vi.fn(async () => {}),
 }));
 
 vi.mock("naive-ui", async () => {
@@ -53,7 +54,7 @@ vi.mock("~/composables/useMessageCenter", async () => {
       hasMore: ref(center.hasMore),
       loadMore: vi.fn(),
       markAllRead: vi.fn(async () => {}),
-      clearCurrentGroup: vi.fn(async () => {}),
+      clearCurrentGroup: center.clearCurrentGroup,
       removeEntry: center.removeEntry,
     }),
   };
@@ -74,6 +75,8 @@ function mountPage() {
 
 beforeEach(() => {
   center.removeEntry.mockClear();
+  center.clearCurrentGroup.mockClear();
+  dialog.warning.mockClear();
   vi.stubGlobal("definePageMeta", () => undefined);
   vi.stubGlobal("useSeoMeta", () => undefined);
   vi.stubGlobal("useNoIndexPage", () => undefined);
@@ -113,5 +116,44 @@ describe("消息中心单条删除 · 先确认再执行", () => {
     await options.onPositiveClick();
     expect(center.removeEntry).toHaveBeenCalledTimes(1);
     expect(center.removeEntry).toHaveBeenCalledWith("m1");
+  });
+});
+
+describe("消息中心清空分组 · 先确认再执行（票 423 第 23 项）", () => {
+  it("点「清空当前分组」先弹确认，确认前不调用 clearCurrentGroup", async () => {
+    const wrapper = mountPage();
+    const clear = wrapper.findAll("button").find((item) => item.text() === "清空当前分组");
+
+    await clear!.trigger("click");
+
+    expect(center.clearCurrentGroup).not.toHaveBeenCalled();
+    expect(dialog.warning).toHaveBeenCalledTimes(1);
+
+    const options = dialog.warning.mock.calls[0]![0] as {
+      title: string;
+      content: string;
+      positiveText: string;
+      negativeText: string;
+      onPositiveClick: () => Promise<void>;
+    };
+    expect(options.title).toBe("清空分组");
+    expect(options.content).toContain("不可恢复");
+    expect(options.positiveText).toBe("清空");
+    expect(options.negativeText).toBe("取消");
+
+    await options.onPositiveClick();
+    expect(center.clearCurrentGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("取消（不点确认）不动状态：一个请求都不发", async () => {
+    const wrapper = mountPage();
+    const clear = wrapper.findAll("button").find((item) => item.text() === "清空当前分组");
+
+    await clear!.trigger("click");
+    // 只有一次 warning，没有 onNegativeClick 之类的副作用回调；
+    // 不点确认 → clearCurrentGroup 永远不被调用。
+    expect(dialog.warning).toHaveBeenCalledTimes(1);
+    expect(center.clearCurrentGroup).not.toHaveBeenCalled();
+    expect(center.removeEntry).not.toHaveBeenCalled();
   });
 });

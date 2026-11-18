@@ -381,9 +381,12 @@ async function handleRetryLatest() {
   font-family: var(--font-title);
   font-size: clamp(2rem, 9vw, 6rem);
   font-weight: var(--type-weight-title);
-  /* 票 430：这里不再声明 line-height / letter-spacing —— 内层碎玻璃字标
-     （components/brand/GlassHeroTitle.vue）会重新声明，外层这两条从来打不到字，
-     属于死声明。现在字标的 `1.34 / -0.015em`（字形盒高度 + 中档字距）是唯一来源。 */
+  /* 票 430 删掉了这里的 1.34 / -0.015em（它们从来打不到字，内层碎玻璃字标会重新
+     声明，等于死声明）。但**不能把 line-height 留空**：空掉之后 h1 的 strut 回落到
+     preflight 的 1.5，比字标的 1.34 行盒高约 12%，首屏大字反而被撑开（票 437 评审）。
+     这里给 strut 一个 1：行盒高度由内层 `.glass-title`（1.34 = 字形盒高度）决定，
+     字标的 `1.34 / -0.015em` 仍是唯一来源，h1 自己不再和它各持一份。 */
+  line-height: 1;
   color: var(--color-on-inverse);
   text-wrap: balance;
 }

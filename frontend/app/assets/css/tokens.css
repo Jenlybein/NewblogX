@@ -66,6 +66,10 @@
    * 亮色是白字压深墨，暗色是深字压浅墨 —— 上面的线/柔光带用同一个表达式即可
    * 两态都成立，不必再写第二套 alpha 常量。 */
   --on-strong-rgb: 255 255 255;
+  /* 反白面（页脚 / 封面）上的内容色基底：亮色是纯白，暗色是苹果实测反白灰
+   * `#F5F5F7`（245 245 247，在暗色块里换第二份取值）。页脚版权线上边框等
+   * 需要"反白的 α 档"时一律从这里派生（ADR-0011 约束 3），不再用 color-mix。 */
+  --on-inverse-rgb: 255 255 255;
 
   /* ---- 2. 语义层（浅色）：组件只消费这一层 ---- */
   --color-bg-page: var(--jelly-warm-100); /* 页面底 #F5F3EE */
@@ -94,6 +98,7 @@
   --color-on-danger: #1c1b19; /* 珊瑚橙底上的字（对 coral 5.6:1） */
   --color-on-inverse: #ffffff; /* 深墨面（页脚 / 封面）上的反白字 */
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72); /* 深墨面上的次级字 */
+  --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 反白发丝线（页脚版权行等，票 429 的 14% 档） */
   --color-surface-inverse: #1c1b19; /* 深墨面（页脚 / 封面兜底） */
   --color-shadow: rgb(var(--graphite-rgb) / 0.12); /* 阴影（墨色 + 透明度） */
 
@@ -251,6 +256,7 @@
   --interactive-rgb: 41 151 255;
   --jelly-interactive: #2997ff;
   --on-strong-rgb: 29 29 31;
+  --on-inverse-rgb: 245 245 247; /* = 暗色 --color-on-inverse #f5f5f7 */
 
   --color-bg-page: #161617;
   --color-bg-subtle: #101011;
@@ -279,6 +285,7 @@
   --color-on-danger: #1c1b19;
   --color-on-inverse: #f5f5f7;
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72);
+  --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 同一条表达式：通道随 --on-inverse-rgb 翻转 */
   --color-surface-inverse: #101011;
   --color-shadow: rgb(var(--jelly-warm-1000-rgb) / 0.55);
 

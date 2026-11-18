@@ -7,6 +7,7 @@ import {
   IconPlayerPlay,
 } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
+import { useMotionPreference } from "~/composables/useMotionPreference";
 import type { BannerItem } from "~/types/api";
 import { bannerTitleText } from "~/utils/bannerTitle";
 import { MOTION_EXPRESSIVE_MS } from "~/utils/motion";
@@ -78,15 +79,14 @@ const singleWithoutControls = computed(() => Boolean(titleText.value) && !hasCon
  * 换图帧与交叉淡入（票 432）
  * ---------------------------------------------------------------------------------- */
 
-/** 订阅过「减少动态」变化后留着的查询对象，卸载时摘掉监听。 */
-let reducedMotionQuery: MediaQueryList | null = null;
-const reducedMotion = ref(false);
-
-/** 系统「减少动态」偏好；SSR / 没有 matchMedia 时按 false（不减少）兜底。 */
-function readReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
-}
+/**
+ * 系统「减少动态」偏好：统一走 `useMotionPreference()`（票 437 评审）。
+ *
+ * 以前这里自建了一份 `readReducedMotion()` + matchMedia 监听 + `reducedMotion` ref，
+ * 与 AppFooter / useJellyAssistant 各持一套；现在只用仓库唯一来源，SSR 没有
+ * matchMedia 时按"不减少动态"兜底、客户端由 composable 自己接管 change 监听。
+ */
+const { prefersReducedMotion } = useMotionPreference();
 
 /** 一帧对应哪张轮播图：数据刷新后据此判断画面要不要重建。 */
 function bannerKeyOf(banner: BannerItem | null | undefined): string {
@@ -134,7 +134,7 @@ function showFrame(index: number) {
     return;
   }
 
-  if (reducedMotion.value) {
+  if (prefersReducedMotion.value) {
     clearLeavingTimers();
     frames.value = [frame];
     return;
@@ -171,7 +171,9 @@ function goToBanner(index: number) {
 /* ------------------------------------------------------------------------------------
  * 自动轮播
  *
- * 只在"真的能看"的条件下走：≥2 张、页面可见、系统没要求减少动态、间隔 > 0。
+ * 只在"真的能看"的条件下走：≥2 张、页面可见、间隔 > 0、读者没有按暂停。
+ * 「减少动态」不是在这里判的：它决定 `userPaused` 的**初始值**（默认暂停），
+ * 读者显式点「继续轮播」后才动 —— 控件因此常显、且点了有意义（票 437 评审）。
  * 指针停上去 / 键盘焦点进入 / 标签页切到后台就停表 —— 用户在读标题或操作控件时，
  * 图不该自己跑掉。
  *
@@ -179,7 +181,15 @@ function goToBanner(index: number) {
  * 读者按下暂停后，这些"被动暂停"不再能把它偷偷恢复：`userPaused` 只有再点一次才翻。
  * ---------------------------------------------------------------------------------- */
 let timer: ReturnType<typeof setInterval> | null = null;
-const userPaused = ref(false);
+/**
+ * 是否"被暂停"。
+ *
+ * 初始 true（暂停）而不是 false：SSR 没有 `prefersReducedMotion`，客户端首帧又可能
+ * 是 true —— 初始值若为 false，按钮文案会在水合时跳变。统一按"暂停"进入，挂载后
+ * 再按真实偏好决定要不要默认播放（`onMounted`）；「减少动态」下就一直保持暂停，
+ * 只有读者显式点「继续轮播」才动。
+ */
+const userPaused = ref(true);
 
 /** 是否允许自动轮播（纯判定，方便阅读与测试）。 */
 function autoPlayEnabled(): boolean {
@@ -187,7 +197,6 @@ function autoPlayEnabled(): boolean {
     props.autoPlayInterval > 0 &&
     props.banners.length > 1 &&
     !userPaused.value &&
-    !reducedMotion.value &&
     typeof window !== "undefined" &&
     document.visibilityState === "visible"
   );
@@ -221,11 +230,14 @@ function onVisibilityChange() {
 const playbackLabel = computed(() => (userPaused.value ? "继续轮播" : "暂停轮播"));
 
 /**
- * 只在自动播放真的能跑时才给播放/暂停控件。
- * 「减少动态」下自动播放永远启动不了，摆一个按了没反应的按钮比不摆更糟。
+ * 播放/暂停控件**常显**（spec 432：控件行必须提供播放/暂停切换；票 437 评审）。
+ *
+ * 「减少动态」只决定"默认不自动播放"（`userPaused` 初始为 true），控件本身仍然
+ * 在：读者想让它动起来时必须能显式点击「继续轮播」——把整个控件藏掉等于替他做了
+ * 决定，而且控件行就少了一件 spec 要求的东西。
  */
-const showPlaybackControl = computed(
-  () => props.autoPlayInterval > 0 && props.banners.length > 1 && !reducedMotion.value,
+const hasPlaybackControl = computed(
+  () => props.autoPlayInterval > 0 && props.banners.length > 1,
 );
 
 function toggleAutoPlay() {
@@ -270,11 +282,15 @@ function schedulePreload() {
   }
 }
 
-function onReducedMotionChange(event: MediaQueryListEvent) {
-  reducedMotion.value = event.matches;
-  if (event.matches) stopAutoPlay();
-  else restartAutoPlay();
-}
+/**
+ * 系统偏好切到「减少动态」时立刻停表、并把它记成"已暂停"：此前是自动播放着的，
+ * 不能无视读者的偏好继续跑。反过来（reduce 关掉）不自动恢复：让读者自己决定。
+ */
+watch(prefersReducedMotion, (reduced) => {
+  if (!reduced) return;
+  userPaused.value = true;
+  stopAutoPlay();
+});
 
 /* ------------------------------------------------------------------------------------
  * 生命周期与数据 / 索引联动
@@ -309,16 +325,12 @@ watch(bannersFingerprint, () => {
 });
 
 onMounted(() => {
-  reducedMotion.value = readReducedMotion();
+  // 水合安全：`userPaused` 初始恒为 true（SSR 与客户端首帧一致，按钮文案不会跳变），
+  // 客户端的默认播放在这里再打开；「减少动态」下保持暂停，由读者显式点「继续轮播」。
+  // 此时 `prefersReducedMotion` 已经由 useMotionPreference 在客户端读到了真实值。
+  if (!prefersReducedMotion.value) userPaused.value = false;
   restartAutoPlay();
   document.addEventListener("visibilitychange", onVisibilityChange);
-
-  const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-  if (query?.addEventListener) {
-    reducedMotionQuery = query;
-    query.addEventListener("change", onReducedMotionChange);
-  }
-
   schedulePreload();
 });
 
@@ -328,7 +340,6 @@ onBeforeUnmount(() => {
   cancelPreload?.();
   cancelPreload = null;
   document.removeEventListener("visibilitychange", onVisibilityChange);
-  reducedMotionQuery?.removeEventListener("change", onReducedMotionChange);
 });
 
 /** 指针进入 / 键盘聚焦：暂停（被动暂停，不改 `userPaused`）。 */
@@ -420,7 +431,7 @@ function resumeAutoPlay() {
             <!-- 左半边：显式的播放/暂停 + 圆点；箭头仍在右端。整行还是渐黑区里的内容。 -->
             <div class="banner-left">
               <button
-                v-if="showPlaybackControl"
+                v-if="hasPlaybackControl"
                 type="button"
                 class="banner-playback"
                 :aria-label="playbackLabel"

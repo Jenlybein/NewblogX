@@ -140,6 +140,11 @@ export function clampJellyPosition(
  * **不合成自由位置**：收起只借用自由位置的 y，x 由视口宽度算出；所以展开就是
  * 回到 `position` 本身，不需要第二份坐标，也就不会出现"展开回错地方"。
  * 只动 `transform`（位置语义仍是左上角），不写 `right/bottom`，避免与拖拽坐标系分叉。
+ *
+ * x = 视口宽 − **角色本体边长**（票 437 评审）：根元素始终 56×56，不在收起态把宽度
+ * 改成把手命中宽度 —— 改宽度是布局动画，会让面板每帧重排。贴边对齐交给根元素的
+ * 右边缘：把手按钮在根内右对齐、自身 44px 宽（见 `JELLY_HANDLE_HIT_WIDTH`），
+ * 命中区因此正好落在 [视口宽 − 44, 视口宽]。
  */
 export function collapsedHandlePosition(
   position: JellyPosition,
@@ -154,7 +159,7 @@ export function collapsedHandlePosition(
   );
 
   return {
-    x: Math.max(0, width - JELLY_HANDLE_HIT_WIDTH),
+    x: Math.max(0, width - JELLY_LAUNCHER_SIZE),
     y: Math.min(Math.max(y, JELLY_VIEWPORT_MARGIN), maxY),
   };
 }

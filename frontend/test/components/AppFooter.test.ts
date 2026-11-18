@@ -8,6 +8,8 @@ import AppFooter from "~/components/layout/AppFooter.vue";
 import { brandCopyright } from "~/utils/brand";
 import { parseTokenBlocks, resolveTokenValue } from "~/utils/markdownTheme";
 
+import { blockAfter, stripComments } from "../helpers/designFiles";
+
 /**
  * 站点配置桩：页脚现在从运行时站点配置读备案号（#191），不再用写死的常量。
  * `useSiteStore` 在真实 Pinia 里返回解包后的值，桩保持同一形状；
@@ -191,7 +193,40 @@ describe("页脚：对比度达 WCAG AA（明暗两态）", () => {
     expect(footerSource).toContain("var(--color-on-inverse-muted)");
     expect(footerSource).not.toMatch(/--jelly-/u);
     expect(footerSource).not.toMatch(/#[0-9a-fA-F]{3,8}\b/u);
-    expect(footerSource).not.toMatch(/rgba?\(/u);
+    // 带透明度的颜色只能走三元组派生：没有 rgba 常量、没有逗号分隔的 rgb()，
+    // 也不再用 color-mix（ADR-0011 约束 3）。注释里提到旧写法不算使用。
+    const code = stripComments(footerSource);
+    expect(code).not.toMatch(/\brgba?\(\s*\d+/u);
+    expect(code).not.toMatch(/color-mix/u);
+    // 组件只消费语义层：14% 反白线在 tokens.css 里派生。
+    expect(footerSource).toContain("var(--color-on-inverse-line)");
+  });
+
+  it("版权线上边框的 14% 反白由原始层三元组派生（明暗各一份语义 token）", () => {
+    expect(resolveTokenValue(tokenBlocks, "light", "--on-inverse-rgb")).toBe("255 255 255");
+    expect(resolveTokenValue(tokenBlocks, "dark", "--on-inverse-rgb")).toBe("245 245 247");
+    // 语义层是唯一消费对象：同一条三元组 α 表达式，通道随明暗翻转（明暗各一份）。
+    const triplet = /--color-on-inverse-line:\s*rgb\(var\(--on-inverse-rgb\) \/ 0\.14\);/gu;
+    expect((tokensCss.match(triplet) ?? []).length).toBe(2);
+    expect(resolveTokenValue(tokenBlocks, "light", "--color-on-inverse-line")).toBe(
+      "rgba(255, 255, 255, 0.14)",
+    );
+    expect(resolveTokenValue(tokenBlocks, "dark", "--color-on-inverse-line")).toBe(
+      "rgba(245, 245, 247, 0.14)",
+    );
+    // 与语义层的 --color-on-inverse 同值：三元组不是第二份色值，只是 α 派生基底。
+    expect(tokenHex("light", "--color-on-inverse")).toBe("#ffffff");
+    expect(tokenHex("dark", "--color-on-inverse")).toBe("#f5f5f7");
+  });
+});
+
+describe("页脚：安全区（票 423 第 20 项）", () => {
+  it("底部内边距叠加 env(safe-area-inset-bottom)：Home 指示条不压住版权行", () => {
+    const inner = blockAfter(footerSource, ".site-footer__inner {");
+
+    expect(inner).toContain("padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px))");
+    // 不支持 env 的浏览器退化为原来的 1.75rem，不写死像素。
+    expect(inner).not.toMatch(/padding-bottom:\s*\d+px/u);
   });
 });
 

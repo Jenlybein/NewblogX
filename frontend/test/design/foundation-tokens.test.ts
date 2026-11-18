@@ -93,6 +93,7 @@ const ALPHA_SEMANTIC_TOKENS = [
   "--color-danger-soft",
   "--color-danger-line",
   "--color-on-strong-muted",
+  "--color-on-inverse-line",
   "--color-shadow",
   "--color-highlight",
 ];

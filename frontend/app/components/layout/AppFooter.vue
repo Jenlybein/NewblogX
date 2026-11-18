@@ -77,7 +77,10 @@ function scrollToTop() {
   grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   padding-top: 2rem;
-  padding-bottom: 1.75rem;
+  /* 安全区（票 423 第 20 项）：iPhone 的 Home 指示条会压住页脚最后一行版权/备案号，
+     所以底部内边距叠加 `env(safe-area-inset-bottom)`；不支持该变量的浏览器退化为
+     原来的 1.75rem（不写死像素、也不会多抬）。 */
+  padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .site-footer__brand {
@@ -141,10 +144,12 @@ function scrollToTop() {
   flex-wrap: wrap;
   gap: 0.375rem 1.25rem;
   padding-top: 0.875rem;
-  /* 版权行上方的 1px 线降到 12–16% 反白档（票 429）：此前借了次级字色的 72%，
-   * 是页脚里最亮的一条线，比正文还抢眼。现在与全站发丝线同档，从反白语义 token
-   * 经 color-mix 派生 —— 明暗两态同一表达式，也不写裸 rgba。 */
-  border-top: 1px solid color-mix(in srgb, var(--color-on-inverse) 14%, transparent);
+  /* 版权行上方的 1px 线降到 14% 反白档（票 429）：此前借了次级字色的 72%，
+   * 是页脚里最亮的一条线，比正文还抢眼。现在与全站发丝线同档，走语义 token
+   * `--color-on-inverse-line`：它在 tokens.css 里由原始层反白三元组按 α 派生
+   * （ADR-0011 约束 3；组件只消费语义层，不自己拼三元组）。也不再借 color-mix
+   * 表达同一档，也不写裸 rgba。 */
+  border-top: 1px solid var(--color-on-inverse-line);
   color: var(--color-on-inverse-muted);
   font-size: 0.8125rem;
   letter-spacing: 0.02em;

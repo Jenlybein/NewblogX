@@ -29,7 +29,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { IconX } from "@tabler/icons-vue";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 import { useMotionPreference } from "~/composables/useMotionPreference";
-import { sheetDragOffset, shouldDismissSheetDrag } from "~/utils/commentSheetDrag";
+import { sheetDragOffset, shouldDismissSheetDrag, type SheetDragSample } from "~/utils/commentSheetDrag";
 
 const props = withDefaults(
   defineProps<{
@@ -77,7 +77,8 @@ const dragOffset = ref(0);
 /** 拖拽会话（非响应式：只给指针事件处理用，不需要触发渲染）。 */
 let activePointerId: number | null = null;
 let dragStartY = 0;
-let dragStartAt = 0;
+/** 拖动期的 pointermove 采样（只留最后 100ms 用得到的那点）：松手速度取瞬时值。 */
+let dragSamples: SheetDragSample[] = [];
 let dragPanelHeightPx = 0;
 
 const panelStyle = computed<CSSProperties>(() => {
@@ -194,7 +195,7 @@ function onHandlePointerDown(event: PointerEvent) {
   phase.value = "dragging";
   dragOffset.value = 0;
   dragStartY = event.clientY;
-  dragStartAt = event.timeStamp;
+  dragSamples = [{ offsetPx: 0, atMs: event.timeStamp }];
   dragPanelHeightPx = panelRef.value?.getBoundingClientRect().height ?? 0;
   capturePointer(activePointerId);
 }
@@ -204,6 +205,9 @@ function onHandlePointerMove(event: PointerEvent) {
   if (pointerIdOf(event) !== activePointerId) return;
 
   dragOffset.value = sheetDragOffset(dragStartY, event.clientY);
+  // 采样只用于最后 100ms 的瞬时速度；上限 20 条足够覆盖窗口，也不会一直长。
+  dragSamples.push({ offsetPx: dragOffset.value, atMs: event.timeStamp });
+  if (dragSamples.length > 20) dragSamples.shift();
 }
 
 function onHandlePointerUp(event: PointerEvent) {
@@ -212,12 +216,14 @@ function onHandlePointerUp(event: PointerEvent) {
 
   const dismiss = shouldDismissSheetDrag({
     offsetPx: dragOffset.value,
-    elapsedMs: event.timeStamp - dragStartAt,
+    releaseAtMs: event.timeStamp,
     panelHeightPx: dragPanelHeightPx,
+    samples: dragSamples,
   });
 
   releasePointer(activePointerId);
   activePointerId = null;
+  dragSamples = [];
 
   if (dismiss) {
     // 从拖到的位置继续滑走，不先弹回 —— 否则会出现"回一下再滑走"的两段感。
@@ -234,6 +240,7 @@ function onHandlePointerCancel(event: PointerEvent) {
 
   releasePointer(activePointerId);
   activePointerId = null;
+  dragSamples = [];
   if (phase.value === "dragging") {
     phase.value = "settling";
   }

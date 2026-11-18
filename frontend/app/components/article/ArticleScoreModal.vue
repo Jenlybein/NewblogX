@@ -181,6 +181,16 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   border-radius: var(--radius-xl);
 }
 
+/*
+ * 980 玻璃面板里只保留**一个真正的面**：总分块（`.article-score-hero`）。
+ *
+ * 票 423 第 11 项 / 票 437 评审：此前 hero、AI 原始分、每个维度、每个分区、每条问题
+ * 都是 `--color-surface-raised` / `--color-bg-subtle` 的不透明块，玻璃面板里又叠了
+ * 五六层"卡中卡中卡"，读起来像一堆互相嵌套的纸板。现在除 hero 外全部改透明，
+ * 分区只留**分隔线**（`border-top` 发丝线）与**标题色**（`--color-ink`）；
+ * 正文仍用 `--color-ink` / `--color-ink-muted`，对比度与原来同档。
+ */
+
 .article-score-loading,
 .article-score-empty {
   min-height: 360px;
@@ -253,10 +263,10 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   flex-direction: column;
   gap: 6px;
   min-width: 110px;
-  padding: 14px 16px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-line-faint);
+  padding: 0 0 0 18px;
+  /* 不再自成一块：只留一条左侧分隔线，读作总分块里的第二列。 */
+  border-left: 1px solid var(--color-line-faint);
+  background: transparent;
   color: var(--color-ink);
 }
 
@@ -272,10 +282,12 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 }
 
 .article-score-dimension {
-  padding: 16px 18px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-line-faint);
-  background: var(--color-surface-raised);
+  /* 透明分区：只留一条顶部发丝线把维度与上一块分开，不铺面、不描边。 */
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-line-faint);
+  border-radius: 0;
+  background: transparent;
 }
 
 .article-score-dimension__top {
@@ -295,14 +307,17 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 }
 
 .article-score-section {
-  padding: 20px 22px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-line-faint);
-  background: var(--color-surface-raised);
+  /* 分区=标题 + 分隔线，不铺面：标题色本身撑起层级（票 423 第 11 项）。 */
+  padding: 20px 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-line-faint);
+  border-radius: 0;
+  background: transparent;
 }
 
 .article-score-section--compact {
-  background: var(--color-bg-subtle);
+  /* 「维度摘要」是同一套透明分区，不需要第二层底色。 */
+  background: transparent;
 }
 
 .article-score-section__title {
@@ -328,9 +343,11 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
   gap: 14px;
-  padding: 16px 18px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
+  padding: 14px 0 0;
+  /* 问题条目不再是一张张抬升卡：透明条目 + 顶部发丝线，序号做唯一的小记号。 */
+  border-top: 1px solid var(--color-line-faint);
+  border-radius: 0;
+  background: transparent;
 }
 
 .article-score-issue__index {
@@ -341,7 +358,8 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   height: 40px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-line-faint);
-  background: var(--color-line-faint);
+  /* 序号是 40px 的小记号，不是"面"：透明底 + 发丝描边即可。 */
+  background: transparent;
   color: var(--color-ink);
   font-weight: 700;
 }

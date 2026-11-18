@@ -307,9 +307,9 @@ describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
     expect(local.getItem(JELLY_POSITION_KEY)).toBe(JSON.stringify({ x: 160, y: 220 }));
 
     api.collapse();
-    // 派生位置贴右边缘（x = 视口宽 - 命中区宽），y 取自由位置的 y。
+    // 派生位置贴右边缘（x = 视口宽 - 角色本体边长；根元素宽度不因收起而变），y 取自由位置的 y。
     expect(api.collapsedPosition.value).toEqual({
-      x: 1024 - JELLY_HANDLE_HIT_WIDTH,
+      x: 1024 - JELLY_LAUNCHER_SIZE,
       y: 220,
     });
     // 收起**不改写**自由位置与它的持久化键。
@@ -330,7 +330,7 @@ describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
     const { api } = harness();
 
     api.beginDrag();
-    api.dragTo({ x: 1024 - JELLY_HANDLE_HIT_WIDTH, y: 300 });
+    api.dragTo({ x: 1024 - JELLY_LAUNCHER_SIZE, y: 300 });
     api.endDrag();
 
     expect(api.isCollapsed.value).toBe(false);
@@ -356,15 +356,21 @@ describe("useJellyAssistant · 收进窗口右边缘（七态）", () => {
     const { api, nextViewport } = harness({ viewport: { width: 1024, height: 768 } });
 
     api.collapse();
-    expect(api.collapsedPosition.value).toEqual({ x: 1024 - JELLY_HANDLE_HIT_WIDTH, y: 700 });
+    expect(api.collapsedPosition.value).toEqual({ x: 1024 - JELLY_LAUNCHER_SIZE, y: 700 });
 
     nextViewport({ width: 400, height: 300 });
     api.handleViewportResize();
 
     const handle = api.collapsedPosition.value;
-    expect(handle.x).toBe(400 - JELLY_HANDLE_HIT_WIDTH);
+    // 根元素始终是 JELLY_LAUNCHER_SIZE 宽（收起只动 transform，不改宽度）；
+    // 把手按钮在根内右对齐、自身 44px 宽，所以命中区是 [根右缘 - 44, 根右缘]。
+    expect(handle.x).toBe(400 - JELLY_LAUNCHER_SIZE);
     expect(handle.y).toBe(300 - JELLY_HANDLE_HEIGHT - JELLY_VIEWPORT_MARGIN);
-    expect(handle.x + JELLY_HANDLE_HIT_WIDTH).toBeLessThanOrEqual(400);
+
+    const hitLeft = handle.x + (JELLY_LAUNCHER_SIZE - JELLY_HANDLE_HIT_WIDTH);
+    expect(hitLeft).toBe(400 - JELLY_HANDLE_HIT_WIDTH);
+    expect(hitLeft + JELLY_HANDLE_HIT_WIDTH).toBeLessThanOrEqual(400);
+    expect(handle.x + JELLY_LAUNCHER_SIZE).toBeLessThanOrEqual(400);
     expect(handle.y + JELLY_HANDLE_HEIGHT).toBeLessThanOrEqual(300);
   });
 });

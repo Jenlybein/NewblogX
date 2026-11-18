@@ -3,22 +3,24 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { blockAfter, stripComments } from "../helpers/designFiles";
+import { blockAfter, blockAfterContaining, stripComments } from "../helpers/designFiles";
 
 /**
  * 全站按下态（票 #427 / spec #423 第 1 批第 1 条）。
  *
  * 问题：自绘可点面在 pointer-down 那一刻什么都不发生，反馈要等到松手后的
- * hover 变色 —— 这是"手感发木"最大的单一来源。这里钉住三件事：
- *   1. **词表覆盖**：页签、按钮、条目卡、互动条、弹窗内次按钮都在 `:active` 词表里，
- *      并统一缩放一档；
- *   2. **取值来源**：时长只用 `var(--motion-fast)`、缓动只用 `var(--motion-ease)`，
+ * hover 变色 —— 这是"手感发木"最大的单一来源。这里钉住四件事：
+ *   1. **词表覆盖**：页签、按钮、条目卡、互动条、弹窗内次按钮都在同一份 `:is(...)`
+ *      选择器表里，并统一缩放一档；
+ *   2. **一份词表**：列表只出现一次，`:active` 与 reduce 覆盖是同一个规则里的嵌套
+ *      分支 —— 新增一个可点面只改一处（票 437 评审，删掉了此前抄三遍的选择器）；
+ *   3. **取值来源**：时长只用 `var(--motion-fast)`、缓动只用 `var(--motion-ease)`，
  *      不出现新的毫秒/曲线字面量，也不新增裸色值；
- *   3. **不是 hover 效果**：按下态不放进 `(hover: hover)` / `(pointer: fine)` 媒体查询，
+ *   4. **不是 hover 效果**：按下态不放进 `(hover: hover)` / `(pointer: fine)` 媒体查询，
  *      触屏同样生效；减少动态下位移归零但保留底色/描边反馈（不是整段失效）。
  *
- * Naive 按钮（NButton）的颜色反馈由组件库自带，这里只钉"补同一档缩放"这一条规则，
- * 不逐组件抄。
+ * Naive 按钮（NButton）的颜色反馈由组件库自带，这里只钉"补同一档缩放 + 只动
+ * transform 的过渡"。
  *
  * 轮播箭头/圆点是 BannerCarousel.vue 的 scoped 类：全局 tailwind.css 再声明同名类会
  * 撞 `global-class-collision` 门禁（组件没声明的属性会被全局补齐），所以它们的按下态
@@ -59,94 +61,62 @@ function pressSection(source: string): string {
 }
 
 /**
- * 取包含 anchor 的那一段「减少动态」媒体块。
+ * 词表：从 CSS 的 `:is(...)` 列表里解析。
  *
- * 同一个媒体查询在文件里出现多次（玻璃层、路由过渡、通用兜底都有），所以按
- * 内容定位，不假设"第一段就是它"。
+ * 测试**不维护第四份名单**（票 437 评审判据）：唯一来源是源码里那份选择器表，
+ * 这里只负责把它读出来，再拿它去验"每条规则都真的覆盖到它"。
  */
-function reducedBlock(source: string, anchor: string): string {
-  let from = 0;
-  for (;;) {
-    const start = source.indexOf("@media (prefers-reduced-motion: reduce)", from);
-    expect(start, `找不到包含 ${anchor} 的减少动态块`).toBeGreaterThan(-1);
-    const open = source.indexOf("{", start);
-    let depth = 0;
-    for (let index = open; index < source.length; index += 1) {
-      if (source[index] === "{") depth += 1;
-      if (source[index] === "}") {
-        depth -= 1;
-        if (depth === 0) {
-          const block = source.slice(open + 1, index);
-          if (block.includes(anchor)) return block;
-          from = start + 1;
-          break;
-        }
+function pressVocabulary(section: string): string[] {
+  const start = section.indexOf(":is(");
+  expect(start, "词表不是以 :is(...) 分组的形式写的").toBeGreaterThan(-1);
+
+  let depth = 0;
+  let end = -1;
+  for (let index = start + 4; index < section.length; index += 1) {
+    if (section[index] === "(") depth += 1;
+    if (section[index] === ")") {
+      if (depth === 0) {
+        end = index;
+        break;
       }
+      depth -= 1;
     }
   }
+  expect(end, ":is(...) 没有闭合").toBeGreaterThan(start);
+
+  const list = section.slice(start + 4, end);
+  return [...list.matchAll(/\.([a-z0-9_-]+)/gu)].map((match) => match[1]!);
 }
 
-/** 类名出现在选择器里（后面跟逗号 / 空格 / 花括号，避免 `foo` 命中 `foo-bar`）。 */
+/** 类名出现在选择器里（后面跟逗号 / 空格 / 花括号 / 冒号，避免 `foo` 命中 `foo-bar`）。 */
 function selectorHas(text: string, className: string): boolean {
   const escaped = className.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return new RegExp(`\\.${escaped}(?=[,\\s{])`, "u").test(text);
+  return new RegExp(`\\.${escaped}(?=[,\\s{:.])`, "u").test(text);
 }
 
-/** 词表：spec #423 点到名的每一个自绘可点面。 */
-const VOCABULARY = [
-  // 页签
-  "blueprint-tab",
-  "soft-tab",
-  "search-result-tab",
-  "settings-tabs__tab",
-  "message-center-tab",
-  // 按钮 / 胶囊 / 图标按钮
-  "article-action",
-  "article-actions-bar__button",
-  "comment-action",
-  "comment-page-button",
-  "comment-capsule",
-  "comment-sheet__close",
-  "profile-category-action",
-  "studio-filter-chip",
-  "studio-sidebar__link",
-  "studio-sidebar__profile-link",
-  "activity-heatmap__cell",
-  "studio-article-row__action",
-  "studio-folder-card__open",
-  "article-grid-card__action",
-  "message-row__delete",
-  "favorite-chooser-row__toggle",
-  "chip-select__trigger",
-  "chip-select__chip",
-  "chip-select__clear",
-  // 条目卡
-  "feed-entry",
-  "article-grid-card",
-  "studio-folder-card",
-  "studio-article-row",
-  "profile-folder-card",
-  "profile-category-card",
-  "favorite-chooser-row",
-  "studio-chat-session",
-] as const;
-
-describe("按下态词表：自绘可点面统一回弹（scale .97）", () => {
-  it("每一个自绘可点面都登记进词表，且都有 :active 规则", () => {
+describe("按下态词表：一份选择器表 + 三条规则", () => {
+  it("词表只写一处：`:is(...)` 是唯一列表，每个类名在整段只出现一次", () => {
     const section = pressSection(tailwindCss());
-    const baseSelectors = section.slice(0, section.indexOf("{"));
+    const vocabulary = pressVocabulary(section);
 
-    const missingBase = VOCABULARY.filter(className => !selectorHas(baseSelectors, className));
-    const missingActive = VOCABULARY.filter(
-      className => !new RegExp(`\\.${className}:active`, "u").test(section),
-    );
+    // 规模守卫：删到只剩两三个类名时判红（具体清单由源码自己维护）。
+    expect(vocabulary.length, "按下态词表被删得只剩几个类名").toBeGreaterThanOrEqual(32);
 
-    expect(missingBase, `这些可点面没有登记进基态词表（松手不会回弹）：\n${missingBase.join("\n")}`).toEqual([]);
-    expect(missingActive, `这些可点面没有 :active 按下态：\n${missingActive.join("\n")}`).toEqual([]);
+    // 唯一性：类名不在 **:active / reduce 规则里** 被再抄一遍（那是三条规则的来源）。
+    for (const className of vocabulary) {
+      const escaped = className.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      const occurrences = (section.match(new RegExp(`\\.${escaped}(?=[,\\s{:.])`, "gu")) ?? [])
+        .length;
+      expect(occurrences, `${className} 在按下态区块里出现了 ${occurrences} 次（应只写在词表里）`).toBe(1);
+    }
+
+    // 整段只有一份 `:is(` 列表；`:active` / reduce 都是嵌套分支（`&:active`）。
+    expect(section.match(/:is\s*\(/gu) ?? []).toHaveLength(1);
+    expect(section.match(/&:active/gu) ?? []).toHaveLength(2);
   });
 
   it("按下统一缩到 .97，不是每个控件各写一档", () => {
-    const block = blockAfter(pressSection(tailwindCss()), "blueprint-tab:active");
+    const block = blockAfter(pressSection(tailwindCss()), "&:active {");
 
     expect(block).toMatch(/transform:\s*scale\(0?\.97\)/u);
     // 只缩放：颜色反馈归各控件/组件库自己的 hover 与选中态。
@@ -155,7 +125,7 @@ describe("按下态词表：自绘可点面统一回弹（scale .97）", () => {
   });
 
   it("基态登记 transform 过渡（松手才回弹），时长/缓动取 token", () => {
-    const block = blockAfter(pressSection(tailwindCss()), "blueprint-tab,");
+    const block = blockAfter(pressSection(tailwindCss()), ":is(");
 
     expect(block).toContain("transition:");
     expect(block).toContain("transform var(--motion-fast) var(--motion-ease)");
@@ -181,13 +151,12 @@ describe("词表位置：基态规则压在所有可点面定义之后", () => {
     const source = tailwindCss();
     const [, end] = pressSpan(source);
     const tail = stripComments(source.slice(end));
+    const vocabulary = pressVocabulary(pressSection(source));
 
     // 同一特异性、靠后的规则会赢：若某个类在按下态之后又声明了 `transition`
     // （哪怕只写颜色），基态里的 `transform` 过渡就被整条替换掉 —— 按下能缩，
     // 松手却是瞬跳，正是本票要修的手感。所以词表区块必须是最后一段。
-    const late = VOCABULARY.filter(className =>
-      new RegExp(`\\.${className}(?=[,\\s{:.])`, "u").test(tail),
-    );
+    const late = vocabulary.filter((className) => selectorHas(tail, className));
 
     expect(
       late,
@@ -210,7 +179,7 @@ describe("按下反馈不是 hover 效果：触屏同样生效", () => {
 describe("Naive 按钮：保留组件库颜色反馈，只补同一档缩放", () => {
   it("全局只一条 .n-button 缩放规则（弹窗内的次按钮一并覆盖）", () => {
     const section = pressSection(tailwindCss());
-    const active = blockAfter(section, ".n-button:active");
+    const active = blockAfter(section, ".n-button:active {");
 
     expect(active).toMatch(/transform:\s*scale\(0?\.97\)/u);
     // 颜色反馈（含 pressed 态）仍由组件库的 :active / pressed 主题给出。
@@ -218,19 +187,28 @@ describe("Naive 按钮：保留组件库颜色反馈，只补同一档缩放", (
     expect(active).not.toMatch(/(?:^|[;\s])color:/u);
   });
 
-  it("基态把 transform 追加进组件库的颜色过渡，不整条覆盖掉颜色反馈", () => {
+  it("基态只补 transform 过渡：不再替组件库决定颜色/边框/透明度的时长", () => {
     const section = pressSection(tailwindCss());
-    const base = blockAfter(section, ".n-button");
+    const base = blockAfter(section, ".n-button.n-button {");
 
     expect(base).toContain("transform var(--motion-fast) var(--motion-ease)");
-    expect(base).toContain("background-color");
-    expect(base).toContain("border-color");
+    // 票 437 评审：上一版把 color / background-color / border-color / opacity 统一改成
+    // --motion-slow 并抬到 (0,2,0)，等于替组件库决定了它自己的过渡。
+    expect(base).not.toContain("background-color");
+    expect(base).not.toContain("border-color");
+    expect(base).not.toContain("opacity");
+    expect(base).not.toContain("--motion-slow");
   });
 });
 
 describe("减少动态：位移归零，但按下反馈不整段失效", () => {
-  it("自绘面在 reduce 下改为底色 / 描边反馈（不是 transition: none 一删了之）", () => {
-    const block = reducedBlock(pressSection(tailwindCss()), "feed-entry:active");
+  it("词表规则里的 reduce 覆盖改走底色 / 描边（不是 transition: none 一删了之）", () => {
+    const section = pressSection(tailwindCss());
+    const block = blockAfterContaining(
+      section,
+      "@media (prefers-reduced-motion: reduce)",
+      "&:active",
+    );
 
     expect(block).toContain("transform: none");
     expect(block).toContain("border-color: var(--color-line-strong)");
@@ -238,8 +216,12 @@ describe("减少动态：位移归零，但按下反馈不整段失效", () => {
   });
 
   it("Naive 按钮在 reduce 下只停用位移，颜色反馈留给组件库", () => {
-    const media = reducedBlock(pressSection(tailwindCss()), ".n-button:active");
-    const block = blockAfter(media, ".n-button:active");
+    const section = pressSection(tailwindCss());
+    const block = blockAfterContaining(
+      section,
+      "@media (prefers-reduced-motion: reduce)",
+      ".n-button:active",
+    );
 
     expect(block).toContain("transform: none");
     expect(block).not.toMatch(/background(?:-color)?:/u);
@@ -265,7 +247,11 @@ describe("轮播箭头 / 圆点：scoped 样式里同一档按下态", () => {
   });
 
   it("减少动态下停用缩放，改走反白描边 / 底色", () => {
-    const block = reducedBlock(carouselStyle(), ".banner-dot:active");
+    const block = blockAfterContaining(
+      carouselStyle(),
+      "@media (prefers-reduced-motion: reduce)",
+      ".banner-dot:active",
+    );
 
     expect(block).toContain("transform: none");
     expect(block).toMatch(/border-color|background-color/u);

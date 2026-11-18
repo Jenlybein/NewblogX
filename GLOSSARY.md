@@ -486,7 +486,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前有三处消费者（标题大纲飞行器、消息中心接缝位移、首屏像素尾迹），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前有四处消费者（标题大纲飞行器、消息中心接缝位移、首屏像素尾迹、捏捏拖拽松手落位），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md)。布局属性动画同样只有两处登记例外：消息中心接缝的 `margin-left` 与折叠/展开类容器的 `grid-template-rows: 0fr ↔ 1fr`（评论子楼、`AppHeader` 手机面板、`GroupedReaderList` 折叠面板；只在展开/收起那一刻改轨道，不逐帧）。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
 
 **合集/项目文件夹卡（folder card）**：
@@ -495,7 +495,7 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 _Avoid_: 叫它"3D 卡片"（它是文件夹，不是可翻转卡片）；说"里面放三张封面"（只放一张，三张扇形方案已被否）；把「文件夹卡」与后台的树编辑器节点混为一谈。
 
 **接缝（seam）**：
-消息中心 tab 条的一体化分段控制里，激活块与相邻块之间被拉开的那道**间隙**。张开量由弹簧驱动，`margin-left` 是该条唯一允许布局动画的地方；激活块两侧（敞口侧）给圆角，闭合接缝侧为 0，免得贴着时啃出缺口。
+消息中心 tab 条的一体化分段控制里，激活块与相邻块之间被拉开的那道**间隙**。张开量由弹簧驱动，`margin-left` 是该条唯一允许布局动画的地方（全站的布局动画例外只此两处：本条与折叠面板的 `grid-template-rows`，见 [ADR-0011](./docs/adr/0011-neutral-glass-visual-system.md) 约束 9）；激活块两侧（敞口侧）给圆角，闭合接缝侧为 0，免得贴着时啃出缺口。
 位置：`frontend/app/components/inbox/InboxSubNav.vue` + `frontend/app/utils/subnavNeck.ts`（`seam*` 几何）；弹簧预设见 `frontend/app/utils/motion.ts` 的 `SPRING_NECK`。
 _Avoid_: 叫「颈部」——参考组件里那条「凹曲连接面 + 渐变」的颈部已在 2026-11-07 返工时被明确**去掉**：激活块现在是独立的圆角块，接缝里不画任何连接形状。也不要用它指代激活块本身。
 

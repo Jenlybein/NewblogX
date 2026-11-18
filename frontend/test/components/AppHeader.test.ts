@@ -219,6 +219,15 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     expect(wrapper.get("a[data-chrome=skip-link]").attributes("href")).toBe("#main-content");
   });
 
+  it("skip link 不在页头的 inert 范围内：滚下隐藏后键盘仍然到得了它（票 437 评审）", () => {
+    const wrapper = mountHeader();
+    const skip = wrapper.get("a[data-chrome=skip-link]").element as HTMLElement;
+
+    // skip link 在 <header> 之外：页头下滚隐藏时整块 inert，链接不能被一起禁掉
+    // （更糟的是页头 translateY(-100%) 会把它移出视口，聚焦也看不见）。
+    expect(wrapper.get("header").element.contains(skip)).toBe(false);
+  });
+
   it("页头是吸顶玻璃导航：sticky + 高度压在 56–64px（不再永远遮挡正文）", () => {
     const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
 
@@ -277,8 +286,11 @@ describe("页头：手机端折叠菜单（键盘可达）", () => {
     expect(wrapper.get("button[data-chrome=menu]").attributes("aria-expanded")).toBe("false");
   });
 
-  it("收起态容器仍挂载且 inert（空间过渡需要内容在，inert 负责不可聚焦）", () => {
+  it("收起态容器仍挂载且 inert（空间过渡需要内容在，inert 负责不可聚焦）", async () => {
     const wrapper = mountHeader();
+    // 水合安全（票 437 评审）：`isMobile` 在 setup 阶段恒 false，挂载后才按真实视口补；
+    // inert 因此要等一次 nextTick 才挂上（水合首帧与 SSR 一致）。
+    await nextTick();
     const panel = wrapper.get("#site-header-panel");
 
     // 收起不是卸载也不是 display:none：容器与里面的搜索框都还在。
@@ -940,6 +952,22 @@ describe("页头：滚动方向感知与阈值", () => {
     const wrapper = mountHeader();
 
     expect(wrapper.get("header").attributes("inert")).toBeUndefined();
+  });
+
+  it("隐藏后 skip link 仍不被 inert 波及（它住在 header 之外，且是 fixed 定位）", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+    const skip = wrapper.get("a[data-chrome=skip-link]");
+
+    await scrollTo(160);
+    expect(header.attributes("inert")).toBeDefined();
+    // skip link 不是 header 的子节点：inert 不会级联到它。
+    expect(header.element.contains(skip.element)).toBe(false);
+
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    // fixed 定位：页头 translateY(-100%) 不会把它一起移出视口。
+    const body = blockAfter(source, ".site-skip {");
+    expect(body).toMatch(/position:\s*fixed;/u);
   });
 });
 

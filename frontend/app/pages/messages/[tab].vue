@@ -6,6 +6,7 @@ import InboxChatView from "~/components/inbox/InboxChatView.vue";
 import InboxMessageList from "~/components/inbox/InboxMessageList.vue";
 import InboxSubNav from "~/components/inbox/InboxSubNav.vue";
 import { useMessageCenter } from "~/composables/useMessageCenter";
+import { confirmDestructive } from "~/utils/confirmDestructive";
 import { messageCenterNavItems, resolveMessageCenterTab } from "~/utils/messageCenter";
 import { errorMessage } from "~/utils/errorMessage";
 
@@ -59,7 +60,22 @@ async function handleMarkAllRead() {
   }
 }
 
-async function handleClearGroup() {
+/**
+ * 清空当前分组（票 423 第 23 项：清空历史类操作也走同一套确认口径）。
+ *
+ * 以前点一下就直接清：读者手一抖就没了整组消息。现在先弹 `dialog.warning`，
+ * 点确认才调用 `clearCurrentGroup`；取消不动状态、一个请求都不发。
+ */
+function handleClearGroup() {
+  confirmDestructive(dialog, {
+    title: "清空分组",
+    content: "清空后当前分组的消息将不可恢复。确定清空？",
+    confirmText: "清空",
+    onConfirm: () => clearGroupMessages(),
+  });
+}
+
+async function clearGroupMessages() {
   try {
     await clearCurrentGroup();
     message.success("已清空当前分组");
@@ -71,16 +87,14 @@ async function handleClearGroup() {
 /**
  * 单条消息删除前先问一次（票 435 / 票 423 第 23 项）。
  *
- * 与全站其它删除同一口径：`dialog.warning` + 「删除 / 取消」，
- * 点确认之前不调用 removeEntry。
+ * 与全站其它删除同一口径（`utils/confirmDestructive.ts`）：`dialog.warning` +
+ * 「删除 / 取消」，点确认之前不调用 removeEntry。
  */
 function handleRemove(id: string) {
-  dialog.warning({
+  confirmDestructive(dialog, {
     title: "删除消息",
     content: "删除后这条消息不可恢复。确定删除？",
-    positiveText: "删除",
-    negativeText: "取消",
-    onPositiveClick: () => removeMessageEntry(id),
+    onConfirm: () => removeMessageEntry(id),
   });
 }
 

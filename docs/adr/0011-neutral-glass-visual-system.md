@@ -70,7 +70,7 @@
 6. 液态玻璃只用于导航/控制层（导航、浮层、悬浮控件、胶囊）；正文、卡片、列表等内容面一律不透明；**非卡片玻璃层同屏 ≤3**。**唯一内容面例外**：合集/项目文件夹卡的 flap（前盖）只有一层玻璃（背板与封面卡仍不透明），须带 `@supports not (backdrop-filter)` 与 `prefers-reduced-transparency` 不透明降级、移动端 `blur ≤12px`；卡片 flap 单独计数、允许常开。
 7. 玻璃必须带 `@supports not` 与 `prefers-reduced-transparency` 的不透明降级；移动端 `blur` ≤12px 且关闭指针镜面高光。
 8. 顶栏是吸顶玻璃导航 + 滚动方向感知（下滚隐藏、上滚出现），渲染站点页头的布局都要有 `scroll-padding-top`（创作页不渲染页头，因此不需要）。
-9. 动效三档 `120 / 200 / 320ms` + 单一 `cubic-bezier(.2,.8,.2,1)` + stagger `40ms`；滚动进场位移 ≤12px、视差 ≤10px、只动 `transform`/`opacity`，正文段落不进场；强制尊重 `prefers-reduced-motion`（弹簧在该偏好下必须 `jump()` 到终点）。**JS 侧弹簧例外仅两处**（右栏标题大纲飞行器、消息中心接缝位移）：参数集中在 `utils/motion.ts` 的 `SPRING_*` 预设，组件禁止内联 `stiffness`/`damping` 字面量；接缝位移仍是全站唯一允许的布局属性动画（`margin-left`，≤5 个节点）。
+9. 动效三档 `120 / 200 / 320ms` + 单一 `cubic-bezier(.2,.8,.2,1)` + stagger `40ms`；滚动进场位移 ≤12px、视差 ≤10px、只动 `transform`/`opacity`，正文段落不进场；强制尊重 `prefers-reduced-motion`（弹簧在该偏好下必须 `jump()` 到终点）。**JS 侧弹簧例外仅四处**（右栏标题大纲飞行器、消息中心接缝位移、首屏像素尾迹、捏捏拖拽松手落位）：参数集中在 `utils/motion.ts` 的 `SPRING_*` 预设，组件禁止内联 `stiffness`/`damping` 字面量。**布局属性动画只有两处登记的例外**：①消息中心接缝位移（`margin-left`，≤5 个节点）；②折叠/展开类容器的 `grid-template-rows: 0fr ↔ 1fr`（评论子楼、`AppHeader` 手机面板、`GroupedReaderList` 折叠面板）——低风险：只在展开/收起那一刻改轨道、不逐帧采样、容器有 `min-height: 0` 裁剪，不会把内容挤出布局。
 10. 字体：Sora 用于字标与品牌记号 + 大标题（hero / 页面标题），Inter 负责正文与 UI，中文用系统字体栈（不自托管 webfont、首屏字体 < 100 KB）；全站无衬线；不得使用未定义的字体 token。
 11. 后台启用暗色，且每个页面的导航/工具条上都必须有可见的主题开关。读者站创作页 `/studio/write` 是例外形态：**它不渲染站点页头**（专心写的一屏，不要站点导航），开关落在创作页自己顶栏的最右端 —— 仍然满足"每页都能切"，只是落点不同。
 12. 品牌资产例外：`brand/logo-256.png`、`brand/jelly-flat.svg`、`apple-touch-icon.png`、`og-image.png` 可自带品牌色并由门禁豁免；不得再按主题切换 Logo 变体（禁止重新引入 `logoWhite`）。

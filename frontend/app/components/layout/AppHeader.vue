@@ -106,6 +106,12 @@ async function submitSearch() {
 </script>
 
 <template>
+  <!-- skip link 刻意放在 <header> **外面**（票 437 评审）：页头下滚隐藏时整块挂 `inert`
+       （防止 Tab 落到看不见的搜索框），链接若在里面就一起被禁掉 —— 滚下去之后键盘
+       用户再也到不了「跳到正文」。放外面 + `position: fixed` 让它留在视口左上角，
+       不随页头的 `translateY(-100%)` 移走。 -->
+  <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
+
   <header
     class="site-header"
     :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
@@ -115,7 +121,6 @@ async function submitSearch() {
     <!-- 材质到场（票 428）：静止态的不透明纸面 + 发丝线在这一层；滚过阈值后它
          用 200ms 淡出，玻璃（模糊 / 边缘带 / 噪点）在下面逐渐显出来。 -->
     <div class="site-header__veil" aria-hidden="true"></div>
-    <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
 
     <div class="page-shell site-header__inner">
       <div class="site-header__brand">
@@ -737,13 +742,15 @@ async function submitSearch() {
   outline-offset: 2px;
 }
 
-/* skip link：平时移出视口，聚焦时出现在左上角（键盘用户不必 Tab 过整个页头） */
+/* skip link：平时移出视口，聚焦时出现在左上角（键盘用户不必 Tab 过整个页头）。
+ * fixed 定位（不是在页头里绝对定位）：它必须留在视口里，页头下滚隐藏（translateY
+ * -100% + inert）时也不能被一起带走、更不能被 inert 禁掉。 */
 .site-skip {
-  position: absolute;
+  position: fixed;
   top: 0.25rem;
   left: 0.5rem;
-  /* 盖在 .site-header__veil（5）之上：跳过链接聚焦时不能被那层纸面盖住。 */
-  z-index: 7;
+  /* 高于页头（z-index 30）：聚焦时压在整个页头之上，不会被那层纸面盖住。 */
+  z-index: 31;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
@@ -758,6 +765,9 @@ async function submitSearch() {
 }
 
 @media (min-width: 640px) {
+  /* 平板起面板常显（票 437）：断点数值来自 app/utils/breakpoints.ts 的
+   * TABLET_BREAKPOINT_PX（640），与 useHeaderMobilePanel 的 `(max-width: 639px)`
+   * 是同一个分界；两处一致由 test/design/header-breakpoints.test.ts 断言。 */
   /* 平板起面板常显：把折叠用的两层包装摊平（display: contents），
    * 导航与搜索重新成为面板自己的 flex 子项（与改造前的单行布局一致）。 */
   .site-header__panel {
@@ -822,6 +832,7 @@ async function submitSearch() {
 /* <640px：动作区收不下「消息中心」，入口整体移进折叠面板。
  * 折叠面板本身只在菜单展开时可见，所以这里只负责"哪一份 DOM 显示"。 */
 @media (max-width: 639px) {
+  /* 同一断点的另一半（<640）：数值来自 app/utils/breakpoints.ts，改断点改那一处。 */
   .site-messages {
     display: none;
   }

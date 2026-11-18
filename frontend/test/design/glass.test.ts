@@ -73,12 +73,13 @@ const CONTENT_SURFACES = [
 
 function glassCount(text: string): number {
   // 只数"作为组件类名"的使用：注释里的说明不算，`var(--glass-thin-fill)` 这类
-  // token 引用也不算（NCard 的 --n-color 会被绑到同一份填充 token 上）。
+  // token 引用也不算（NCard 的 --n-color 会被绑到同一份填充 token 上）；
+  // 材料分级的 `var(--shadow-glass-thin)`（票 428）同样不是类名，一并排除。
   const code = text
     .replace(/\/\*[\s\S]*?\*\//gu, "")
     .replace(/<!--[\s\S]*?-->/gu, "")
     .replace(/^\s*\/\/.*$/gmu, "")
-    .replace(/var\(--glass-[^)]*\)/gu, "");
+    .replace(/var\(--[a-z-]*glass-[^)]*\)/gu, "");
   return [...code.matchAll(GLASS_CLASS_RE)].length;
 }
 
@@ -173,7 +174,9 @@ describe("玻璃材料：两档 token 消费（#18 种下的玻璃组）", () =>
     expect(rimRule).toContain("mask-composite: exclude");
     expect(rimRule).toContain("-webkit-mask-composite: xor");
     expect(rimRule).not.toMatch(/\bborder(-width)?:\s*[^;0]/u);
-    expect(rimRule).toContain("var(--glass-rim)");
+    // 边缘带按两档取 token（票 428）：thin / thick 各自的 rim 与高光不共用一份。
+    expect(rimRule).toContain("var(--glass-rim-tone)");
+    expect(rimRule).toContain("opacity: var(--glass-edge-opacity)");
   });
 
   it("噪点层是内联 feTurbulence 的 data-URI，透明度走 token", () => {

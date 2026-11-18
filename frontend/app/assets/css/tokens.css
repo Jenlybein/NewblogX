@@ -106,8 +106,21 @@
   --radius-pill: 999px;
 
   /* 浮层阴影（弹窗 / 抽屉）。--color-shadow 是投影的基底色，这里给它一档更大的
-   * 环境影：浮层要"离开纸面"，只靠 1px 描边是读不出层级的。两端口径一致。 */
+   * 环境影：浮层要"离开纸面"，只靠 1px 描边是读不出层级的。两端口径一致。
+   * **只有浮层能用这一档**（票 428）：内容卡走下面的 --shadow-card。 */
   --shadow-lg: 0 32px 80px -32px var(--color-shadow);
+
+  /* 内容卡阴影（票 428）：发丝级贴边影 —— 1px 偏移、2px 模糊。
+   * 内容卡读的是"一张纸压在另一张纸上"，不是"悬空"：此前它吃 24px 偏移 /
+   * 60px 模糊的大影，层级比压在它上面的导航与浮层还重，暗色下更是一条
+   * 55% 黑的大晕。抬升只留给浮层（--shadow-lg）与玻璃两档（下面）。 */
+  --shadow-card: 0 1px 2px var(--color-shadow);
+
+  /* 玻璃两档的抬升影（ADR-0011 决策 5：thin 贴面、thick 离面）。
+   * 两档必须可区分：thick 的偏移与模糊都更大、负扩散更深（厚材料"离纸面"更远，
+   * 边缘更收得住），仍由 --color-shadow 派生，暗色下不会变成黑晕。 */
+  --shadow-glass-thin: 0 8px 24px -16px var(--color-shadow);
+  --shadow-glass-thick: 0 24px 56px -24px var(--color-shadow);
 
   /* ---- 4. 液态玻璃组（ADR-0011 决策 5）：两档填充/模糊/饱和度 + 边缘/噪点/移动端档 ----
    * 本文件只定义与接线；玻璃层的伪元素与降级实现留给批次 3。
@@ -122,6 +135,15 @@
   --glass-rim-warm: rgb(255 253 246 / 0.50); /* 明暗色温断层的暖白接缝 */
   --glass-grain-opacity: 0.055; /* feTurbulence 噪点层 */
   --glass-blur-mobile: 12px; /* max-width: 768px 下的模糊档 */
+  /* 两档的边缘带与内侧高光（票 428）：thin 的边缘更淡、specular 半径更小；
+   * thick 更厚一档 —— 1px 高光更亮（edge-opacity 更高、rim 更白）且镜面更大。
+   * 降级（不支持 blur / 减少透明度）时两档都退成实面，厚度差异不参与。 */
+  --glass-thin-rim: rgb(255 255 255 / 0.55);
+  --glass-thick-rim: rgb(255 255 255 / 0.78);
+  --glass-thin-edge-opacity: 0.82;
+  --glass-thick-edge-opacity: 1;
+  --glass-thin-specular-size: 240px;
+  --glass-thick-specular-size: 380px;
 
   /* ---- 5. 排版层（ADR-0011 决策 8；ADR-0016 决策 2 修订中文字体条款）----
    * Sora = 字标 / 大标题，Inter = 拉丁正文 / UI，**中文 = 系统字体栈**（苹方 / 冬青黑 /
@@ -266,6 +288,10 @@
   --glass-rim: rgb(255 255 255 / 0.30);
   --glass-rim-warm: rgb(255 253 246 / 0.22);
   --glass-grain-opacity: 0.045;
+  /* 边缘带两档的暗色取值：thick 仍比 thin 更亮（更厚的内侧高光），
+   * 但都压在中性暗面上，不会变成一圈发光描边。 */
+  --glass-thin-rim: rgb(255 255 255 / 0.26);
+  --glass-thick-rim: rgb(255 255 255 / 0.42);
 
   /* 正文 markdown 色板的暗色取值：同一组名字的第二份取值。
    * 六个标题色把各自的色相提亮到中性暗面上可达 AA 的明度（色相不变），

@@ -112,6 +112,9 @@ async function submitSearch() {
     :inert="hidden ? true : undefined"
     @pointermove="handlePointerMove"
   >
+    <!-- 材质到场（票 428）：静止态的不透明纸面 + 发丝线在这一层；滚过阈值后它
+         用 200ms 淡出，玻璃（模糊 / 边缘带 / 噪点）在下面逐渐显出来。 -->
+    <div class="site-header__veil" aria-hidden="true"></div>
     <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
 
     <div class="page-shell site-header__inner">
@@ -346,20 +349,38 @@ async function submitSearch() {
   top: 0;
   z-index: 30;
   min-height: var(--site-header-height);
-  transition: transform var(--motion-base) var(--motion-ease);
+  /* 材质到场（票 428）：背景 / 边框 / 阴影在滚过阈值时一起过渡 200ms。
+   * 玻璃属性（backdrop-filter）本身不可过渡，所以静止态的不透明纸面与发丝线
+   * 拆到 .site-header__veil 上：那一层淡出，玻璃在下面逐渐显出来 —— 不会
+   * 出现"实面一帧跳成玻璃"。盒影从零影过渡到玻璃那档，同样是 200ms。 */
+  box-shadow: 0 0 0 0 var(--color-shadow);
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    box-shadow var(--motion-base) var(--motion-ease);
 }
 
-/* 静止态（未滚动）才用不透明面 + 发丝结构线：滚动后材料交给 .glass-thin，
- * 两套背景不会互相覆盖。 */
-.site-header:not(.is-scrolled) {
+/* 静止态的不透明面 + 发丝结构线（滚过阈值后淡出，把材料让给玻璃）。
+ * z-index 5：盖住玻璃层的 ::before（rim，3）与 ::after（噪点，4），
+ * 这样过渡的第一帧不会先闪出 1px 边缘带；页头内容在它上面（z-index 6）。 */
+.site-header__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line-strong);
+  opacity: 1;
+  transition: opacity var(--motion-base) var(--motion-ease);
 }
 
-/* 转玻璃后：底部 1px 边缘高光（叠在玻璃自己的抬升阴影上）。 */
+.site-header.is-scrolled .site-header__veil {
+  opacity: 0;
+}
+
+/* 转玻璃后：底部 1px 边缘高光（叠在薄玻璃那一档的抬升阴影上）。 */
 .site-header.is-scrolled {
   box-shadow:
-    0 18px 44px -20px var(--color-shadow),
+    var(--shadow-glass-thin),
     0 1px 0 var(--glass-rim);
 }
 
@@ -369,11 +390,12 @@ async function submitSearch() {
   transition: transform var(--motion-base) var(--motion-ease);
 }
 
-/* 减少动态：导航的隐藏/出现、手机面板的轨道与内容透明度也不做过渡
+/* 减少动态：导航的隐藏/出现、手机面板的轨道与内容透明度、材质到场也不做过渡
  * （全局 reduced-motion 已把时长归零，这里再兜一层，避免"归零后仍有一次跳变"）。 */
 @media (prefers-reduced-motion: reduce) {
   .site-header,
   .site-header.is-hidden,
+  .site-header__veil,
   .site-header__panel,
   .site-header__panel.is-open,
   .site-header__panel-clip {
@@ -382,6 +404,8 @@ async function submitSearch() {
 }
 
 .site-header__inner {
+  position: relative;
+  z-index: 6;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -636,7 +660,8 @@ async function submitSearch() {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  box-shadow: 0 18px 44px -20px var(--color-shadow);
+  /* 消息面板是浮层（离开页头的那一层），用浮层专用的 --shadow-lg。 */
+  box-shadow: var(--shadow-lg);
   animation: site-messages-reveal var(--motion-fast) var(--motion-ease) both;
 }
 
@@ -717,7 +742,8 @@ async function submitSearch() {
   position: absolute;
   top: 0.25rem;
   left: 0.5rem;
-  z-index: 2;
+  /* 盖在 .site-header__veil（5）之上：跳过链接聚焦时不能被那层纸面盖住。 */
+  z-index: 7;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);

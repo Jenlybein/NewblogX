@@ -203,12 +203,17 @@ describe("切换动效：走 motion token，减少动态时归零", () => {
   const tailwindCss = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
   const tokensCss = readFileSync(join(projectDir, "app/assets/css/tokens.css"), "utf8");
 
-  it("body 的颜色/背景过渡用 --motion-base + --motion-ease，不再写死 0.28s", () => {
+  it("主题切换整页同帧：body 不再自己渐变，切换帧由根上的 .theme-switching 关掉全站过渡", () => {
+    // spec 423 第 4 批第 30 条的两种实现里，这里选"整页瞬时"：让所有面/线在同一帧
+    // 换完，而不是给几十处面各加一条 200ms 过渡（那样 hover 反馈与主题切换会共用
+    // 一条时长，也没法只对主题切换生效）。所以 body 的过渡被摘掉，守卫类接管。
     const bodyRule = /body\s*\{[\s\S]*?\}/u.exec(tailwindCss)?.[0] ?? "";
 
-    expect(bodyRule).toContain("var(--motion-base)");
-    expect(bodyRule).toContain("var(--motion-ease)");
-    expect(bodyRule).not.toMatch(/0\.28s/u);
+    expect(bodyRule).toContain("background: var(--color-bg-page)");
+    expect(bodyRule).not.toContain("transition");
+    expect(tailwindCss).toContain("html.theme-switching");
+    expect(tailwindCss).toMatch(/html\.theme-switching[\s\S]*?transition: none !important/u);
+    expect(tailwindCss).not.toMatch(/0\.28s/u);
   });
 
   it("减少动态时现存动效 token 归零：切换不产生过渡", () => {

@@ -131,6 +131,19 @@
     border-color: var(--color-line-strong);
   }
 
+  /* 悬停回应（票 429）：鼠标扫过条目卡时只给"纸面被指到"的一点回应 ——
+   * 底色是发丝线 token 与纸面混出来的一档（线本身就是 10% / 8% 的墨，再取 30%，
+   * 叠到纸面上的实际墨量 ≈ 3%），加 1px 上移；不加重阴影（票 428 的层级不被回退）。
+   *
+   * **只放在 `(hover: hover)` 里**：触屏没有 hover，sticky hover 会让点过的卡片
+   * 一直亮着。键盘聚焦仍由上面的 `:focus-within` 描边负责，不需要位移。 */
+  @media (hover: hover) {
+    .feed-entry:hover {
+      background-color: color-mix(in srgb, var(--color-line-faint) 30%, var(--color-surface));
+      transform: translateY(-1px);
+    }
+  }
+
   .feed-entry__cover {
     @apply block overflow-hidden rounded-field border border-line-faint;
     aspect-ratio: 16 / 9;
@@ -2367,6 +2380,11 @@
   .blueprint-tab,
   .blueprint-link {
     transition: none;
+  }
+
+  /* 条目卡悬停的 1px 位移同样归零；纸面底色回应保留（它不是动效）。 */
+  .feed-entry:hover {
+    transform: none;
   }
 }
 

@@ -141,7 +141,10 @@ function scrollToTop() {
   flex-wrap: wrap;
   gap: 0.375rem 1.25rem;
   padding-top: 0.875rem;
-  border-top: 1px solid var(--color-on-inverse-muted);
+  /* 版权行上方的 1px 线降到 12–16% 反白档（票 429）：此前借了次级字色的 72%，
+   * 是页脚里最亮的一条线，比正文还抢眼。现在与全站发丝线同档，从反白语义 token
+   * 经 color-mix 派生 —— 明暗两态同一表达式，也不写裸 rgba。 */
+  border-top: 1px solid color-mix(in srgb, var(--color-on-inverse) 14%, transparent);
   color: var(--color-on-inverse-muted);
   font-size: 0.8125rem;
   letter-spacing: 0.02em;

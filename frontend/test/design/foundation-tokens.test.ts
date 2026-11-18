@@ -577,6 +577,15 @@ describe("行宽与左边缘：摘要 / 状态文案与正文共用 --type-measu
     }
   });
 
+  it("正文纸面与摘要/状态纸面同一水平内边距（同一条左边线）", () => {
+    // 左边缘不只由 max-width 决定：两张纸的内边距不同，正文就会与摘要错开。
+    for (const selector of [".article-hero {", ".article-paper--state {", ".article-paper--body {"]) {
+      const rule = blockAfter(tailwindCss, selector);
+
+      expect(rule, selector).toContain("p-6 md:p-8");
+    }
+  });
+
   it("读者站源码里不再有 68ch 行宽写法（行宽只在 tokens.css 定义一次）", () => {
     const offenders = readProjectEntries(projectDir)
       .filter((entry) => stripComments(entry.text).includes("68ch"))

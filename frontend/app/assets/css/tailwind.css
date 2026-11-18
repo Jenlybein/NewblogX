@@ -827,7 +827,9 @@
   }
 
   .article-paper--body {
-    @apply p-5 md:p-8;
+    /* 与 `.article-hero` / `.article-paper--state` 同一水平内边距（票 430）：
+       摘要/状态文案与正文因此共享同一条左边线，窄屏（p-5 vs p-6）不再错开 4px。 */
+    @apply p-6 md:p-8;
   }
 
   .article-eyebrow {

@@ -20,7 +20,7 @@
  *      墨色/结构线一律走中性石墨阶，不再「每个黑都是深蓝」。
  *   3. 圆角 / 玻璃 / 排版 / 动效层：组件与 Naive themeOverrides 都从这里取值。
  *   4. 正文 markdown 色板 `--md-*`（第 7 段）：**只有正文渲染区消费**的一组独立
- *      语义色。ADR-0011「后续修订」明确正文区不受上面第 1 段的五色相锁定 —— 六层
+ *      语义色。ADR-0011「正文 markdown 区」明确正文区不受上面第 1 段的五色相锁定 —— 六层
  *      标题要靠颜色也能分出层级，而五色里没有六个可当字色的色相。它仍走同一套治理：
  *      只在这里定义、组件里只能写 `var(--md-*)`、明暗各一份取值。
  *
@@ -66,12 +66,20 @@
    * 亮色是白字压深墨，暗色是深字压浅墨 —— 上面的线/柔光带用同一个表达式即可
    * 两态都成立，不必再写第二套 alpha 常量。 */
   --on-strong-rgb: 255 255 255;
+  /* 反白面（页脚 / 封面）上的内容色基底：亮色是纯白，暗色是苹果实测反白灰
+   * `#F5F5F7`（245 245 247，在暗色块里换第二份取值）。页脚版权线上边框等
+   * 需要"反白的 α 档"时一律从这里派生（ADR-0011 约束 3），不再用 color-mix。 */
+  --on-inverse-rgb: 255 255 255;
 
   /* ---- 2. 语义层（浅色）：组件只消费这一层 ---- */
   --color-bg-page: var(--jelly-warm-100); /* 页面底 #F5F3EE */
   --color-bg-subtle: var(--jelly-warm); /* 次级底 #F2EEE6 */
   --color-surface: var(--jelly-cream); /* 纸面 #FDFBF6 */
   --color-surface-raised: var(--jelly-cream-050); /* 抬升面 #FFFFFF */
+  /* 条目卡 hover 的极轻底色：发丝线 10% × 30% 混纸面的**等值不透明档**（#F6F4EF）。
+   * 写成实色而不是运行时 color-mix：卡片底色本来就不透明，透明档会让页面底透上来，
+   * 纸面差反而变大。明暗各一份，取值差 ≤3% 纸面（见 card-footer-consistency 测试）。 */
+  --color-hover-surface: #f6f4ef;
   --color-surface-glass: rgb(var(--jelly-cream-rgb) / 0.82); /* 半透明面（后台侧栏 / 统计卡，不上 blur） */
   --color-ink: #1c1b19; /* 正文墨（暖石墨，对纸面 ≈16.9:1） */
   --color-ink-muted: #625c52; /* 次级墨（≈5.9:1） */
@@ -94,6 +102,8 @@
   --color-on-danger: #1c1b19; /* 珊瑚橙底上的字（对 coral 5.6:1） */
   --color-on-inverse: #ffffff; /* 深墨面（页脚 / 封面）上的反白字 */
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72); /* 深墨面上的次级字 */
+  --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 反白发丝线（页脚版权行等，票 429 的 14% 档） */
+  --color-on-inverse-line-strong: rgb(var(--on-inverse-rgb) / 0.16); /* 反白 16% 档：反白面上的按下底色 / 轻线 */
   --color-surface-inverse: #1c1b19; /* 深墨面（页脚 / 封面兜底） */
   --color-shadow: rgb(var(--graphite-rgb) / 0.12); /* 阴影（墨色 + 透明度） */
 
@@ -106,8 +116,21 @@
   --radius-pill: 999px;
 
   /* 浮层阴影（弹窗 / 抽屉）。--color-shadow 是投影的基底色，这里给它一档更大的
-   * 环境影：浮层要"离开纸面"，只靠 1px 描边是读不出层级的。两端口径一致。 */
+   * 环境影：浮层要"离开纸面"，只靠 1px 描边是读不出层级的。两端口径一致。
+   * **只有浮层能用这一档**（票 428）：内容卡走下面的 --shadow-card。 */
   --shadow-lg: 0 32px 80px -32px var(--color-shadow);
+
+  /* 内容卡阴影（票 428）：发丝级贴边影 —— 1px 偏移、2px 模糊。
+   * 内容卡读的是"一张纸压在另一张纸上"，不是"悬空"：此前它吃 24px 偏移 /
+   * 60px 模糊的大影，层级比压在它上面的导航与浮层还重，暗色下更是一条
+   * 55% 黑的大晕。抬升只留给浮层（--shadow-lg）与玻璃两档（下面）。 */
+  --shadow-card: 0 1px 2px var(--color-shadow);
+
+  /* 玻璃两档的抬升影（ADR-0011 决策 5：thin 贴面、thick 离面）。
+   * 两档必须可区分：thick 的偏移与模糊都更大、负扩散更深（厚材料"离纸面"更远，
+   * 边缘更收得住），仍由 --color-shadow 派生，暗色下不会变成黑晕。 */
+  --shadow-glass-thin: 0 8px 24px -16px var(--color-shadow);
+  --shadow-glass-thick: 0 24px 56px -24px var(--color-shadow);
 
   /* ---- 4. 液态玻璃组（ADR-0011 决策 5）：两档填充/模糊/饱和度 + 边缘/噪点/移动端档 ----
    * 本文件只定义与接线；玻璃层的伪元素与降级实现留给批次 3。
@@ -122,6 +145,15 @@
   --glass-rim-warm: rgb(255 253 246 / 0.50); /* 明暗色温断层的暖白接缝 */
   --glass-grain-opacity: 0.055; /* feTurbulence 噪点层 */
   --glass-blur-mobile: 12px; /* max-width: 768px 下的模糊档 */
+  /* 两档的边缘带与内侧高光（票 428）：thin 的边缘更淡、specular 半径更小；
+   * thick 更厚一档 —— 1px 高光更亮（edge-opacity 更高、rim 更白）且镜面更大。
+   * 降级（不支持 blur / 减少透明度）时两档都退成实面，厚度差异不参与。 */
+  --glass-thin-rim: rgb(255 255 255 / 0.55);
+  --glass-thick-rim: rgb(255 255 255 / 0.78);
+  --glass-thin-edge-opacity: 0.82;
+  --glass-thick-edge-opacity: 1;
+  --glass-thin-specular-size: 240px;
+  --glass-thick-specular-size: 380px;
 
   /* ---- 5. 排版层（ADR-0011 决策 8；ADR-0016 决策 2 修订中文字体条款）----
    * Sora = 字标 / 大标题，Inter = 拉丁正文 / UI，**中文 = 系统字体栈**（苹方 / 冬青黑 /
@@ -141,9 +173,26 @@
      让文字铺满纸面内边距之间；约 46 个汉字/行，仍在可读区间上沿。 */
   --type-measure: 92ch;
   --type-leading-prose: 1.75; /* 中文正文行高 */
-  --type-leading-title: 1.15; /* 标题行高 */
-  --type-tracking-title: -0.03em; /* 大标题字距（苹果式紧凑档） */
-  --type-tracking-dense: -0.01em; /* 小字收紧 */
+  /* ---- 5b. 标题排版分三档（票 430）----
+   * 此前一套 `-0.03em / 1.15` 同时套在 18px 目录标题与 96px 首屏大字：小标题的中文
+   * 被负字距挤成一团，大字又不够紧。字号决定字距与行高，消费点只选档、不自带数值。
+   *
+   *   大 ≥1.875rem（30px）：-.03em / 1.1（页面级大标题与首屏字标）；
+   *   中 1.25–1.75rem：-.015em / 1.25（22px 作者名、24px 索引与区块标题）；
+   *   小 ≤1.125rem（**含 18–20px 的卡片标题与计数**）：0 / 1.35 ——
+   *     中文标题在负字距下会贴成一团，18–20px 必须回到 0 档并抬行高（验收反馈）。 */
+  --type-tracking-lg: -0.03em;
+  --type-leading-lg: 1.1;
+  --type-tracking-md: -0.015em;
+  --type-leading-md: 1.25;
+  --type-tracking-sm: 0;
+  --type-leading-sm: 1.35;
+  /* 旧单值别名：后台 admin.css 与后台 tailwind 仍映射 tracking-title / leading-title，
+   * 读者站已在票 430 里把消费点全部迁到上面三档、并删掉这两个 Tailwind 类。
+   * 两端 tokens.css 逐字节一致，所以它们留在这里直到后台另开票收口。 */
+  --type-leading-title: 1.15; /* 旧标题行高（后台仍在用） */
+  --type-tracking-title: -0.03em; /* 旧大标题字距（后台仍在用） */
+  --type-tracking-dense: -0.01em; /* 小字收紧（正文小标签，非标题档） */
   --type-weight-title: 700; /* 标题字重 */
 
   /* ---- 6. 动效层（spec 决策 3：三档时长 + 单一缓动 + stagger 节奏）----
@@ -157,7 +206,7 @@
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0011 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
 
-  /* ---- 7. 正文 markdown 色板（ADR-0011「后续修订」：正文渲染区不锁五族）----
+  /* ---- 7. 正文 markdown 色板（ADR-0011「正文 markdown 区」：正文渲染区不锁五族）----
    * 作用域：**只供正文 markdown 渲染区**（注入 shadow root 的
    * `MARKDOWN_THEME_CSS`）。页面与组件不得引用这一组：正文区是"读文章"的主场，
    * 六层标题需要靠颜色也能分出层级，而五个锁定色相里没有六个可当字色的色相，
@@ -212,11 +261,14 @@
   --interactive-rgb: 41 151 255;
   --jelly-interactive: #2997ff;
   --on-strong-rgb: 29 29 31;
+  --on-inverse-rgb: 245 245 247; /* = 暗色 --color-on-inverse #f5f5f7 */
 
   --color-bg-page: #161617;
   --color-bg-subtle: #101011;
   --color-surface: #1d1d1f;
   --color-surface-raised: #2c2c2e;
+  /* hover 底色的暗色第二份取值：#1D1D1F 上把发丝线 8% × 30% 混纸面得到的等值实色。 */
+  --color-hover-surface: #222224;
   --color-surface-glass: rgb(var(--jelly-cream-rgb) / 0.06); /* 暗面抬升：奶油白极淡罩层 */
   --color-ink: #f5f5f7;
   --color-ink-muted: #a1a1a6;
@@ -240,6 +292,8 @@
   --color-on-danger: #1c1b19;
   --color-on-inverse: #f5f5f7;
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72);
+  --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 同一条表达式：通道随 --on-inverse-rgb 翻转 */
+  --color-on-inverse-line-strong: rgb(var(--on-inverse-rgb) / 0.16); /* 反白 16% 档：第二份取值与亮色同一表达式 */
   --color-surface-inverse: #101011;
   --color-shadow: rgb(var(--jelly-warm-1000-rgb) / 0.55);
 
@@ -249,6 +303,10 @@
   --glass-rim: rgb(255 255 255 / 0.30);
   --glass-rim-warm: rgb(255 253 246 / 0.22);
   --glass-grain-opacity: 0.045;
+  /* 边缘带两档的暗色取值：thick 仍比 thin 更亮（更厚的内侧高光），
+   * 但都压在中性暗面上，不会变成一圈发光描边。 */
+  --glass-thin-rim: rgb(255 255 255 / 0.26);
+  --glass-thick-rim: rgb(255 255 255 / 0.42);
 
   /* 正文 markdown 色板的暗色取值：同一组名字的第二份取值。
    * 六个标题色把各自的色相提亮到中性暗面上可达 AA 的明度（色相不变），

@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AppFooter from "~/components/layout/AppFooter.vue";
 import { brandCopyright } from "~/utils/brand";
 import { parseTokenBlocks, resolveTokenValue } from "~/utils/markdownTheme";
+
+import { blockAfter, stripComments } from "../helpers/designFiles";
 
 /**
  * 站点配置桩：页脚现在从运行时站点配置读备案号（#191），不再用写死的常量。
@@ -81,11 +83,27 @@ function mountFooter() {
 
 let scrollToSpy: ReturnType<typeof vi.fn>;
 
+/**
+ * 站点时区（`Asia/Shanghai`）下的年份。
+ *
+ * 测试里独立算一遍，而不是拿被测代码的 helper 当期望值：跨年夜直接用本机投影
+ * （`new Date().getFullYear()`）会在 UTC 的 CI 上差一年。
+ */
+function siteYear(now: Date): number {
+  return Number(
+    new Intl.DateTimeFormat("en-CA", { year: "numeric", timeZone: "Asia/Shanghai" }).format(now),
+  );
+}
+
 beforeEach(() => {
   scrollToSpy = vi.fn();
   vi.stubGlobal("scrollTo", scrollToSpy);
   // Logo 组件要读 app.baseURL 拼品牌资产路径。
   vi.stubGlobal("__useRuntimeConfigMock", () => ({ app: { baseURL: "/" }, public: {} }));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("页脚：品牌与文案", () => {
@@ -99,11 +117,21 @@ describe("页脚：品牌与文案", () => {
 
   it("版权行来自品牌模块（brandCopyright），不在模板里硬编码", () => {
     const wrapper = mountFooter();
-    const expected = brandCopyright(new Date().getFullYear());
+    const expected = brandCopyright(siteYear(new Date()));
 
     expect(wrapper.text()).toContain(expected);
     // 反向证明：模板里没有可直接写死的年份/品牌串，改了品牌名这里会跟着变。
     expect(footerSource).toContain("brandCopyright");
+  });
+
+  it("版权年份按站点时区取：UTC 还停在除夕、站点已是新年", () => {
+    vi.useFakeTimers();
+    // UTC 2026-12-31 20:00 = 站点 2027-01-01 04:00：跟本机时区走会渲染成 © 2026。
+    vi.setSystemTime(new Date("2026-12-31T20:00:00Z"));
+
+    const wrapper = mountFooter();
+
+    expect(wrapper.get(".site-footer__meta").text()).toContain(brandCopyright(2027));
   });
 
   it("带上少量站内链接（行为不变）", () => {
@@ -133,7 +161,7 @@ describe("页脚：备案号取自运行时站点配置（不再写死）", () =
     // 只留版权行那一个 span。
     expect(wrapper.get(".site-footer__meta").findAll("span")).toHaveLength(1);
     expect(wrapper.get(".site-footer__meta").text()).toContain(
-      brandCopyright(new Date().getFullYear()),
+      brandCopyright(siteYear(new Date())),
     );
 
     // 引导请求还没回来（runtimeConfig 仍是 null）也走同一条「不渲染」路径。
@@ -165,7 +193,40 @@ describe("页脚：对比度达 WCAG AA（明暗两态）", () => {
     expect(footerSource).toContain("var(--color-on-inverse-muted)");
     expect(footerSource).not.toMatch(/--jelly-/u);
     expect(footerSource).not.toMatch(/#[0-9a-fA-F]{3,8}\b/u);
-    expect(footerSource).not.toMatch(/rgba?\(/u);
+    // 带透明度的颜色只能走三元组派生：没有 rgba 常量、没有逗号分隔的 rgb()，
+    // 也不再用 color-mix（ADR-0011 约束 3）。注释里提到旧写法不算使用。
+    const code = stripComments(footerSource);
+    expect(code).not.toMatch(/\brgba?\(\s*\d+/u);
+    expect(code).not.toMatch(/color-mix/u);
+    // 组件只消费语义层：14% 反白线在 tokens.css 里派生。
+    expect(footerSource).toContain("var(--color-on-inverse-line)");
+  });
+
+  it("版权线上边框的 14% 反白由原始层三元组派生（明暗各一份语义 token）", () => {
+    expect(resolveTokenValue(tokenBlocks, "light", "--on-inverse-rgb")).toBe("255 255 255");
+    expect(resolveTokenValue(tokenBlocks, "dark", "--on-inverse-rgb")).toBe("245 245 247");
+    // 语义层是唯一消费对象：同一条三元组 α 表达式，通道随明暗翻转（明暗各一份）。
+    const triplet = /--color-on-inverse-line:\s*rgb\(var\(--on-inverse-rgb\) \/ 0\.14\);/gu;
+    expect((tokensCss.match(triplet) ?? []).length).toBe(2);
+    expect(resolveTokenValue(tokenBlocks, "light", "--color-on-inverse-line")).toBe(
+      "rgba(255, 255, 255, 0.14)",
+    );
+    expect(resolveTokenValue(tokenBlocks, "dark", "--color-on-inverse-line")).toBe(
+      "rgba(245, 245, 247, 0.14)",
+    );
+    // 与语义层的 --color-on-inverse 同值：三元组不是第二份色值，只是 α 派生基底。
+    expect(tokenHex("light", "--color-on-inverse")).toBe("#ffffff");
+    expect(tokenHex("dark", "--color-on-inverse")).toBe("#f5f5f7");
+  });
+});
+
+describe("页脚：安全区（票 423 第 20 项）", () => {
+  it("底部内边距叠加 env(safe-area-inset-bottom)：Home 指示条不压住版权行", () => {
+    const inner = blockAfter(footerSource, ".site-footer__inner {");
+
+    expect(inner).toContain("padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px))");
+    // 不支持 env 的浏览器退化为原来的 1.75rem，不写死像素。
+    expect(inner).not.toMatch(/padding-bottom:\s*\d+px/u);
   });
 });
 

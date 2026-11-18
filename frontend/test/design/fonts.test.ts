@@ -66,6 +66,123 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//gu, "");
 }
 
+/**
+ * 票 430：字体角色收口的数据面。
+ *
+ * 扫读者站 `.vue` 的每个 `<style>` 块与独立 `.css`（跳过 tokens.css / fonts.css ——
+ * 前者只声明 token、后者的 `@font-face` 不是"消费"），把 CSS 规则拆成
+ * `{ file, selector, body }`。字号从 `@apply` 里的 `text-*` 工具类、`text-[18px]`
+ * 与显式 `font-size` 取，clamp 只取下限（下限才是"会不会出现在小字号"的判据）。
+ */
+function styleSources(): { file: string; css: string }[] {
+  const sources: { file: string; css: string }[] = [];
+  const skip = new Set(["node_modules", ".nuxt", ".output", "coverage"]);
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (skip.has(name)) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      const file = relative(repoRoot, full).split("\\").join("/");
+      if (name.endsWith("tokens.css") || name.endsWith("fonts.css")) continue;
+      if (name.endsWith(".vue")) {
+        const text = stripComments(readFileSync(full, "utf8"));
+        for (const block of text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gu)) {
+          sources.push({ file, css: block[1]! });
+        }
+        continue;
+      }
+      if (name.endsWith(".css")) {
+        sources.push({ file, css: stripComments(readFileSync(full, "utf8")) });
+      }
+    }
+  };
+
+  walk(join(projectDir, "app"));
+  return sources;
+}
+
+interface CssRule {
+  file: string;
+  selector: string;
+  body: string;
+}
+
+function cssRules(): CssRule[] {
+  const rules: CssRule[] = [];
+  for (const source of styleSources()) {
+    for (const match of source.css.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+      const selector = match[1]!.trim().replace(/\s+/gu, " ");
+      if (!selector || selector.startsWith("@")) continue;
+      rules.push({ file: source.file, selector, body: match[2]! });
+    }
+  }
+  return rules;
+}
+
+const TW_FONT_SIZE_REM: Record<string, number> = {
+  xs: 0.75,
+  sm: 0.875,
+  base: 1,
+  lg: 1.125,
+  xl: 1.25,
+  "2xl": 1.5,
+  "3xl": 1.875,
+  "4xl": 2.25,
+  "5xl": 3,
+  "6xl": 3.75,
+};
+
+function remOf(value: string, unit: string): number {
+  return unit === "rem" ? Number(value) : Number(value) / 16;
+}
+
+/** 规则里声明的最小字号（rem）；没有声明字号时返回 null。 */
+function minDeclaredFontSizeRem(body: string): number | null {
+  const sizes: number[] = [];
+  for (const match of body.matchAll(/\btext-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl)\b/gu)) {
+    sizes.push(TW_FONT_SIZE_REM[match[1]!]!);
+  }
+  for (const match of body.matchAll(/text-\[([\d.]+)px\]/gu)) {
+    sizes.push(Number(match[1]) / 16);
+  }
+  for (const match of body.matchAll(/font-size:\s*([\d.]+)(rem|px)/gu)) {
+    sizes.push(remOf(match[1]!, match[2]!));
+  }
+  for (const match of body.matchAll(/font-size:\s*clamp\(\s*([\d.]+)(rem|px)/gu)) {
+    sizes.push(remOf(match[1]!, match[2]!));
+  }
+  return sizes.length > 0 ? Math.min(...sizes) : null;
+}
+
+const SORA_RE = /font-title|font-display|var\(--font-title\)|var\(--font-display\)/u;
+const INTER_RE = /font-body|font-latin|var\(--font-sans\)|var\(--font-latin\)/u;
+
+/**
+ * Sora 的登记清单（字标 + 页面级大标题）。
+ *
+ * "登记"不是文档，是门禁：新增一个 Sora 消费点就会在这里红，逼着作者想清楚
+ * "这张卡片的标题真的需要 display 字体吗"。票 430 的答案是：18–20px 的卡片标题
+ * 与计数不需要 —— 它们改用 Inter，层级靠字号与字重表达，不靠换字体硬撑。
+ * Wordmark 的字体写在类名字符串里（`font-display`），不是 CSS 规则，所以它由
+ * 下面"字标仍然用 display 族"那条单独登记。
+ */
+const SORA_CONSUMER_REGISTRY = [
+  "frontend/app/assets/css/tailwind.css:.article-hero__title",
+  "frontend/app/assets/css/tailwind.css:.article-state__title",
+  "frontend/app/assets/css/tailwind.css:.page-title",
+  "frontend/app/assets/css/tailwind.css:.profile-hero-name",
+  "frontend/app/pages/collections/[id].vue:.collection-detail__title",
+  "frontend/app/pages/collections/index.vue:.collection-page__title",
+  "frontend/app/pages/index.vue:.home-cover__bracket",
+  "frontend/app/pages/index.vue:.home-cover__title",
+  "frontend/app/pages/projects/[id].vue:.project-detail__title",
+  "frontend/app/pages/projects/index.vue:.project-page__title",
+  "frontend/app/pages/studio/dashboard.vue:.overview__title",
+];
+
 /** 收集两端 `app/**` 与 Tailwind 配置里的字体 token 引用（全仓口径）。 */
 function fontTokenReferences(): { file: string; token: string }[] {
   const references: { file: string; token: string }[] = [];
@@ -271,18 +388,39 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
     expect(sans).toBe("var(--font-latin), var(--font-cjk)");
   });
 
-  it("大标题字距收到 -0.03em 一档（两端同值）", () => {
-    expect(declaration(tokensCss, "--type-tracking-title")).toBe("-0.03em");
-    expect(declaration(adminTokensCss, "--type-tracking-title")).toBe("-0.03em");
+  it("标题字距/行高按三档取 token（两端同值；旧单值只是后台消费的别名）", () => {
+    for (const token of [
+      "--type-tracking-lg",
+      "--type-leading-lg",
+      "--type-tracking-md",
+      "--type-leading-md",
+      "--type-tracking-sm",
+      "--type-leading-sm",
+    ]) {
+      expect(declaration(adminTokensCss, token), token).toBe(declaration(tokensCss, token));
+    }
   });
 
-  it("首屏标题 / 页面标题 / 区块标题 / 文章标题都取 display 族并走标题字距", () => {
+  it("首屏标题 / 页面标题仍是 display 族并走大档；区块/卡片标题改 Inter（票 430）", () => {
     expect(ruleBody(indexVue, ".home-cover__title")).toContain("font-family: var(--font-title)");
-    for (const selector of [".page-title", ".section-title", ".article-hero__title"]) {
+    for (const selector of [".page-title", ".article-hero__title", ".article-state__title", ".profile-hero-name"]) {
       const body = ruleBody(tailwindCss, selector);
 
       expect(body, selector).toContain("font-title");
-      expect(body, selector).toContain("tracking-title");
+      expect(body, selector).toContain("tracking-title-lg");
+      expect(body, selector).toContain("leading-title-lg");
+    }
+    for (const selector of [
+      ".section-title",
+      ".article-toc__title",
+      ".feed-entry__title",
+      ".empty-state__title",
+      ".comment-panel__title",
+    ]) {
+      const body = ruleBody(tailwindCss, selector);
+
+      expect(body, selector).toMatch(/font-body|font-latin|var\(--font-sans\)|var\(--font-latin\)/u);
+      expect(body, selector).not.toContain("font-title");
     }
   });
 
@@ -305,6 +443,70 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
     expect(stack.indexOf('"Inter"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
     expect(stack).not.toContain('"Sora"');
     expect(stack).not.toContain('"Noto Sans SC Fallback"');
+  });
+});
+
+describe("字体角色收口：Sora 只给字标与页面级大标题（票 430）", () => {
+  const rules = cssRules();
+  const soraRules = rules.filter((rule) => SORA_RE.test(rule.body));
+
+  it("Sora 消费点全部登记在册（新增一个就得来这里登记）", () => {
+    expect(new Set(soraRules.map((rule) => `${rule.file}:${rule.selector}`))).toEqual(
+      new Set(SORA_CONSUMER_REGISTRY),
+    );
+  });
+
+  it("Sora 不再出现在小字号：字号 ≤1.375rem 的规则一律不许用 display 族", () => {
+    const offenders = rules
+      .map((rule) => ({ rule, size: minDeclaredFontSizeRem(rule.body) }))
+      .filter(({ rule, size }) => size !== null && size <= 1.375 && SORA_RE.test(rule.body))
+      .map(({ rule, size }) => `${rule.file}:${rule.selector}（${size}rem）`);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("Sora 只出现在 ≥1.875rem（30px，display 档）的规则里", () => {
+    const offenders = soraRules
+      .map((rule) => ({ rule, size: minDeclaredFontSizeRem(rule.body) }))
+      .filter(({ size }) => size !== null && size < 1.875)
+      .map(({ rule, size }) => `${rule.file}:${rule.selector}（${size}rem）`);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("18–20px 的目录/条目/空态/评论标题与计数改 Inter（验收第 4 条）", () => {
+    for (const selector of [
+      ".article-toc__title",
+      ".feed-entry__title",
+      ".empty-state__title",
+      ".comment-panel__title",
+    ]) {
+      const rule = rules.find(
+        (candidate) =>
+          candidate.file === "frontend/app/assets/css/tailwind.css" &&
+          candidate.selector === selector,
+      );
+
+      expect(rule, selector).toBeDefined();
+      expect(rule!.body, selector).not.toMatch(SORA_RE);
+      expect(rule!.body, selector).toMatch(INTER_RE);
+    }
+    // 计数：作者卡的数字与仪表盘的 KPI 值同样不能是 Sora。
+    for (const selector of [".article-author__stat dd", ".profile-hero-metric__value"]) {
+      const rule = rules.find(
+        (candidate) =>
+          candidate.file === "frontend/app/assets/css/tailwind.css" &&
+          candidate.selector === selector,
+      );
+
+      expect(rule, selector).toBeDefined();
+      expect(rule!.body, selector).not.toMatch(SORA_RE);
+      expect(rule!.body, selector).toMatch(INTER_RE);
+    }
+  });
+
+  it("字标仍然用 display 族（不因卡片标题改 Inter 而顺带换掉）", () => {
+    expect(wordmarkVue).toMatch(/font-display|font-title/u);
   });
 });
 

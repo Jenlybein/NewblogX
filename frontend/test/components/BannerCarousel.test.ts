@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
@@ -268,6 +268,44 @@ describe("BannerCarousel：自动轮播", () => {
     wrapper.unmount();
   });
 
+  it("键盘焦点进入时暂停，移出后恢复（焦点路径与悬停同一口径）", async () => {
+    const wrapper = mountWith(6000);
+    const root = wrapper.get(".banner-stage");
+
+    await root.trigger("focusin");
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    await root.trigger("focusout");
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+
+    wrapper.unmount();
+  });
+
+  it("标签页切到后台时暂停，回到前台后重新计时", async () => {
+    const wrapper = mountWith(6000);
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+
+    try {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+      visibility = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+    } finally {
+      Reflect.deleteProperty(document, "visibilityState");
+      wrapper.unmount();
+    }
+  });
+
   it("手动点过圆点后重新计时：不会紧接着又被自动切走", async () => {
     const wrapper = mountWith(6000);
 
@@ -287,6 +325,286 @@ describe("BannerCarousel：自动轮播", () => {
 
     await vi.advanceTimersByTimeAsync(30000);
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
+  });
+});
+
+/**
+ * 换图交叉淡入（#432）。
+ *
+ * 只钉 DOM 契约：换图瞬间新旧两帧同存（新帧在前、旧帧挂 `is-leaving` 淡出），
+ * 过渡结束后旧帧被卸载。不钉像素、不钉过渡曲线实现。
+ */
+describe("BannerCarousel：换图交叉淡入", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mountStatic() {
+    return mount(BannerCarousel, {
+      props: { banners: banners as never, autoPlayInterval: 0 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("换图时新图出现、旧图以出场契约淡出，160ms 后旧帧卸载", async () => {
+    const wrapper = mountStatic();
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+
+    const frames = wrapper.findAll(".banner-photo");
+    expect(frames, "换图瞬间新旧两帧同存").toHaveLength(2);
+    // 新帧在 DOM 前部（叠在旧帧之上由它承载可见画面），旧帧标记出场。
+    expect(frames[0]!.get("img").attributes("src")).toContain("b2.png");
+    expect(frames[0]!.classes()).not.toContain("is-leaving");
+    expect(frames[1]!.get("img").attributes("src")).toContain("b1.png");
+    expect(frames[1]!.classes()).toContain("is-leaving");
+
+    // 交叉淡入是 160ms：差 1ms 旧帧还在，到点才卸载。
+    await vi.advanceTimersByTimeAsync(159);
+    expect(wrapper.findAll(".banner-photo")).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(wrapper.findAll(".banner-photo")).toHaveLength(1);
+    expect(wrapper.get(".banner-photo img").attributes("src")).toContain("b2.png");
+  });
+
+  it("过渡中途反向切换：回到旧图时它仍是当前帧，旧图淡出后只剩一张", async () => {
+    const wrapper = mountStatic();
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+    // 80ms 后（还没到 160ms）切回第 1 张。
+    await vi.advanceTimersByTimeAsync(80);
+    await wrapper.findAll(".banner-dot")[0]?.trigger("click");
+
+    expect(wrapper.get(".banner-photo img").attributes("src")).toContain("b1.png");
+
+    await vi.advanceTimersByTimeAsync(160);
+    expect(wrapper.findAll(".banner-photo")).toHaveLength(1);
+    expect(wrapper.get(".banner-photo img").attributes("src")).toContain("b1.png");
+  });
+
+  it("减少动态：换图直接切，不留出场帧", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const wrapper = mountStatic();
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+
+    expect(wrapper.findAll(".banner-photo")).toHaveLength(1);
+    expect(wrapper.get(".banner-photo img").attributes("src")).toContain("b2.png");
+  });
+});
+
+/**
+ * 播放 / 暂停控件（#432）。
+ *
+ * 读者能显式让轮播停下来：暂停期间不自动翻页、指针移开或标签页切回也不恢复；
+ * 按钮的 aria 文案随状态在「暂停轮播 / 继续轮播」之间切换。
+ */
+describe("BannerCarousel：播放/暂停控件", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mountPlaying(interval = 6000) {
+    return mount(BannerCarousel, {
+      props: { banners: banners as never, autoPlayInterval: interval },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("默认播放（标签为「暂停轮播」）；点击后暂停、不再自动翻页，再点恢复", async () => {
+    const wrapper = mountPlaying();
+    // 水合安全：`userPaused` 初始 true（按钮先显示「继续轮播」），挂载后非 reduce
+    // 才切回默认播放；等一次 nextTick 让初始渲染的更新落盘。
+    await nextTick();
+
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("暂停轮播");
+
+    await wrapper.get(".banner-playback").trigger("click");
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("继续轮播");
+
+    await vi.advanceTimersByTimeAsync(18000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    await wrapper.get(".banner-playback").trigger("click");
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("暂停轮播");
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+
+    wrapper.unmount();
+  });
+
+  it("暂停是显式的：指针移开不会把它偷偷恢复", async () => {
+    const wrapper = mountPlaying();
+    const root = wrapper.get(".banner-stage");
+
+    await wrapper.get(".banner-playback").trigger("click");
+    await vi.advanceTimersByTimeAsync(6000);
+    await root.trigger("mouseleave");
+    await vi.advanceTimersByTimeAsync(18000);
+
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("暂停期间手动切换仍生效，但不会因此重新开始自动翻页", async () => {
+    const wrapper = mountPlaying();
+
+    await wrapper.get(".banner-playback").trigger("click");
+    await wrapper.findAll(".banner-dot")[2]?.trigger("click");
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b3.png");
+
+    await vi.advanceTimersByTimeAsync(18000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b3.png");
+
+    wrapper.unmount();
+  });
+
+  it("减少动态：播放按钮禁用并说明原因，点击不改变暂停态、不排定时器", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const wrapper = mountPlaying();
+    await nextTick();
+
+    // 默认暂停：30 秒都不换图。
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    // spec 432：控件行提供播放/暂停切换 —— 减少动态下控件仍在，但禁用。
+    const playback = wrapper.get(".banner-playback");
+    expect(playback.attributes("aria-label")).toBe("已按系统偏好关闭自动轮播");
+    expect(playback.attributes("disabled")).toBeDefined();
+    expect(playback.attributes("aria-disabled")).toBe("true");
+
+    // 禁用态点击不启动自动播放：暂停态不变，也不排任何 interval。
+    expect(vi.getTimerCount()).toBe(0);
+    await playback.trigger("click");
+    expect(vi.getTimerCount()).toBe(0);
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe(
+      "已按系统偏好关闭自动轮播",
+    );
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("显式静态展示（间隔 ≤ 0）同样不摆按了没反应的播放控件", async () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: banners as never, autoPlayInterval: 0 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.find(".banner-playback").exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+});
+
+/**
+ * 预载下一张（#432）：空闲时用 `new Image()` 拉下一张封面，
+ * 不占首屏最大一张图的加载带宽，也不重复预载当前这张。
+ */
+describe("BannerCarousel：预载下一张", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** 假图片构造器：只记录被拉取的地址，不真的发请求。 */
+  function stubImageLoader(): string[] {
+    const loaded: string[] = [];
+    class FakeImage {
+      decoding = "";
+      set src(value: string) {
+        loaded.push(value);
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    // 让预载走 rAF 兜底（happy-dom 没有 requestIdleCallback 时同理）。
+    vi.stubGlobal("requestIdleCallback", undefined);
+    return loaded;
+  }
+
+  function mountStatic() {
+    return mount(BannerCarousel, {
+      props: { banners: banners as never, autoPlayInterval: 0 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("首屏主图加载时不抢跑：预载推迟到空闲回调，挂载当下不拉任何图", async () => {
+    const loaded = stubImageLoader();
+    const wrapper = mountStatic();
+
+    // 挂载即有下一张，但预载必须等空闲 —— 不跟首屏最大一张抢带宽。
+    expect(loaded).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(loaded).toContain("https://image.example.com/b2.png");
+    expect(loaded).not.toContain("https://image.example.com/b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("手动换图后跟着新的当前索引预载（始终只预载下一张）", async () => {
+    const loaded = stubImageLoader();
+    const wrapper = mountStatic();
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(loaded).toContain("https://image.example.com/b3.png");
+    expect(loaded).not.toContain("https://image.example.com/b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("只有一张时不预载（没有下一张可拉）", async () => {
+    const loaded = stubImageLoader();
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: banners.slice(0, 1) as never, autoPlayInterval: 0 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    await vi.advanceTimersByTimeAsync(20);
+    expect(loaded).toEqual([]);
 
     wrapper.unmount();
   });

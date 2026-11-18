@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import {
   darkTheme,
   NConfigProvider,
@@ -18,6 +18,8 @@ import tokensCss from "~/assets/css/tokens.css?raw";
 import CursorCharm from "~/components/deco/CursorCharm.vue";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
+import { beginThemeSwitch } from "~/utils/themeTransition";
+import { buildThemeColorMeta, parseThemeColorPalette } from "~/utils/themeColor";
 import { buildReaderThemeOverrides, parseReaderThemePalette, parseReaderThemeScale } from "~/utils/readerTheme";
 import {
   BRAND,
@@ -35,6 +37,10 @@ const ogImage = computed(() =>
   brandAbsoluteAssetUrl(String(runtimeConfig.public.siteUrl || ""), "og"),
 );
 
+// 状态栏颜色与页面底同源：亮暗两档都从 tokens.css 的 `--color-bg-page` 解析，
+// 不在这里抄第二份色值（门禁也不允许裸 hex）。head 与首屏脚本共用这一份。
+const themeColorPalette = parseThemeColorPalette(tokensCss);
+
 useHead(() => ({
   titleTemplate: (chunk?: string) => brandTitle(chunk),
   meta: [
@@ -51,6 +57,9 @@ useHead(() => ({
     { name: "twitter:title", content: brandFullName() },
     { name: "twitter:description", content: BRAND.description },
     { name: "twitter:image", content: ogImage.value },
+    // 随站点主题（不是只看系统偏好）切换移动端状态栏；tagPriority 把它排到
+    // 下面的首屏脚本之前，脚本才能在水合前原地改写它。
+    buildThemeColorMeta(uiStore.theme, themeColorPalette),
   ],
   link: [
     {
@@ -94,7 +103,7 @@ useHead(() => ({
   // 首屏前置脚本：SSR 只认得 cookie、看不到系统偏好。没有 cookie 的新访客若系统是暗色，
   // 服务端会先渲染浅色、水合后才变暗（闪白）。这段脚本在水合前把根类钉成最终值，
   // 颜色由 CSS 变量瞬间生效，不改字号/间距。
-  script: [{ key: "jelly-theme-init", innerHTML: buildThemeInitScript() }],
+  script: [{ key: "jelly-theme-init", innerHTML: buildThemeInitScript(themeColorPalette) }],
   // 无 JS（或脚本被拦）时兜底：入场动画/区块进场的 initial 会把元素内联成 opacity:0，
   // 这条 noscript 样式用 !important 盖过内联样式，保证内容仍然可读 ——
   // 博客内容不能因为动效在 JS 之前就凭空消失。
@@ -112,6 +121,14 @@ useHead(() => ({
 const readerThemeScale = parseReaderThemeScale(tokensCss);
 const themeOverrides = computed<GlobalThemeOverrides>(() =>
   buildReaderThemeOverrides(parseReaderThemePalette(tokensCss, uiStore.theme), readerThemeScale),
+);
+
+// 明暗切换同帧（票 428）：切换那一帧给根挂 `.theme-switching`，CSS 把全站颜色
+// 过渡关掉 —— 纸面、结构线、玻璃在同一帧换完，不出现半明半暗的双色调瞬间。
+// 两帧后守卫自己摘掉（规则与理由见 utils/themeTransition.ts）。
+watch(
+  () => uiStore.theme,
+  () => beginThemeSwitch(),
 );
 </script>
 

@@ -129,3 +129,53 @@ describe("HomeFeedSection：最新文章 + 分级淡入", () => {
     expect(wrapper.find(".empty-state").exists()).toBe(false);
   });
 });
+
+/**
+ * 翻页不重播（#433）。
+ *
+ * 读者反馈：点"下一页"之后整批条目又从 opacity:0 逐条错峰入场，等于每次翻页都要
+ * 等半秒。规则是**首次进入该区块只播一次**，用组件内的"已入场"标记判定（不落
+ * session 存储）：批次换了就是"新一批直接出现"，入场 props 归零且没有隐藏初态。
+ *
+ * 断言走两个可观察面：列表容器上的 `data-entrance`（stagger / instant）与 Motion
+ * 收到的 duration / delay —— 不断言像素。
+ */
+describe("HomeFeedSection：翻页不重播", () => {
+  function entrance(wrapper: ReturnType<typeof mountFeed>) {
+    return wrapper.get('[data-role="feed-list"]').attributes("data-entrance");
+  }
+
+  it("首批仍逐条错峰入场，翻页后新一批直接出现（入场标记只播一次）", async () => {
+    const wrapper = mountFeed({ articles: [makeArticle(), makeArticle({ id: "a2" })] });
+
+    expect(entrance(wrapper)).toBe("stagger");
+    expect(wrapper.findAll(".motion-stagger-item")[1]?.attributes("data-motion-delay")).toBe("0.04");
+
+    await wrapper.setProps({
+      articles: [
+        makeArticle({ id: "a3", title: "第二页第一篇" }),
+        makeArticle({ id: "a4", title: "第二页第二篇" }),
+      ],
+    });
+
+    expect(entrance(wrapper)).toBe("instant");
+    expect(wrapper.get('[data-role="feed-list"]').text()).toContain("第二页第一篇");
+    expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-duration"))).toEqual([
+      "0",
+      "0",
+    ]);
+    expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-delay"))).toEqual([
+      "0",
+      "0",
+    ]);
+  });
+
+  it("空批次（加载中）不消耗入场：数据首次到达仍播一次 stagger", async () => {
+    const wrapper = mountFeed({ articles: [], pending: true });
+
+    await wrapper.setProps({ articles: [makeArticle()], pending: false });
+
+    expect(entrance(wrapper)).toBe("stagger");
+    expect(wrapper.get(".motion-stagger-item").attributes("data-motion-delay")).toBe("0");
+  });
+});

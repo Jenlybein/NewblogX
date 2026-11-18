@@ -20,9 +20,9 @@
     font-family: var(--font-sans);
     color: var(--color-ink);
     background: var(--color-bg-page);
-    transition:
-      color var(--motion-base) var(--motion-ease),
-      background-color var(--motion-base) var(--motion-ease);
+    /* 主题同帧（票 428）：body 不再自己渐变。明暗切换是整页瞬时 —— 切换那一帧
+     * 根上的 .theme-switching 关掉全站过渡（见下），纸面与结构线同一帧换完；
+     * 只让 body 渐变 200ms 会造成"底在渐变、面/线已经跳变"的双色调瞬间。 */
   }
 
   /* 水合前首屏脚本会先在 html 上钉 theme-dark（防闪白）；这里保证那一刻
@@ -30,6 +30,17 @@
   html.theme-dark body {
     color: var(--color-ink);
     background: var(--color-bg-page);
+  }
+
+  /* 明暗切换的同一帧守卫（票 428）：切换时站点给根临时挂上 .theme-switching，
+   * 这一帧内全站颜色过渡全部关闭 —— 纸面、结构线、玻璃、按钮在同一帧换完，
+   * 不会出现各处面按自己的 120/150/200ms 各走各的。两帧后由
+   * `app/utils/themeTransition.ts` 摘掉这个类，hover 等过渡随即恢复。 */
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: none !important;
   }
 
   a {
@@ -47,7 +58,8 @@
     @apply rounded-card border;
     background: var(--color-surface);
     border-color: var(--color-line);
-    box-shadow: 0 24px 60px var(--color-shadow);
+    /* 内容卡只贴边：1px 偏移的发丝影（票 428）。大影只属于浮层。 */
+    box-shadow: var(--shadow-card);
   }
 
   .surface-card--strong {
@@ -70,7 +82,7 @@
   }
 
   .page-title {
-    @apply text-3xl font-title font-semibold tracking-title md:text-4xl;
+    @apply text-3xl font-title font-semibold tracking-title-lg leading-title-lg md:text-4xl;
   }
 
   .glass-badge {
@@ -83,7 +95,9 @@
   }
 
   .section-title {
-    @apply text-xl font-title font-semibold tracking-title md:text-2xl;
+    /* 20px / 24px 的区块标题：票 430 起改 Inter（Sora 只留给页面级大标题与字标），
+       字距落小档、md 抬到中档。 */
+    @apply text-xl font-body font-semibold tracking-title-sm leading-title-sm md:text-2xl md:tracking-title-md md:leading-title-md;
   }
 
   .line-divider {
@@ -115,6 +129,19 @@
   .feed-entry:hover,
   .feed-entry:focus-within {
     border-color: var(--color-line-strong);
+  }
+
+  /* 悬停回应（票 429）：鼠标扫过条目卡时只给"纸面被指到"的一点回应 ——
+   * 底色取语义 token `--color-hover-surface`（token 层是发丝线 30% 混纸面的等值实色，
+   * 明暗各一份，实际纸面差 ≤3%），加 1px 上移；不加重阴影（票 428 的层级不被回退）。
+   *
+   * **只放在 `(hover: hover)` 里**：触屏没有 hover，sticky hover 会让点过的卡片
+   * 一直亮着。键盘聚焦仍由上面的 `:focus-within` 描边负责，不需要位移。 */
+  @media (hover: hover) {
+    .feed-entry:hover {
+      background-color: var(--color-hover-surface);
+      transform: translateY(-1px);
+    }
   }
 
   .feed-entry__cover {
@@ -167,7 +194,8 @@
   }
 
   .feed-entry__title {
-    @apply block font-title leading-title tracking-title text-ink;
+    /* 20px 条目标题：Inter + 小档（0 / 1.35）。中文标题在负字距下会贴死，票 430 收口。 */
+    @apply block font-body tracking-title-sm leading-title-sm text-ink;
     font-size: 1.25rem;
   }
 
@@ -636,9 +664,12 @@
   }
 
   .article-reading-progress__fill {
-    @apply block h-full;
+    @apply block h-full w-full;
+    /* 票 433：进度跟手 —— 用合成层的 `transform: scaleX` 而不是 `width` 补间。
+       组件按百分比内联写 scaleX，原点在左边中点，缩放永远以整条轨道为基准；
+       原来 200ms 的宽度过渡退场，滚动时显示的就是当下的位置，不再"追着跑"。 */
+    transform-origin: 0 50%;
     background: var(--color-ink);
-    transition: width var(--motion-base) var(--motion-ease);
   }
 
   .article-toc {
@@ -650,7 +681,8 @@
   }
 
   .article-toc__title {
-    @apply col-start-1 font-title text-[18px] leading-title tracking-title text-ink md:text-[20px];
+    /* 18–20px 的目录标题：Inter + 小档（验收：这两档不许再用大标题字距）。 */
+    @apply col-start-1 font-body text-[18px] leading-title-sm tracking-title-sm text-ink md:text-[20px];
   }
 
   .article-toc__progress {
@@ -777,7 +809,7 @@
   }
 
   .empty-state__title {
-    @apply mt-1 text-lg font-title tracking-title text-ink;
+    @apply mt-1 text-lg font-body tracking-title-sm leading-title-sm text-ink;
   }
 
   .empty-state__body {
@@ -820,7 +852,9 @@
   }
 
   .article-paper--body {
-    @apply p-5 md:p-8;
+    /* 与 `.article-hero` / `.article-paper--state` 同一水平内边距（票 430）：
+       摘要/状态文案与正文因此共享同一条左边线，窄屏（p-5 vs p-6）不再错开 4px。 */
+    @apply p-6 md:p-8;
   }
 
   .article-eyebrow {
@@ -841,11 +875,12 @@
   }
 
   .article-hero__title {
-    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink md:text-[2.6rem];
+    @apply mt-3 font-title text-3xl leading-title-lg tracking-title-lg text-ink md:text-[2.6rem];
   }
 
   .article-hero__abstract {
-    @apply mt-4 max-w-[68ch] text-base leading-prose text-ink-muted;
+    /* 票 430：摘要不再自写 68ch，与正文共用 --type-measure，左边缘同一条线。 */
+    @apply mt-4 max-w-measure text-base leading-prose text-ink-muted;
   }
 
   .article-hero__taxonomy {
@@ -1040,16 +1075,18 @@
   /* 正文行宽 = 排版 token `--type-measure`（具体数值只在 tokens.css 里写一次）；
    * shadow 内的正文继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
   .article-body {
-    @apply mx-auto w-full;
+    /* 票 430：不再 mx-auto 居中 —— 正文、摘要、状态文案从同一条左边线开始排；
+       行宽上限仍只来自 tokens.css 的 --type-measure。 */
+    @apply w-full;
     max-width: var(--type-measure);
   }
 
   .article-state__title {
-    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink;
+    @apply mt-3 font-title text-3xl leading-title-lg tracking-title-lg text-ink;
   }
 
   .article-state__copy {
-    @apply mt-4 max-w-[68ch] text-sm leading-prose text-ink-muted;
+    @apply mt-4 max-w-measure text-sm leading-prose text-ink-muted;
   }
 
   .article-state__actions {
@@ -1073,7 +1110,7 @@
   }
 
   .article-author__name {
-    @apply truncate font-title text-[22px] leading-title tracking-title text-ink;
+    @apply truncate font-body text-[22px] leading-title-md tracking-title-md text-ink;
   }
 
   /* 头像 / 昵称 / @id 三个入口（2026-11-12）：整张卡原来没有一处能点进作者主页。
@@ -1158,7 +1195,7 @@
   }
 
   .article-author__stat dd {
-    @apply m-0 mt-1 font-title text-xl leading-none tracking-title text-ink;
+    @apply m-0 mt-1 font-body text-xl leading-title-sm tracking-title-sm text-ink;
   }
 
   .article-author__actions {
@@ -1174,7 +1211,7 @@
   }
 
   .comment-panel__title {
-    @apply m-0 font-title text-xl leading-title tracking-title text-ink;
+    @apply m-0 font-body text-xl leading-title-sm tracking-title-sm text-ink;
   }
 
   .comment-panel__count {
@@ -1245,13 +1282,17 @@
     width: min(92vw, 640px);
     max-height: 60dvh;
     overflow-y: auto;
-    padding: 0.5rem 1rem 1rem;
+    /* 面板内滚到底不把整页带着滚（spec 423 第 3 批第 19 条）：读者不会丢阅读位置。 */
+    overscroll-behavior: contain;
+    /* 底部避让 iPhone 的 Home 指示条：安全区叠加在常规内边距上，不是替换。 */
+    padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
     border: 1px solid var(--color-line);
     border-bottom: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     background: var(--color-surface);
     box-shadow: 0 -16px 40px var(--color-shadow);
-    /* 时长走 token（三层预算的 slow 档）：减少动态时 token 归零，无需另写覆盖。 */
+    /* 进场时长走 token（slow 档）；退场由组件写内联 transition（fast 档），
+       减少动态时 token 归零且组件直接卸载，不靠一个不会来的 transitionend。 */
     animation: comment-sheet-rise var(--motion-slow) var(--motion-ease);
   }
 
@@ -1265,12 +1306,36 @@
     }
   }
 
+  /* 把手命中区：视觉条只有 4px 高，但可拖区域做成 28px 高，手机上不用瞄准。 */
+  .comment-sheet__handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    margin: 0.25rem auto 0.5rem;
+    cursor: grab;
+    /* 拖把手时不要被浏览器的纵向滚动接管（否则手势变成滚页面）。 */
+    touch-action: none;
+    user-select: none;
+  }
+
+  .comment-sheet__handle:active {
+    cursor: grabbing;
+  }
+
   .comment-sheet__grabber {
     width: 2.5rem;
     height: 4px;
-    margin: 0.25rem auto 0.5rem;
     border-radius: var(--radius-pill);
     background: var(--color-line-strong);
+  }
+
+  /* 拖拽 / 弹回 / 退场时停掉进场 keyframes：否则打开后 320ms 内关闭会"先升一下再跳"。
+     这里的动画只有"停掉"这一种用法，真正的进场在 .comment-sheet__panel 上。 */
+  .comment-sheet__panel--dragging,
+  .comment-sheet__panel--settling,
+  .comment-sheet__panel--leaving {
+    animation: none;
   }
 
   .comment-sheet__close {
@@ -1639,7 +1704,7 @@
   }
 
   .profile-hero-name {
-    @apply text-3xl font-title leading-title tracking-title text-ink md:text-4xl;
+    @apply text-3xl font-title leading-title-lg tracking-title-lg text-ink md:text-4xl;
   }
 
   .profile-hero-abstract {
@@ -1669,7 +1734,7 @@
   }
 
   .profile-hero-metric__value {
-    @apply text-xl font-title leading-none text-ink;
+    @apply text-xl font-body leading-title-sm tracking-title-sm text-ink;
   }
 
   .profile-hero-metric__label {
@@ -1884,8 +1949,8 @@
    * 一块独立的深色圆角块，两侧留干净的间隙（原来那条把三者连起来的颈部已整体退役）。
    * 圆角只在敞口一侧给（张开的接缝旁 / 控件两端），闭合接缝旁必须是 0：否则相邻两段的
    * 圆角会在贴合处啃出缺口，整条读成"五个胶囊"。
-   * 段位 margin-left 与四角圆角由组件的同一组弹簧驱动 —— 这是全站唯一允许布局属性
-   * 动画的地方，仅限这条 ≤5 个节点（ADR-0011 后续修订 2026-11-07）；
+   * 段位 margin-left 与四角圆角由组件的同一组弹簧驱动 —— 这是 ADR-0011 约束 9
+   * 登记的两处布局属性例外之一（`margin-left` 接缝），仅限这条 ≤5 个节点；
    * 颜色过渡仍走 CSS 的三档时长与单一缓动，弹簧不替代它。 */
   .message-center__header {
     @apply flex items-end justify-between gap-3;
@@ -1968,12 +2033,6 @@
 
   .message-center-toolbar {
     @apply flex flex-wrap items-center justify-between gap-3;
-  }
-
-  .message-center-confirm {
-    @apply mt-3 flex flex-wrap items-center justify-between gap-3 rounded-field border px-4 py-3 text-sm;
-    background: var(--color-danger-soft);
-    border-color: var(--color-danger-line);
   }
 
   .message-list {
@@ -2316,6 +2375,11 @@
   .blueprint-link {
     transition: none;
   }
+
+  /* 条目卡悬停的 1px 位移同样归零；纸面底色回应保留（它不是动效）。 */
+  .feed-entry:hover {
+    transform: none;
+  }
 }
 
 /* ============================================================================
@@ -2356,23 +2420,34 @@ html {
   background: var(--glass-thin-fill);
   -webkit-backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
   backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
-  box-shadow: 0 18px 44px -20px var(--color-shadow);
+  /* 两档各有自己的抬升影（票 428）：thin 贴面，thick 在下面的块里换成更厚的一档。 */
+  box-shadow: var(--shadow-glass-thin);
+  /* 两档的边缘带 / 内侧高光（票 428）：thick 在下面的块里换成更亮、更大的那一档。
+   * 这一层只影响伪元素，不改布局。 */
+  --glass-rim-tone: var(--glass-thin-rim);
+  --glass-edge-opacity: var(--glass-thin-edge-opacity);
+  --glass-specular-size: var(--glass-thin-specular-size);
   /* ָ�뾵���Ĭ��ʵ�֣�Բ������ --mx/--my��usePointerSpecular д�룩��
    * ��Ҫ�ر�ʱ���ƶ��� / ���ٶ�̬ / ����͸���ȣ��������Զ��������ó� none�� */
   --glass-specular: radial-gradient(
-    240px circle at var(--mx, 50%) var(--my, 0%),
-    var(--glass-rim),
+    var(--glass-specular-size) circle at var(--mx, 50%) var(--my, 0%),
+    var(--glass-rim-tone),
     transparent 62%
   );
   /* �̶����α�Ե��һ�����϶��µ�ů�� + ��������߹⣬��"����"һ��ͳһ��Դ�� */
   --glass-rim-layer: linear-gradient(180deg, var(--glass-rim-warm), transparent 42%),
-    linear-gradient(90deg, var(--glass-rim), transparent 20%, transparent 80%, var(--glass-rim));
+    linear-gradient(90deg, var(--glass-rim-tone), transparent 20%, transparent 80%, var(--glass-rim-tone));
 }
 
 .glass-thick {
   background: var(--glass-thick-fill);
   -webkit-backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
   backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
+  /* 厚材料：阴影偏移/模糊更大、内侧 1px 高光更亮、指针镜面更大 —— 大面板读得出"更厚"。 */
+  box-shadow: var(--shadow-glass-thick);
+  --glass-rim-tone: var(--glass-thick-rim);
+  --glass-edge-opacity: var(--glass-thick-edge-opacity);
+  --glass-specular-size: var(--glass-thick-specular-size);
 }
 
 /* 1px �����Ե�������� border box �ڲ��һȦ��mask ���м��ڿա� */
@@ -2388,8 +2463,8 @@ html {
     var(
       --glass-specular,
       radial-gradient(
-        240px circle at var(--mx, 50%) var(--my, 0%),
-        var(--glass-rim),
+        var(--glass-specular-size) circle at var(--mx, 50%) var(--my, 0%),
+        var(--glass-rim-tone),
         transparent 62%
       )
     ),
@@ -2403,7 +2478,8 @@ html {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  opacity: 0.85;
+  /* 两档的内侧 1px 高光亮暗由各自的 --glass-edge-opacity 决定（票 428）。 */
+  opacity: var(--glass-edge-opacity);
 }
 
 /* ���㣺���� feTurbulence��ѹסģ������� 8-bit ɫ�״��� */
@@ -2543,7 +2619,8 @@ html {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  box-shadow: 0 18px 44px var(--color-shadow);
+  /* 浮层（下拉面板）才用 --shadow-lg：它要离开纸面，内容卡不许用这一档。 */
+  box-shadow: var(--shadow-lg);
 }
 
 .chip-select__chips {
@@ -3308,10 +3385,11 @@ html {
 .activity-heatmap__title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .activity-heatmap__subtitle {
@@ -3509,11 +3587,12 @@ html {
   gap: 0.25rem;
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   white-space: nowrap;
 }
 
@@ -3692,4 +3771,124 @@ html {
 .favorite-chooser-row__toggle:disabled {
   cursor: progress;
   opacity: 0.6;
+}
+
+/* ============================================================================
+ * 按下态（票 427）：自绘可点面统一回弹（spec 423 第 1 批第 1 条）
+ *
+ * 问题：全站自绘可点面在 pointer-down 那一刻什么都不发生，反馈要等到松手后的
+ * hover 变色 —— 这是"手感发木"最大的单一来源。按下瞬间缩一档、松手弹回，
+ * 点击才"有回应"。
+ *
+ * 三条纪律：
+ *   1. **只缩放、不换色**：颜色反馈仍归各控件自己的 hover / 选中态，以及 Naive
+ *      按钮组件库的 pressed 主题；
+ *   2. **取值只走 token**：时长 `var(--motion-fast)`、缓动 `var(--motion-ease)`，
+ *      不写裸毫秒/曲线，也不新增裸色值；
+ *   3. **不放进 `@media (hover: hover)`**：按下不是悬停效果，`(hover: none)` 的
+ *      触屏也要有。减少动态下位移归零、改走底色/描边（见下面同一个规则里的 reduce 覆盖）。
+ *
+ * 词表**只写一处**（票 437 评审）：下面 `:is(...)` 里那份列表就是唯一一份选择器表，
+ * `:active` 与 reduce 覆盖用 `&` 嵌套在同一个规则里（由 Tailwind 的
+ * `tailwindcss/nesting` 展开）。新增一个自绘可点面（按钮 / 页签 / 条目卡 / 卡片内
+ * 动作）只需要在这个列表里加一个类名，三条规则自动跟上；测试也从这份列表解析词表，
+ * 不再维护第四份名单。
+ *
+ * 轮播箭头/圆点是 BannerCarousel.vue 的 scoped 类，全局再声明同名类会撞
+ * `global-class-collision` 门禁（组件没声明的属性会被全局补齐），所以它们的按下态
+ * 写在组件自己的样式块里，取值与本词表同一档。
+ * ========================================================================== */
+
+/* 基态：登记 transform 过渡（松手才回弹）。CSS 没有「追加过渡」语法，所以这里
+   把按下/hover 用到的颜色与透明度属性一并写进同一条 transition —— 只写 transform
+   会整条覆盖掉各控件原有的过渡，hover 反馈反而退化成瞬变。
+
+   **这一段必须留在文件末尾**：词表里不少类在后面还有自己的定义，同特异性下靠后的
+   `transition` 会整条覆盖这里（例如 `.favorite-chooser-row` 只写 background-color，
+   后定义就把 transform 吃掉，按下能缩、松手瞬跳）。位置由 `press-feedback.test.ts`
+   的「词表位置」用例钉住。 */
+:is(
+  .blueprint-tab,
+  .soft-tab,
+  .search-result-tab,
+  .settings-tabs__tab,
+  .message-center-tab,
+  .article-action,
+  .article-actions-bar__button,
+  .comment-action,
+  .comment-page-button,
+  .comment-capsule,
+  .comment-sheet__close,
+  .profile-category-action,
+  .studio-filter-chip,
+  .studio-sidebar__link,
+  .studio-sidebar__profile-link,
+  .activity-heatmap__cell,
+  .studio-article-row__action,
+  .studio-folder-card__open,
+  .article-grid-card__action,
+  .message-row__delete,
+  .favorite-chooser-row__toggle,
+  .chip-select__trigger,
+  .chip-select__chip,
+  .chip-select__clear,
+  .feed-entry,
+  .article-grid-card,
+  .studio-folder-card,
+  .studio-article-row,
+  .profile-folder-card,
+  .profile-category-card,
+  .favorite-chooser-row,
+  .studio-chat-session
+) {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+
+  /* 按下：全站统一一档（只缩放，不换色）。 */
+  &:active {
+    transform: scale(0.97);
+  }
+
+  /* 减少动态：位移归零（不是"慢慢缩"），但按下反馈不能整段失效 ——
+   * 自绘面改走底色 + 描边；Naive 按钮保留组件库自己的 pressed 颜色反馈。 */
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      transform: none;
+      background-color: var(--color-bg-subtle);
+      border-color: var(--color-line-strong);
+    }
+  }
+}
+
+/* Naive 按钮（NButton，含弹窗里的次按钮）：颜色反馈由组件库自带的 :active /
+ * pressed 主题负责，这里只补同一档缩放与 transform 过渡 —— **不再抄组件库的
+ * color / background-color / border-color / opacity 时长**（上一版把它们统一改成
+ * `--motion-slow` 并抬到 (0,2,0)，等于替组件库决定了它自己的过渡；组件库升级一次
+ * 就静默漂移成另一种速度，票 437 评审）。
+ *
+ * 代价说明：CSS 没有「追加一条 transition」的语法，要让 transform 有过渡必须整条
+ * 重写 `transition`，所以组件库根节点上的颜色过渡会被这条替换成瞬间切换（边框色的
+ * 过渡在 `.n-button__border` 子元素上，不受影响）。这是刻意的取舍：宁可不重写组件库
+ * 的时长，也不让升级后的按钮手感和设计 token 各说各话。
+ *
+ * 为什么写两遍类名：组件库的 `.n-button { transition: ... }` 是 css-render 运行时
+ * 注入的，顺序可能排在本文件之后；同特异性下后者会整条吃掉 transform 这一档，
+ * 按下能缩、松手瞬跳。特异性 (0,2,0) 刚好压过组件库的 (0,1,0)，不多抬。 */
+.n-button.n-button {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.n-button:active {
+  transform: scale(0.97);
+}
+
+/* 减少动态：位移归零，颜色反馈留给组件库。 */
+@media (prefers-reduced-motion: reduce) {
+  .n-button:active {
+    transform: none;
+  }
 }

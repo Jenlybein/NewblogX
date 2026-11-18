@@ -185,7 +185,10 @@ describe("ArticleTocAnchor：轨道叠在 naive 锚点之上", () => {
     const wrapper = mountToc({ progressPercent: 42 });
 
     expect(wrapper.get("[role='progressbar']").attributes("aria-valuenow")).toBe("42");
-    expect(wrapper.get(".article-reading-progress__fill").attributes("style")).toContain("42%");
+    // #433：宽度改 `scaleX`（合成层、跟手），不再内联 width 百分比。
+    const fillStyle = wrapper.get(".article-reading-progress__fill").attributes("style") ?? "";
+    expect(fillStyle).toContain("scaleX(0.42)");
+    expect(fillStyle).not.toMatch(/width/u);
     expect(wrapper.text()).toContain("42%");
   });
 
@@ -289,6 +292,30 @@ describe("ArticleTocAnchor：减少动态", () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+});
+
+describe("ArticleTocAnchor：阅读进度跟手（#433）", () => {
+  it("填充走 transform: scaleX(百分比/100)，不再内联 width", () => {
+    const wrapper = mountToc({ progressPercent: 42 });
+
+    const fillStyle = wrapper.get(".article-reading-progress__fill").attributes("style") ?? "";
+    expect(fillStyle).toContain("scaleX(0.42)");
+    expect(fillStyle).not.toMatch(/width/u);
+  });
+
+  it("样式表：transform-origin 在左边中点，且没有宽度补间（滚动时跟手，不追着跑）", () => {
+    const css = readFileSync(join(process.cwd(), "app/assets/css/tailwind.css"), "utf8");
+    const block = blockAfter(css, ".article-reading-progress__fill {");
+
+    expect(block).toContain("transform-origin: 0 50%");
+    // 内联 transform 之外仍要有满宽基准，缩放才是相对整条轨道。
+    expect(block).toContain("w-full");
+    // 200ms 的宽度补间退场：进度在滚动时就该是当下的位置。
+    expect(block).not.toContain("--motion-base");
+    expect(block).not.toMatch(/transition:\s*(?:width|transform)/u);
+    expect(block).not.toMatch(/^\s*width:/mu);
+    expect(block).toContain("var(--color-ink)");
   });
 });
 

@@ -53,13 +53,16 @@ const count = computed(() => views.value.length);
 </template>
 
 <style scoped>
-/* 置顶卡是"编号 + 标题 + 摘要 + 出处"的图纸条目；三档列数由模板里的 grid 控制。 */
+/* 置顶卡是"编号 + 标题 + 摘要 + 出处"的图纸条目；三档列数由模板里的 grid 控制。
+ * 圆角取卡片阶梯（票 429）：网格在 blueprint-panel 里，面板自己是 20px 圆角，
+ * 里面的卡若还是直角就会"咬"住面板的圆边，读起来像卡没做完。同一档 = 同轴曲率。 */
 .home-pinned-card {
   display: flex;
   min-height: 168px;
   flex-direction: column;
   gap: 0.5rem;
   border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   padding: 1rem;
 }
@@ -69,7 +72,7 @@ const count = computed(() => views.value.length);
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: var(--type-tracking-title);
+  letter-spacing: var(--type-tracking-md);
   color: var(--color-line-strong);
 }
 

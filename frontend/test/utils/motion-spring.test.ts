@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MOTION_JUMP_TRANSITION,
+  SPRING_LAUNCHER_SETTLE,
   SPRING_NECK,
   SPRING_PRESETS,
   SPRING_TRAVEL,
@@ -10,7 +11,7 @@ import {
 } from "~/utils/motion";
 
 /**
- * 弹簧预设与「要么弹簧、要么立即落位」的解析（ADR-0011 后续修订 2026-11-07，
+ * 弹簧预设与「要么弹簧、要么立即落位」的解析（ADR-0011 约束 9，
  * grill 记录 §三 3.8 / 3.9）。
  *
  * 这里测的是可观察的**取值约定**与**解析结果的行为**，不是动画怎么写：
@@ -24,14 +25,30 @@ import {
  */
 
 describe("弹簧预设：三组、集中一处、组件改不动", () => {
-  it("预设齐全（飞行器位移 / 转向 / 分段条接缝 / 首屏尾迹头尾两档 / 像素激活弹跳）", () => {
-    expect(Object.keys(SPRING_PRESETS).sort()).toEqual(["neck", "pixelGlow", "pixelPop", "trail", "trailTail", "travel", "turn"]);
+  it("预设齐全（飞行器位移 / 转向 / 分段条接缝 / 首屏尾迹头尾两档 / 像素激活弹跳 / 捏捏松手落位）", () => {
+    expect(Object.keys(SPRING_PRESETS).sort()).toEqual([
+      "launcherSettle",
+      "neck",
+      "pixelGlow",
+      "pixelPop",
+      "trail",
+      "trailTail",
+      "travel",
+      "turn",
+    ]);
   });
 
   it("分组名字与预设对象一一对应（不靠调用点各自持有一份副本）", () => {
     expect(SPRING_PRESETS.travel).toBe(SPRING_TRAVEL);
     expect(SPRING_PRESETS.turn).toBe(SPRING_TURN);
     expect(SPRING_PRESETS.neck).toBe(SPRING_NECK);
+    expect(SPRING_PRESETS.launcherSettle).toBe(SPRING_LAUNCHER_SETTLE);
+  });
+
+  it("launcherSettle 是捏捏松手落位那组：近临界阻尼，余劲只回弹一小段", () => {
+    // ζ = c / (2√(k·m)) ≈ 0.85、ω ≈ 22 rad/s：松手速度被弹簧吃掉后约 0.2–0.3s 归位，
+    // 峰值偏移只有几像素 —— 不是"放慢的过渡"，也不是会荡好几下的橡皮筋。
+    expect(SPRING_LAUNCHER_SETTLE).toEqual({ stiffness: 500, damping: 38, mass: 1 });
   });
 
   it("travel / turn / neck 的取值就是登记过的那三组（grill §3.8）", () => {

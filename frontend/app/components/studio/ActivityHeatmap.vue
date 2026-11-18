@@ -16,12 +16,14 @@
  */
 import { computed, ref } from 'vue'
 
+import { siteDateKey } from '~/utils/format'
+
 const props = withDefaults(defineProps<{
   /** 稀疏的每日计数：key 是 `YYYY-MM-DD`，没有的日期按 0 处理。 */
   activity: Record<string, number>
   /** 覆盖天数（默认 91 = 13 周）。 */
   days?: number
-  /** "今天"；不传用本地时间。测试里传固定值才能断言网格。 */
+  /** "今天"；不传用当前时刻（仍按站点时区切天）。测试里传固定值才能断言网格。 */
   today?: Date
 }>(), {
   days: 91,
@@ -29,22 +31,14 @@ const props = withDefaults(defineProps<{
 })
 
 /**
- * 把日期格式化成 `YYYY-MM-DD`，**按东八区**。
+ * 把日期格式化成 `YYYY-MM-DD`，**按站点时区**（`utils/format.ts` 的 `SITE_TIME_ZONE`）。
  *
- * 后端按 Asia/Shanghai 切天（见 clickhouse.CountDailyStudioActivity）。这里如果
- * 用浏览器本地时区，非 +08 的读者会看到整列错位一天 —— 热力图最忌讳"我的今天
- * 显示成昨天"。
+ * 后端按 Asia/Shanghai 切天（见 clickhouse.CountDailyStudioActivity），热力图必须与它
+ * 同一口径；此前这里自建了一份 `en-CA` + `Asia/Shanghai` 的 formatter，等于第三份
+ * 时区口径。现在只调 `siteDateKey`，时区常量与日历日算法全仓只有一处。
  */
-const DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Shanghai',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
-
 function dayKey(date: Date): string {
-  // en-CA 的日期格式恰好是 YYYY-MM-DD，不用自己拼。
-  return DAY_FORMATTER.format(date)
+  return siteDateKey(date)
 }
 
 /**

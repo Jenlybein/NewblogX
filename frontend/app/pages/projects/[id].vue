@@ -18,6 +18,9 @@ import { projectOutlineView } from "~/utils/project";
  * 未展示的项目后端按**不存在**返回错误：这里把错误渲染成中性空态，而不是
  * "0 篇文章"——后者会让读者以为项目是空的，也容易把内部状态说破。
  * 树里的失效行后端已过滤；封面回退由后端算好，前端不另写一份。
+ *
+ * 地标口径（票 434）：详情页与列表页共用 default 布局，页面内不再自带 main，
+ * 全站唯一的正文地标在布局层。
  */
 const route = useRoute();
 const projectId = computed(() => String(route.params.id ?? ""));
@@ -49,7 +52,7 @@ const emptyDescription = computed(() =>
 </script>
 
 <template>
-  <main id="main-content" class="page-shell project-detail">
+  <section class="page-shell project-detail">
     <header class="project-detail__header">
       <NuxtLink to="/projects" class="project-detail__back">← 返回项目</NuxtLink>
 
@@ -76,7 +79,7 @@ const emptyDescription = computed(() =>
       :pending="pending"
       size="lg"
     />
-  </main>
+  </section>
 </template>
 
 <style scoped>
@@ -107,9 +110,9 @@ a.project-detail__back:hover {
   margin: 0 0 0.75rem;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.875rem, 4vw, 2.5rem);
+  line-height: var(--type-leading-lg);
+  letter-spacing: var(--type-tracking-lg);
 }
 
 .project-detail__lede {

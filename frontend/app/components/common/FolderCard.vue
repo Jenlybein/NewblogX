@@ -25,7 +25,7 @@ import {
  * 所以列宽变了形状不变，没有写死的 321×270 像素。
  *
  * 间距/位移只动 transform；前盖是内容面上**唯一**允许的玻璃层
- * （ADR-0011 后续修订 2026-11-07），因此必须自带两条不透明降级与窄屏 12px 模糊。
+ * （ADR-0011 约束 6 的内容面例外），因此必须自带两条不透明降级与窄屏 12px 模糊。
  * 本票不参与「弹簧」三处例外：位移走 200ms CSS 过渡 + 唯一缓动 token。
  */
 interface FolderCardProps {
@@ -338,11 +338,11 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
   display: -webkit-box;
   overflow: hidden;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.0625rem;
   font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.3;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

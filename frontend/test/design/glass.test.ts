@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // blockAfter 与 collectFiles 在多个 design 测试里逐字节重复，已收进 helpers。
-import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
+import { blockAfter, blockAfterContaining, collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
  * 液态玻璃层的作用域 / 材料 / 降级设计测试（ADR-0011 决策 5 与约束 6–7）。
@@ -38,7 +38,9 @@ const GLASS_CLASS_RE = /\bglass-(thin|thick)\b/gu;
  */
 const GLASS_LAYERS: Record<string, number> = {
   "app/components/layout/AppHeader.vue": 1,
-  "app/components/jelly/JellyLauncher.vue": 1,
+  // 捏捏有两个互斥的玻璃层：展开时的气泡、收起时的边缘把手。两者永远不会同时
+  // 出现（收起态不渲染气泡、展开态不渲染把手），所以不存在"玻璃套玻璃"。
+  "app/components/jelly/JellyLauncher.vue": 2,
   "app/components/jelly/JellyAiPanel.vue": 1,
   "app/components/auth/AuthModal.vue": 1,
   "app/components/favorite/FavoriteFolderModal.vue": 1,
@@ -54,6 +56,11 @@ const SAME_SCREEN_BUDGET = [
   "app/components/jelly/JellyAiPanel.vue",
 ];
 
+/** 同一时刻最多可见的玻璃层数：组件内互斥的层只算一层（气泡 / 边缘把手）。 */
+const GLASS_CONCURRENT: Record<string, number> = {
+  "app/components/jelly/JellyLauncher.vue": 1,
+};
+
 /** 内容面（正文 / 卡片 / 列表）：一律不透明，绝不出现玻璃类。 */
 const CONTENT_SURFACES = [
   "app/components/common/MarkdownRenderSurface.vue",
@@ -66,12 +73,13 @@ const CONTENT_SURFACES = [
 
 function glassCount(text: string): number {
   // 只数"作为组件类名"的使用：注释里的说明不算，`var(--glass-thin-fill)` 这类
-  // token 引用也不算（NCard 的 --n-color 会被绑到同一份填充 token 上）。
+  // token 引用也不算（NCard 的 --n-color 会被绑到同一份填充 token 上）；
+  // 材料分级的 `var(--shadow-glass-thin)`（票 428）同样不是类名，一并排除。
   const code = text
     .replace(/\/\*[\s\S]*?\*\//gu, "")
     .replace(/<!--[\s\S]*?-->/gu, "")
     .replace(/^\s*\/\/.*$/gmu, "")
-    .replace(/var\(--glass-[^)]*\)/gu, "");
+    .replace(/var\(--[a-z-]*glass-[^)]*\)/gu, "");
   return [...code.matchAll(GLASS_CLASS_RE)].length;
 }
 
@@ -106,11 +114,12 @@ describe("玻璃作用域：只出现在导航 / 浮层 / 悬浮控件 / 胶囊"
   });
 
   it("同屏常驻玻璃层 ≤3（页头 + 捏捏把手 + 捏捏面板）", () => {
-    const total = SAME_SCREEN_BUDGET.reduce(
-      (sum, file) => sum + glassCount(appFiles.find((item) => item.file === file)!.text),
-      0,
-    );
+    const total = SAME_SCREEN_BUDGET.reduce((sum, file) => {
+      const entry = appFiles.find((item) => item.file === file)!;
+      return sum + (GLASS_CONCURRENT[file] ?? glassCount(entry.text));
+    }, 0);
 
+    expect(total).toBeGreaterThan(0);
     expect(total).toBeLessThanOrEqual(3);
   });
 
@@ -165,7 +174,9 @@ describe("玻璃材料：两档 token 消费（#18 种下的玻璃组）", () =>
     expect(rimRule).toContain("mask-composite: exclude");
     expect(rimRule).toContain("-webkit-mask-composite: xor");
     expect(rimRule).not.toMatch(/\bborder(-width)?:\s*[^;0]/u);
-    expect(rimRule).toContain("var(--glass-rim)");
+    // 边缘带按两档取 token（票 428）：thin / thick 各自的 rim 与高光不共用一份。
+    expect(rimRule).toContain("var(--glass-rim-tone)");
+    expect(rimRule).toContain("opacity: var(--glass-edge-opacity)");
   });
 
   it("噪点层是内联 feTurbulence 的 data-URI，透明度走 token", () => {
@@ -205,7 +216,7 @@ describe("四类降级各自生效", () => {
   });
 
   it("③ 系统「减少动态」→ 关指针高光（进场归零由 .motion-reveal 承担）", () => {
-    const block = blockAfter(tailwindCss, "@media (prefers-reduced-motion: reduce)", true);
+    const block = blockAfterContaining(tailwindCss, "@media (prefers-reduced-motion: reduce)", ".motion-reveal");
 
     expect(block).toContain("--glass-specular: none");
     expect(block).toContain(".motion-reveal");

@@ -10,7 +10,7 @@ import {
 } from "./springAudit";
 
 /**
- * 弹簧动效的两条结构门禁（ADR-0011 后续修订 2026-11-07，grill §三 3.9）。
+ * 弹簧动效的两条结构门禁（ADR-0011 约束 9，grill §三 3.9）。
  *
  * 为什么需要它们：`reduced-motion.test.ts` 只扫 CSS 的 `@keyframes` / `animation:`，
  * JS 弹簧完全在既有门禁视野之外 —— 这是本批新开的一个动效入口。所以这里补两条
@@ -167,6 +167,24 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
 
       expect(violations.map((violation) => violation.reason), preset).toHaveLength(1);
     }
+  });
+
+  it("camelCase 预设的两种常数写法都在扫描面内（launcherSettle → SPRING_LAUNCHER_SETTLE）", () => {
+    // 预设键是 camelCase（`launcherSettle`），常数是带下划线的 `SPRING_LAUNCHER_SETTLE`：
+    // 只按 `name.toUpperCase()` 生成扫描面会把后者漏出审计，等于新预设没有门禁。
+    const violations = findUnresolvedSpringConsumers([
+      source(
+        "app/components/jelly/JellyLauncher.vue",
+        '<script setup lang="ts">',
+        "const settleMotion = SPRING_LAUNCHER_SETTLE;",
+        "</script>",
+      ),
+    ]);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].file).toBe("app/components/jelly/JellyLauncher.vue");
+    expect(violations[0].line).toBe(2);
+    expect(violations[0].reason).toContain("SPRING_LAUNCHER_SETTLE");
   });
 
   it("注释里提到预设不算引用（不靠「随手写个字就变红」制造噪音）", () => {

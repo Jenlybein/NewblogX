@@ -93,6 +93,7 @@ describe("语义层：组件唯一消费对象", () => {
       "--color-on-danger",
       "--color-on-inverse",
       "--color-on-inverse-muted",
+      "--color-on-inverse-line",
       "--color-surface-inverse",
       "--color-shadow",
     ]) {

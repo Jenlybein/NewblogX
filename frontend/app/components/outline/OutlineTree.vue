@@ -296,11 +296,11 @@ function enterDelay(id: string): string {
 }
 
 .outline-tree__toggle .outline-tree__label {
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 0.9375rem;
   font-weight: 600;
-  letter-spacing: -0.005em;
-  line-height: 1.45;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .outline-tree__folder-label {

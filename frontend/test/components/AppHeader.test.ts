@@ -5,6 +5,8 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { blockAfter, blockAfterContaining } from "../helpers/designFiles";
+
 import AppHeader from "~/components/layout/AppHeader.vue";
 
 /**
@@ -217,6 +219,15 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     expect(wrapper.get("a[data-chrome=skip-link]").attributes("href")).toBe("#main-content");
   });
 
+  it("skip link 不在页头的 inert 范围内：滚下隐藏后键盘仍然到得了它（票 437 评审）", () => {
+    const wrapper = mountHeader();
+    const skip = wrapper.get("a[data-chrome=skip-link]").element as HTMLElement;
+
+    // skip link 在 <header> 之外：页头下滚隐藏时整块 inert，链接不能被一起禁掉
+    // （更糟的是页头 translateY(-100%) 会把它移出视口，聚焦也看不见）。
+    expect(wrapper.get("header").element.contains(skip)).toBe(false);
+  });
+
   it("页头是吸顶玻璃导航：sticky + 高度压在 56–64px（不再永远遮挡正文）", () => {
     const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
 
@@ -236,6 +247,25 @@ describe("页头：结构（三档都成立的必备能力）", () => {
 });
 
 describe("页头：手机端折叠菜单（键盘可达）", () => {
+  /**
+   * 票 437：面板折叠改成轨道过渡（`grid-template-rows 0fr ↔ 1fr`），容器常驻 DOM。
+   * 桌面断点下面板一直可见，所以 `inert` 只允许在手机断点挂——否则 Tab 永远进不去导航。
+   */
+  function stubMobileViewport(matches: boolean) {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: matches && query.includes("max-width: 639px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  beforeEach(() => stubMobileViewport(true));
+
   it("默认收起，aria-expanded 为 false", () => {
     const wrapper = mountHeader();
 
@@ -254,6 +284,77 @@ describe("页头：手机端折叠菜单（键盘可达）", () => {
 
     await wrapper.get("button[data-chrome=menu]").trigger("click");
     expect(wrapper.get("button[data-chrome=menu]").attributes("aria-expanded")).toBe("false");
+  });
+
+  it("收起态容器仍挂载且 inert（空间过渡需要内容在，inert 负责不可聚焦）", async () => {
+    const wrapper = mountHeader();
+    // 水合安全（票 437 评审）：`isMobile` 在 setup 阶段恒 false，挂载后才按真实视口补；
+    // inert 因此要等一次 nextTick 才挂上（水合首帧与 SSR 一致）。
+    await nextTick();
+    const panel = wrapper.get("#site-header-panel");
+
+    // 收起不是卸载也不是 display:none：容器与里面的搜索框都还在。
+    expect(panel.exists()).toBe(true);
+    expect(panel.find('input[name="site-search"]').exists()).toBe(true);
+    // 但收起后这棵子树不可聚焦、不进读屏。
+    expect(panel.attributes("inert")).toBeDefined();
+    expect(panel.classes()).not.toContain("is-open");
+  });
+
+  it("展开后撤掉 inert；再收起时挂回（.is-open 契约同步）", async () => {
+    const wrapper = mountHeader();
+    const panel = () => wrapper.get("#site-header-panel");
+
+    await wrapper.get("button[data-chrome=menu]").trigger("click");
+    expect(panel().classes()).toContain("is-open");
+    expect(panel().attributes("inert")).toBeUndefined();
+
+    await wrapper.get("button[data-chrome=menu]").trigger("click");
+    expect(panel().classes()).not.toContain("is-open");
+    expect(panel().attributes("inert")).toBeDefined();
+  });
+
+  it("桌面断点不挂 inert：面板常显时导航不能被锁死", () => {
+    stubMobileViewport(false);
+    const wrapper = mountHeader();
+
+    expect(wrapper.get("#site-header-panel").attributes("inert")).toBeUndefined();
+  });
+
+  /*
+   * 组件测试拿不到计算样式，轨道取值与时长改在样式源码上钉：
+   * 手机断点是 grid 轨道（不是 display 切换），展开 200ms / 收起 120ms / 内容 opacity 120ms。
+   */
+  it("展开 / 收起走 grid-template-rows 0fr ↔ 1fr，时长取 token（展开 base / 收起 fast）", () => {
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const panel = blockAfter(source, ".site-header__panel {");
+    const open = blockAfter(source, ".site-header__panel.is-open {");
+    // 用换行前缀取顶层规则：减少动态块里的同名选择器是缩进的，不能被误取。
+    const clip = blockAfter(source, "\n.site-header__panel-clip {");
+
+    // 收起（默认态）：0fr + fast 档。
+    expect(panel).toMatch(/display:\s*grid;/u);
+    expect(panel).toMatch(/grid-template-rows:\s*0fr;/u);
+    expect(panel).toContain("var(--motion-fast)");
+    expect(panel).toContain("var(--motion-ease)");
+    // 展开（目标态）：1fr + base 档。过渡以目标态声明为准，所以「展开慢、收起快」不用第二套开关。
+    expect(open).toMatch(/grid-template-rows:\s*1fr;/u);
+    expect(open).toContain("var(--motion-base)");
+    // 内容只做 120ms 透明度；承载层靠 overflow + min-height 0 才收得干净。
+    expect(clip).toContain("var(--motion-fast) var(--motion-ease)");
+    expect(clip).toMatch(/overflow:\s*hidden;/u);
+    expect(clip).toMatch(/min-height:\s*0;/u);
+    // 手机断点不再用 display:none / display:flex 的整块切换。
+    expect(panel).not.toContain("display: none");
+    expect(panel).not.toMatch(/\d+ms/u);
+  });
+
+  it("减少动态：轨道与内容透明度都瞬时（transition: none，不是放慢）", () => {
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const reduced = blockAfterContaining(source, "@media (prefers-reduced-motion: reduce)", ".site-header__panel");
+
+    expect(reduced).toContain(".site-header__panel-clip");
+    expect(reduced).toContain("transition: none");
   });
 });
 
@@ -817,6 +918,56 @@ describe("页头：滚动方向感知与阈值", () => {
 
     expect(header.classes()).not.toContain("is-scrolled");
     expect(header.classes()).not.toContain("is-hidden");
+  });
+
+  /*
+   * 隐藏态的键盘可达性（#434，spec #423 第 3 批第 46 条）。
+   *
+   * 页头隐藏只动 transform，DOM 还在、控件也还在 Tab 序列里 —— 键盘用户会
+   * Tab 到一个看不见的搜索框。契约：`is-hidden` 时页头整体 `inert`，滚回来
+   * 立刻撤掉；静止/可见时不得 inert（否则键盘永远进不去页头）。
+   */
+  it("下滚隐藏后页头整体 inert（Tab 不会落到看不见的搜索框）", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    expect(header.classes()).toContain("is-hidden");
+    expect(header.attributes("inert")).toBeDefined();
+  });
+
+  it("滚回来立刻恢复可聚焦：inert 与隐藏一起撤掉", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    expect(header.attributes("inert")).toBeDefined();
+
+    await scrollTo(90);
+    expect(header.classes()).not.toContain("is-hidden");
+    expect(header.attributes("inert")).toBeUndefined();
+  });
+
+  it("页头可见时没有 inert（正常状态仍能 Tab 进搜索与导航）", async () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.get("header").attributes("inert")).toBeUndefined();
+  });
+
+  it("隐藏后 skip link 仍不被 inert 波及（它住在 header 之外，且是 fixed 定位）", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+    const skip = wrapper.get("a[data-chrome=skip-link]");
+
+    await scrollTo(160);
+    expect(header.attributes("inert")).toBeDefined();
+    // skip link 不是 header 的子节点：inert 不会级联到它。
+    expect(header.element.contains(skip.element)).toBe(false);
+
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    // fixed 定位：页头 translateY(-100%) 不会把它一起移出视口。
+    const body = blockAfter(source, ".site-skip {");
+    expect(body).toMatch(/position:\s*fixed;/u);
   });
 });
 

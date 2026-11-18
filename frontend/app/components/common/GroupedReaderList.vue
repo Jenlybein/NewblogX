@@ -119,12 +119,20 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
         <span class="grouped-reader-list__count">{{ section.cards.length }} 个{{ label }}</span>
         <IconChevronDown class="grouped-reader-list__chevron" aria-hidden="true" />
       </header>
-      <FolderCardList
-        v-show="!isCollapsed(section.id)"
+      <div
         :id="panelId(section.id)"
-        :cards="section.cards"
-        :data-collection-list="listRole === 'collection' ? 'true' : undefined"
-        :data-project-list="listRole === 'project' ? 'true' : undefined" />
+        class="grouped-reader-list__panel"
+        :class="{ 'is-collapsed': isCollapsed(section.id) }"
+        :inert="isCollapsed(section.id) ? true : undefined">
+        <div class="grouped-reader-list__panel-clip">
+          <div class="grouped-reader-list__panel-body">
+            <FolderCardList
+              :cards="section.cards"
+              :data-collection-list="listRole === 'collection' ? 'true' : undefined"
+              :data-project-list="listRole === 'project' ? 'true' : undefined" />
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- 尾块：淡色细线 + 居中标签，把"没归进任何分组"的内容与上一组隔开。 -->
@@ -144,12 +152,20 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
         </button>
         <span class="grouped-reader-list__divider-line" aria-hidden="true" />
       </header>
-      <FolderCardList
-        v-show="!isCollapsed(TRAILING_KEY)"
+      <div
         :id="panelId(TRAILING_KEY)"
-        :cards="sections.trailing"
-        :data-collection-list="listRole === 'collection' ? 'true' : undefined"
-        :data-project-list="listRole === 'project' ? 'true' : undefined" />
+        class="grouped-reader-list__panel"
+        :class="{ 'is-collapsed': isCollapsed(TRAILING_KEY) }"
+        :inert="isCollapsed(TRAILING_KEY) ? true : undefined">
+        <div class="grouped-reader-list__panel-clip">
+          <div class="grouped-reader-list__panel-body">
+            <FolderCardList
+              :cards="sections.trailing"
+              :data-collection-list="listRole === 'collection' ? 'true' : undefined"
+              :data-project-list="listRole === 'project' ? 'true' : undefined" />
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
@@ -166,7 +182,52 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 1.5rem;
+  /* 段距挪进 .panel-body 的 padding-top（见下）：收起时随裁剪一起消失，不留空档。 */
+  gap: 0;
+}
+
+/*
+ * 折叠（票 437）：卡片区常驻 DOM，靠轨道 0fr ↔ 1fr 收起，不再整块 display 切换
+ * （后者会让让出的空间在一帧里"啪"地消失，卡片也直接卸载）。展开 200ms / 收起
+ * 120ms（过渡以目标态声明为准），内容只做 120ms opacity；承载层 overflow:hidden +
+ * min-height:0 是 0fr 真能收成 0 的前提。收起态同时挂 inert（组件模板），
+ * 容器仍挂载但不可聚焦、不进读屏。
+ */
+.grouped-reader-list__panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+  transition: grid-template-rows var(--motion-base) var(--motion-ease);
+}
+
+.grouped-reader-list__panel.is-collapsed {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-fast) var(--motion-ease);
+}
+
+.grouped-reader-list__panel-clip {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.grouped-reader-list__panel.is-collapsed .grouped-reader-list__panel-clip {
+  opacity: 0;
+}
+
+/* 组标题与卡片之间的段距：折叠时这块 padding 跟着轨道一起收掉。 */
+.grouped-reader-list__panel-body {
+  padding-top: 1.5rem;
+}
+
+/* 减少动态：这一块整段即时（不是放慢），就近兜底。 */
+@media (prefers-reduced-motion: reduce) {
+  .grouped-reader-list__panel,
+  .grouped-reader-list__panel.is-collapsed,
+  .grouped-reader-list__panel-clip {
+    transition: none;
+  }
 }
 
 /*
@@ -209,11 +270,11 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
 .grouped-reader-list__title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: clamp(1.125rem, 1.6vw, 1.375rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   text-wrap: balance;
 }
 

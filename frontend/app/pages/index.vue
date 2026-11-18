@@ -82,8 +82,8 @@ const latestFailed = computed(() => Boolean(latestRequestError.value));
 //   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零；
 //   · 指针墨流是独立的 RAF（composables/useInkFluid），reduce 下只画一帧静帧。
 // 首屏不自己写关键帧动画，也不对布局属性做过渡。
-// 2026-11-03 后续修订：右栏线条场（15 条横条 + 两段式入场）已退役，
-// 改为「标题下发丝基线」的编辑部网格语言（见 ADR-0011 后续修订）。
+// 2026-11-03：右栏线条场（15 条横条 + 两段式入场）已退役，
+// 改为「标题下发丝基线」的编辑部网格语言（见 ADR-0011「首页首屏例外」）。
 const { target: coverRevealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
 
@@ -108,8 +108,8 @@ async function handleRetryLatest() {
        只允许在这里出现（有设计测试锁住），装饰层都 aria-hidden。
       图层自下而上：底图（BannerCarousel 的媒体层）→ 指针墨流 → 色带 →
       超大 h1 → 记号与下沿刻度 → 底部渐黑区里的轮播控件。
-       2026-11-03 后续修订：右栏线条场退役，改为编辑部网格语言。
-       2026-11-10 后续修订：主题相关的细网格与四角裁切发丝线退场，换成指针墨流。
+       2026-11-03：右栏线条场退役，改为编辑部网格语言。
+       2026-11-10：主题相关的细网格与四角裁切发丝线退场，换成指针墨流。
     -->
     <section ref="coverRevealTarget" class="home-cover" data-home-hero>
       <!-- 2 指针尾迹：默认「像素尾迹」（后台 deco.home_trail 可切回烟雾墨流），纯装饰、不吃点击 -->
@@ -381,8 +381,12 @@ async function handleRetryLatest() {
   font-family: var(--font-title);
   font-size: clamp(2rem, 9vw, 6rem);
   font-weight: var(--type-weight-title);
-  line-height: 0.92;
-  letter-spacing: -0.04em;
+  /* 票 430 删掉了这里的 1.34 / -0.015em（它们从来打不到字，内层碎玻璃字标会重新
+     声明，等于死声明）。但**不能把 line-height 留空**：空掉之后 h1 的 strut 回落到
+     preflight 的 1.5，比字标的 1.34 行盒高约 12%，首屏大字反而被撑开（票 437 评审）。
+     这里给 strut 一个 1：行盒高度由内层 `.glass-title`（1.34 = 字形盒高度）决定，
+     字标的 `1.34 / -0.015em` 仍是唯一来源，h1 自己不再和它各持一份。 */
+  line-height: 1;
   color: var(--color-on-inverse);
   text-wrap: balance;
 }

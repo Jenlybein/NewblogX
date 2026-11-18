@@ -26,6 +26,7 @@ const SOURCES = collectFiles(appDir, extensionFilter("vue", "ts", "css")).map((a
 }));
 
 const indexVue = read("app/pages/index.vue");
+const glassVue = read("app/components/brand/GlassHeroTitle.vue");
 const bannerVue = read("app/components/article/BannerCarousel.vue");
 const headerVue = read("app/components/layout/AppHeader.vue");
 const footerVue = read("app/components/layout/AppFooter.vue");
@@ -74,7 +75,10 @@ describe("满幅：脱离 page-shell 的水平内边距", () => {
 describe("分层：底图 → 底部渐黑 → 指针墨流 → 色带 → h1 → 记号 → 控件", () => {
   it("底图层来自运营上传的首张轮播 cover，铺满面板", () => {
     expect(bannerVue).toContain('class="banner-photo"');
-    expect(bannerVue).toMatch(/<img[\s\S]*:src="currentBanner\.cover"/u);
+    // 换图交叉淡入（票 432）后，底图渲染的是"当前帧"锁定的 banner：
+    // 首帧就是 banners[0]，所以语义仍是"运营上传的首张轮播 cover"；
+    // 出场帧保留自己的 cover，交叉淡入才不会把新旧画面换成同一张。
+    expect(bannerVue).toMatch(/<img[\s\S]*:src="frame\.banner\.cover"/u);
     const photo = blockAfter(bannerVue, ".banner-photo__img {");
     expect(photo).toContain("height: 100%");
     expect(photo).toContain("width: 100%");
@@ -163,13 +167,25 @@ describe("首页唯一的 h1 = JellyBin.", () => {
     }
   });
 
-  it("h1 字号 clamp(2rem, 9vw, 6rem)、字距 -0.04em、700，字体走 --font-title", () => {
+  it("h1 字号 clamp(2rem, 9vw, 6rem)、700，字体走 --font-title；行高只压 strut", () => {
     const title = blockAfter(indexVue, ".home-cover__title {");
 
     expect(title).toContain("font-family: var(--font-title)");
     expect(title).toContain("font-size: clamp(2rem, 9vw, 6rem)");
-    expect(title).toContain("letter-spacing: -0.04em");
     expect(title).toMatch(/font-weight:\s*(?:700|var\(--type-weight-title\))/u);
+    // 票 430 删掉了 h1 上的 1.34 / -0.015em（打不到字）；但票 437 评审发现：
+    // line-height 留空会让 strut 回落到 preflight 的 1.5，比字标的 1.34 还高约 12%，
+    // 首屏大字仍被撑开。所以只给 strut 一个 1 —— 行盒由内层 1.34 的字标决定。
+    expect(title).toMatch(/line-height:\s*1;/u);
+    expect(title).not.toMatch(/line-height:\s*(?:1\.34|1\.5)/u);
+    expect(title).not.toMatch(/letter-spacing\s*:/u);
+  });
+
+  it("字标的行高/字距是唯一来源（字形盒 1.34 + -0.015em）", () => {
+    const glass = blockAfter(glassVue, ".glass-title {");
+
+    expect(glass).toContain("line-height: 1.34");
+    expect(glass).toContain("letter-spacing: -0.015em");
   });
 });
 

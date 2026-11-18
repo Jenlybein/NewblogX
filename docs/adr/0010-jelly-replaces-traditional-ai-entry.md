@@ -2,7 +2,7 @@
 
 - 状态：已接受
 - 日期：2026-10-30
-- 来源：issue #1（JellyBin 双前端视觉体系重构 spec）与 issue #14（文档落档）；落地分票 #9（角色与状态 composable）→ #10（AI 面板）
+- 来源：issue #1（JellyBin 双前端视觉体系重构 spec）与 issue #14（文档落档）；落地分票 #9（角色与状态 composable）→ #10（AI 面板）；2026-11-18 追加「收进窗口右边缘」把手形态（票 425，#423 抽屉核心）
 
 ## 背景与问题
 
@@ -27,6 +27,15 @@
 8. **无障碍**：可键盘聚焦、回车/空格触发、带 `aria-label` 与 `aria-expanded`；`prefers-reduced-motion` 时退化为静态贴片。
 9. **删除旧入口**：首页右栏 AI 卡片整体删除（入口只剩捏捏），旧的居中模态组件不再使用。
 10. **后台不放捏捏**：后台 AI 仍在设置、日志等功能页；工作台保持专注，不出现角色。
+11. **可收进窗口右边缘**：常驻角色仍只在右下角或拖到的位置，但可以被收进窗口右边缘。指针悬停到捏捏（或键盘聚焦）时，右上角浮出一颗收起按钮；按下后角色滑进右边缘，只留一个薄玻璃示意把手；点把手回到收起前的位置。收起状态刷新后保留。收起是**显式动作**，不是拖拽落位的自然结果。
+12. **七态与优先级**：视觉状态 `idle` / `hover` / `press` / `open` / `collapsed` / `dragging` / `disabled`，优先级 `disabled > dragging > press > open > collapsed > hover > idle`。`disabled` 永远压过一切；`collapsed` 压过 `hover` / `idle`，让位给 `dragging` / `press` / `open`（收起态不接受拖拽手势）。
+13. **收起状态持久化**：键 `jelly:drawer-collapsed`（与位置同一个 localStore），取值 `"1"` / `"0"`；缺失、非 `"1"`、脏值、无存储、读取抛异常一律按**展开**——藏起来比露出来更糟。**收起不改写自由位置**：`jelly:launcher-position` 与内存里的 `position` 原样保留，收起态用贴右边缘的派生坐标（y 取自由位置的 y 并重新钳制），展开即回原位，不需要第二份坐标。
+14. **把手几何与命中区**：可见宽 16px、高 56px，左圆角、右侧齐边，材质 `glass-thin`，内容是 12px 左向箭头（`IconChevronLeft`），颜色走墨色语义档；命中区 ≥44×44 由按钮本身的 44px 宽度拿到（透明区向左延伸，不撑大布局），`aria-label="展开捏捏"`。三态：hover 可见宽 20px + 箭头左移 2px、`:active` `scale(.96)`、`:focus-visible` 内嵌焦点环（贴边元素不能外扩 outline）。
+15. **收起按钮（chip）**：捏捏右上角（`top/right: -6px`），视觉 20×20、命中区 28×28、`rounded-pill`、实心纸面 + 1px 结构线 + 10px `×`。出现条件为 `state === hover` **或** 包含捏捏与 chip 的外层 cluster `focus-within` **或** 长按唤出（`isChipPinned`），且 `!isOpen && !isCollapsed`。悬停判定挂在 cluster 上（cluster 吃指针事件），从捏捏移到 chip 不闪断、不引入宽限计时；chip 在 Tab 序列里紧跟捏捏，Esc 收掉（焦点留在捏捏上，指针离开 / 重新进入 cluster 才复位）。
+16. **触摸长按**：`(pointer: coarse)` 下长按捏捏 ≥500ms（位移不超过既有 6px 拖拽阈值）唤出 chip 并 `pinCollapseChip()`；松手**不触发**打开面板；chip 在 4 秒（`JELLY_CHIP_PIN_MS`）后自动消失。
+17. **与面板互斥**：`collapse()` 防御性先 `close()` 面板；面板开着或已收起时 chip 不出现。收起 / 展开经既有 `role="status"` 通道播一句中文状态（复用 2.5s 瞬时提示机制）。
+18. **收起动效口径**：收起 / 展开只有 `transform` 与 `opacity` 的 **transition**（不是 keyframes，可中途反向），200ms / 200ms、同一缓动；把手进场 `opacity` + 4px `translateX` 120ms；「减少动态」由既有 `--motion-*` 归零成瞬时，不加新分支。
+19. **安全区**：把手贴右边缘、纵向钳制在视口内；`env(safe-area-inset-bottom)` 的让位属于同一 spec 的安全区批次，不改写「位置 = 左上角 transform」的坐标语义。
 
 ## 理由与已否决方案
 
@@ -42,7 +51,7 @@
 ## 代价 / 不做什么
 
 - **常驻角色要处理避让**：右下角会挡住正文、输入框与页脚链接；拖拽与位置恢复要做视口钳制，移动端要单独设计尺寸与位置。
-- **状态机复杂度上升**：六态（`idle` / `hover` / `press` / `open` / `dragging` / `disabled`）叠加可用性、气泡节奏、位置持久化、减少动态，状态 composable 因此成为本次的主要测试战场（只测对外行为，不测样式实现）。
+- **状态机复杂度上升**：七态（`idle` / `hover` / `press` / `open` / `collapsed` / `dragging` / `disabled`）叠加可用性、气泡节奏、位置持久化、收起持久化、减少动态，状态 composable 因此成为本次的主要测试战场（只测对外行为，不测样式实现）。
 - **非遮罩面板要共享页面空间**：与页面滚动、z-index、键盘焦点共存；面板打开时捏捏仍是同一元素，角色与面板的定位相互耦合，不能各自独立移动。
 - **首屏多一个常驻元素**：对性能与布局稳定性（不抖动、不闪）有要求，动效降级必须同步到位。
 - **无后端只能验交互**：流式用本地假流验证打字、停止、关闭中断与错误文案；真实流式、配额、登录刷新路径留待后端可用时回归一次。
@@ -58,6 +67,10 @@
 6. 新增存储键用中性名（`jelly:launcher-position` / `jelly:bubble-count`）；既有 `blogx_*` 键与 `blogx-theme` cookie 不改名。
 7. 全部动效与角色表现强制尊重 `prefers-reduced-motion`；减少动态时捏捏退化为静态贴片。
 8. 复用既有服务层 `frontend/app/services/ai.ts`；后端契约与接口不变。
+9. 视觉状态是七态（`idle` / `hover` / `press` / `open` / `collapsed` / `dragging` / `disabled`），优先级 `disabled > dragging > press > open > collapsed > hover > idle`；收起态（`collapsed`）不得接受拖拽手势。
+10. 收起状态由 `jelly:drawer-collapsed` 决定，缺失或脏值一律按**展开**；收起不得改写 `jelly:launcher-position`，展开必须回原位。收起 / 展开经 `role="status"` 播报中文状态。
+11. 收起 / 展开只允许 `transform` / `opacity` 的 transition；「减少动态」下由 `--motion-*` 归零成瞬时，不加新分支。
+12. 把手命中区 ≥44×44 且贴右边缘时用**内嵌**焦点环；chip 出现条件只能是「hover 或 cluster `focus-within` 或长按 pin」，面板开着或已收起时不出现。
 
 ## 相关代码与文档
 
@@ -65,4 +78,6 @@
 - 代码：[frontend/app/components/home/HomeSidebar.vue](../../frontend/app/components/home/HomeSidebar.vue)（旧 AI 入口：首页右栏卡片与"进行对话"按钮，将删除）
 - 代码：[frontend/app/components/home/HomeAiChatDialog.vue](../../frontend/app/components/home/HomeAiChatDialog.vue)（旧居中模态，将被替换）
 - 代码：[frontend/app/stores/ui.ts](../../frontend/app/stores/ui.ts)（暗色开关与根类，角色与面板需跟随主题）
+- 代码：[frontend/app/components/jelly/JellyLauncher.vue](../../frontend/app/components/jelly/JellyLauncher.vue)（角色外观、把手与 chip；几何常量由 composable 注入 CSS 变量）
+- 代码：[frontend/app/composables/useJellyAssistant.ts](../../frontend/app/composables/useJellyAssistant.ts)（状态唯一真相源：七态、开合、收起持久化、长按 pin）
 - 文档：[GLOSSARY · Jelly](../../GLOSSARY.md)（概念定义只此一处） · 视觉系统见 [ADR-0011](./0011-neutral-glass-visual-system.md)

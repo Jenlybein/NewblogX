@@ -19,6 +19,9 @@ import { collectionOutlineView } from "~/utils/collection";
  * "0 篇文章"——后者会让读者以为合集是空的，也容易把内部状态说破。
  * 树里的失效行（文章变私有 / 被删）后端已在读模型里过滤，前端不补判；
  * 封面回退（深度优先第一篇公开文章的封面）同样由后端算好，前端不另写一份。
+ *
+ * 地标口径（票 434）：详情页与列表页共用 default 布局，页面内不再自带 main，
+ * 全站唯一的正文地标在布局层。
  */
 const route = useRoute();
 const collectionId = computed(() => String(route.params.id ?? ""));
@@ -52,7 +55,7 @@ const emptyDescription = computed(() =>
 </script>
 
 <template>
-  <main id="main-content" class="page-shell collection-detail">
+  <section class="page-shell collection-detail">
     <header class="collection-detail__header">
       <NuxtLink to="/collections" class="collection-detail__back">← 返回合集</NuxtLink>
 
@@ -79,7 +82,7 @@ const emptyDescription = computed(() =>
       :pending="pending"
       size="lg"
     />
-  </main>
+  </section>
 </template>
 
 <style scoped>
@@ -110,9 +113,9 @@ a.collection-detail__back:hover {
   margin: 0 0 0.75rem;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.875rem, 4vw, 2.5rem);
+  line-height: var(--type-leading-lg);
+  letter-spacing: var(--type-tracking-lg);
 }
 
 .collection-detail__lede {

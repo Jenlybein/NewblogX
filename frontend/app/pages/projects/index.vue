@@ -17,6 +17,8 @@ import { projectCardView } from "~/utils/project";
  *
  * 与「合集」并列但**不共用数据**；本页内部文案一律写「项目」，不混用「合集」。
  * 卡片与网格由共用组件 `FolderCardList` 提供（票 293）；票 353 起外面再套一层
+ * `GroupedReaderList`。地标口径（票 434）：页面内不再自带 main —— 全站唯一的
+ * 正文地标在布局层（`layouts/default.vue`）。
  */
 // 分组读面（票 353）：与合集同一形状、同一套语义（含"不渲染未分组标题"）。
 const { data: groups } = await useAsyncData(
@@ -46,7 +48,7 @@ const emptyDescription = computed(() =>
 </script>
 
 <template>
-  <main id="main-content" class="page-shell project-page">
+  <section class="page-shell project-page">
     <header class="project-page__header">
       <h1 class="project-page__title">项目</h1>
       <span class="project-page__rule" aria-hidden="true" />
@@ -62,7 +64,7 @@ const emptyDescription = computed(() =>
       :pending="pending"
       size="lg"
     />
-  </main>
+  </section>
 </template>
 
 <style scoped>
@@ -84,8 +86,8 @@ const emptyDescription = computed(() =>
   font-family: var(--font-title);
   font-size: clamp(2.75rem, 7vw, 4.5rem);
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 0.95;
+  letter-spacing: var(--type-tracking-lg);
+  line-height: var(--type-leading-lg);
 }
 
 /* 标题右侧一道短色条：纯装饰，用墨色而不是首屏那三支色相。 */

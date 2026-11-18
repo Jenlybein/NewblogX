@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import tailwindConfig from "../../tailwind.config";
 import { compileTailwindProbe } from "../../../scripts/tailwind-probe.mjs";
 import { readProjectEntries } from "../../../scripts/check-design-tokens.mjs";
+import { blockAfter } from "../helpers/designFiles";
 import { MOTION_REVEAL_OFFSET_PX, PARALLAX_MAX_PX } from "~/utils/motion";
 
 /**
@@ -92,6 +93,7 @@ const ALPHA_SEMANTIC_TOKENS = [
   "--color-danger-soft",
   "--color-danger-line",
   "--color-on-strong-muted",
+  "--color-on-inverse-line",
   "--color-shadow",
   "--color-highlight",
 ];
@@ -417,5 +419,179 @@ describe("无消费者的旧 token 已删除（含 v1 青绿与渐变）", () =>
         expect(entry.text, `${entry.file} 不应消费已删除的过渡层变量 ${dead}`).not.toContain(dead);
       }
     }
+  });
+});
+
+/**
+ * 票 430：标题排版分三档。
+ *
+ * 为什么是"分档"而不是"调一个值"：18px 的目录标题与 96px 的首屏大字需要的
+ * 字距/行高方向完全不同。一套 `-0.03em / 1.15` 通吃时，小标题的中文会被负字距
+ * 挤成一团（用户反馈"小标题挤在一起"），首屏大字又不够紧。所以按字号分档，
+ * 每个消费点只选档、不再自带数值。
+ *
+ * 档位边界（与 Tailwind 的 text-* 刻度对齐）：
+ *   大 ≥2rem（text-4xl 起，页面级大标题 / 首屏字标）；
+ *   中 1.25–1.75rem（text-xl / text-2xl / 22px）；
+ *   小 ≤1.125rem（text-lg 及以下，**含 18–20px 的卡片标题**——
+ *     验收要求 18–20px 的中文标题字距回到 0 档、行高 ≥1.3）。
+ */
+describe("标题排版三档：字距 / 行高按字号分档（票 430）", () => {
+  const TIERS = new Map([
+    ["--type-tracking-lg", "-0.03em"],
+    ["--type-leading-lg", "1.1"],
+    ["--type-tracking-md", "-0.015em"],
+    ["--type-leading-md", "1.25"],
+    ["--type-tracking-sm", "0"],
+    ["--type-leading-sm", "1.35"],
+  ]);
+
+  it.each([...TIERS])("两端 %s 取到规定值", (name, value) => {
+    expect(declaration(rootBlock(tokensCss), name)).toBe(value);
+    expect(declaration(rootBlock(adminTokensCss), name)).toBe(value);
+  });
+
+  it("小档字距是 0（不是负值）、行高 ≥1.3：18–20px 中文标题两行不贴死", () => {
+    const tracking = declaration(rootBlock(tokensCss), "--type-tracking-sm");
+    const leading = declaration(rootBlock(tokensCss), "--type-leading-sm");
+
+    expect(Number(tracking)).toBe(0);
+    expect(Number(leading)).toBeGreaterThanOrEqual(1.3);
+    // 中档（1.25）与正文紧凑档之间也要留出可读行距，大档才是真正的大字档。
+    expect(Number(declaration(rootBlock(tokensCss), "--type-leading-md"))).toBeGreaterThanOrEqual(
+      1.25,
+    );
+  });
+
+  it("字号/字距档位边界都落在 token 值里：大 -0.03em / 中 -0.015em / 小 0", () => {
+    expect(declaration(rootBlock(tokensCss), "--type-tracking-lg")).toMatch(/-0\.03em/u);
+    expect(declaration(rootBlock(tokensCss), "--type-tracking-md")).toMatch(/-0\.015em/u);
+    expect(declaration(rootBlock(tokensCss), "--type-tracking-sm")).not.toMatch(/-/u);
+  });
+
+  it("Tailwind 只暴露三档类名：旧单值 title 映射已删（expand → migrate → contract 同票完成）", () => {
+    const extend = tailwindConfig.theme?.extend as Record<string, Record<string, unknown>>;
+
+    expect(extend.letterSpacing).toEqual({
+      "title-lg": "var(--type-tracking-lg)",
+      "title-md": "var(--type-tracking-md)",
+      "title-sm": "var(--type-tracking-sm)",
+      dense: "var(--type-tracking-dense)",
+    });
+    expect(extend.lineHeight).toEqual({
+      prose: "var(--type-leading-prose)",
+      "title-lg": "var(--type-leading-lg)",
+      "title-md": "var(--type-leading-md)",
+      "title-sm": "var(--type-leading-sm)",
+    });
+    // 契约步：旧类名（tracking-title / leading-title）在两个映射里都不存在了。
+    expect(extend.letterSpacing.title).toBeUndefined();
+    expect(extend.lineHeight.title).toBeUndefined();
+  });
+
+  it("三档类真的编译成 token 变量（不是只写了 token 名）", async () => {
+    const css = await compileTailwindProbe({
+      projectDir,
+      html: '<div class="tracking-title-lg tracking-title-md tracking-title-sm leading-title-lg leading-title-md leading-title-sm"></div>',
+    });
+
+    for (const token of [
+      "--type-tracking-lg",
+      "--type-tracking-md",
+      "--type-tracking-sm",
+      "--type-leading-lg",
+      "--type-leading-md",
+      "--type-leading-sm",
+    ]) {
+      expect(css, token).toContain(`var(${token})`);
+    }
+  }, 15000);
+
+  it("消费点只引用新类：读者站不再出现旧单值类 / 旧 token 引用", () => {
+    // `--type-tracking-title` 里的 "tracking-title" 前面是连字符，不算类名消费；
+    // 新类名（tracking-title-lg 等）后面还有连字符，也不算。
+    const oldSingleValue = /(?<![-a-z])(?:tracking|leading)-title(?![a-z-])/u;
+    const offenders = readProjectEntries(projectDir)
+      .filter((entry) => entry.file !== "app/assets/css/tokens.css")
+      .filter((entry) => oldSingleValue.test(stripComments(entry.text)))
+      .map((entry) => entry.file);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("18–20px 的卡片标题选小档（0 / 1.35），页级大标题选大档", () => {
+    const tailwindCss = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
+    const SMALL = [
+      ".article-toc__title {",
+      ".feed-entry__title {",
+      ".empty-state__title {",
+      ".comment-panel__title {",
+    ];
+    const LARGE = [
+      ".page-title {",
+      ".article-hero__title {",
+      ".article-state__title {",
+      ".profile-hero-name {",
+    ];
+
+    for (const selector of SMALL) {
+      const rule = blockAfter(tailwindCss, selector);
+
+      expect(rule, selector).toContain("tracking-title-sm");
+      expect(rule, selector).toContain("leading-title-sm");
+      expect(rule, selector).not.toContain("tracking-title-lg");
+    }
+    for (const selector of LARGE) {
+      const rule = blockAfter(tailwindCss, selector);
+
+      expect(rule, selector).toContain("tracking-title-lg");
+      expect(rule, selector).toContain("leading-title-lg");
+    }
+  });
+});
+
+/**
+ * 票 430：摘要 / 状态文案与正文共用同一条左边线。
+ *
+ * 之前的写法里，正文列 `mx-auto` 居中、摘要与状态文案各写 `68ch`：三处各自为政，
+ * 读者看到的是"摘要窄一截、正文又居中"。现在行宽只有 `--type-measure` 一个来源，
+ * 正文列不再居中，三者从同一条左边线开始排。
+ */
+describe("行宽与左边缘：摘要 / 状态文案与正文共用 --type-measure（票 430）", () => {
+  const tailwindCss = stripComments(
+    readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8"),
+  );
+
+  it("正文列去掉居中：行宽只来自 token，不再 mx-auto", () => {
+    const body = blockAfter(tailwindCss, ".article-body {");
+
+    expect(body).toContain("max-width: var(--type-measure)");
+    expect(body).not.toMatch(/mx-auto|margin-inline|margin:\s*0\s+auto/u);
+  });
+
+  it("摘要与状态文案不再单独写 68ch，改取 max-w-measure", () => {
+    for (const selector of [".article-hero__abstract {", ".article-state__copy {"]) {
+      const rule = blockAfter(tailwindCss, selector);
+
+      expect(rule, selector).toContain("max-w-measure");
+      expect(rule, selector).not.toContain("68ch");
+    }
+  });
+
+  it("正文纸面与摘要/状态纸面同一水平内边距（同一条左边线）", () => {
+    // 左边缘不只由 max-width 决定：两张纸的内边距不同，正文就会与摘要错开。
+    for (const selector of [".article-hero {", ".article-paper--state {", ".article-paper--body {"]) {
+      const rule = blockAfter(tailwindCss, selector);
+
+      expect(rule, selector).toContain("p-6 md:p-8");
+    }
+  });
+
+  it("读者站源码里不再有 68ch 行宽写法（行宽只在 tokens.css 定义一次）", () => {
+    const offenders = readProjectEntries(projectDir)
+      .filter((entry) => stripComments(entry.text).includes("68ch"))
+      .map((entry) => entry.file);
+
+    expect(offenders).toEqual([]);
   });
 });

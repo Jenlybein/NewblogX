@@ -23,7 +23,7 @@ import { getStudioStats } from "~/services/article";
 import { getProfileCategories } from "~/services/category";
 import { getOwnFavoriteFolders } from "~/services/favorite";
 import { getMessageSummary, getSelfUserDetail, getUserBaseInfo } from "~/services/user";
-import { formatCount } from "~/utils/format";
+import { formatCount, formatDateLabel } from "~/utils/format";
 
 definePageMeta({
   layout: "studio",
@@ -145,16 +145,6 @@ function topBarWidth(viewCount: number) {
   return `${Math.max(4, Math.round((viewCount / topMax.value) * 100))}%`;
 }
 
-function formatDay(iso?: string) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}/${m}/${d}`;
-}
-
 useSeoMeta({ title: "个人中心 - 数据概览" });
 useNoIndexPage();
 </script>
@@ -206,7 +196,7 @@ useNoIndexPage();
         <ol v-else-if="stats?.recent.length" class="overview__list" data-role="studio-recent">
           <li v-for="item in stats.recent" :key="item.id" class="overview__row">
             <NuxtLink :to="`/article/${item.id}`" class="overview__row-title">{{ item.title }}</NuxtLink>
-            <span class="overview__row-meta">{{ formatDay(item.created_at) }}</span>
+            <span class="overview__row-meta">{{ formatDateLabel(item.created_at) }}</span>
           </li>
         </ol>
         <p v-else class="overview__empty">还没有文章。去「写一篇」写第一篇。</p>
@@ -317,7 +307,8 @@ useNoIndexPage();
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: 0 24px 60px -48px var(--color-shadow);
+  /* 内容纸面走发丝影（票 428）：报头是"压在页面底上的一张纸"，不是浮层。 */
+  box-shadow: var(--shadow-card);
 }
 
 @media (min-width: 900px) {
@@ -353,10 +344,10 @@ useNoIndexPage();
   margin: 0.75rem 0 0;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: clamp(1.875rem, 4vw, 2.5rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: var(--type-tracking-lg);
+  line-height: var(--type-leading-lg);
 }
 
 .overview__status {
@@ -450,12 +441,12 @@ useNoIndexPage();
   gap: 0.25rem;
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: clamp(1.5rem, 2.4vw, 2rem);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: var(--type-tracking-md);
+  line-height: var(--type-leading-md);
 }
 
 .overview__kpi-value small {
@@ -500,10 +491,11 @@ useNoIndexPage();
 .overview__panel-title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .overview__panel-link {
@@ -663,11 +655,12 @@ useNoIndexPage();
 .overview__fact dd {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .overview__fact dd a:hover {

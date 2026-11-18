@@ -17,6 +17,7 @@ import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useHeaderUserMenu } from "~/composables/useHeaderUserMenu";
 import { useHeaderMessagesPanel } from "~/composables/useHeaderMessagesPanel";
+import { useHeaderMobilePanel } from "~/composables/useHeaderMobilePanel";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
@@ -54,6 +55,10 @@ const panel = useHeaderMessagesPanel();
 const { messagesOpen, messagesTriggerRef } = panel;
 const messageNavItems = computed(() => messageCenterNavItems(messageStore.summary));
 const totalUnread = computed(() => messageStore.totalUnread);
+
+// 手机断点判定（票 437）：收起的面板要挂 inert，而 inert 不能由 CSS 按断点开关。
+// 桌面断点下面板常显，这里必须给 false，否则导航会被锁死。
+const { isMobile } = useHeaderMobilePanel();
 
 // 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
 // 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
@@ -101,12 +106,21 @@ async function submitSearch() {
 </script>
 
 <template>
+  <!-- skip link 刻意放在 <header> **外面**（票 437 评审）：页头下滚隐藏时整块挂 `inert`
+       （防止 Tab 落到看不见的搜索框），链接若在里面就一起被禁掉 —— 滚下去之后键盘
+       用户再也到不了「跳到正文」。放外面 + `position: fixed` 让它留在视口左上角，
+       不随页头的 `translateY(-100%)` 移走。 -->
+  <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
+
   <header
     class="site-header"
     :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
+    :inert="hidden ? true : undefined"
     @pointermove="handlePointerMove"
   >
-    <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
+    <!-- 材质到场（票 428）：静止态的不透明纸面 + 发丝线在这一层；滚过阈值后它
+         用 200ms 淡出，玻璃（模糊 / 边缘带 / 噪点）在下面逐渐显出来。 -->
+    <div class="site-header__veil" aria-hidden="true"></div>
 
     <div class="page-shell site-header__inner">
       <div class="site-header__brand">
@@ -117,61 +131,71 @@ async function submitSearch() {
         </NuxtLink>
       </div>
 
-      <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件 -->
-      <div id="site-header-panel" class="site-header__panel" :class="{ 'is-open': menuOpen }">
-        <nav class="site-nav" aria-label="主导航">
-          <NuxtLink
-            v-for="item in navItems"
-            :key="item.key"
-            :to="item.to"
-            class="site-tab"
-            :class="{ 'is-active': item.active }"
-            :aria-current="item.active ? 'page' : undefined"
-          >
-            <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
-            <component :is="headerNavIcon(item.key)" :size="16" />
-            <span>{{ item.label }}</span>
-          </NuxtLink>
-        </nav>
+      <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件。
+           折叠走轨道过渡（grid-template-rows 0fr ↔ 1fr，票 437），容器常驻 DOM；
+           收起时挂 inert（手机断点才需要，桌面面板一直可见）。 -->
+      <div
+        id="site-header-panel"
+        class="site-header__panel"
+        :class="{ 'is-open': menuOpen }"
+        :inert="isMobile && !menuOpen ? true : undefined">
+        <div class="site-header__panel-clip">
+          <div class="site-header__panel-body">
+            <nav class="site-nav" aria-label="主导航">
+              <NuxtLink
+                v-for="item in navItems"
+                :key="item.key"
+                :to="item.to"
+                class="site-tab"
+                :class="{ 'is-active': item.active }"
+                :aria-current="item.active ? 'page' : undefined"
+              >
+                <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
+                <component :is="headerNavIcon(item.key)" :size="16" />
+                <span>{{ item.label }}</span>
+              </NuxtLink>
+            </nav>
 
-        <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
-          <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
-          <input
-            id="site-search-input"
-            v-model="searchKeyword"
-            class="site-search__input"
-            type="search"
-            name="site-search"
-            autocomplete="off"
-            placeholder="搜索文章、标签、作者…"
-          />
-          <button type="submit" class="site-search__submit" aria-label="提交搜索">
-            <IconSearch :size="18" />
-          </button>
-        </form>
+            <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
+              <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
+              <input
+                id="site-search-input"
+                v-model="searchKeyword"
+                class="site-search__input"
+                type="search"
+                name="site-search"
+                autocomplete="off"
+                placeholder="搜索文章、标签、作者…"
+              />
+              <button type="submit" class="site-search__submit" aria-label="提交搜索">
+                <IconSearch :size="18" />
+              </button>
+            </form>
 
-        <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
-             ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
-        <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息">
-          <span class="eyebrow">消息</span>
-          <NuxtLink
-            v-for="item in messageNavItems"
-            :key="item.key"
-            :to="item.to"
-            class="site-messages-mobile__item"
-          >
-            <span>{{ item.label }}</span>
-            <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
-          </NuxtLink>
-        </nav>
+            <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
+                 ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
+            <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息">
+              <span class="eyebrow">消息</span>
+              <NuxtLink
+                v-for="item in messageNavItems"
+                :key="item.key"
+                :to="item.to"
+                class="site-messages-mobile__item"
+              >
+                <span>{{ item.label }}</span>
+                <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
+              </NuxtLink>
+            </nav>
 
-        <!-- <640px：历史入口也收进折叠面板（与消息中心同一套窄屏规则）。 -->
-        <nav v-if="authStore.isLoggedIn" class="site-history-mobile" aria-label="历史">
-          <NuxtLink to="/history" class="site-history-mobile__item">
-            <IconClockHour4 :size="16" aria-hidden="true" />
-            <span>浏览历史</span>
-          </NuxtLink>
-        </nav>
+            <!-- <640px：历史入口也收进折叠面板（与消息中心同一套窄屏规则）。 -->
+            <nav v-if="authStore.isLoggedIn" class="site-history-mobile" aria-label="历史">
+              <NuxtLink to="/history" class="site-history-mobile__item">
+                <IconClockHour4 :size="16" aria-hidden="true" />
+                <span>浏览历史</span>
+              </NuxtLink>
+            </nav>
+          </div>
+        </div>
       </div>
 
       <div class="site-header__actions">
@@ -330,20 +354,38 @@ async function submitSearch() {
   top: 0;
   z-index: 30;
   min-height: var(--site-header-height);
-  transition: transform var(--motion-base) var(--motion-ease);
+  /* 材质到场（票 428）：背景 / 边框 / 阴影在滚过阈值时一起过渡 200ms。
+   * 玻璃属性（backdrop-filter）本身不可过渡，所以静止态的不透明纸面与发丝线
+   * 拆到 .site-header__veil 上：那一层淡出，玻璃在下面逐渐显出来 —— 不会
+   * 出现"实面一帧跳成玻璃"。盒影从零影过渡到玻璃那档，同样是 200ms。 */
+  box-shadow: 0 0 0 0 var(--color-shadow);
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    box-shadow var(--motion-base) var(--motion-ease);
 }
 
-/* 静止态（未滚动）才用不透明面 + 发丝结构线：滚动后材料交给 .glass-thin，
- * 两套背景不会互相覆盖。 */
-.site-header:not(.is-scrolled) {
+/* 静止态的不透明面 + 发丝结构线（滚过阈值后淡出，把材料让给玻璃）。
+ * z-index 5：盖住玻璃层的 ::before（rim，3）与 ::after（噪点，4），
+ * 这样过渡的第一帧不会先闪出 1px 边缘带；页头内容在它上面（z-index 6）。 */
+.site-header__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line-strong);
+  opacity: 1;
+  transition: opacity var(--motion-base) var(--motion-ease);
 }
 
-/* 转玻璃后：底部 1px 边缘高光（叠在玻璃自己的抬升阴影上）。 */
+.site-header.is-scrolled .site-header__veil {
+  opacity: 0;
+}
+
+/* 转玻璃后：底部 1px 边缘高光（叠在薄玻璃那一档的抬升阴影上）。 */
 .site-header.is-scrolled {
   box-shadow:
-    0 18px 44px -20px var(--color-shadow),
+    var(--shadow-glass-thin),
     0 1px 0 var(--glass-rim);
 }
 
@@ -353,16 +395,22 @@ async function submitSearch() {
   transition: transform var(--motion-base) var(--motion-ease);
 }
 
-/* 减少动态：导航的隐藏/出现也不做过渡（全局 reduced-motion 已把时长归零，
- * 这里再兜一层，避免"归零后仍有一次 transform 跳变"）。 */
+/* 减少动态：导航的隐藏/出现、手机面板的轨道与内容透明度、材质到场也不做过渡
+ * （全局 reduced-motion 已把时长归零，这里再兜一层，避免"归零后仍有一次跳变"）。 */
 @media (prefers-reduced-motion: reduce) {
   .site-header,
-  .site-header.is-hidden {
+  .site-header.is-hidden,
+  .site-header__veil,
+  .site-header__panel,
+  .site-header__panel.is-open,
+  .site-header__panel-clip {
     transition: none;
   }
 }
 
 .site-header__inner {
+  position: relative;
+  z-index: 6;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -393,14 +441,40 @@ async function submitSearch() {
 }
 
 /* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。
- * logo 旁的介绍小字按 ADR-0011 决策 6 删除：主旨句不再重复三处。 */
+ * logo 旁的介绍小字按 ADR-0011 决策 6 删除：主旨句不再重复三处。
+ *
+ * 手机端折叠（票 437）：展开/收起走轨道过渡（`grid-template-rows 0fr ↔ 1fr`，
+ * ADR-0011 已登记的布局动画例外），不再用 display 切换 —— 后者会让整页在一帧里
+ * 跳位。收起 120ms（fast）、展开 200ms（base），内容只做 120ms opacity。
+ * 承载层 `overflow: hidden` + `min-height: 0` 是 0fr 真能收成 0 的前提。
+ * ≥640px 面板常显（媒体查询里把两层包装摊平成 contents），因此 inert 只在手机挂。 */
 .site-header__panel {
   grid-area: panel;
-  display: none;
+  display: grid;
+  grid-template-rows: 0fr;
   min-width: 0;
+  transition: grid-template-rows var(--motion-fast) var(--motion-ease);
 }
 
+/* 过渡以目标态声明为准：展开取 base 档，不用第二套开关。 */
 .site-header__panel.is-open {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-base) var(--motion-ease);
+}
+
+.site-header__panel-clip {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.site-header__panel.is-open .site-header__panel-clip {
+  opacity: 1;
+}
+
+/* 折叠面板的实际内容：间距与分隔线都在这里，收起时随裁剪一起消失。 */
+.site-header__panel-body {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -591,7 +665,8 @@ async function submitSearch() {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  box-shadow: 0 18px 44px -20px var(--color-shadow);
+  /* 消息面板是浮层（离开页头的那一层），用浮层专用的 --shadow-lg。 */
+  box-shadow: var(--shadow-lg);
   animation: site-messages-reveal var(--motion-fast) var(--motion-ease) both;
 }
 
@@ -667,12 +742,15 @@ async function submitSearch() {
   outline-offset: 2px;
 }
 
-/* skip link：平时移出视口，聚焦时出现在左上角（键盘用户不必 Tab 过整个页头） */
+/* skip link：平时移出视口，聚焦时出现在左上角（键盘用户不必 Tab 过整个页头）。
+ * fixed 定位（不是在页头里绝对定位）：它必须留在视口里，页头下滚隐藏（translateY
+ * -100% + inert）时也不能被一起带走、更不能被 inert 禁掉。 */
 .site-skip {
-  position: absolute;
+  position: fixed;
   top: 0.25rem;
   left: 0.5rem;
-  z-index: 2;
+  /* 高于页头（z-index 30）：聚焦时压在整个页头之上，不会被那层纸面盖住。 */
+  z-index: 31;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
@@ -687,15 +765,22 @@ async function submitSearch() {
 }
 
 @media (min-width: 640px) {
-  .site-header__panel,
-  .site-header__panel.is-open {
+  /* 平板起面板常显（票 437）：断点数值来自 app/utils/breakpoints.ts 的
+   * TABLET_BREAKPOINT_PX（640），与 useHeaderMobilePanel 的 `(max-width: 639px)`
+   * 是同一个分界；两处一致由 test/design/header-breakpoints.test.ts 断言。 */
+  /* 平板起面板常显：把折叠用的两层包装摊平（display: contents），
+   * 导航与搜索重新成为面板自己的 flex 子项（与改造前的单行布局一致）。 */
+  .site-header__panel {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1.5rem;
-    padding: 0;
-    border-top: 0;
+  }
+
+  .site-header__panel-clip,
+  .site-header__panel-body {
+    display: contents;
   }
 
   .site-search {
@@ -747,6 +832,7 @@ async function submitSearch() {
 /* <640px：动作区收不下「消息中心」，入口整体移进折叠面板。
  * 折叠面板本身只在菜单展开时可见，所以这里只负责"哪一份 DOM 显示"。 */
 @media (max-width: 639px) {
+  /* 同一断点的另一半（<640）：数值来自 app/utils/breakpoints.ts，改断点改那一处。 */
   .site-messages {
     display: none;
   }

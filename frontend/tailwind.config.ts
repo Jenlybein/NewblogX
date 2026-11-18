@@ -14,8 +14,9 @@
 // 原始层 `jelly-*` 不再映射成类名：克莱因蓝退役后，读者站没有「直接用原始色相」
 // 的组件（几何记号也退役了）；要新增用法必须先走语义层。
 //
-// 排版尺度同样来自 token：max-w-measure（68ch）、leading-prose（1.75）、
-// font-title（700 + 负字距由 tracking-title 表达）、font-cjk（中文整段字体栈）。
+// 排版尺度同样来自 token：max-w-measure（92ch，与正文同一条行宽）、leading-prose（1.75）、
+// 标题三档 tracking-title-lg/md/sm 与 leading-title-lg/md/sm（票 430 收口）、
+// font-latin / font-sans（Inter + 中文系统字体栈）、font-display（字标与页面级大标题）。
 export default {
   darkMode: "class",
   theme: {
@@ -95,10 +96,16 @@ export default {
       },
       lineHeight: {
         prose: "var(--type-leading-prose)",
-        title: "var(--type-leading-title)",
+        // 标题行高分三档（票 430）：大 ≥2rem / 中 1.25–1.75rem / 小 ≤1.125rem。
+        "title-lg": "var(--type-leading-lg)",
+        "title-md": "var(--type-leading-md)",
+        "title-sm": "var(--type-leading-sm)",
       },
       letterSpacing: {
-        title: "var(--type-tracking-title)",
+        // 标题字距同样三档：-.03em / -.015em / 0。
+        "title-lg": "var(--type-tracking-lg)",
+        "title-md": "var(--type-tracking-md)",
+        "title-sm": "var(--type-tracking-sm)",
         dense: "var(--type-tracking-dense)",
       },
       maxWidth: {

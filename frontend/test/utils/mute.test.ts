@@ -38,8 +38,10 @@ describe("mute utils", () => {
     expect(isMuted(null, now)).toBe(false);
   });
 
-  it("formats the until time in local time to the minute", () => {
+  it("formats the until time in site time (Asia/Shanghai) to the minute", () => {
     expect(formatMuteUntil("2026-11-24T08:05:00+08:00")).toBe("2026-11-24 08:05");
+    // 2026-11-24T00:05Z = 站点 08:05：不跟运行环境时区走，CI 跑 UTC 也是同一个串。
+    expect(formatMuteUntil("2026-11-24T00:05:00Z")).toBe("2026-11-24 08:05");
     expect(formatMuteUntil(null)).toBe("");
   });
 

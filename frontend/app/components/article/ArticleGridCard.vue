@@ -18,7 +18,7 @@
 import { computed } from 'vue'
 import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from '@tabler/icons-vue'
 import { formatCount, formatDateLabel } from '~/utils/format'
-
+import { useCoverVisibility } from '~/composables/useCoverVisibility'
 const props = withDefaults(defineProps<{
   title: string
   cover?: string
@@ -44,6 +44,9 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ action: [] }>()
 
+/** 没封面（空串 / 只剩空白 / 加载失败）就不画封面块，标题直接顶到卡片上边（票 440）。 */
+const { normalizedSrc, hasCover, markCoverFailed } = useCoverVisibility(() => props.cover)
+
 const dateText = computed(() => (props.date ? formatDateLabel(props.date) : ''))
 </script>
 
@@ -52,9 +55,8 @@ const dateText = computed(() => (props.date ? formatDateLabel(props.date) : ''))
     <!-- 封面与标题只写一份：有 to 时包一层链接，没有时就是普通容器。
          用 component :is 而不是把这段复制两遍 —— 复制的那份最容易在改样式时漏掉。 -->
     <component :is="to ? 'a' : 'div'" class="article-grid-card__link" :href="to || undefined">
-      <div class="article-grid-card__cover">
-        <img v-if="cover" :src="cover" :alt="title" loading="lazy" />
-        <span v-else class="article-grid-card__cover-empty" aria-hidden="true" />
+      <div v-if="hasCover" class="article-grid-card__cover">
+        <img :src="normalizedSrc" :alt="title" loading="lazy" @error="markCoverFailed" />
       </div>
       <h3 class="article-grid-card__title">{{ title }}</h3>
     </component>

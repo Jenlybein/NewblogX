@@ -153,8 +153,12 @@
     @apply h-full w-full object-cover;
   }
 
-  .feed-entry__cover--empty {
-    @apply block rounded-field bg-subtle;
+  /*
+   * 无封面变体（票 440）：封面槽整个不渲染，正文占满整行 —— 不留那块 16:9 的空白框。
+   * 只在 md 档需要覆盖：窄屏本来就是单列，`grid-cols-[168px_1fr]` 只从 md 起生效。
+   */
+  .feed-entry--no-cover {
+    @apply md:grid-cols-[minmax(0,1fr)];
   }
 
   .feed-entry__body {
@@ -2885,12 +2889,6 @@ html {
 }
 
 /* 无封面：与首页条目同一口径 —— 只留一块纸面，不渲染破图、不写"无封面"。 */
-.article-grid-card__cover-empty {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 .article-grid-card__title {
   margin: 6px 0 0;
   font-size: 0.8125rem;

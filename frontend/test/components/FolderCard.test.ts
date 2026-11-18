@@ -100,14 +100,15 @@ describe("文件夹卡：封面", () => {
     expect(img.attributes("style")).toBeUndefined();
   });
 
-  it("空封面不渲染破图：退到共用兜底占位（对辅助技术隐藏、无文字）", () => {
+  it("空封面不渲染破图、也不留占位块：那张「纸」就是空白的纸（票 440）", () => {
     const wrapper = mountCard({ cover: "" });
     const sheet = wrapper.get(".folder-card__sheet");
 
     expect(sheet.find("img").exists()).toBe(false);
-    const placeholder = sheet.get(".article-cover-default");
-    expect(placeholder.attributes("aria-hidden")).toBe("true");
-    expect(placeholder.text()).toBe("");
+    // 文件夹的 sheet 本身有纸面底色与描边：它就是"一张纸"，
+    // 没有封面时是一张空白纸，而不是一块 16:9 的封面框。
+    expect(sheet.find(".article-cover-image").exists()).toBe(false);
+    expect(sheet.text()).toBe("");
   });
 
   it("封面地址只有空白时也按空封面处理", () => {

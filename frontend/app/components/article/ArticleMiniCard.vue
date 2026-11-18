@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { IconX } from "@tabler/icons-vue";
 import ArticleCover from "~/components/article/ArticleCover.vue";
+import { useCoverVisibility } from "~/composables/useCoverVisibility";
 
 /**
  * 短卡片：封面（16:9）+ 两行标题 + 一行元信息（+ 可选的行内「移出」）。
@@ -23,11 +24,11 @@ import ArticleCover from "~/components/article/ArticleCover.vue";
  * `interactive` 存在的理由只有一个：历史的批量管理模式要整卡不可点（点选由勾选框
  * 接管），此时卡片只渲染为普通块，不生成任何链接。
  */
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** 文章标题；同时用作封面替代文本。 */
     title: string;
-    /** 封面地址，缺省或加载失败只留一块 16:9 空白（由 ArticleCover 统一处理）。 */
+    /** 封面地址；没封面（空串 / 加载失败）时整个封面块不渲染（票 440）。 */
     cover?: string | null;
     /** 详情页链接；`interactive` 为假时不使用。 */
     to?: string;
@@ -54,6 +55,9 @@ withDefaults(
 );
 
 const emit = defineEmits<{ remove: [] }>();
+
+/** 没封面就不画封面块，卡片退化成纯文字块（票 440）。 */
+const { hasCover, markCoverFailed } = useCoverVisibility(() => props.cover);
 </script>
 
 <template>
@@ -62,15 +66,15 @@ const emit = defineEmits<{ remove: [] }>();
     <slot name="overlay" />
 
     <NuxtLink
-      v-if="interactive && to"
+      v-if="interactive && to && hasCover"
       :to="to"
       class="article-mini-card__cover"
       :aria-label="`查看《${title}》`"
     >
-      <ArticleCover :src="cover" :title="title" />
+      <ArticleCover :src="cover" :title="title" @fail="markCoverFailed" />
     </NuxtLink>
-    <div v-else class="article-mini-card__cover" aria-hidden="true">
-      <ArticleCover :src="cover" :title="title" />
+    <div v-else-if="hasCover" class="article-mini-card__cover" aria-hidden="true">
+      <ArticleCover :src="cover" :title="title" @fail="markCoverFailed" />
     </div>
 
     <div class="article-mini-card__title-row">

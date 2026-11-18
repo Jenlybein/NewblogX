@@ -77,7 +77,7 @@ const tree: OutlineNode[] = [
 function expectNoCover(wrapper: ReturnType<typeof mount>): void {
   expect(wrapper.findAll("img")).toHaveLength(0);
   expect(wrapper.find(".outline-tree__cover").exists()).toBe(false);
-  expect(wrapper.find(".article-cover-default").exists()).toBe(false);
+  expect(wrapper.find(".article-cover-plate").exists()).toBe(false);
   expect(wrapper.find("[data-outline-cover]").exists()).toBe(false);
 }
 

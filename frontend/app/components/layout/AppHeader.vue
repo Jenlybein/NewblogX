@@ -17,6 +17,7 @@ import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useHeaderUserMenu } from "~/composables/useHeaderUserMenu";
 import { useHeaderMessagesPanel } from "~/composables/useHeaderMessagesPanel";
+import { useHeaderMobilePanel } from "~/composables/useHeaderMobilePanel";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
@@ -54,6 +55,10 @@ const panel = useHeaderMessagesPanel();
 const { messagesOpen, messagesTriggerRef } = panel;
 const messageNavItems = computed(() => messageCenterNavItems(messageStore.summary));
 const totalUnread = computed(() => messageStore.totalUnread);
+
+// 手机断点判定（票 437）：收起的面板要挂 inert，而 inert 不能由 CSS 按断点开关。
+// 桌面断点下面板常显，这里必须给 false，否则导航会被锁死。
+const { isMobile } = useHeaderMobilePanel();
 
 // 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
 // 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
@@ -118,61 +123,71 @@ async function submitSearch() {
         </NuxtLink>
       </div>
 
-      <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件 -->
-      <div id="site-header-panel" class="site-header__panel" :class="{ 'is-open': menuOpen }">
-        <nav class="site-nav" aria-label="主导航">
-          <NuxtLink
-            v-for="item in navItems"
-            :key="item.key"
-            :to="item.to"
-            class="site-tab"
-            :class="{ 'is-active': item.active }"
-            :aria-current="item.active ? 'page' : undefined"
-          >
-            <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
-            <component :is="headerNavIcon(item.key)" :size="16" />
-            <span>{{ item.label }}</span>
-          </NuxtLink>
-        </nav>
+      <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件。
+           折叠走轨道过渡（grid-template-rows 0fr ↔ 1fr，票 437），容器常驻 DOM；
+           收起时挂 inert（手机断点才需要，桌面面板一直可见）。 -->
+      <div
+        id="site-header-panel"
+        class="site-header__panel"
+        :class="{ 'is-open': menuOpen }"
+        :inert="isMobile && !menuOpen ? true : undefined">
+        <div class="site-header__panel-clip">
+          <div class="site-header__panel-body">
+            <nav class="site-nav" aria-label="主导航">
+              <NuxtLink
+                v-for="item in navItems"
+                :key="item.key"
+                :to="item.to"
+                class="site-tab"
+                :class="{ 'is-active': item.active }"
+                :aria-current="item.active ? 'page' : undefined"
+              >
+                <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
+                <component :is="headerNavIcon(item.key)" :size="16" />
+                <span>{{ item.label }}</span>
+              </NuxtLink>
+            </nav>
 
-        <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
-          <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
-          <input
-            id="site-search-input"
-            v-model="searchKeyword"
-            class="site-search__input"
-            type="search"
-            name="site-search"
-            autocomplete="off"
-            placeholder="搜索文章、标签、作者…"
-          />
-          <button type="submit" class="site-search__submit" aria-label="提交搜索">
-            <IconSearch :size="18" />
-          </button>
-        </form>
+            <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
+              <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
+              <input
+                id="site-search-input"
+                v-model="searchKeyword"
+                class="site-search__input"
+                type="search"
+                name="site-search"
+                autocomplete="off"
+                placeholder="搜索文章、标签、作者…"
+              />
+              <button type="submit" class="site-search__submit" aria-label="提交搜索">
+                <IconSearch :size="18" />
+              </button>
+            </form>
 
-        <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
-             ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
-        <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息">
-          <span class="eyebrow">消息</span>
-          <NuxtLink
-            v-for="item in messageNavItems"
-            :key="item.key"
-            :to="item.to"
-            class="site-messages-mobile__item"
-          >
-            <span>{{ item.label }}</span>
-            <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
-          </NuxtLink>
-        </nav>
+            <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
+                 ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
+            <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息">
+              <span class="eyebrow">消息</span>
+              <NuxtLink
+                v-for="item in messageNavItems"
+                :key="item.key"
+                :to="item.to"
+                class="site-messages-mobile__item"
+              >
+                <span>{{ item.label }}</span>
+                <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
+              </NuxtLink>
+            </nav>
 
-        <!-- <640px：历史入口也收进折叠面板（与消息中心同一套窄屏规则）。 -->
-        <nav v-if="authStore.isLoggedIn" class="site-history-mobile" aria-label="历史">
-          <NuxtLink to="/history" class="site-history-mobile__item">
-            <IconClockHour4 :size="16" aria-hidden="true" />
-            <span>浏览历史</span>
-          </NuxtLink>
-        </nav>
+            <!-- <640px：历史入口也收进折叠面板（与消息中心同一套窄屏规则）。 -->
+            <nav v-if="authStore.isLoggedIn" class="site-history-mobile" aria-label="历史">
+              <NuxtLink to="/history" class="site-history-mobile__item">
+                <IconClockHour4 :size="16" aria-hidden="true" />
+                <span>浏览历史</span>
+              </NuxtLink>
+            </nav>
+          </div>
+        </div>
       </div>
 
       <div class="site-header__actions">
@@ -354,11 +369,14 @@ async function submitSearch() {
   transition: transform var(--motion-base) var(--motion-ease);
 }
 
-/* 减少动态：导航的隐藏/出现也不做过渡（全局 reduced-motion 已把时长归零，
- * 这里再兜一层，避免"归零后仍有一次 transform 跳变"）。 */
+/* 减少动态：导航的隐藏/出现、手机面板的轨道与内容透明度也不做过渡
+ * （全局 reduced-motion 已把时长归零，这里再兜一层，避免"归零后仍有一次跳变"）。 */
 @media (prefers-reduced-motion: reduce) {
   .site-header,
-  .site-header.is-hidden {
+  .site-header.is-hidden,
+  .site-header__panel,
+  .site-header__panel.is-open,
+  .site-header__panel-clip {
     transition: none;
   }
 }
@@ -394,14 +412,40 @@ async function submitSearch() {
 }
 
 /* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。
- * logo 旁的介绍小字按 ADR-0011 决策 6 删除：主旨句不再重复三处。 */
+ * logo 旁的介绍小字按 ADR-0011 决策 6 删除：主旨句不再重复三处。
+ *
+ * 手机端折叠（票 437）：展开/收起走轨道过渡（`grid-template-rows 0fr ↔ 1fr`，
+ * ADR-0011 已登记的布局动画例外），不再用 display 切换 —— 后者会让整页在一帧里
+ * 跳位。收起 120ms（fast）、展开 200ms（base），内容只做 120ms opacity。
+ * 承载层 `overflow: hidden` + `min-height: 0` 是 0fr 真能收成 0 的前提。
+ * ≥640px 面板常显（媒体查询里把两层包装摊平成 contents），因此 inert 只在手机挂。 */
 .site-header__panel {
   grid-area: panel;
-  display: none;
+  display: grid;
+  grid-template-rows: 0fr;
   min-width: 0;
+  transition: grid-template-rows var(--motion-fast) var(--motion-ease);
 }
 
+/* 过渡以目标态声明为准：展开取 base 档，不用第二套开关。 */
 .site-header__panel.is-open {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-base) var(--motion-ease);
+}
+
+.site-header__panel-clip {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.site-header__panel.is-open .site-header__panel-clip {
+  opacity: 1;
+}
+
+/* 折叠面板的实际内容：间距与分隔线都在这里，收起时随裁剪一起消失。 */
+.site-header__panel-body {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -688,15 +732,19 @@ async function submitSearch() {
 }
 
 @media (min-width: 640px) {
-  .site-header__panel,
-  .site-header__panel.is-open {
+  /* 平板起面板常显：把折叠用的两层包装摊平（display: contents），
+   * 导航与搜索重新成为面板自己的 flex 子项（与改造前的单行布局一致）。 */
+  .site-header__panel {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1.5rem;
-    padding: 0;
-    border-top: 0;
+  }
+
+  .site-header__panel-clip,
+  .site-header__panel-body {
+    display: contents;
   }
 
   .site-search {

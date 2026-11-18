@@ -5,6 +5,8 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { blockAfter, blockAfterContaining } from "../helpers/designFiles";
+
 import AppHeader from "~/components/layout/AppHeader.vue";
 
 /**
@@ -236,6 +238,25 @@ describe("页头：结构（三档都成立的必备能力）", () => {
 });
 
 describe("页头：手机端折叠菜单（键盘可达）", () => {
+  /**
+   * 票 437：面板折叠改成轨道过渡（`grid-template-rows 0fr ↔ 1fr`），容器常驻 DOM。
+   * 桌面断点下面板一直可见，所以 `inert` 只允许在手机断点挂——否则 Tab 永远进不去导航。
+   */
+  function stubMobileViewport(matches: boolean) {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: matches && query.includes("max-width: 639px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  beforeEach(() => stubMobileViewport(true));
+
   it("默认收起，aria-expanded 为 false", () => {
     const wrapper = mountHeader();
 
@@ -254,6 +275,74 @@ describe("页头：手机端折叠菜单（键盘可达）", () => {
 
     await wrapper.get("button[data-chrome=menu]").trigger("click");
     expect(wrapper.get("button[data-chrome=menu]").attributes("aria-expanded")).toBe("false");
+  });
+
+  it("收起态容器仍挂载且 inert（空间过渡需要内容在，inert 负责不可聚焦）", () => {
+    const wrapper = mountHeader();
+    const panel = wrapper.get("#site-header-panel");
+
+    // 收起不是卸载也不是 display:none：容器与里面的搜索框都还在。
+    expect(panel.exists()).toBe(true);
+    expect(panel.find('input[name="site-search"]').exists()).toBe(true);
+    // 但收起后这棵子树不可聚焦、不进读屏。
+    expect(panel.attributes("inert")).toBeDefined();
+    expect(panel.classes()).not.toContain("is-open");
+  });
+
+  it("展开后撤掉 inert；再收起时挂回（.is-open 契约同步）", async () => {
+    const wrapper = mountHeader();
+    const panel = () => wrapper.get("#site-header-panel");
+
+    await wrapper.get("button[data-chrome=menu]").trigger("click");
+    expect(panel().classes()).toContain("is-open");
+    expect(panel().attributes("inert")).toBeUndefined();
+
+    await wrapper.get("button[data-chrome=menu]").trigger("click");
+    expect(panel().classes()).not.toContain("is-open");
+    expect(panel().attributes("inert")).toBeDefined();
+  });
+
+  it("桌面断点不挂 inert：面板常显时导航不能被锁死", () => {
+    stubMobileViewport(false);
+    const wrapper = mountHeader();
+
+    expect(wrapper.get("#site-header-panel").attributes("inert")).toBeUndefined();
+  });
+
+  /*
+   * 组件测试拿不到计算样式，轨道取值与时长改在样式源码上钉：
+   * 手机断点是 grid 轨道（不是 display 切换），展开 200ms / 收起 120ms / 内容 opacity 120ms。
+   */
+  it("展开 / 收起走 grid-template-rows 0fr ↔ 1fr，时长取 token（展开 base / 收起 fast）", () => {
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const panel = blockAfter(source, ".site-header__panel {");
+    const open = blockAfter(source, ".site-header__panel.is-open {");
+    // 用换行前缀取顶层规则：减少动态块里的同名选择器是缩进的，不能被误取。
+    const clip = blockAfter(source, "\n.site-header__panel-clip {");
+
+    // 收起（默认态）：0fr + fast 档。
+    expect(panel).toMatch(/display:\s*grid;/u);
+    expect(panel).toMatch(/grid-template-rows:\s*0fr;/u);
+    expect(panel).toContain("var(--motion-fast)");
+    expect(panel).toContain("var(--motion-ease)");
+    // 展开（目标态）：1fr + base 档。过渡以目标态声明为准，所以「展开慢、收起快」不用第二套开关。
+    expect(open).toMatch(/grid-template-rows:\s*1fr;/u);
+    expect(open).toContain("var(--motion-base)");
+    // 内容只做 120ms 透明度；承载层靠 overflow + min-height 0 才收得干净。
+    expect(clip).toContain("var(--motion-fast) var(--motion-ease)");
+    expect(clip).toMatch(/overflow:\s*hidden;/u);
+    expect(clip).toMatch(/min-height:\s*0;/u);
+    // 手机断点不再用 display:none / display:flex 的整块切换。
+    expect(panel).not.toContain("display: none");
+    expect(panel).not.toMatch(/\d+ms/u);
+  });
+
+  it("减少动态：轨道与内容透明度都瞬时（transition: none，不是放慢）", () => {
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const reduced = blockAfterContaining(source, "@media (prefers-reduced-motion: reduce)", ".site-header__panel");
+
+    expect(reduced).toContain(".site-header__panel-clip");
+    expect(reduced).toContain("transition: none");
   });
 });
 

@@ -20,9 +20,9 @@
     font-family: var(--font-sans);
     color: var(--color-ink);
     background: var(--color-bg-page);
-    transition:
-      color var(--motion-base) var(--motion-ease),
-      background-color var(--motion-base) var(--motion-ease);
+    /* 主题同帧（票 428）：body 不再自己渐变。明暗切换是整页瞬时 —— 切换那一帧
+     * 根上的 .theme-switching 关掉全站过渡（见下），纸面与结构线同一帧换完；
+     * 只让 body 渐变 200ms 会造成"底在渐变、面/线已经跳变"的双色调瞬间。 */
   }
 
   /* 水合前首屏脚本会先在 html 上钉 theme-dark（防闪白）；这里保证那一刻
@@ -30,6 +30,17 @@
   html.theme-dark body {
     color: var(--color-ink);
     background: var(--color-bg-page);
+  }
+
+  /* 明暗切换的同一帧守卫（票 428）：切换时站点给根临时挂上 .theme-switching，
+   * 这一帧内全站颜色过渡全部关闭 —— 纸面、结构线、玻璃、按钮在同一帧换完，
+   * 不会出现各处面按自己的 120/150/200ms 各走各的。两帧后由
+   * `app/utils/themeTransition.ts` 摘掉这个类，hover 等过渡随即恢复。 */
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: none !important;
   }
 
   a {
@@ -47,7 +58,8 @@
     @apply rounded-card border;
     background: var(--color-surface);
     border-color: var(--color-line);
-    box-shadow: 0 24px 60px var(--color-shadow);
+    /* 内容卡只贴边：1px 偏移的发丝影（票 428）。大影只属于浮层。 */
+    box-shadow: var(--shadow-card);
   }
 
   .surface-card--strong {
@@ -2387,23 +2399,34 @@ html {
   background: var(--glass-thin-fill);
   -webkit-backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
   backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
-  box-shadow: 0 18px 44px -20px var(--color-shadow);
+  /* 两档各有自己的抬升影（票 428）：thin 贴面，thick 在下面的块里换成更厚的一档。 */
+  box-shadow: var(--shadow-glass-thin);
+  /* 两档的边缘带 / 内侧高光（票 428）：thick 在下面的块里换成更亮、更大的那一档。
+   * 这一层只影响伪元素，不改布局。 */
+  --glass-rim-tone: var(--glass-thin-rim);
+  --glass-edge-opacity: var(--glass-thin-edge-opacity);
+  --glass-specular-size: var(--glass-thin-specular-size);
   /* ָ�뾵���Ĭ��ʵ�֣�Բ������ --mx/--my��usePointerSpecular д�룩��
    * ��Ҫ�ر�ʱ���ƶ��� / ���ٶ�̬ / ����͸���ȣ��������Զ��������ó� none�� */
   --glass-specular: radial-gradient(
-    240px circle at var(--mx, 50%) var(--my, 0%),
-    var(--glass-rim),
+    var(--glass-specular-size) circle at var(--mx, 50%) var(--my, 0%),
+    var(--glass-rim-tone),
     transparent 62%
   );
   /* �̶����α�Ե��һ�����϶��µ�ů�� + ��������߹⣬��"����"һ��ͳһ��Դ�� */
   --glass-rim-layer: linear-gradient(180deg, var(--glass-rim-warm), transparent 42%),
-    linear-gradient(90deg, var(--glass-rim), transparent 20%, transparent 80%, var(--glass-rim));
+    linear-gradient(90deg, var(--glass-rim-tone), transparent 20%, transparent 80%, var(--glass-rim-tone));
 }
 
 .glass-thick {
   background: var(--glass-thick-fill);
   -webkit-backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
   backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
+  /* 厚材料：阴影偏移/模糊更大、内侧 1px 高光更亮、指针镜面更大 —— 大面板读得出"更厚"。 */
+  box-shadow: var(--shadow-glass-thick);
+  --glass-rim-tone: var(--glass-thick-rim);
+  --glass-edge-opacity: var(--glass-thick-edge-opacity);
+  --glass-specular-size: var(--glass-thick-specular-size);
 }
 
 /* 1px �����Ե�������� border box �ڲ��һȦ��mask ���м��ڿա� */
@@ -2419,8 +2442,8 @@ html {
     var(
       --glass-specular,
       radial-gradient(
-        240px circle at var(--mx, 50%) var(--my, 0%),
-        var(--glass-rim),
+        var(--glass-specular-size) circle at var(--mx, 50%) var(--my, 0%),
+        var(--glass-rim-tone),
         transparent 62%
       )
     ),
@@ -2434,7 +2457,8 @@ html {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  opacity: 0.85;
+  /* 两档的内侧 1px 高光亮暗由各自的 --glass-edge-opacity 决定（票 428）。 */
+  opacity: var(--glass-edge-opacity);
 }
 
 /* ���㣺���� feTurbulence��ѹסģ������� 8-bit ɫ�״��� */
@@ -2574,7 +2598,8 @@ html {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  box-shadow: 0 18px 44px var(--color-shadow);
+  /* 浮层（下拉面板）才用 --shadow-lg：它要离开纸面，内容卡不许用这一档。 */
+  box-shadow: var(--shadow-lg);
 }
 
 .chip-select__chips {

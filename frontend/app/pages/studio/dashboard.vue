@@ -307,7 +307,8 @@ useNoIndexPage();
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: 0 24px 60px -48px var(--color-shadow);
+  /* 内容纸面走发丝影（票 428）：报头是"压在页面底上的一张纸"，不是浮层。 */
+  box-shadow: var(--shadow-card);
 }
 
 @media (min-width: 900px) {

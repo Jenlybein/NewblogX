@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import {
   darkTheme,
   NConfigProvider,
@@ -18,6 +18,7 @@ import tokensCss from "~/assets/css/tokens.css?raw";
 import CursorCharm from "~/components/deco/CursorCharm.vue";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
+import { beginThemeSwitch } from "~/utils/themeTransition";
 import { buildThemeColorMeta, parseThemeColorPalette } from "~/utils/themeColor";
 import { buildReaderThemeOverrides, parseReaderThemePalette, parseReaderThemeScale } from "~/utils/readerTheme";
 import {
@@ -120,6 +121,14 @@ useHead(() => ({
 const readerThemeScale = parseReaderThemeScale(tokensCss);
 const themeOverrides = computed<GlobalThemeOverrides>(() =>
   buildReaderThemeOverrides(parseReaderThemePalette(tokensCss, uiStore.theme), readerThemeScale),
+);
+
+// 明暗切换同帧（票 428）：切换那一帧给根挂 `.theme-switching`，CSS 把全站颜色
+// 过渡关掉 —— 纸面、结构线、玻璃在同一帧换完，不出现半明半暗的双色调瞬间。
+// 两帧后守卫自己摘掉（规则与理由见 utils/themeTransition.ts）。
+watch(
+  () => uiStore.theme,
+  () => beginThemeSwitch(),
 );
 </script>
 

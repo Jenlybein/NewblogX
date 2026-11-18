@@ -101,7 +101,6 @@ function makeAssistant(overrides: { open?: boolean; mobile?: boolean } = {}) {
     isOpen: ref(overrides.open ?? true),
     isAvailable: ref(true),
     isReducedMotion: ref(false),
-    position: ref({ x: 900, y: 700 }),
   };
   return assistant as unknown as JellyAssistantApi & typeof assistant;
 }
@@ -135,7 +134,7 @@ describe("JellyAiPanel · 形态与无障碍", () => {
     expect(panel.exists()).toBe(true);
     expect(panel.attributes("role")).toBe("dialog");
     expect(panel.attributes("aria-modal")).toBe("false");
-    expect(panel.attributes("aria-label")).toContain("捏捏");
+    expect(panel.attributes("aria-label")).toContain("AI 助手");
     expect(wrapper.find(".jelly-panel__mask").exists()).toBe(false);
     expect(wrapper.find(".jelly-panel__overlay").exists()).toBe(false);
 

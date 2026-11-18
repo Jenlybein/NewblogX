@@ -169,22 +169,22 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
     }
   });
 
-  it("camelCase 预设的两种常数写法都在扫描面内（launcherSettle → SPRING_LAUNCHER_SETTLE）", () => {
-    // 预设键是 camelCase（`launcherSettle`），常数是带下划线的 `SPRING_LAUNCHER_SETTLE`：
+  it("camelCase 预设的两种常数写法都在扫描面内（pixelGlow → SPRING_PIXEL_GLOW）", () => {
+    // 预设键是 camelCase（`pixelGlow`），常数是带下划线的 `SPRING_PIXEL_GLOW`：
     // 只按 `name.toUpperCase()` 生成扫描面会把后者漏出审计，等于新预设没有门禁。
     const violations = findUnresolvedSpringConsumers([
       source(
-        "app/components/jelly/JellyLauncher.vue",
+        "app/components/hero/PixelTrailOverlay.vue",
         '<script setup lang="ts">',
-        "const settleMotion = SPRING_LAUNCHER_SETTLE;",
+        "const glowSpring = SPRING_PIXEL_GLOW;",
         "</script>",
       ),
     ]);
 
     expect(violations).toHaveLength(1);
-    expect(violations[0].file).toBe("app/components/jelly/JellyLauncher.vue");
+    expect(violations[0].file).toBe("app/components/hero/PixelTrailOverlay.vue");
     expect(violations[0].line).toBe(2);
-    expect(violations[0].reason).toContain("SPRING_LAUNCHER_SETTLE");
+    expect(violations[0].reason).toContain("SPRING_PIXEL_GLOW");
   });
 
   it("注释里提到预设不算引用（不靠「随手写个字就变红」制造噪音）", () => {

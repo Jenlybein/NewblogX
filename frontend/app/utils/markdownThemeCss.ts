@@ -72,7 +72,9 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body h6 {
   font-family: var(--font-sans);
   font-weight: var(--type-weight-title);
-  line-height: var(--type-leading-title);
+  /* 未单独抬行高的层级是 h5/h6（1em / 0.8em）：它们落小档（1.35）。h1–h4 各自
+     在下面按字号覆盖，所以这里只兜底小档，不写死一个通吃值。 */
+  line-height: var(--type-leading-sm);
 }
 
 /* H1 墨：居中大标题 + 下沿定标线，线上压「三角 + 方块」两个记号（参考主题的定标线语言）。 */

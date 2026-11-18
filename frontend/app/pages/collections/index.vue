@@ -86,8 +86,8 @@ const emptyDescription = computed(() =>
   font-family: var(--font-title);
   font-size: clamp(2.75rem, 7vw, 4.5rem);
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 0.95;
+  letter-spacing: var(--type-tracking-lg);
+  line-height: var(--type-leading-lg);
 }
 
 /* 标题右侧一道短色条：给标题配一个视觉锚点，纯粹的装饰，不承载信息。

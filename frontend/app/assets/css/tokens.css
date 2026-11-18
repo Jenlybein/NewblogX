@@ -141,9 +141,26 @@
      让文字铺满纸面内边距之间；约 46 个汉字/行，仍在可读区间上沿。 */
   --type-measure: 92ch;
   --type-leading-prose: 1.75; /* 中文正文行高 */
-  --type-leading-title: 1.15; /* 标题行高 */
-  --type-tracking-title: -0.03em; /* 大标题字距（苹果式紧凑档） */
-  --type-tracking-dense: -0.01em; /* 小字收紧 */
+  /* ---- 5b. 标题排版分三档（票 430）----
+   * 此前一套 `-0.03em / 1.15` 同时套在 18px 目录标题与 96px 首屏大字：小标题的中文
+   * 被负字距挤成一团，大字又不够紧。字号决定字距与行高，消费点只选档、不自带数值。
+   *
+   *   大 ≥2rem：-.03em / 1.1（页面级大标题与首屏字标）；
+   *   中 1.25–1.75rem：-.015em / 1.25（22px 作者名、24px 索引与区块标题）；
+   *   小 ≤1.125rem（**含 18–20px 的卡片标题与计数**）：0 / 1.35 ——
+   *     中文标题在负字距下会贴成一团，18–20px 必须回到 0 档并抬行高（验收反馈）。 */
+  --type-tracking-lg: -0.03em;
+  --type-leading-lg: 1.1;
+  --type-tracking-md: -0.015em;
+  --type-leading-md: 1.25;
+  --type-tracking-sm: 0;
+  --type-leading-sm: 1.35;
+  /* 旧单值别名：后台 admin.css 与后台 tailwind 仍映射 tracking-title / leading-title，
+   * 读者站已在票 430 里把消费点全部迁到上面三档、并删掉这两个 Tailwind 类。
+   * 两端 tokens.css 逐字节一致，所以它们留在这里直到后台另开票收口。 */
+  --type-leading-title: 1.15; /* 旧标题行高（后台仍在用） */
+  --type-tracking-title: -0.03em; /* 旧大标题字距（后台仍在用） */
+  --type-tracking-dense: -0.01em; /* 小字收紧（正文小标签，非标题档） */
   --type-weight-title: 700; /* 标题字重 */
 
   /* ---- 6. 动效层（spec 决策 3：三档时长 + 单一缓动 + stagger 节奏）----

@@ -111,8 +111,8 @@ a.collection-detail__back:hover {
   color: var(--color-ink);
   font-family: var(--font-title);
   font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  line-height: var(--type-leading-lg);
+  letter-spacing: var(--type-tracking-lg);
 }
 
 .collection-detail__lede {

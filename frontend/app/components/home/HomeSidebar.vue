@@ -211,10 +211,11 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
 .sidebar-rich-text :deep(h4) {
   margin: 1rem 0 0.5rem;
   color: var(--color-ink);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  line-height: 1.4;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .sidebar-rich-text :deep(p) {

@@ -389,10 +389,11 @@ watch(
   margin: 0;
   padding: 0 clamp(0.5rem, 1.5vw, 1rem);
   color: var(--color-on-inverse);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: clamp(0.9rem, 2.2vw, 1.5rem);
   font-weight: 600;
-  line-height: 1.35;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }

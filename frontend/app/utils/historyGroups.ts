@@ -1,11 +1,13 @@
 import type { HistoryArticleItem } from "~/types/api";
+import { siteCalendarDayDiff } from "~/utils/format";
 
 /**
  * 浏览历史的分组与游标（#241）。
  *
  * 两个判据都从页面里抽出来，因为它们都"错了也不报错"：
- *   - 分组按**本地日历日**算而不是"距今小时数"（今天 00:10 与昨天 23:50 只差
- *     20 分钟，却必须落在两个分组里）；
+ *   - 分组按**站点日历日**（`Asia/Shanghai`，票 #436）算而不是"距今小时数"（今天
+ *     00:10 与昨天 23:50 只差 20 分钟，却必须落在两个分组里），也不跟运行环境
+ *     时区走：容器跑 UTC、读者在 UTC+8 时，本机投影会让凌晨读的文章错一组；
  *   - 游标直接取列表最后一条的 `updated_at + article_id`（服务端的第二排序键
  *     就是 article_id），前端不另造一个隐藏游标、也不重新格式化时间
  *     （时间戳一格式化就可能被服务端判成非法而返回参数错误）。
@@ -38,15 +40,13 @@ export const HISTORY_GROUP_ORDER: readonly HistoryGroupKey[] = [
 ] as const;
 
 /**
- * 本地日历日差（忽略时刻）：今天 0、昨天 1、明天 -1。
+ * 站点日历日差（忽略时刻）：今天 0、昨天 1、明天 -1。
  *
- * 用 `Math.round` 而不是截断：跨夏令时的一天可能是 23/25 小时，
- * 四舍五入后仍落在正确的整数日上。
+ * 具体口径（含「站点午夜」边界）唯一实现在 `utils/format` 的
+ * `siteCalendarDayDiff`，这里只保留历史模块的对外名字，避免出现第二份投影。
  */
 export function calendarDayDiff(now: Date, at: Date): number {
-  const startOfDay = (value: Date) =>
-    new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
-  return Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  return siteCalendarDayDiff(now, at);
 }
 
 /**

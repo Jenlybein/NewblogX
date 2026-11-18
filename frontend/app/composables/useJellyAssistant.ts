@@ -228,6 +228,10 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   const isDragged = ref(false);
   // 本次按下已经变成拖拽：松手时不触发点击（否则拖完就打开面板）。
   let suppressClick = false;
+  // 本次按压已经唤出过长按 chip：松手只是"叫出收起按钮"，永远不是一次点击。
+  // 与 `suppressClick` 分开是因为 chip 会在 4 秒后自动消失（`isChipPinned` 归零），
+  // 靠它判断松手就会在"按住超过 4 秒再松手"时意外打开面板（票 426 的验收口径）。
+  let suppressTapAfterLongPress = false;
 
   const state = computed<JellyVisualState>(() => {
     if (!isAvailable.value) return "disabled";
@@ -366,6 +370,7 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
 
   function stopSession() {
     sessionStarted = false;
+    suppressTapAfterLongPress = false;
     clearIdleTimer();
     clearChipPinTimer();
   }
@@ -404,6 +409,8 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
   function pinCollapseChip() {
     clearChipPinTimer();
     isChipPinned.value = true;
+    // 长按只会从一次按压里来：把这次按压的点击吃掉，chip 自动消失后松手也不能开面板。
+    if (phase.value === "press") suppressTapAfterLongPress = true;
     chipPinTimer = setTimeout(() => {
       chipPinTimer = null;
       isChipPinned.value = false;
@@ -554,25 +561,38 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
 
   function pointerDown() {
     noteActivity();
+    // 新的一次按压：上一次长按的"点击抑制"到此作废。
+    suppressTapAfterLongPress = false;
     if (phase.value !== "dragging") phase.value = "press";
   }
 
   function pointerUp() {
     if (suppressClick) {
       suppressClick = false;
+      suppressTapAfterLongPress = false;
       isDragged.value = false;
       return;
     }
     if (phase.value !== "press") return;
     phase.value = "idle";
     // 长按唤出的收起按钮还挂着：松手只是"叫出按钮"，不是打开面板。
-    if (isChipPinned.value) return;
+    if (isChipPinned.value) {
+      suppressTapAfterLongPress = false;
+      return;
+    }
+    // chip 已经过期（长按超过 4 秒）也一样：松手仍然不算点击。
+    if (suppressTapAfterLongPress) {
+      suppressTapAfterLongPress = false;
+      return;
+    }
     activate();
   }
 
   function beginDrag() {
     noteActivity();
     suppressClick = true;
+    // 拖拽接管了这次按压：长按的点击抑制不再单独需要（松手已由 `suppressClick` 拦住）。
+    suppressTapAfterLongPress = false;
     isDragged.value = true;
     phase.value = "dragging";
   }

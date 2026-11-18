@@ -531,6 +531,36 @@ describe("useJellyAssistant · 长按唤出的收起按钮（chip）", () => {
     expectState(api, "idle");
   });
 
+  it("长按唤出的 chip 已经过了 4 秒自动消失后松手，也不打开面板（票 426）", () => {
+    vi.useFakeTimers();
+    const { api } = harness();
+
+    api.pointerDown();
+    api.pinCollapseChip();
+    vi.advanceTimersByTime(JELLY_CHIP_PIN_MS);
+    expect(api.isChipPinned.value).toBe(false);
+
+    api.pointerUp();
+
+    expect(api.isOpen.value).toBe(false);
+    expectState(api, "idle");
+  });
+
+  it("抑制只属于那一次长按：下一次普通点击照常打开面板（票 426）", () => {
+    vi.useFakeTimers();
+    const { api } = harness();
+
+    api.pointerDown();
+    api.pinCollapseChip();
+    vi.advanceTimersByTime(JELLY_CHIP_PIN_MS);
+    api.pointerUp();
+    expect(api.isOpen.value).toBe(false);
+
+    api.pointerDown();
+    api.pointerUp();
+    expect(api.isOpen.value).toBe(true);
+  });
+
   it("收起 / 展开都会顺手收掉 chip（不留下过期的挂起态）", () => {
     const { api } = harness();
 

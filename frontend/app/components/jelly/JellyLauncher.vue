@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { IconChevronLeft, IconX } from "@tabler/icons-vue";
 
 import {
@@ -133,6 +133,9 @@ const rootStyle = computed(() => {
 
   return {
     transform: `translate3d(${target.x + offset.x}px, ${target.y + offset.y}px, 0)`,
+    // 只读副本：样式表靠它算「贴底时才上抬多少」的安全区让位（票 426）。
+    // JS 的坐标语义（左上角 transform、clampJellyPosition）一概不动。
+    "--jelly-y": `${target.y + offset.y}px`,
     transition: animatable
       ? "transform var(--motion-base) var(--motion-ease), opacity var(--motion-base) var(--motion-ease)"
       : "none",
@@ -151,6 +154,8 @@ const ariaLabel = computed(() =>
 const clusterFocused = ref(false);
 /** Esc 刚刚放弃过这颗 chip：在焦点离开 / 指针重新进入 cluster 之前不再浮出来。 */
 const chipDismissed = ref(false);
+/** 捏捏本体按钮：Esc 或"从把手展开"之后焦点要落回这里（键盘路径的锚点）。 */
+const launcherButtonRef = ref<HTMLButtonElement | null>(null);
 
 /**
  * 收起按钮的出现条件（spec 的显式口径）：悬停捏捏（含悬停 chip 自身）**或**
@@ -203,17 +208,33 @@ function handleCollapse() {
   collapse();
 }
 
-/** 点把手 / 键盘触发：回到自由位置（composable 决定位置，组件只负责收尾落位）。 */
-function handleExpand() {
+/**
+ * 点把手 / 键盘触发：回到自由位置（composable 决定位置，组件只负责收尾落位）。
+ *
+ * `source` 区分指针与键盘：只有键盘（回车）需要把焦点交给替换上来的捏捏本体 ——
+ * 否则把手被移出 DOM 时焦点会掉到 body，下一次 Tab 从页首重新开始（票 426）。
+ */
+function handleExpand(source: "pointer" | "keyboard" = "pointer") {
   endSettle();
   expand();
+  if (source === "keyboard") {
+    nextTick(() => launcherButtonRef.value?.focus({ preventScroll: true }));
+  }
 }
 
-/** Esc：放弃这次收起（焦点留在捏捏上，不触发任何动作）。 */
+/**
+ * Esc：放弃这次收起（焦点留在捏捏上，不触发任何动作）。
+ *
+ * 焦点可能在 chip 上：chip 会立刻被移出 DOM，所以先把焦点交回捏捏本体，
+ * 否则焦点会掉到 body，"留在角色上"就名存实亡（票 426）。
+ */
 function handleEscape() {
   clearLongPress();
   chipDismissed.value = true;
   dismissCollapseChip();
+  if (launcherButtonRef.value && document.activeElement !== launcherButtonRef.value) {
+    launcherButtonRef.value.focus({ preventScroll: true });
+  }
 }
 
 /** 悬停判定挂在 cluster 上：从捏捏移到右上角 chip 不会触发离开，按钮不会闪断。 */
@@ -230,7 +251,12 @@ function handleClusterFocusIn() {
   clusterFocused.value = true;
 }
 
-function handleClusterFocusOut() {
+function handleClusterFocusOut(event: FocusEvent) {
+  const cluster = event.currentTarget as HTMLElement | null;
+  const nextTarget = event.relatedTarget as Node | null;
+  // 焦点只是在 cluster 内部换手（chip → 捏捏 / 捏捏 → chip）：不算离开，
+  // Esc 留下的 dismissed 锁不能被 reset，否则 chip 会立刻弹回来（票 426）。
+  if (nextTarget && cluster?.contains(nextTarget)) return;
   clusterFocused.value = false;
   chipDismissed.value = false;
 }
@@ -508,6 +534,7 @@ onBeforeUnmount(() => {
     >
       <button
         v-if="!isCollapsed"
+        ref="launcherButtonRef"
         type="button"
         class="jelly-launcher__button"
         :aria-label="ariaLabel"
@@ -535,7 +562,8 @@ onBeforeUnmount(() => {
           type="button"
           class="jelly-launcher__handle"
           aria-label="展开捏捏"
-          @click.stop="handleExpand"
+          @click.stop="handleExpand()"
+          @keydown.enter.prevent="handleExpand('keyboard')"
         >
           <span class="jelly-launcher__handle-capsule glass-thin">
             <IconChevronLeft
@@ -593,6 +621,22 @@ onBeforeUnmount(() => {
   height: 56px;
   will-change: transform;
   pointer-events: none;
+
+  /* 安全区让位（票 426）：捏捏与把手贴右下角时整体上抬，不被 iPhone 的 Home 指示条压住。
+   * 只在**渲染层**让位：`transform` 仍是 JS 坐标（左上角）的唯一真相，
+   * `clampJellyPosition` / 持久化 / 拖拽采样一概不掺安全区 —— 上面 inline 的
+   * `--jelly-y` 是组件抄给 CSS 的只读副本。让位量 = 角色底边超出「视口底 - 安全区」
+   * 的那一段，所以角色在视口中高处时恒为 0（不会整体上移），贴底时最多抬
+   * env(safe-area-inset-bottom)。`dvh` 与 JS 的 innerHeight 同源；不支持它的浏览器
+   * 整条声明失效、退化为不让位（不写死像素，也不会抬错）。 */
+  --jelly-size: 56px;
+  --jelly-margin: 12px;
+  --jelly-safe-bottom: env(safe-area-inset-bottom, 0px);
+  translate: 0px calc(-1 * max(
+    0px,
+    var(--jelly-y, 0px) + var(--jelly-size) + var(--jelly-margin)
+      - 100dvh + var(--jelly-safe-bottom)
+  ));
 }
 
 /* 收起态：根元素变窄（44px 命中区，可见胶囊只有 16px），右边缘齐平贴边。 */

@@ -26,7 +26,7 @@ const layoutClass = computed(() =>
 // 倒色字标只用于深墨面（页脚 / 封面），字色走语义层的反白 token。
 const primaryClass = computed(() => [
   SIZE_CLASSES[props.size].primary,
-  "font-display leading-none tracking-title",
+  "font-display leading-none tracking-title-lg",
   props.tone === "invert" ? "text-inverse" : "text-ink",
 ]);
 const secondaryClass = computed(() => [

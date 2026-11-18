@@ -346,8 +346,8 @@ useNoIndexPage();
   font-family: var(--font-title);
   font-size: clamp(1.75rem, 4vw, 2.5rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: var(--type-tracking-lg);
+  line-height: var(--type-leading-lg);
 }
 
 .overview__status {
@@ -441,12 +441,12 @@ useNoIndexPage();
   gap: 0.25rem;
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: clamp(1.5rem, 2.4vw, 2rem);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: var(--type-tracking-md);
+  line-height: var(--type-leading-md);
 }
 
 .overview__kpi-value small {
@@ -491,10 +491,11 @@ useNoIndexPage();
 .overview__panel-title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .overview__panel-link {
@@ -654,11 +655,12 @@ useNoIndexPage();
 .overview__fact dd {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .overview__fact dd a:hover {

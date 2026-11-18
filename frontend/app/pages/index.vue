@@ -381,8 +381,9 @@ async function handleRetryLatest() {
   font-family: var(--font-title);
   font-size: clamp(2rem, 9vw, 6rem);
   font-weight: var(--type-weight-title);
-  line-height: 0.92;
-  letter-spacing: -0.04em;
+  /* 票 430：这里不再声明 line-height / letter-spacing —— 内层碎玻璃字标
+     （components/brand/GlassHeroTitle.vue）会重新声明，外层这两条从来打不到字，
+     属于死声明。现在字标的 `1.34 / -0.015em`（字形盒高度 + 中档字距）是唯一来源。 */
   color: var(--color-on-inverse);
   text-wrap: balance;
 }

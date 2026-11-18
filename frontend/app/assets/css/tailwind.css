@@ -82,7 +82,7 @@
   }
 
   .page-title {
-    @apply text-3xl font-title font-semibold tracking-title md:text-4xl;
+    @apply text-3xl font-title font-semibold tracking-title-lg leading-title-lg md:text-4xl;
   }
 
   .glass-badge {
@@ -95,7 +95,9 @@
   }
 
   .section-title {
-    @apply text-xl font-title font-semibold tracking-title md:text-2xl;
+    /* 20px / 24px 的区块标题：票 430 起改 Inter（Sora 只留给页面级大标题与字标），
+       字距落小档、md 抬到中档。 */
+    @apply text-xl font-body font-semibold tracking-title-sm leading-title-sm md:text-2xl md:tracking-title-md md:leading-title-md;
   }
 
   .line-divider {
@@ -179,7 +181,8 @@
   }
 
   .feed-entry__title {
-    @apply block font-title leading-title tracking-title text-ink;
+    /* 20px 条目标题：Inter + 小档（0 / 1.35）。中文标题在负字距下会贴死，票 430 收口。 */
+    @apply block font-body tracking-title-sm leading-title-sm text-ink;
     font-size: 1.25rem;
   }
 
@@ -665,7 +668,8 @@
   }
 
   .article-toc__title {
-    @apply col-start-1 font-title text-[18px] leading-title tracking-title text-ink md:text-[20px];
+    /* 18–20px 的目录标题：Inter + 小档（验收：这两档不许再用大标题字距）。 */
+    @apply col-start-1 font-body text-[18px] leading-title-sm tracking-title-sm text-ink md:text-[20px];
   }
 
   .article-toc__progress {
@@ -792,7 +796,7 @@
   }
 
   .empty-state__title {
-    @apply mt-1 text-lg font-title tracking-title text-ink;
+    @apply mt-1 text-lg font-body tracking-title-sm leading-title-sm text-ink;
   }
 
   .empty-state__body {
@@ -835,7 +839,9 @@
   }
 
   .article-paper--body {
-    @apply p-5 md:p-8;
+    /* 与 `.article-hero` / `.article-paper--state` 同一水平内边距（票 430）：
+       摘要/状态文案与正文因此共享同一条左边线，窄屏（p-5 vs p-6）不再错开 4px。 */
+    @apply p-6 md:p-8;
   }
 
   .article-eyebrow {
@@ -856,11 +862,12 @@
   }
 
   .article-hero__title {
-    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink md:text-[2.6rem];
+    @apply mt-3 font-title text-3xl leading-title-lg tracking-title-lg text-ink md:text-[2.6rem];
   }
 
   .article-hero__abstract {
-    @apply mt-4 max-w-[68ch] text-base leading-prose text-ink-muted;
+    /* 票 430：摘要不再自写 68ch，与正文共用 --type-measure，左边缘同一条线。 */
+    @apply mt-4 max-w-measure text-base leading-prose text-ink-muted;
   }
 
   .article-hero__taxonomy {
@@ -1055,16 +1062,18 @@
   /* 正文行宽 = 排版 token `--type-measure`（具体数值只在 tokens.css 里写一次）；
    * shadow 内的正文继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
   .article-body {
-    @apply mx-auto w-full;
+    /* 票 430：不再 mx-auto 居中 —— 正文、摘要、状态文案从同一条左边线开始排；
+       行宽上限仍只来自 tokens.css 的 --type-measure。 */
+    @apply w-full;
     max-width: var(--type-measure);
   }
 
   .article-state__title {
-    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink;
+    @apply mt-3 font-title text-3xl leading-title-lg tracking-title-lg text-ink;
   }
 
   .article-state__copy {
-    @apply mt-4 max-w-[68ch] text-sm leading-prose text-ink-muted;
+    @apply mt-4 max-w-measure text-sm leading-prose text-ink-muted;
   }
 
   .article-state__actions {
@@ -1088,7 +1097,7 @@
   }
 
   .article-author__name {
-    @apply truncate font-title text-[22px] leading-title tracking-title text-ink;
+    @apply truncate font-body text-[22px] leading-title-md tracking-title-md text-ink;
   }
 
   /* 头像 / 昵称 / @id 三个入口（2026-11-12）：整张卡原来没有一处能点进作者主页。
@@ -1173,7 +1182,7 @@
   }
 
   .article-author__stat dd {
-    @apply m-0 mt-1 font-title text-xl leading-none tracking-title text-ink;
+    @apply m-0 mt-1 font-body text-xl leading-title-sm tracking-title-sm text-ink;
   }
 
   .article-author__actions {
@@ -1189,7 +1198,7 @@
   }
 
   .comment-panel__title {
-    @apply m-0 font-title text-xl leading-title tracking-title text-ink;
+    @apply m-0 font-body text-xl leading-title-sm tracking-title-sm text-ink;
   }
 
   .comment-panel__count {
@@ -1682,7 +1691,7 @@
   }
 
   .profile-hero-name {
-    @apply text-3xl font-title leading-title tracking-title text-ink md:text-4xl;
+    @apply text-3xl font-title leading-title-lg tracking-title-lg text-ink md:text-4xl;
   }
 
   .profile-hero-abstract {
@@ -1712,7 +1721,7 @@
   }
 
   .profile-hero-metric__value {
-    @apply text-xl font-title leading-none text-ink;
+    @apply text-xl font-body leading-title-sm tracking-title-sm text-ink;
   }
 
   .profile-hero-metric__label {
@@ -3364,10 +3373,11 @@ html {
 .activity-heatmap__title {
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
 }
 
 .activity-heatmap__subtitle {
@@ -3565,11 +3575,12 @@ html {
   gap: 0.25rem;
   margin: 0;
   color: var(--color-ink);
-  font-family: var(--font-title);
+  font-family: var(--font-sans);
   font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  line-height: 1.2;
+  letter-spacing: var(--type-tracking-sm);
+  line-height: var(--type-leading-sm);
   white-space: nowrap;
 }
 

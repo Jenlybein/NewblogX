@@ -74,7 +74,10 @@ describe("满幅：脱离 page-shell 的水平内边距", () => {
 describe("分层：底图 → 底部渐黑 → 指针墨流 → 色带 → h1 → 记号 → 控件", () => {
   it("底图层来自运营上传的首张轮播 cover，铺满面板", () => {
     expect(bannerVue).toContain('class="banner-photo"');
-    expect(bannerVue).toMatch(/<img[\s\S]*:src="currentBanner\.cover"/u);
+    // 换图交叉淡入（票 432）后，底图渲染的是"当前帧"锁定的 banner：
+    // 首帧就是 banners[0]，所以语义仍是"运营上传的首张轮播 cover"；
+    // 出场帧保留自己的 cover，交叉淡入才不会把新旧画面换成同一张。
+    expect(bannerVue).toMatch(/<img[\s\S]*:src="frame\.banner\.cover"/u);
     const photo = blockAfter(bannerVue, ".banner-photo__img {");
     expect(photo).toContain("height: 100%");
     expect(photo).toContain("width: 100%");

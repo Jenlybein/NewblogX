@@ -218,7 +218,7 @@ describe("版式：左侧时间轴 + 右侧卡片栅格", () => {
   });
 
   it("卡片只显示封面 + 标题（两行截断）+ 浏览时间，没有任何分类/作者/时长角标", async () => {
-    service.getHistoryArticles.mockResolvedValue({ list: [historyItem()], has_more: false });
+    service.getHistoryArticles.mockResolvedValue({ list: [historyItem({ cover: "https://cdn.example.com/h1.png" })], has_more: false });
 
     const wrapper = mountPage();
     await flushPromises();

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from "@tabler/icons-vue";
 import ArticleCover from "~/components/article/ArticleCover.vue";
+import { useCoverVisibility } from "~/composables/useCoverVisibility";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { SearchArticleItem } from "~/types/api";
 import {
@@ -58,6 +59,9 @@ const view = computed<ArticleEntryData>(() => {
 
 const hasData = computed(() => Boolean(view.value.id) && Boolean(view.value.href));
 
+/** 没封面（空串 / 只剩空白 / 加载失败）就不画封面槽，正文占满整行（票 440）。 */
+const { hasCover, markCoverFailed } = useCoverVisibility(() => view.value.cover);
+
 /**
  * 标题里的高亮片段。
  *
@@ -87,19 +91,18 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
 <template>
   <article
     class="feed-entry"
-    :class="[`feed-entry--${effectiveVariant}`, hasData ? '' : 'feed-entry--empty']"
+    :class="[`feed-entry--${effectiveVariant}`, hasData ? '' : 'feed-entry--empty', hasCover ? '' : 'feed-entry--no-cover']"
     :data-variant="effectiveVariant"
     :data-empty="hasData ? undefined : 'true'"
   >
     <NuxtLink
-      v-if="hasData"
+      v-if="hasData && hasCover"
       :to="view.href"
       class="feed-entry__cover"
       :aria-label="`打开文章：${plainTitle}`"
     >
-      <ArticleCover :src="view.cover" :title="plainTitle" />
+      <ArticleCover :src="view.cover" :title="plainTitle" @fail="markCoverFailed" />
     </NuxtLink>
-    <span v-else class="feed-entry__cover feed-entry__cover--empty" aria-hidden="true" />
 
     <div class="feed-entry__body">
       <!-- 顶行：作者（日期左边）→ 日期 → 分类 → 状态。 -->

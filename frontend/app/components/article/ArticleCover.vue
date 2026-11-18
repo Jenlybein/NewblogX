@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 
+/**
+ * 封面只有一个形态：有图就渲染图（16:9 居中裁切，票 204）；**没图就没有节点**（票 440）。
+ *
+ * 缺封面 / 加载失败曾经画过两种兜底（同底色空白、首字墨片），都被否掉了：
+ * 空白的 16:9 框读起来像"图挂了"，首字墨片又显突兀。现在的口径是"没有就不显示"，
+ * 整个封面槽由消费方按 `useCoverVisibility` 拿掉，换成无封面排版。
+ */
+const emit = defineEmits<{ fail: [] }>();
+
 const props = withDefaults(
   defineProps<{
     src?: string | null;
@@ -19,6 +28,12 @@ const showImage = computed(() => Boolean(normalizedSrc.value) && !imageFailed.va
 watch(normalizedSrc, () => {
   imageFailed.value = false;
 });
+
+function handleError(): void {
+  imageFailed.value = true;
+  // 消费方据此把整个封面槽换掉（没封面就不该留框，见 `useCoverVisibility`）。
+  emit("fail");
+}
 </script>
 
 <template>
@@ -30,35 +45,20 @@ watch(normalizedSrc, () => {
     width="424"
     height="304"
     loading="lazy"
-    @error="imageFailed = true"
+    @error="handleError"
   />
-  <!-- 票 210：缺封面 / 加载失败都不是「一种内容」——只留一块与父容器同底色的 16:9 空白。 -->
-  <div v-else class="article-cover-default" aria-hidden="true" />
 </template>
 
 <style scoped>
 /*
- * 封面兜底（票 210）：缺封面 / 加载失败只留一块与父容器同底色的 16:9 空白——
- * 无文字、无图标、无纹理，且对辅助技术隐藏（aria-hidden 写在模板上）。
- * 底纹、光斑与品牌小签整套退场，占位不再消费任何颜色 token。
- *
- * 封面的形状只有一个：16:9、高度由比例决定（票 204）。上传时已经在后台/创作页
- * 定形成这个比例，读者侧只做固定居中的 cover，不再消费任何取景参数；
- * 未定形过的旧封面也按居中显示，不拉伸、不留白。
+ * 封面的形状只有一个：16:9、高度由比例决定。上传时已经在后台/创作页定形成这个比例，
+ * 读者侧只做固定居中的 cover，不再消费任何取景参数；未定形过的旧封面也按居中显示。
  */
-.article-cover-image,
-.article-cover-default {
+.article-cover-image {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-}
-
-.article-cover-image {
   object-fit: cover;
   object-position: center;
-}
-
-.article-cover-default {
-  background: transparent;
 }
 </style>

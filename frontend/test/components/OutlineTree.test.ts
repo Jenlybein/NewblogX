@@ -147,7 +147,7 @@ describe("OutlineTree：读者详情页目录树", () => {
     const wrapper = mountTree();
 
     expect(wrapper.find(".outline-tree__cover").exists()).toBe(false);
-    expect(wrapper.find(".article-cover-default").exists()).toBe(false);
+    expect(wrapper.find(".article-cover-plate").exists()).toBe(false);
     expect(wrapper.findAll("img")).toHaveLength(0);
     expect(wrapper.get('[data-outline-row="a1"]').text()).toContain("开篇");
   });

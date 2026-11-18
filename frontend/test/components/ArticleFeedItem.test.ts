@@ -208,23 +208,39 @@ describe("ArticleFeedItem：列表封面固定居中", () => {
     expect(img.attributes("style")).toBeUndefined();
   });
 
-  it("没有封面时退到空封面兜底，不渲染裸 img", () => {
+  it("没有封面时整个封面槽不渲染，卡片换成无封面排版（票 440）", () => {
     const wrapper = mountWithCover("");
 
-    expect(wrapper.find(".feed-entry__cover img").exists()).toBe(false);
-    expect(wrapper.find(".article-cover-default").exists()).toBe(true);
+    // 没有那一列，也没有任何占位块：不是"空框"，是"没有框"。
+    expect(wrapper.find(".feed-entry__cover").exists()).toBe(false);
+    expect(wrapper.find("img").exists()).toBe(false);
+    expect(wrapper.classes()).toContain("feed-entry--no-cover");
+    // 正文还在：标题与摘要照常可读。
+    expect(wrapper.get(".feed-entry__title").text()).toContain("Nuxt 部署笔记");
   });
 
-  it("没有封面时封面槽只留空白：无文字、无装饰，且对辅助技术隐藏（#210）", () => {
-    const wrapper = mountWithCover("");
+  it("封面地址只有空白时也按无封面处理", () => {
+    const wrapper = mountWithCover("   ");
 
-    // 隐藏的是占位本身，不是链接：封面槽仍是「打开文章」的可点区域。
-    const slot = wrapper.get(".feed-entry__cover");
-    expect(slot.text()).toBe("");
-    expect(slot.attributes("aria-label")).toBe("打开文章：Nuxt 部署笔记");
+    expect(wrapper.find(".feed-entry__cover").exists()).toBe(false);
+    expect(wrapper.classes()).toContain("feed-entry--no-cover");
+  });
 
-    const placeholder = slot.get(".article-cover-default");
-    expect(placeholder.attributes("aria-hidden")).toBe("true");
+  it("封面加载失败时整列跟着消失（不是留一块空白）", async () => {
+    const wrapper = mountWithCover("https://cdn.example.com/broken.png");
+
+    await wrapper.get(".feed-entry__cover img").trigger("error");
+
+    expect(wrapper.find(".feed-entry__cover").exists()).toBe(false);
+    expect(wrapper.find("img").exists()).toBe(false);
+    expect(wrapper.classes()).toContain("feed-entry--no-cover");
+  });
+
+  it("有封面时不带无封面变体，封面槽仍是可点的「打开文章」区域", () => {
+    const wrapper = mountWithCover("https://cdn.example.com/a1.png");
+
+    expect(wrapper.classes()).not.toContain("feed-entry--no-cover");
+    expect(wrapper.get(".feed-entry__cover").attributes("aria-label")).toBe("打开文章：Nuxt 部署笔记");
   });
 });
 /**
@@ -271,7 +287,7 @@ describe("ArticleFeedItem：搜索命中词高亮", () => {
   });
 
   it("封面的无障碍标签是纯文本标题，不带标记", () => {
-    const wrapper = mountCard({ entry: highlighted, variant: "search" });
+    const wrapper = mountCard({ entry: { ...highlighted, cover: "https://cdn.example.com/a1.png" }, variant: "search" });
 
     expect(wrapper.get(".feed-entry__cover").attributes("aria-label")).toBe("打开文章：Python 条件与循环");
   });

@@ -31,8 +31,8 @@ function aspectRatioOf(block: string): string {
 }
 
 describe("封面组件：列表与详情共用的 16:9 底座", () => {
-  it("图片与兜底占位都是 16:9，且高度由比例决定而不是写死像素", () => {
-    const block = blockAfter(articleCover, ".article-cover-image,");
+  it("图片是 16:9，高度由比例决定而不是写死像素", () => {
+    const block = blockAfter(articleCover, ".article-cover-image {");
 
     expect(aspectRatioOf(block)).toBe(SPEC_RATIO);
     expect(block).toContain("width: 100%");
@@ -49,61 +49,72 @@ describe("封面组件：列表与详情共用的 16:9 底座", () => {
     expect(articleCover).not.toMatch(/:style=/u);
   });
 
-  it("没有封面时落到空封面兜底，兜底也占同一个 16:9 形状", () => {
-    expect(articleCover).toContain("article-cover-default");
-    expect(articleCover).toMatch(/v-else/u);
+  it("没有封面时不画任何兜底形状：组件只有「有图」一个分支（票 440）", () => {
+    expect(articleCover).not.toMatch(/article-cover-(?:plate|default)/u);
+    expect(articleCover).not.toMatch(/v-else/u);
+    expect(articleCover).toMatch(/v-if="showImage"/u);
   });
 });
 
 /**
- * 封面兜底退场（#210）：缺封面 = 父容器底色的 16:9 空白。
+ * 没封面就不画封面框（票 440）。
  *
- * 「没有封面」第一次被当成"没有内容"而不是"一种内容"：NO COVER 文案与围绕它的
- * 装饰（网格纹理、光斑、品牌小签）整套退场，空占位不进无障碍树。
- * 采样的是组件标签与样式块本身——形状已由上面锁住，这里锁"空白里什么都没有"。
+ * 两种旧口径都被用户否掉：同底色空白（像图挂了）、首字墨片（更丑）。
+ * 现在的约定是"没有就不显示"——组件只渲染有图那一支，图片失败时把 `fail` 抛给
+ * 消费方，由消费方整个拿掉封面槽并换成无封面排版。所以这里锁两件事：
+ * 组件里没有兜底形状；各消费方都按 `hasCover` 决定要不要那一列/那一块。
  */
-describe("封面兜底退场：空占位里没有文字、没有装饰", () => {
-  /** 组件里空占位的那个开标签（属性顺序无关，只看它带了什么）。 */
-  function placeholderTag(): string {
-    const match = /<div[^>]*class="article-cover-default"[^>]*>/u.exec(articleCover);
-    expect(match, "找不到 .article-cover-default 的开标签").not.toBeNull();
-    return match![0];
-  }
-
-  it("NO COVER 文案与「暂无封面」朗读串都已退场", () => {
-    expect(articleCover).not.toMatch(/NO COVER/u);
-    expect(articleCover).not.toMatch(/暂无封面/u);
+describe("没有封面就不显示封面框", () => {
+  it("组件里没有任何兜底节点、没有旧文案，也不自己找图（失败只抛 fail）", () => {
+    expect(articleCover).not.toMatch(/NO COVER|暂无封面/u);
+    expect(articleCover).not.toMatch(/background-image|mask-image|gradient/u);
+    expect(articleCover).toMatch(/emit\("fail"\)/u);
   });
 
-  it("围绕它的装饰（网格纹理 / 光斑 / 品牌小签）连样式一起删除", () => {
-    expect(articleCover).not.toMatch(/article-cover-default__(?:grid|orb|content)/u);
-    expect(articleCover).not.toMatch(/background-image|mask-image/u);
-  });
+  it("封面形状仍然只有 16:9 一份（兜底退场不改变有图时的比例）", () => {
+    const image = blockAfter(articleCover, ".article-cover-image {");
 
-  it("空占位与父容器同底色：background transparent，不画渐变也不留圆角框", () => {
-    // 兜底规则在文件末尾单独成块（前一次出现是它与图片共享的 16:9 底座）。
-    const block = blockAfter(articleCover, ".article-cover-default {", true);
-
-    expect(block).toContain("background: transparent");
-    expect(block).not.toMatch(/gradient/u);
-    expect(block).not.toMatch(/border-radius/u);
-  });
-
-  it("空占位对辅助技术隐藏：aria-hidden，且不包 role / aria-label", () => {
-    const tag = placeholderTag();
-
-    expect(tag).toContain('aria-hidden="true"');
-    expect(tag).not.toMatch(/\brole=/u);
-    expect(tag).not.toMatch(/aria-label/u);
+    expect(aspectRatioOf(image)).toBe(SPEC_RATIO);
+    expect(image).toContain("object-fit: cover");
   });
 });
-
 /**
- * 五处消费点同一口径（#210）：首页卡片 / 合集列表与详情 / 项目列表与详情 / 收藏 / 历史，
- * 封面只把 src 交给共用组件，不再给"没有封面"配任何文案或装饰；
- * 文章详情页首屏无封面时干脆不渲染图区，正文直接从标题开始。
+ * 无封面排版（票 440）：不是"画一块占位"，而是"换一种排版"。
+ *
+ * 信息流：封面列整个不渲染，正文占满整行；网格卡 / 短卡：封面块不渲染，标题上移。
+ * 这条一旦回退（又出现空框或占位列），下面几条会先红。
  */
-describe("五处消费点同一口径：无封面不再是一种内容", () => {
+describe("无封面排版：换版式，不画占位", () => {
+  const feedItem = readFileSync(join(projectDir, "app/components/article/ArticleFeedItem.vue"), "utf8");
+  const gridCard = readFileSync(join(projectDir, "app/components/article/ArticleGridCard.vue"), "utf8");
+  const miniCardSource = readFileSync(join(projectDir, "app/components/article/ArticleMiniCard.vue"), "utf8");
+
+  it("信息流条目：封面槽跟着 hasCover 出现，无封面时挂 --no-cover 变体", () => {
+    expect(feedItem).toContain("useCoverVisibility");
+    expect(feedItem).toMatch(/v-if="hasData && hasCover"/u);
+    expect(feedItem).toMatch(/feed-entry--no-cover/u);
+    expect(feedItem).toContain('@fail="markCoverFailed"');
+  });
+
+  it("网格卡与短卡：封面块用 v-if=hasCover 门控，图片失败时整块消失", () => {
+    expect(gridCard).toMatch(/v-if="hasCover"/u);
+    expect(gridCard).toContain('@error="markCoverFailed"');
+    expect(miniCardSource).toMatch(/v-if="interactive && to && hasCover"/u);
+    expect(miniCardSource).toMatch(/v-else-if="hasCover"/u);
+  });
+
+  it("无封面变体只在 md 档收成单列（窄屏本来就是单列）", () => {
+    const block = blockAfter(tailwind, ".feed-entry--no-cover {");
+
+    expect(block).toContain("md:grid-cols-[minmax(0,1fr)]");
+  });
+
+  it("旧的空封面样式已删除：不留 cover-empty 这类空框规则", () => {
+    expect(tailwind).not.toMatch(/feed-entry__cover--empty|article-grid-card__cover-empty/u);
+    expect(articleCover).not.toMatch(/article-cover-plate|article-cover-default/u);
+  });
+});
+describe("七处消费点同一口径：缺封面只在共用组件里实现一次", () => {
   const consumers = [
     "app/components/home/HomeFeedSection.vue",
     "app/pages/collections/index.vue",
@@ -122,7 +133,7 @@ describe("五处消费点同一口径：无封面不再是一种内容", () => {
     const source = readConsumer(relativePath);
 
     expect(source).not.toMatch(/NO COVER|暂无封面/u);
-    expect(source).not.toMatch(/article-cover-default/u);
+    expect(source).not.toMatch(/article-cover-(?:plate|default)/u);
     // 品牌小签的 `label` 接线一并拆除：组件不再接受它，消费点也不再传。
     expect(source).not.toMatch(/<ArticleCover[^>]*\blabel=/u);
   });
@@ -137,7 +148,7 @@ describe("五处消费点同一口径：无封面不再是一种内容", () => {
     expect(detailPage).toMatch(/<section v-if="article\?\.cover"/u);
     expect(detailPage).toContain('class="article-cover"');
     // 详情页不消费列表兜底：没有封面就没有任何图区（不是一块占位）。
-    expect(detailPage).not.toContain("article-cover-default");
+    expect(detailPage).not.toContain("article-cover-plate");
   });
 });
 

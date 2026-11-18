@@ -139,3 +139,11 @@ describe("ArticleActionsBar：点击只抛事件", () => {
     expect(wrapper.emitted("like")).toBeUndefined();
   });
 });
+
+describe("ArticleActionsBar：磁吸退役（#433）", () => {
+  it("没有任何按钮再挂磁吸标记：指针扫过时按钮不会从指针底下跑开", () => {
+    const wrapper = mount(ArticleActionsBar);
+
+    expect(wrapper.findAll("[data-magnet]")).toHaveLength(0);
+  });
+});

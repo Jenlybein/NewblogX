@@ -17,6 +17,9 @@ import { collectionCardView } from "~/utils/collection";
  * 卡片是文件夹形态（票 293）：网格与卡片都由共用组件 `FolderCardList` 提供；
  * 票 353 起外面再套一层 `GroupedReaderList`（按分组分段，未分组作为尾块），
  * 本页仍不自带任何卡片或网格样式。
+ *
+ * 地标口径（票 434）：页面内不再自带 main —— 全站唯一的正文地标在布局层
+ * （`layouts/default.vue`），第二层地标会让 skip link 与读屏地标指错地方。
  */
 const { data, pending, error } = await useAsyncData(
   "reader-collections",
@@ -47,7 +50,7 @@ const emptyDescription = computed(() =>
 </script>
 
 <template>
-  <main id="main-content" class="page-shell collection-page">
+  <section class="page-shell collection-page">
     <header class="collection-page__header">
       <h1 class="collection-page__title">合集</h1>
       <span class="collection-page__rule" aria-hidden="true" />
@@ -63,7 +66,7 @@ const emptyDescription = computed(() =>
       :pending="pending"
       size="lg"
     />
-  </main>
+  </section>
 </template>
 
 <style scoped>

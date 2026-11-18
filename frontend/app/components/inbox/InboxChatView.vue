@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
-import { useMessage } from "naive-ui";
+import { computed, toValue, watch } from "vue";
+import { useDialog, useMessage } from "naive-ui";
 
 import InboxChatPanel from "~/components/inbox/InboxChatPanel.vue";
 import { useInboxCenter } from "~/composables/useInboxCenter";
@@ -18,6 +18,7 @@ import { errorMessage } from "~/utils/errorMessage";
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
+const dialog = useDialog();
 
 const draftSessionSeed = computed(() => parseDraftSessionSeed(route.query));
 
@@ -77,6 +78,54 @@ async function handleSendImage(file: File) {
   }
 }
 
+/**
+ * 删除会话前的二次确认（票 435 / 票 423 第 23 项）。
+ *
+ * 与全站其它删除同一口径：`dialog.warning` + 「删除 / 取消」，点确认之前不发请求。
+ * 会话名从列表里取（删的是列表里那一条，不依赖"当前打开的是哪条"）。
+ */
+function confirmRemoveSession(sessionId: string) {
+  const nickname = toValue(filteredChatSessions).find((item) => item.session_id === sessionId)?.receiver_nickname;
+  dialog.warning({
+    title: "删除会话",
+    content: nickname
+      ? `删除与「${nickname}」的会话后，会话里的消息将不可恢复。确定删除？`
+      : "删除会话后，会话里的消息将不可恢复。确定删除？",
+    positiveText: "删除",
+    negativeText: "取消",
+    onPositiveClick: () => removeSession(sessionId),
+  });
+}
+
+async function removeSession(sessionId: string) {
+  try {
+    await removeChatSession(sessionId);
+    message.success("会话已删除");
+  } catch (error) {
+    message.error(errorMessage(error, "删除会话失败"));
+  }
+}
+
+/** 单条消息同样先问一次：删掉就找不回来了。 */
+function confirmRemoveMessage(id: string) {
+  dialog.warning({
+    title: "删除消息",
+    content: "删除后这条消息不可恢复。确定删除？",
+    positiveText: "删除",
+    negativeText: "取消",
+    onPositiveClick: () => removeMessage(id),
+  });
+}
+
+async function removeMessage(id: string) {
+  try {
+    await removeChatMessage(id);
+    message.success("已删除这条消息");
+  } catch (error) {
+    message.error(errorMessage(error, "删除消息失败"));
+  }
+}
+
 async function handleReconnect() {
   await connectSocket();
 }
@@ -113,8 +162,8 @@ watch(
     @update:draft-type="chatDraftType = $event"
     @send="handleSend()"
     @send-image="handleSendImage($event)"
-    @remove-session="removeChatSession($event)"
-    @remove-message="removeChatMessage($event)"
+    @remove-session="confirmRemoveSession($event)"
+    @remove-message="confirmRemoveMessage($event)"
     @reconnect="handleReconnect()"
     @retry="retryChatLoad()"
     @load-older="loadOlderChatMessages()"

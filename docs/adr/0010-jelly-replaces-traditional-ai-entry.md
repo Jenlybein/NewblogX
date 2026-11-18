@@ -66,3 +66,18 @@
 - 代码：[frontend/app/components/home/HomeAiChatDialog.vue](../../frontend/app/components/home/HomeAiChatDialog.vue)（旧居中模态，将被替换）
 - 代码：[frontend/app/stores/ui.ts](../../frontend/app/stores/ui.ts)（暗色开关与根类，角色与面板需跟随主题）
 - 文档：[GLOSSARY · Jelly](../../GLOSSARY.md)（概念定义只此一处） · 视觉系统见 [ADR-0011](./0011-neutral-glass-visual-system.md)
+
+## 后续修订 2026-11-18：收进窗口右边缘（抽屉核心，票 425）
+
+常驻角色仍然只在右下角/拖到的位置，但它**可以被收进窗口右边缘**：指针悬停到捏捏（或键盘聚焦）时，右上角浮出一颗收起按钮；按下后角色滑进右边缘，只留一个薄玻璃示意把手；点把手回到收起前的位置。收起状态刷新后保留。修订内容：
+
+1. **七态**：视觉状态从六态扩为 `idle` / `hover` / `press` / `open` / `collapsed` / `dragging` / `disabled`，优先级 `disabled > dragging > press > open > collapsed > hover > idle`。`disabled` 永远压过一切，`collapsed` 压过 `hover` / `idle`，让位给 `dragging` / `press` / `open`。
+2. **持久化键** `jelly:drawer-collapsed`（与位置同一个 localStore），取值 `"1"` / `"0"`；缺失、非 `"1"`、脏值、无存储、读取抛异常一律按**展开**——藏起来比露出来更糟。
+3. **收起不改写自由位置**：`jelly:launcher-position` 与内存里的 `position` 原样保留，收起态用派生坐标（贴右边缘、y 取自由位置的 y 并重新钳制）。因此展开即回原位，不需要第二份坐标。
+4. **把手几何**：可见宽 16px、高 56px，左圆角、右侧齐边，材质 `glass-thin`，内容是 12px 左向箭头（`IconChevronLeft`），颜色走墨色语义档；命中区 ≥44×44 由按钮本身的 44px 宽度拿到（透明区向左延伸，不撑大布局），`aria-label="展开捏捏"`。三态：hover 可见宽 20px + 箭头左移 2px、`:active` `scale(.96)`、`:focus-visible` 内嵌焦点环（贴边元素不能外扩 outline）。
+5. **收起按钮（chip）**：捏捏右上角（`top/right: -6px`），视觉 20×20、命中区 28×28、`rounded-pill`、实心纸面 + 1px 结构线 + 10px `×`。出现条件为 `state === hover` **或** 包含捏捏与 chip 的外层 cluster `focus-within` **或** 长按唤出（`isChipPinned`），且 `!isOpen && !isCollapsed`。悬停判定挂在 cluster 上（cluster 吃指针事件），从捏捏移到 chip 不闪断、不引入宽限计时；chip 在 Tab 序列里紧跟捏捏，Esc 收掉（焦点留在捏捏上，指针离开 / 重新进入 cluster 才复位）。
+6. **触摸长按**：`(pointer: coarse)` 下长按捏捏 ≥500ms（位移不超过既有 6px 拖拽阈值）唤出 chip 并 `pinCollapseChip()`；松手**不触发**打开面板；chip 在 4 秒（`JELLY_CHIP_PIN_MS`）后自动消失。
+7. **与面板互斥**：`collapse()` 防御性先 `close()` 面板；面板开着或已收起时 chip 不出现。收起 / 展开经既有 `role="status"` 通道播一句中文状态（复用 2.5s 瞬时提示机制）。
+8. **动效**：收起 / 展开只有 `transform` 与 `opacity` 的 **transition**（不是 keyframes，可中途反向），200ms / 200ms、同一缓动；把手进场 `opacity` + 4px `translateX` 120ms；「减少动态」由既有 `--motion-*` 归零成瞬时，不加新分支。收起态不接受拖拽手势，拖到贴近右边缘**不**自动收起（收起是显式动作）。
+9. **安全区**：把手贴右边缘、纵向钳制在视口内；`env(safe-area-inset-bottom)` 的让位属于同一 spec 的安全区批次，不改写本节「位置 = 左上角 transform」的坐标语义。
+

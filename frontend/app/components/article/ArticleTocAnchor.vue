@@ -244,7 +244,10 @@ onBeforeUnmount(() => {
       :aria-valuemax="100"
       :aria-valuenow="Math.round(progressPercent)"
     >
-      <span class="article-reading-progress__fill" :style="{ width: `${progressPercent}%` }" />
+      <span
+        class="article-reading-progress__fill"
+        :style="{ transform: `scaleX(${progressPercent / 100})` }"
+      />
     </div>
 
     <nav ref="tocBodyRef" class="article-toc__body" aria-label="文章目录">

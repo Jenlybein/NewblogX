@@ -34,6 +34,13 @@ export const MOTION_EXPRESSIVE_MS = {
   dragSettle: 160,
   /** 图表首帧：折线从底部长出来。 */
   chartReveal: 420,
+  /**
+   * 首屏轮播换图：交叉淡入（#432）。
+   *
+   * 恰好与 `dragSettle` 同值，但语义不同、两个消费者独立演进，所以各登记一条名字：
+   * 组件引用名字，样式层通过 `--banner-crossfade` 消费，不写裸毫秒。
+   */
+  bannerCrossfade: 160,
 } as const;
 
 export type MotionToken = keyof typeof MOTION_DURATIONS_MS;

@@ -97,12 +97,17 @@ const onSubmit = handleSubmit(async (formValues) => {
 <template>
   <NForm @submit.prevent="onSubmit">
     <NFormItem label="邮箱" :feedback="errors.email">
+      <!-- Naive 的 NInput `type` 只认 text/textarea/password：email/tel 必须走 input-props
+           落到内部原生输入上，否则类型检查（以及组件库的 type 分支）都不认。 -->
       <NInput
         v-model:value="email"
         v-bind="emailProps"
-        type="email"
         placeholder="输入邮箱"
-        :input-props="{ autocomplete: 'email', spellcheck: 'false' }" />
+        :input-props="{
+          type: 'email',
+          autocomplete: 'email',
+          spellcheck: 'false',
+        }" />
     </NFormItem>
     <NFormItem label="验证码" :feedback="errors.email_code">
       <div class="flex w-full gap-3">

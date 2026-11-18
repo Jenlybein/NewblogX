@@ -288,13 +288,20 @@ function notePointerSample(event: PointerEvent) {
   if (velocitySamples.length > 8) velocitySamples.shift();
 }
 
-/** 松手速度（px/s）：采样窗口内最早与最新两点求差；没有有效时间差就当没甩。 */
+/**
+ * 松手速度（px/s）：采样窗口内最早与最新两点求差；没有有效时间差就当没甩。
+ *
+ * `noUncheckedIndexedAccess` 下下标访问是 `T | undefined`，这里显式取兜底：
+ * 少于两个采样时直接当作没甩（`{0,0}`），不拿非空断言糊过去。
+ */
 function releaseVelocity(): { x: number; y: number } {
   if (velocitySamples.length < 2) return { x: 0, y: 0 };
 
   const last = velocitySamples[velocitySamples.length - 1];
+  if (!last) return { x: 0, y: 0 };
+
   const recent = velocitySamples.filter((sample) => last.t - sample.t <= RELEASE_WINDOW_MS);
-  const first = recent.length >= 2 ? recent[0] : velocitySamples[0];
+  const first = (recent.length >= 2 ? recent[0] : velocitySamples[0]) ?? last;
   const elapsed = last.t - first.t;
   if (!Number.isFinite(elapsed) || elapsed <= 0) return { x: 0, y: 0 };
 

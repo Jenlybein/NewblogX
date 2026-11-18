@@ -24,11 +24,22 @@ export interface ThemeColorPalette {
   dark: string;
 }
 
-export interface ThemeColorMeta {
-  name: string;
+/**
+ * head 里的 theme-color 条目形状。
+ *
+ * 必须是 **type alias** 而不是 interface：unhead 的 `Meta` 继承了 `DataKeys`
+ * （`[key: \`data-${string}\`]: Stringable`）这个**必需**索引签名，而 TypeScript 只给
+ * 匿名对象类型（type alias）隐式索引签名，interface 不会。写成 interface 时
+ * `useHead` 会报「Index signature for type '`data-${string}`' is missing」。
+ *
+ * `name` 也必须保持字面量 `"theme-color"`（见下），泛化成 `string` 会撞上
+ * unhead 的 `MetaNames | (string & Record<never, never>)` 品牌位。
+ */
+export type ThemeColorMeta = {
+  name: typeof THEME_COLOR_META_NAME;
   content: string;
   tagPriority: number;
-}
+};
 
 /** 从 tokens.css 源码解析亮/暗两档页面底；缺 token 直接抛错（不静默回落）。 */
 export function parseThemeColorPalette(cssText: string): ThemeColorPalette {

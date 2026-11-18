@@ -2,8 +2,6 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 
 import { MOBILE_PANEL_QUERY } from "~/utils/breakpoints";
 
-export { MOBILE_PANEL_QUERY };
-
 /**
  * 手机断点（页头折叠面板）的视口判定（票 437）。
  *

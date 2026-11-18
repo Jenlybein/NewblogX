@@ -89,13 +89,17 @@ const onSubmit = handleSubmit(async (formValues) => {
 <template>
   <NForm @submit.prevent="onSubmit">
     <NFormItem label="手机号" :feedback="errors.phone">
+      <!-- 手机号同样走 input-props：NInput 的 type 不认 tel，numeric 键盘靠 inputmode。 -->
       <NInput
         v-model:value="phone"
         v-bind="phoneProps"
-        type="tel"
         maxlength="11"
         placeholder="输入 11 位手机号"
-        :input-props="{ inputmode: 'tel', autocomplete: 'tel' }" />
+        :input-props="{
+          type: 'tel',
+          inputmode: 'tel',
+          autocomplete: 'tel',
+        }" />
     </NFormItem>
     <NFormItem label="验证码" :feedback="errors.code">
       <div class="flex w-full gap-3">

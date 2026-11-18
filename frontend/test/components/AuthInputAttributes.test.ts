@@ -38,11 +38,15 @@ vi.mock("naive-ui", () => {
     },
     emits: ["update:value"],
     setup(props, { attrs, emit }) {
+      // 与真实 Naive 对齐：`type` 只认 text/textarea/password（组件库的枚举），
+      // email/tel 这类原生类型必须经 `input-props` 落到内部 input 上。所以替身里
+      // input-props 的 `type` 优先于 prop 的默认值，否则会把 email 覆盖回 text。
+      const nativeType = (props.inputProps as { type?: string }).type ?? props.type;
       return () =>
         h("input", {
           ...attrs,
           ...props.inputProps,
-          type: props.type,
+          type: nativeType,
           value: props.value,
           placeholder: props.placeholder,
           onInput: (event: Event) => emit("update:value", (event.target as HTMLInputElement).value),

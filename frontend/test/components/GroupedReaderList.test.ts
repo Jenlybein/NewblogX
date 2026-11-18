@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
+import { blockAfter, blockAfterContaining } from '../helpers/designFiles'
+
 import GroupedReaderList from '~/components/common/GroupedReaderList.vue'
+
+const COLLAPSE_SOURCE = 'app/components/common/GroupedReaderList.vue'
 
 /**
  * 读者侧分组展示（票 353，2026-11-12 调整尾块分隔线）。
@@ -126,7 +133,12 @@ describe('读者侧分组：尾块分隔线', () => {
 })
 
 describe('读者侧分组：折叠', () => {
-  it('点分组头只收起这一组的卡片，分组头与计数仍在', async () => {
+  /**
+   * 票 437：折叠从 `display` 切换改成轨道过渡（`grid-template-rows 0fr ↔ 1fr`）。
+   * 对外可观察的契约因此有条变化：收起后容器**仍挂载**（要有东西才能做高度过渡），
+   * 靠 `inert` 保证里面的卡片不可聚焦、不进读屏。
+   */
+  it('点分组头只收起这一组的卡片，容器仍在但带 inert（展开后撤掉）', async () => {
     const wrapper = mount(GroupedReaderList, {
       props: {
         cards: [card('a'), card('b'), card('c')],
@@ -142,19 +154,30 @@ describe('读者侧分组：折叠', () => {
     expect(toggle.attributes('aria-expanded')).toBe('true')
     expect(toggle.attributes('aria-controls')).toBe('reader-group-panel-g1')
 
+    const panel = wrapper.get('[data-role="reader-group-g1"] .grouped-reader-list__panel')
+    // 展开态：容器可聚焦路径正常（没有 inert）。
+    expect(panel.attributes('inert')).toBeUndefined()
+    expect(panel.classes()).not.toContain('is-collapsed')
+
     await toggle.trigger('click')
 
-    // 折叠：aria 状态翻转、加 is-collapsed、卡片被 v-show 隐藏。
+    // 折叠：aria 状态翻转、加 is-collapsed、容器仍挂载且 inert。
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(head.classes()).toContain('is-collapsed')
-    expect(wrapper.get('[data-role="reader-group-g1"] .stub-card-list').attributes('style')).toContain('display: none')
+    expect(panel.classes()).toContain('is-collapsed')
+    expect(panel.attributes('inert')).toBeDefined()
+    // 卡片没有被卸载：只是被轨道裁剪住，过渡结束前空间"被看见"地让出来。
+    expect(panel.findAll('[data-id]').map(n => n.attributes('data-id'))).toEqual(['a'])
 
     // 别的组不受影响。
-    expect(wrapper.get('[data-role="reader-group-g2"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+    const other = wrapper.get('[data-role="reader-group-g2"] .grouped-reader-list__panel')
+    expect(other.classes()).not.toContain('is-collapsed')
+    expect(other.attributes('inert')).toBeUndefined()
 
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
-    expect(wrapper.get('[data-role="reader-group-g1"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+    expect(panel.classes()).not.toContain('is-collapsed')
+    expect(panel.attributes('inert')).toBeUndefined()
   })
 
   it('尾块的「未分组」分隔线也能收起 / 展开', async () => {
@@ -172,9 +195,57 @@ describe('读者侧分组：折叠', () => {
 
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(toggle.classes()).toContain('is-collapsed')
-    expect(wrapper.get('[data-role="reader-group-trailing"] .stub-card-list').attributes('style')).toContain('display: none')
+
+    const panel = wrapper.get('[data-role="reader-group-trailing"] .grouped-reader-list__panel')
+    expect(panel.classes()).toContain('is-collapsed')
+    expect(panel.attributes('inert')).toBeDefined()
+    expect(panel.findAll('[data-id]')).toHaveLength(1)
 
     await toggle.trigger('click')
-    expect(wrapper.get('[data-role="reader-group-trailing"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+    expect(panel.classes()).not.toContain('is-collapsed')
+    expect(panel.attributes('inert')).toBeUndefined()
+  })
+
+  /**
+   * 组件测试拿不到计算样式，时长与轨道取值改在样式源码上钉。
+   * 锁三件事：轨道是 0fr ↔ 1fr、展开取 base（200ms）而收起取 fast（120ms）、
+   * 内容 opacity 始终 120ms，且「减少动态」下整段瞬时（不是放慢）。
+   */
+  it('折叠过渡：轨道 0fr ↔ 1fr，展开 200 / 收起 120 / 内容 opacity 120', () => {
+    const source = readFileSync(join(process.cwd(), COLLAPSE_SOURCE), 'utf8')
+    const panelBase = blockAfter(source, '.grouped-reader-list__panel {')
+    const collapsed = blockAfter(source, '.grouped-reader-list__panel.is-collapsed {')
+    const clip = blockAfter(source, '.grouped-reader-list__panel-clip {')
+    const collapsedClip = blockAfter(source, '.grouped-reader-list__panel.is-collapsed .grouped-reader-list__panel-clip {')
+    const reduced = blockAfterContaining(source, '@media (prefers-reduced-motion: reduce)', '.grouped-reader-list__panel')
+
+    // 展开是默认态（目标态决定过渡时长）：1fr + base 档。
+    expect(panelBase).toMatch(/display:\s*grid;/u)
+    expect(panelBase).toMatch(/grid-template-rows:\s*1fr;/u)
+    expect(panelBase).toContain('var(--motion-base)')
+    expect(panelBase).toContain('var(--motion-ease)')
+    // 收起态：0fr + fast 档。
+    expect(collapsed).toMatch(/grid-template-rows:\s*0fr;/u)
+    expect(collapsed).toContain('var(--motion-fast)')
+    expect(collapsed).toContain('var(--motion-ease)')
+    // 内容透明度两个方向都用 fast 档（120ms）。
+    expect(clip).toContain('var(--motion-fast) var(--motion-ease)')
+    expect(collapsedClip).toMatch(/opacity:\s*0;/u)
+    // 轨道动画的承载层：0fr 真能收成 0 的前提。
+    expect(clip).toMatch(/overflow:\s*hidden;/u)
+    expect(clip).toMatch(/min-height:\s*0;/u)
+    // 减少动态：瞬时（不是放慢）。
+    expect(reduced).toContain('transition: none')
+  })
+
+  it('不再用 v-show / display 切换做折叠（也不写死毫秒）', () => {
+    const source = readFileSync(join(process.cwd(), COLLAPSE_SOURCE), 'utf8')
+    const style = source.slice(source.indexOf('<style scoped>')).replace(/\/\*[\s\S]*?\*\//gu, '')
+
+    expect(source).not.toContain('v-show')
+    // 收起不能靠整块 display: none（那会"啪"地跳一下）。
+    expect(style).not.toMatch(/(?:^|\n)\s*display:\s*none;/u)
+    // 时长只允许取 token，不写死毫秒。
+    expect(style).not.toMatch(/\d+ms/u)
   })
 })

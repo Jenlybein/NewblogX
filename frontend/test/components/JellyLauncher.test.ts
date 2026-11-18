@@ -68,16 +68,29 @@ function makeApi() {
     api.isDragged.value = false;
     api.state.value = "idle";
   });
+  // 收起 / 展开也要带真实语义：组件要在状态翻转后换掉 DOM（本体 ↔ 把手），
+  // 焦点交接的用例只有让假实现真的翻状态才验得到。
+  api.collapse.mockImplementation(() => {
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+  });
+  api.expand.mockImplementation(() => {
+    api.isCollapsed.value = false;
+    api.state.value = "idle";
+  });
 
   return api;
 }
 
 type Api = ReturnType<typeof makeApi>;
 
-function setup(): { api: Api; wrapper: ReturnType<typeof mount> } {
+function setup(options: { attachTo?: boolean } = {}): {
+  api: Api;
+  wrapper: ReturnType<typeof mount>;
+} {
   const api = makeApi();
   apiRef.current = api;
-  const wrapper = mount(JellyLauncher);
+  const wrapper = mount(JellyLauncher, options.attachTo ? { attachTo: document.body } : {});
   return { api, wrapper };
 }
 
@@ -396,6 +409,21 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     wrapper.unmount();
   });
 
+  it("根元素把纵向坐标暴露成 CSS 变量（安全区让位在渲染层计算，JS 坐标语义不变，票 426）", async () => {
+    const { api, wrapper } = setup();
+    const style = () => wrapper.find(".jelly-launcher").attributes("style") ?? "";
+
+    expect(style()).toContain(`--jelly-y: ${api.position.value.y}px`);
+
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+    // 收起态 CSS 变量跟派生坐标走，让把手同样能在贴底时上抬。
+    expect(style()).toContain(`--jelly-y: ${api.collapsedPosition.value.y}px`);
+
+    wrapper.unmount();
+  });
+
   it("点把手调用 expand()（回到收起前的自由位置）", async () => {
     const { api, wrapper } = setup();
     api.isCollapsed.value = true;
@@ -406,6 +434,31 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
 
     expect(api.expand).toHaveBeenCalledTimes(1);
     expect(api.collapse).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
+  it("收起态的把手是原生按钮：可 Tab 到，回车展开，焦点交还给捏捏（票 426）", async () => {
+    const { api, wrapper } = setup({ attachTo: true });
+    api.isCollapsed.value = true;
+    api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+
+    const handle = wrapper.find("button.jelly-launcher__handle");
+    expect(handle.element.tagName).toBe("BUTTON");
+    // 没有被 tabindex 踢出 Tab 序列 —— 收起来之后键盘路径仍然完整。
+    expect(handle.attributes("tabindex")).toBeUndefined();
+
+    (handle.element as HTMLButtonElement).focus();
+    expect(document.activeElement).toBe(handle.element);
+
+    await handle.trigger("keydown", { key: "Enter" });
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+
+    expect(api.expand).toHaveBeenCalledTimes(1);
+    // 把手已经被捏捏本体替换：焦点要跟着回去，不能掉到 body。
+    expect(document.activeElement).toBe(launcherButton(wrapper).element);
 
     wrapper.unmount();
   });
@@ -449,6 +502,21 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     expect(collapseChip(wrapper).exists()).toBe(true);
 
     await cluster.trigger("focusout");
+    expect(collapseChip(wrapper).exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("捏捏真的拿到焦点（focus 冒泡到 cluster）就出现 chip，不需要先悬停（票 426）", async () => {
+    const { wrapper } = setup({ attachTo: true });
+
+    launcherButton(wrapper).element.focus();
+    await wrapper.vm.$nextTick();
+
+    expect(collapseChip(wrapper).exists()).toBe(true);
+
+    launcherButton(wrapper).element.blur();
+    await wrapper.vm.$nextTick();
     expect(collapseChip(wrapper).exists()).toBe(false);
 
     wrapper.unmount();
@@ -515,6 +583,26 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     wrapper.unmount();
   });
 
+  it("焦点在 chip 上按 Esc：chip 收起且焦点回到捏捏，不掉到 body（票 426）", async () => {
+    const { api, wrapper } = setup({ attachTo: true });
+    api.state.value = "hover";
+    await wrapper.vm.$nextTick();
+
+    const chip = collapseChip(wrapper);
+    expect(chip.exists()).toBe(true);
+    (chip.element as HTMLButtonElement).focus();
+    expect(document.activeElement).toBe(chip.element);
+
+    await chip.trigger("keydown", { key: "Escape" });
+    await wrapper.vm.$nextTick();
+
+    expect(api.dismissCollapseChip).toHaveBeenCalledTimes(1);
+    expect(collapseChip(wrapper).exists()).toBe(false);
+    expect(document.activeElement).toBe(launcherButton(wrapper).element);
+
+    wrapper.unmount();
+  });
+
   it("收起态下 pointerdown 不接受拖拽（收起是显式动作，展开是把手的事）", async () => {
     const { api, wrapper } = setup();
     api.isCollapsed.value = true;
@@ -556,6 +644,53 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     expect(draggedApi.pinCollapseChip).not.toHaveBeenCalled();
 
     draggedWrapper.unmount();
+  });
+
+  it("长按在整 500ms 触发；499ms 还不到阈值（票 426 的时序钉）", async () => {
+    stubCoarsePointer();
+    vi.useFakeTimers();
+    const { api, wrapper } = setup();
+
+    launcherButton(wrapper).element.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }),
+    );
+    vi.advanceTimersByTime(499);
+    expect(api.pinCollapseChip).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(api.pinCollapseChip).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+  });
+
+  it("长按期间位移 ≤6px 不取消，越过 6px 立刻取消（票 426 的手势互斥钉）", async () => {
+    stubCoarsePointer();
+    vi.useFakeTimers();
+
+    // 位移 5.83px（仍在 6px 拖拽阈值内）：长按照常唤出。
+    const { api: steadyApi, wrapper: steadyWrapper } = setup();
+    launcherButton(steadyWrapper).element.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }),
+    );
+    window.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, clientX: 125, clientY: 143 }),
+    );
+    vi.advanceTimersByTime(500);
+    expect(steadyApi.pinCollapseChip).toHaveBeenCalledTimes(1);
+    steadyWrapper.unmount();
+
+    // 位移 7.28px（越过阈值）：已经进入拖拽，长按计时作废。
+    const { api: movedApi, wrapper: movedWrapper } = setup();
+    launcherButton(movedWrapper).element.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }),
+    );
+    window.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, clientX: 127, clientY: 142 }),
+    );
+    expect(movedApi.beginDrag).toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(movedApi.pinCollapseChip).not.toHaveBeenCalled();
+    movedWrapper.unmount();
   });
 
   it("收起 / 展开只动 transform 与 opacity 的 transition（可中途反向，不用 keyframes）", async () => {

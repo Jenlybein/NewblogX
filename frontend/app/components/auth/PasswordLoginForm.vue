@@ -62,7 +62,11 @@ const onSubmit = handleSubmit(async (values) => {
 <template>
   <NForm @submit.prevent="onSubmit">
     <NFormItem label="用户名" :feedback="errors.username">
-      <NInput v-model:value="username" v-bind="usernameProps" placeholder="输入用户名" />
+      <NInput
+        v-model:value="username"
+        v-bind="usernameProps"
+        placeholder="输入用户名"
+        :input-props="{ autocomplete: 'username', autocapitalize: 'none' }" />
     </NFormItem>
     <NFormItem label="密码" :feedback="errors.password">
       <NInput
@@ -71,6 +75,7 @@ const onSubmit = handleSubmit(async (values) => {
         type="password"
         show-password-on="click"
         placeholder="输入密码"
+        :input-props="{ autocomplete: 'current-password' }"
       />
     </NFormItem>
     <NFormItem v-if="captchaEnabled">

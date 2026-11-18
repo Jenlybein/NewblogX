@@ -78,8 +78,10 @@ describe("JellyLauncher：几何常量由 composable 注入 CSS 变量", () => {
     expect(capsule).toContain("height: var(--jelly-handle-height)");
     expect(capsule).not.toMatch(/width:\s*16px/u);
 
-    // hover 的 20px = 16 + 4：只从变量派生，不写第二份像素值。
-    expect(launcher).toContain("width: calc(var(--jelly-handle-width) + 4px)");
+    // hover 的 20px = 16 × 1.25：只放大 transform，不再补间 width（布局属性）。
+    expect(launcher).toContain("scaleX(1.25)");
+    expect(launcher).toContain("transform-origin: 100% 50%");
+    expect(launcher).not.toMatch(/transition:[^;\n]*\bwidth\b/u);
   });
 });
 
@@ -117,5 +119,14 @@ describe("JellyLauncher：收起 / 展开只动 transform / opacity", () => {
     );
     // 位置直写期（拖拽 / 落位）没有过渡。
     expect(rootStyle).toContain('"none"');
+  });
+
+  it("收起 / 展开角色本体：200ms transform + opacity，滑到把手位置后动画结束才卸载", () => {
+    // 角色不是 v-if 瞬时换装：Vue 过渡类负责位移与淡出。
+    expect(launcher).toContain(".jelly-character-enter-active");
+    expect(launcher).toContain(".jelly-character-leave-to");
+    expect(launcher).toContain("translateX(calc(100% - var(--jelly-handle-width)))");
+    expect(launcher).toContain("transform var(--motion-base) var(--motion-ease)");
+    expect(launcher).toContain("opacity: 0");
   });
 });

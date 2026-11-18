@@ -482,7 +482,7 @@ describe("BannerCarousel：播放/暂停控件", () => {
     wrapper.unmount();
   });
 
-  it("减少动态下默认不自动播放，但播放/暂停控件仍在、aria-label 正确、可显式开启", async () => {
+  it("减少动态：播放按钮禁用并说明原因，点击不改变暂停态、不排定时器", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("prefers-reduced-motion"),
       media: query,
@@ -495,21 +495,28 @@ describe("BannerCarousel：播放/暂停控件", () => {
     }));
 
     const wrapper = mountPlaying();
+    await nextTick();
 
     // 默认暂停：30 秒都不换图。
     await vi.advanceTimersByTimeAsync(30000);
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
 
-    // spec 432：控件行提供播放/暂停切换 —— 减少动态下也要在，只是不自动播放。
+    // spec 432：控件行提供播放/暂停切换 —— 减少动态下控件仍在，但禁用。
     const playback = wrapper.get(".banner-playback");
-    expect(playback.attributes("aria-label")).toBe("继续轮播");
+    expect(playback.attributes("aria-label")).toBe("已按系统偏好关闭自动轮播");
+    expect(playback.attributes("disabled")).toBeDefined();
+    expect(playback.attributes("aria-disabled")).toBe("true");
 
-    // 读者显式点「继续轮播」后才会动（此时换图直接切，不做交叉淡入）。
+    // 禁用态点击不启动自动播放：暂停态不变，也不排任何 interval。
+    expect(vi.getTimerCount()).toBe(0);
     await playback.trigger("click");
-    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe("暂停轮播");
+    expect(vi.getTimerCount()).toBe(0);
+    expect(wrapper.get(".banner-playback").attributes("aria-label")).toBe(
+      "已按系统偏好关闭自动轮播",
+    );
 
     await vi.advanceTimersByTimeAsync(6000);
-    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
 
     wrapper.unmount();
   });

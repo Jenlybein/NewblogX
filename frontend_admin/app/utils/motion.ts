@@ -35,7 +35,7 @@ export const MOTION_EXPRESSIVE_MS = {
   /** 图表首帧：折线从底部长出来。 */
   chartReveal: 420,
   /**
-   * 首屏轮播换图：交叉淡入（#432）。
+   * 首屏轮播换图：交叉淡入（票 432）。
    *
    * 恰好与 `dragSettle` 同值，但语义不同、两个消费者独立演进，所以各登记一条名字：
    * 组件引用名字，样式层通过 `--banner-crossfade` 消费，不写裸毫秒。
@@ -185,14 +185,16 @@ export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: bool
 }
 
 /* ------------------------------------------------------------------------------------
- * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0011 后续修订 2026-11-07）
+ * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0011 约束 9）
  *
  * 弹簧只服务**登记过的几处**：右栏标题大纲的飞行器（travel / turn）、消息中心
  * 分段条接缝（neck）、首屏像素尾迹（trail / trailTail / pixelPop / pixelGlow），以及
- * 捏捏拖拽松手后的落位（launcherSettle，票 #424）。目录树沟槽圆点已于 2026-11-10
+ * 捏捏拖拽松手后的落位（launcherSettle，票 424）。目录树沟槽圆点已于 2026-11-10
  * 按用户反馈移除，`SPRING_DOT` 一并退场，不留一个没有消费者的预设。
- * CSS 侧仍只有三档时长 + 单一缓动 —— tokens.css 不动（CSS 表达不了弹簧），三档时长
- * 与单一缓动继续服务评论展开/收起、路由过渡与 hover。
+ * CSS 侧仍只有三档界面时长 + 单一缓动 —— tokens.css 不动（CSS 表达不了弹簧），
+ * 三档时长与单一缓动继续服务评论展开/收起、路由过渡与 hover；三档之外的表达型时长
+ * （`MOTION_EXPRESSIVE_MS`，含 CSS 消费者 `--banner-crossfade`）是 ADR-0011 约束 9
+ * 登记过的例外，组件同样只引用名字、不内联毫秒。
  *
  * 组件**禁止内联 `stiffness` / `damping` 数字**：参数只在这里，组件引用 `SPRING_*`，
  * 并用 `resolveSpringMotion()` 拿到"要么弹簧、要么立即落位"的过渡。
@@ -289,7 +291,7 @@ export const SPRING_PIXEL_GLOW: SpringPreset = Object.freeze({
 });
 
 /**
- * 捏捏（Jelly）拖拽松手后的落位（票 #424）。
+ * 捏捏（Jelly）拖拽松手后的落位（票 424）。
  *
  * 拖拽期角色与指针 1:1（位置直写，没有过渡），松手时把指针的**松手速度**交给这组
  * 弹簧，让它把余劲走完再回到松手处：近临界阻尼（ζ≈0.85、ω≈22 rad/s），峰值偏移只有

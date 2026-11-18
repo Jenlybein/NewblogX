@@ -1,9 +1,11 @@
 import { mount } from "@vue/test-utils";
+import { animate } from "motion-v";
 import { describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 
 import JellyLauncher from "~/components/jelly/JellyLauncher.vue";
 import type { JellyVisualState } from "~/composables/useJellyAssistant";
+import { SPRING_LAUNCHER_SETTLE } from "~/utils/motion";
 
 // 角色组件（JellyLauncher）的渲染冒烟。
 //
@@ -17,6 +19,14 @@ vi.mock("~/composables/useJellyAssistant", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/composables/useJellyAssistant")>();
 
   return { ...actual, useJellyAssistant: () => apiRef.current };
+});
+
+// 落位交给 motion-v 的 `animate()`（真实弹簧在 jsdom 里没有可手动推进的帧），
+// 只把 `animate` 换成可驱动的桩；MotionValue / 事件订阅仍用真实实现。
+vi.mock("motion-v", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion-v")>();
+
+  return { ...actual, animate: vi.fn() };
 });
 
 function makeApi() {
@@ -87,11 +97,40 @@ type Api = ReturnType<typeof makeApi>;
 function setup(options: { attachTo?: boolean } = {}): {
   api: Api;
   wrapper: ReturnType<typeof mount>;
+  flushFrames: () => void;
 } {
   const api = makeApi();
   apiRef.current = api;
-  const wrapper = mount(JellyLauncher, options.attachTo ? { attachTo: document.body } : {});
-  return { api, wrapper };
+  vi.mocked(animate).mockReset();
+  // 默认桩：没有断言落位的用例只要求动画能正常收尾（不产生帧、立即 resolve）。
+  // 需要驱动帧的落位用例会再用 stubSpringAnimations() 覆盖这套实现。
+  vi.mocked(animate).mockImplementation((() => ({
+    stop: () => {},
+    finished: Promise.resolve(),
+  })) as unknown as typeof animate);
+
+  // Vue 的过渡收尾（收起 / 展开）靠两层 rAF；桩成可手动 flush 的队列，
+  // 用例才能断言"动画结束后元素才被卸载"。
+  const pendingFrames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    pendingFrames.push(callback);
+    return pendingFrames.length;
+  });
+  vi.stubGlobal("cancelAnimationFrame", () => {});
+
+  const flushFrames = () => {
+    while (pendingFrames.length > 0) {
+      for (const callback of pendingFrames.splice(0)) callback(0);
+    }
+  };
+
+  const wrapper = mount(JellyLauncher, {
+    ...(options.attachTo ? { attachTo: document.body } : {}),
+    // 收起 / 展开的可见位移靠真实 <Transition> 才会延迟卸载元素；VTU 默认把
+    // transition 桩成同步替换，等于把本票要验的"动画结束后才卸载"抹掉。
+    global: { stubs: { transition: false } },
+  });
+  return { api, wrapper, flushFrames };
 }
 
 function launcherButton(wrapper: ReturnType<typeof mount>) {
@@ -308,43 +347,57 @@ describe("JellyLauncher · 气泡与提示", () => {
   });
 });
 
-/** 一帧的名义时长（毫秒）：用例自己推进 rAF，不依赖真实时间。 */
-const FRAME_MS = 16;
+/** 桩里一条 `animate()` 调用：组件对 x / y 各起一条 MotionValue 弹簧。 */
+interface SpringRun {
+  value: { set(value: number): void };
+  options: Record<string, unknown> & { velocity?: number };
+  stopped: boolean;
+  finish(): void;
+}
 
 /**
- * 可手动推进的动画帧队列。
+ * 可手动驱动的 `animate()` 桩。
  *
- * 落位是逐帧直写的（不是 CSS 过渡），所以"动画有没有动、动完有没有停"只能从帧调度上看：
- * 把 requestAnimationFrame 换成"先存起来、由用例决定何时走一帧"，断言就完全不依赖真实时间。
+ * 组件不再自写欧拉积分 / rAF 循环，落位是 motion-v 的两条弹簧。测试不需要模拟
+ * 弹簧曲线（那是依赖的行为），只需要：
+ *   1. 断言它把登记预设与分轴初速交给了 `animate()`；
+ *   2. 能手动把两条 MotionValue 推进到某个偏移，验证钳制 / 接管的 DOM 契约；
+ *   3. 能结束动画，验证收尾归零与"不留下一直在跑的动画"。
  */
-function stubAnimationFrames() {
-  let nextId = 0;
-  let timestamp = 0;
-  const pending = new Map<number, FrameRequestCallback>();
+function stubSpringAnimations() {
+  const runs: SpringRun[] = [];
+  const impl = (value: unknown, _target: unknown, options: unknown) => {
+    let resolveFinished!: () => void;
+    const finished = new Promise<void>((resolve) => {
+      resolveFinished = resolve;
+    });
+    const run: SpringRun = {
+      value: value as SpringRun["value"],
+      options: (options ?? {}) as SpringRun["options"],
+      stopped: false,
+      finish: resolveFinished,
+    };
+    runs.push(run);
 
-  vi.stubGlobal(
-    "requestAnimationFrame",
-    vi.fn((callback: FrameRequestCallback) => {
-      nextId += 1;
-      pending.set(nextId, callback);
-      return nextId;
-    }),
-  );
-  vi.stubGlobal(
-    "cancelAnimationFrame",
-    vi.fn((id: number) => {
-      pending.delete(id);
-    }),
-  );
+    return {
+      stop: () => {
+        run.stopped = true;
+        resolveFinished();
+      },
+      finished,
+    };
+  };
+
+  vi.mocked(animate).mockImplementation(impl as unknown as typeof animate);
 
   return {
-    pending: () => pending.size,
-    /** 走一帧：执行当前挂起的回调并推进名义时间。 */
-    step() {
-      timestamp += FRAME_MS;
-      const callbacks = [...pending.values()];
-      pending.clear();
-      for (const callback of callbacks) callback(timestamp);
+    runs,
+    /** 模拟弹簧甩出去的一帧：x / y 两条 MotionValue 分别推到给定偏移（px）。 */
+    offset(x: number, y: number) {
+      runs.forEach((run, index) => run.value.set(index === 0 ? x : y));
+    },
+    finishAll() {
+      for (const run of runs) run.finish();
     },
   };
 }
@@ -386,11 +439,16 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     return wrapper.find("button.jelly-collapse-chip");
   }
 
-  it("收起态渲染贴右边缘的把手而不是捏捏本体（把手 aria-label 为「展开捏捏」）", async () => {
-    const { api, wrapper } = setup();
+  it("收起态渲染贴右边缘的把手而不是捏捏本体（收起动画结束后本体才卸载）", async () => {
+    const { api, wrapper, flushFrames } = setup();
 
     api.isCollapsed.value = true;
     api.state.value = "collapsed";
+    await wrapper.vm.$nextTick();
+
+    // 收起是可见位移：刚翻状态时本体还在（带 leave 过渡），把手已经叠上来。
+    expect(wrapper.find("button.jelly-launcher__button").exists()).toBe(true);
+    flushFrames();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.classes()).toContain("jelly-launcher--collapsed");
@@ -568,6 +626,37 @@ describe("JellyLauncher · 收进窗口右边缘（抽屉核心）", () => {
     wrapper.unmount();
   });
 
+  it("键盘触发收起后焦点交给把手；指针点击不抢焦点（票 423）", async () => {
+    const keyboard = setup({ attachTo: true });
+    keyboard.api.state.value = "hover";
+    await keyboard.wrapper.vm.$nextTick();
+    const chip = collapseChip(keyboard.wrapper);
+    (chip.element as HTMLButtonElement).focus();
+    // 键盘合成的 click 没有指针来源：detail === 0。
+    chip.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    await keyboard.wrapper.vm.$nextTick();
+
+    expect(keyboard.api.collapse).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(
+      keyboard.wrapper.find("button.jelly-launcher__handle").element,
+    );
+    keyboard.wrapper.unmount();
+
+    const pointer = setup({ attachTo: true });
+    pointer.api.state.value = "hover";
+    await pointer.wrapper.vm.$nextTick();
+    const pointerChip = collapseChip(pointer.wrapper);
+    pointerChip.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    await pointer.wrapper.vm.$nextTick();
+
+    expect(pointer.api.collapse).toHaveBeenCalledTimes(1);
+    // 指针用户点完收起后不该被抢焦点（焦点随 chip 卸载离开即可）。
+    expect(document.activeElement).not.toBe(
+      pointer.wrapper.find("button.jelly-launcher__handle").element,
+    );
+    pointer.wrapper.unmount();
+  });
+
   it("按 Esc 收掉 chip（调用 dismissCollapseChip，焦点留在捏捏上）", async () => {
     const { api, wrapper } = setup();
     api.state.value = "hover";
@@ -727,40 +816,45 @@ describe("JellyLauncher · 拖拽跟手与松手弹簧落位", () => {
     wrapper.unmount();
   });
 
-  it("松手后按登记弹簧把余劲走完：先顺甩动方向滑一小段，再回到松手处", async () => {
-    const frames = stubAnimationFrames();
+  it("松手后按登记弹簧把余劲走完：初速分轴交给 animate，最终回到松手处", async () => {
     const { wrapper } = setup();
+    const springs = stubSpringAnimations();
 
     dragAndRelease(wrapper);
 
-    // 松手立刻进入落位（帧循环启动），角色不再硬停在原地。
-    expect(frames.pending()).toBe(1);
-    const released = rootOffset(wrapper);
-
-    frames.step();
-    await wrapper.vm.$nextTick();
-    const firstFrame = rootOffset(wrapper);
-    expect(firstFrame.x).toBeGreaterThan(released.x);
-    expect(firstFrame.y).toBeGreaterThan(released.y);
-
-    // 落位会自己停：不留下永远在跑的帧循环，而且最终回到松手处（不漂移）。
-    let used = 1;
-    while (frames.pending() > 0 && used < 120) {
-      frames.step();
-      await wrapper.vm.$nextTick();
-      used += 1;
+    // 两条轴各一条 MotionValue 弹簧：参数来自登记预设，初速也是分轴传入的。
+    expect(springs.runs).toHaveLength(2);
+    for (const run of springs.runs) {
+      expect(run.options).toMatchObject({
+        type: "spring",
+        stiffness: SPRING_LAUNCHER_SETTLE.stiffness,
+        damping: SPRING_LAUNCHER_SETTLE.damping,
+        mass: SPRING_LAUNCHER_SETTLE.mass,
+      });
+      expect(typeof run.options.velocity).toBe("number");
     }
 
-    expect(frames.pending()).toBe(0);
-    expect(used).toBeLessThan(120);
+    const released = rootOffset(wrapper);
+
+    // 弹簧甩出去的那一小段：MotionValue 逐帧变化 → 偏移叠进 transform。
+    springs.offset(9, 7);
+    await wrapper.vm.$nextTick();
+    expect(rootOffset(wrapper)).toEqual({ x: released.x + 9, y: released.y + 7 });
+
+    // 动画结束：偏移归零、控制句柄停掉，最终回到松手处（不漂移）。
+    springs.finishAll();
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
     expect(rootOffset(wrapper)).toEqual(released);
+    expect(springs.runs.every((run) => run.stopped)).toBe(true);
 
     wrapper.unmount();
   });
 
   it("视口边界即时钳制：贴着右下角向外甩也不会越界", async () => {
-    const frames = stubAnimationFrames();
     const { api, wrapper } = setup();
+    const springs = stubSpringAnimations();
 
     // 1024×768 视口里右下角的合法位置就是 (956, 700)。
     api.position.value = { x: 956, y: 700 };
@@ -771,25 +865,19 @@ describe("JellyLauncher · 拖拽跟手与松手弹簧落位", () => {
     window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 1_060, clientY: 800 }));
     window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 1_060, clientY: 800 }));
 
-    expect(frames.pending()).toBe(1);
+    // 弹簧往外甩 20px：展示值被钳在视口内，角色不会越界。
+    springs.offset(20, 20);
+    await wrapper.vm.$nextTick();
+    expect(rootOffset(wrapper)).toEqual({ x: 956, y: 700 });
 
-    let guard = 0;
-    while (frames.pending() > 0 && guard < 120) {
-      frames.step();
-      await wrapper.vm.$nextTick();
-      const offset = rootOffset(wrapper);
-      expect(offset.x).toBeLessThanOrEqual(956);
-      expect(offset.y).toBeLessThanOrEqual(700);
-      guard += 1;
-    }
-
+    springs.finishAll();
+    await wrapper.vm.$nextTick();
     expect(rootOffset(wrapper)).toEqual({ x: 956, y: 700 });
 
     wrapper.unmount();
   });
 
-  it("减少动态时松手直接落位：走既有弹簧解析的落位档，不启动弹簧帧循环", async () => {
-    const frames = stubAnimationFrames();
+  it("减少动态时松手直接落位：走既有弹簧解析的落位档，不启动动画", async () => {
     const { api, wrapper } = setup();
 
     api.isReducedMotion.value = true;
@@ -797,31 +885,30 @@ describe("JellyLauncher · 拖拽跟手与松手弹簧落位", () => {
 
     dragAndRelease(wrapper);
 
-    expect(frames.pending()).toBe(0);
+    expect(vi.mocked(animate)).not.toHaveBeenCalled();
     expect(rootOffset(wrapper)).toEqual({ x: 100, y: 120 });
 
     wrapper.unmount();
   });
 
   it("没有拖拽的点击不启动落位（只有「拖着甩出去」才需要收余劲）", async () => {
-    const frames = stubAnimationFrames();
     const { wrapper } = setup();
     const element = launcherButton(wrapper).element;
 
     element.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 120, clientY: 140 }));
     window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 121, clientY: 141 }));
 
-    expect(frames.pending()).toBe(0);
+    expect(vi.mocked(animate)).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });
 
-  it("落位途中再次按下：立刻接管，不留残余动画帧", async () => {
-    const frames = stubAnimationFrames();
+  it("落位途中再次按下：立刻接管并停掉旧弹簧，不留残余动画", async () => {
     const { wrapper } = setup();
+    const springs = stubSpringAnimations();
 
     dragAndRelease(wrapper);
-    frames.step();
+    springs.offset(9, 7);
     await wrapper.vm.$nextTick();
     expect(rootOffset(wrapper)).not.toEqual({ x: 100, y: 120 });
 
@@ -830,20 +917,20 @@ describe("JellyLauncher · 拖拽跟手与松手弹簧落位", () => {
     );
     await wrapper.vm.$nextTick();
 
-    expect(frames.pending()).toBe(0);
+    expect(springs.runs.every((run) => run.stopped)).toBe(true);
     expect(rootOffset(wrapper)).toEqual({ x: 100, y: 120 });
 
     wrapper.unmount();
   });
 
-  it("卸载时停掉落位帧循环（不留下一直在跑的动画）", () => {
-    const frames = stubAnimationFrames();
+  it("卸载时停掉落位弹簧（不留下一直在跑的动画）", () => {
     const { wrapper } = setup();
+    const springs = stubSpringAnimations();
 
     dragAndRelease(wrapper);
-    expect(frames.pending()).toBe(1);
+    expect(springs.runs).toHaveLength(2);
 
     wrapper.unmount();
-    expect(frames.pending()).toBe(0);
+    expect(springs.runs.every((run) => run.stopped)).toBe(true);
   });
 });

@@ -465,10 +465,10 @@ describe("字体角色收口：Sora 只给字标与页面级大标题（票 430�
     expect(offenders).toEqual([]);
   });
 
-  it("Sora 只出现在 ≥1.75rem（30px，display 档）的规则里", () => {
+  it("Sora 只出现在 ≥1.875rem（30px，display 档）的规则里", () => {
     const offenders = soraRules
       .map((rule) => ({ rule, size: minDeclaredFontSizeRem(rule.body) }))
-      .filter(({ size }) => size !== null && size < 1.75)
+      .filter(({ size }) => size !== null && size < 1.875)
       .map(({ rule, size }) => `${rule.file}:${rule.selector}（${size}rem）`);
 
     expect(offenders).toEqual([]);

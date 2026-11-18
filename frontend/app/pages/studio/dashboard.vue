@@ -344,7 +344,7 @@ useNoIndexPage();
   margin: 0.75rem 0 0;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: clamp(1.875rem, 4vw, 2.5rem);
   font-weight: 700;
   letter-spacing: var(--type-tracking-lg);
   line-height: var(--type-leading-lg);

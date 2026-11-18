@@ -113,7 +113,7 @@ a.collection-detail__back:hover {
   margin: 0 0 0.75rem;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: clamp(1.875rem, 4vw, 2.5rem);
   line-height: var(--type-leading-lg);
   letter-spacing: var(--type-tracking-lg);
 }

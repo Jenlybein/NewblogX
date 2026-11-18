@@ -20,7 +20,7 @@
  *      墨色/结构线一律走中性石墨阶，不再「每个黑都是深蓝」。
  *   3. 圆角 / 玻璃 / 排版 / 动效层：组件与 Naive themeOverrides 都从这里取值。
  *   4. 正文 markdown 色板 `--md-*`（第 7 段）：**只有正文渲染区消费**的一组独立
- *      语义色。ADR-0011「后续修订」明确正文区不受上面第 1 段的五色相锁定 —— 六层
+ *      语义色。ADR-0011「正文 markdown 区」明确正文区不受上面第 1 段的五色相锁定 —— 六层
  *      标题要靠颜色也能分出层级，而五色里没有六个可当字色的色相。它仍走同一套治理：
  *      只在这里定义、组件里只能写 `var(--md-*)`、明暗各一份取值。
  *
@@ -76,6 +76,10 @@
   --color-bg-subtle: var(--jelly-warm); /* 次级底 #F2EEE6 */
   --color-surface: var(--jelly-cream); /* 纸面 #FDFBF6 */
   --color-surface-raised: var(--jelly-cream-050); /* 抬升面 #FFFFFF */
+  /* 条目卡 hover 的极轻底色：发丝线 10% × 30% 混纸面的**等值不透明档**（#F6F4EF）。
+   * 写成实色而不是运行时 color-mix：卡片底色本来就不透明，透明档会让页面底透上来，
+   * 纸面差反而变大。明暗各一份，取值差 ≤3% 纸面（见 card-footer-consistency 测试）。 */
+  --color-hover-surface: #f6f4ef;
   --color-surface-glass: rgb(var(--jelly-cream-rgb) / 0.82); /* 半透明面（后台侧栏 / 统计卡，不上 blur） */
   --color-ink: #1c1b19; /* 正文墨（暖石墨，对纸面 ≈16.9:1） */
   --color-ink-muted: #625c52; /* 次级墨（≈5.9:1） */
@@ -99,6 +103,7 @@
   --color-on-inverse: #ffffff; /* 深墨面（页脚 / 封面）上的反白字 */
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72); /* 深墨面上的次级字 */
   --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 反白发丝线（页脚版权行等，票 429 的 14% 档） */
+  --color-on-inverse-line-strong: rgb(var(--on-inverse-rgb) / 0.16); /* 反白 16% 档：反白面上的按下底色 / 轻线 */
   --color-surface-inverse: #1c1b19; /* 深墨面（页脚 / 封面兜底） */
   --color-shadow: rgb(var(--graphite-rgb) / 0.12); /* 阴影（墨色 + 透明度） */
 
@@ -172,7 +177,7 @@
    * 此前一套 `-0.03em / 1.15` 同时套在 18px 目录标题与 96px 首屏大字：小标题的中文
    * 被负字距挤成一团，大字又不够紧。字号决定字距与行高，消费点只选档、不自带数值。
    *
-   *   大 ≥2rem：-.03em / 1.1（页面级大标题与首屏字标）；
+   *   大 ≥1.875rem（30px）：-.03em / 1.1（页面级大标题与首屏字标）；
    *   中 1.25–1.75rem：-.015em / 1.25（22px 作者名、24px 索引与区块标题）；
    *   小 ≤1.125rem（**含 18–20px 的卡片标题与计数**）：0 / 1.35 ——
    *     中文标题在负字距下会贴成一团，18–20px 必须回到 0 档并抬行高（验收反馈）。 */
@@ -201,7 +206,7 @@
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0011 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
 
-  /* ---- 7. 正文 markdown 色板（ADR-0011「后续修订」：正文渲染区不锁五族）----
+  /* ---- 7. 正文 markdown 色板（ADR-0011「正文 markdown 区」：正文渲染区不锁五族）----
    * 作用域：**只供正文 markdown 渲染区**（注入 shadow root 的
    * `MARKDOWN_THEME_CSS`）。页面与组件不得引用这一组：正文区是"读文章"的主场，
    * 六层标题需要靠颜色也能分出层级，而五个锁定色相里没有六个可当字色的色相，
@@ -262,6 +267,8 @@
   --color-bg-subtle: #101011;
   --color-surface: #1d1d1f;
   --color-surface-raised: #2c2c2e;
+  /* hover 底色的暗色第二份取值：#1D1D1F 上把发丝线 8% × 30% 混纸面得到的等值实色。 */
+  --color-hover-surface: #222224;
   --color-surface-glass: rgb(var(--jelly-cream-rgb) / 0.06); /* 暗面抬升：奶油白极淡罩层 */
   --color-ink: #f5f5f7;
   --color-ink-muted: #a1a1a6;
@@ -286,6 +293,7 @@
   --color-on-inverse: #f5f5f7;
   --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72);
   --color-on-inverse-line: rgb(var(--on-inverse-rgb) / 0.14); /* 同一条表达式：通道随 --on-inverse-rgb 翻转 */
+  --color-on-inverse-line-strong: rgb(var(--on-inverse-rgb) / 0.16); /* 反白 16% 档：第二份取值与亮色同一表达式 */
   --color-surface-inverse: #101011;
   --color-shadow: rgb(var(--jelly-warm-1000-rgb) / 0.55);
 

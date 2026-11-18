@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { IconChevronLeft, IconX } from "@tabler/icons-vue";
+import { animate, useMotionValue, useMotionValueEvent } from "motion-v";
 
 import {
   clampJellyPosition,
@@ -14,6 +15,7 @@ import {
 import type { JellyAssistantApi, JellyPosition } from "~/composables/useJellyAssistant";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { resolveSpringMotion, SPRING_LAUNCHER_SETTLE } from "~/utils/motion";
+import { JELLY_RELEASE_VELOCITY_WINDOW_MS, releaseVelocity } from "~/utils/releaseVelocity";
 import { brandAiName, brandAssetUrl } from "~/utils/brand";
 
 // 「捏捏」的外观组件（票 #9）。
@@ -29,8 +31,9 @@ import { brandAiName, brandAssetUrl } from "~/utils/brand";
 //
 // 票 424 之后多了第三件事：**拖拽松手后的落位**。位置仍然只有 composable 一份（拖拽期
 // 直写、视口边界即时钳制），这里只在松手那一刻把指针速度交给登记过的弹簧
-// （`SPRING_LAUNCHER_SETTLE`），逐帧算出"相对松手点的偏移"，把它叠进 transform。
-// 落位结束偏移回到 0，所以松手处就是最终位置 —— 弹簧不产生任何位置漂移。
+// （`SPRING_LAUNCHER_SETTLE`）：motion-v 的 `animate()` 让两条 MotionValue 从 0 弹回 0，
+// 初速分轴传入（px/s），组件把逐帧值叠加进 transform。落位结束偏移回到 0，所以松手处
+// 就是最终位置 —— 弹簧不产生任何位置漂移，也不再有自写的积分 / rAF 循环。
 //
 // 形状来源是 #4 交付的扁平矢量果冻方块（`brand/jelly-flat.svg`），颜色全部来自
 // 语义 token（--color-*），本文件不出现任何裸色值（由漂移门禁卡住）。
@@ -78,19 +81,8 @@ const DRAG_THRESHOLD_PX = 6;
 /** 触摸设备长按唤出收起按钮的时间（毫秒）：与拖拽阈值互斥，移动即取消。 */
 const LONG_PRESS_MS = 500;
 
-/** 松手速度采样窗口（毫秒）：只取最后一小段指针历史，甩出去的手感才跟得上。 */
-const RELEASE_WINDOW_MS = 80;
 /** 松手速度上限（px/s）：留一点余劲，但不会把角色甩出半屏。 */
-const RELEASE_VELOCITY_MAX = 600;
-
-/** 落位结束判定：偏移（px）与速度（px/s）都小到看不出来就收帧。 */
-const SETTLE_REST_PX = 0.5;
-const SETTLE_REST_VELOCITY = 12;
-/** 单帧上限与积分子步（毫秒）：切后台回来 dt 会很大，钳住才不会发散。 */
-const SETTLE_FRAME_MS = 48;
-const SETTLE_SUBSTEP_MS = 16;
-/** rAF 没给时间戳时的名义帧长（浏览器总会给；测试桩可能不给）。 */
-const NOMINAL_FRAME_MS = 16;
+const RELEASE_VELOCITY_MAX_PX_PER_S = 600;
 
 /** 读屏名称：品牌助手昵称统一从品牌模块取。 */
 const assistantName = brandAiName();
@@ -104,16 +96,25 @@ const draggingByPointer = ref(false);
 let pressOrigin = { x: 0, y: 0 };
 let pointerOffset = { x: 0, y: 0 };
 
-/** 松手速度采样：按下之后每次指针移动的坐标与时间戳。 */
+/** 松手速度采样：按下之后每次指针移动的坐标与时间戳；最后一个就是松手点。 */
 let velocitySamples: Array<{ x: number; y: number; t: number }> = [];
 
 /** 落位偏移（相对松手点）；只改视觉，不回写 composable 的 position。 */
 const settleOffset = ref<JellyPosition>({ x: 0, y: 0 });
-/** 落位帧循环是否在跑：跑的时候根元素不能有 CSS 过渡（否则逐帧值会被补间拖慢）。 */
+/** 落位弹簧在跑：跑的时候根元素不能有 CSS 过渡（否则逐帧值会被补间拖慢）。 */
 const settleRunning = ref(false);
-let settle: { x: number; y: number; vx: number; vy: number } | null = null;
-let settleFrame: number | null = null;
-let settleLastTimestamp: number | null = null;
+/**
+ * 落位改用 motion-v 的 MotionValue：x / y 各一条登记弹簧。
+ *
+ * 两条分开动是因为 `animate()` 对对象目标只有一个 `transition`：把速度写成
+ * 同一个数会让两个轴共用初速。分轴都能吃到自己的松手速度，而偏移仍由组件算。
+ */
+const settleX = useMotionValue(0);
+const settleY = useMotionValue(0);
+/** 当前落位动画的句柄；新动作（按下 / 收起 / 卸载）一律先停掉。 */
+let settleControls: ReturnType<typeof animate>[] = [];
+/** 落位代次：停掉旧动画后，旧动画的完成回调不能再收一次尾。 */
+let settleToken = 0;
 
 /**
  * 松手落位用哪一档：登记弹簧，或「减少动态」下的落位（时长 0）。
@@ -166,6 +167,8 @@ const clusterFocused = ref(false);
 const chipDismissed = ref(false);
 /** 捏捏本体按钮：Esc 或"从把手展开"之后焦点要落回这里（键盘路径的锚点）。 */
 const launcherButtonRef = ref<HTMLButtonElement | null>(null);
+/** 收起态把手：键盘触发收起后焦点交给它（否则焦点随 chip 卸载掉到 body）。 */
+const handleButtonRef = ref<HTMLButtonElement | null>(null);
 
 /**
  * 收起按钮的出现条件（spec 的显式口径）：悬停捏捏（含悬停 chip 自身）**或**
@@ -212,10 +215,20 @@ function scheduleLongPress() {
   }, LONG_PRESS_MS);
 }
 
-/** 点收起：先把落位收尾（别把弹簧偏移带进收起态），再交给 composable。 */
-function handleCollapse() {
+/**
+ * 点收起：先把落位收尾（别把弹簧偏移带进收起态），再交给 composable。
+ *
+ * `click` 的 `detail` 区分触发来源：指针点击 ≥1，键盘（Enter / Space 合成 click）
+ * 为 0。只有键盘要把焦点交给随后出现的把手 —— 指针用户点完收起不该被抢焦点。
+ * 收起后 chip 立即卸载，不接住焦点就会掉到 body（票 423）。
+ */
+function handleCollapse(event?: MouseEvent) {
+  const keyboard = !event || event.detail === 0;
   endSettle();
   collapse();
+  if (keyboard) {
+    nextTick(() => handleButtonRef.value?.focus({ preventScroll: true }));
+  }
 }
 
 /**
@@ -289,28 +302,20 @@ function notePointerSample(event: PointerEvent) {
 }
 
 /**
- * 松手速度（px/s）：采样窗口内最早与最新两点求差；没有有效时间差就当没甩。
+ * 松手速度（px/s）：共用 `utils/releaseVelocity.ts` 的采样口径（最后 80ms、取窗口内
+ * 最早一点），组件只负责换算成弹簧要的 px/s 并做上限钳制。
  *
- * `noUncheckedIndexedAccess` 下下标访问是 `T | undefined`，这里显式取兜底：
- * 少于两个采样时直接当作没甩（`{0,0}`），不拿非空断言糊过去。
+ * 少于两个有效采样时共用的纯函数直接返回 `{0,0}` —— 不拿非空断言糊过去。
  */
-function releaseVelocity(): { x: number; y: number } {
-  if (velocitySamples.length < 2) return { x: 0, y: 0 };
-
-  const last = velocitySamples[velocitySamples.length - 1];
-  if (!last) return { x: 0, y: 0 };
-
-  const recent = velocitySamples.filter((sample) => last.t - sample.t <= RELEASE_WINDOW_MS);
-  const first = (recent.length >= 2 ? recent[0] : velocitySamples[0]) ?? last;
-  const elapsed = last.t - first.t;
-  if (!Number.isFinite(elapsed) || elapsed <= 0) return { x: 0, y: 0 };
-
-  const vx = ((last.x - first.x) / elapsed) * 1000;
-  const vy = ((last.y - first.y) / elapsed) * 1000;
+function releaseVelocityPxPerSecond(): { x: number; y: number } {
+  const releaseAt = velocitySamples[velocitySamples.length - 1]?.t ?? 0;
+  const velocity = releaseVelocity(velocitySamples, releaseAt, JELLY_RELEASE_VELOCITY_WINDOW_MS);
+  const vx = velocity.x * 1000;
+  const vy = velocity.y * 1000;
   const speed = Math.hypot(vx, vy);
-  if (speed <= RELEASE_VELOCITY_MAX) return { x: vx, y: vy };
+  if (speed <= RELEASE_VELOCITY_MAX_PX_PER_S) return { x: vx, y: vy };
 
-  const scale = RELEASE_VELOCITY_MAX / speed;
+  const scale = RELEASE_VELOCITY_MAX_PX_PER_S / speed;
   return { x: vx * scale, y: vy * scale };
 }
 
@@ -341,116 +346,82 @@ function settleBounds() {
   return { minX: low.x, minY: low.y, maxX: high.x, maxY: high.y };
 }
 
-/** 落位不许越界：偏移到墙就把那一轴的速度收掉（否则边界上会一直抖）。 */
-function clampSettleOffset() {
-  if (!settle) return;
-
+/**
+ * 落位偏移钳到视口内合法范围（只钳**展示值**，不反馈进弹簧）。
+ *
+ * 弹簧仍从 0 弹回 0，只是把越界的那几像素收住：贴着右下角向外甩时角色不会越界，
+ * 回弹时也不需要手动清速度 —— 旧实现里"收速度"的那一段正是第二套物理的来源。
+ */
+function clampedSettleOffset(): JellyPosition {
   const bounds = settleBounds();
-  const wantedX = position.value.x + settle.x;
-  const wantedY = position.value.y + settle.y;
+  const wantedX = position.value.x + settleX.get();
+  const wantedY = position.value.y + settleY.get();
+  const x = Math.min(bounds.maxX, Math.max(bounds.minX, wantedX)) - position.value.x;
+  const y = Math.min(bounds.maxY, Math.max(bounds.minY, wantedY)) - position.value.y;
 
-  if (wantedX < bounds.minX) {
-    settle.x = bounds.minX - position.value.x;
-    if (settle.vx < 0) settle.vx = 0;
-  } else if (wantedX > bounds.maxX) {
-    settle.x = bounds.maxX - position.value.x;
-    if (settle.vx > 0) settle.vx = 0;
-  }
-
-  if (wantedY < bounds.minY) {
-    settle.y = bounds.minY - position.value.y;
-    if (settle.vy < 0) settle.vy = 0;
-  } else if (wantedY > bounds.maxY) {
-    settle.y = bounds.maxY - position.value.y;
-    if (settle.vy > 0) settle.vy = 0;
-  }
+  return { x, y };
 }
 
-/** 半隐式欧拉积分（子步 ≤16ms）；参数全部来自登记预设，本文件没有弹簧数字。 */
-function integrateSettle(preset: { stiffness: number; damping: number; mass: number }, dtMs: number) {
-  if (!settle) return;
-
-  let remaining = dtMs;
-  while (remaining > 0) {
-    const stepSeconds = Math.min(remaining, SETTLE_SUBSTEP_MS) / 1000;
-    const ax = (-preset.stiffness * settle.x - preset.damping * settle.vx) / preset.mass;
-    const ay = (-preset.stiffness * settle.y - preset.damping * settle.vy) / preset.mass;
-    settle.vx += ax * stepSeconds;
-    settle.vy += ay * stepSeconds;
-    settle.x += settle.vx * stepSeconds;
-    settle.y += settle.vy * stepSeconds;
-    remaining -= Math.min(remaining, SETTLE_SUBSTEP_MS);
-  }
+function syncSettleOffset() {
+  settleOffset.value = clampedSettleOffset();
 }
 
-function stopSettleFrame() {
-  if (settleFrame !== null) {
-    cancelAnimationFrame(settleFrame);
-    settleFrame = null;
-  }
+// 落位期两条弹簧逐帧写 MotionValue；这里把它们同步成渲染用的偏移。
+useMotionValueEvent(settleX, "change", syncSettleOffset);
+useMotionValueEvent(settleY, "change", syncSettleOffset);
+
+/** 停掉落位动画（新动作接管 / 卸载）：只停控制句柄，不动展示值。 */
+function stopSettleAnimation() {
+  for (const control of settleControls) control.stop();
+  settleControls = [];
 }
 
-/** 结束落位（自然归位、被新的按下接管、卸载）：清零偏移，不留残余帧。 */
+/** 结束落位（自然归位、被新的按下接管、卸载）：清零偏移，不留残余动画。 */
 function endSettle() {
-  stopSettleFrame();
-  settle = null;
-  settleLastTimestamp = null;
+  settleToken += 1;
+  stopSettleAnimation();
+  settleX.set(0);
+  settleY.set(0);
   settleOffset.value = { x: 0, y: 0 };
   settleRunning.value = false;
 }
 
-function scheduleSettleFrame() {
-  if (settleFrame !== null) return;
-  settleFrame = requestAnimationFrame(stepSettleFrame);
-}
-
-function stepSettleFrame(timestamp?: number) {
-  settleFrame = null;
-  const active = settle;
-  const motion = settleMotion.value;
-
-  // 减少动态（解析结果是落位档）或已经没有落位任务：直接静止。
-  if (!active || motion.type !== "spring") {
-    endSettle();
-    return;
-  }
-
-  const frameTime = typeof timestamp === "number" && Number.isFinite(timestamp) ? timestamp : null;
-  const dtMs =
-    frameTime !== null && settleLastTimestamp !== null
-      ? Math.min(SETTLE_FRAME_MS, Math.max(1, frameTime - settleLastTimestamp))
-      : NOMINAL_FRAME_MS;
-  settleLastTimestamp = frameTime;
-
-  integrateSettle(motion, dtMs);
-  clampSettleOffset();
-  settleOffset.value = { x: active.x, y: active.y };
-
-  if (
-    Math.abs(active.x) < SETTLE_REST_PX &&
-    Math.abs(active.y) < SETTLE_REST_PX &&
-    Math.hypot(active.vx, active.vy) < SETTLE_REST_VELOCITY
-  ) {
-    endSettle();
-    return;
-  }
-
-  scheduleSettleFrame();
-}
-
-/** 松手：把指针余劲交给登记弹簧；减少动态时解析结果就是「直接落位」。 */
+/**
+ * 松手：把指针余劲交给登记弹簧；减少动态时解析结果就是「直接落位」（时长 0）。
+ *
+ * `animate()` 直接吃 `SPRING_LAUNCHER_SETTLE` 的解析结果与分轴初速（px/s）：
+ * 自写的半隐式欧拉积分与 rAF 循环整体退场，物理只有 motion-v 一份实现。
+ */
 function startSettle(velocity: { x: number; y: number }) {
-  if (settleMotion.value.type !== "spring") {
+  stopSettleAnimation();
+  settleToken += 1;
+
+  const motion = settleMotion.value;
+  if (motion.type !== "spring") {
     endSettle();
     return;
   }
 
-  stopSettleFrame();
-  settle = { x: 0, y: 0, vx: velocity.x, vy: velocity.y };
-  settleLastTimestamp = null;
+  settleX.set(0);
+  settleY.set(0);
   settleOffset.value = { x: 0, y: 0 };
   settleRunning.value = true;
-  scheduleSettleFrame();
+
+  const token = settleToken;
+  const controls = [
+    animate(settleX, 0, { ...motion, velocity: velocity.x }),
+    animate(settleY, 0, { ...motion, velocity: velocity.y }),
+  ];
+  settleControls = controls;
+
+  // 两条轴都归位才收尾；中途被停掉的控制不会让旧代次误收尾（token 拦一次）。
+  void Promise.all(controls.map((control) => control.finished))
+    .then(() => {
+      if (token === settleToken) endSettle();
+    })
+    .catch(() => {
+      // stop() 打断动画时 finished 可能以 reject 收场：这是接管，不是错误。
+    });
 }
 
 function onPointerDown(event: PointerEvent) {
@@ -497,7 +468,7 @@ function onPointerUp(event: PointerEvent) {
   if (isDragged.value) {
     // 拖完松手不是一次点击：记下松手速度 → 持久化位置 → 交给弹簧把余劲走完。
     notePointerSample(event);
-    const velocity = releaseVelocity();
+    const velocity = releaseVelocityPxPerSecond();
     velocitySamples = [];
     endDrag();
     pointerUp();
@@ -549,33 +520,42 @@ onBeforeUnmount(() => {
       @focusout="handleClusterFocusOut"
       @keydown.esc.stop="handleEscape"
     >
-      <button
-        v-if="!isCollapsed"
-        ref="launcherButtonRef"
-        type="button"
-        class="jelly-launcher__button"
-        :aria-label="ariaLabel"
-        :aria-expanded="isOpen ? 'true' : 'false'"
-        @pointerdown="onPointerDown"
-        @keydown.enter.prevent="handleEnter"
-        @keydown.space.prevent="pointerDown"
-        @keyup.space.prevent="pointerUp"
-      >
-        <span class="jelly-launcher__body" :style="bodyStyle">
-          <img
-            class="jelly-launcher__glyph"
-            :src="glyphUrl"
-            alt=""
-            aria-hidden="true"
-            draggable="false"
-            :width="JELLY_LAUNCHER_SIZE"
-            :height="JELLY_LAUNCHER_SIZE"
-          >
-        </span>
-      </button>
-
-      <Transition v-else name="jelly-handle" appear>
+      <!--
+        角色与把手同住一个根：收起时角色先带着 transform/opacity 过渡滑向右边缘、
+        淡出；Vue 的 <Transition> 在过渡结束后才真正卸载它（可中途反向）。
+        把手用独立 <Transition appear> 叠上来，因此收起有完整可见位移，不是瞬时换装。
+      -->
+      <Transition name="jelly-character">
         <button
+          v-if="!isCollapsed"
+          ref="launcherButtonRef"
+          type="button"
+          class="jelly-launcher__button"
+          :aria-label="ariaLabel"
+          :aria-expanded="isOpen ? 'true' : 'false'"
+          @pointerdown="onPointerDown"
+          @keydown.enter.prevent="handleEnter"
+          @keydown.space.prevent="pointerDown"
+          @keyup.space.prevent="pointerUp"
+        >
+          <span class="jelly-launcher__body" :style="bodyStyle">
+            <img
+              class="jelly-launcher__glyph"
+              :src="glyphUrl"
+              alt=""
+              aria-hidden="true"
+              draggable="false"
+              :width="JELLY_LAUNCHER_SIZE"
+              :height="JELLY_LAUNCHER_SIZE"
+            >
+          </span>
+        </button>
+      </Transition>
+
+      <Transition name="jelly-handle" appear>
+        <button
+          v-if="isCollapsed"
+          ref="handleButtonRef"
           type="button"
           class="jelly-launcher__handle"
           aria-label="展开捏捏"
@@ -626,9 +606,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* 位置：固定定位 + transform（只动 transform，不触发布局）。
- * 位置更新要么直写（拖拽 1:1）、要么逐帧弹簧（松手落位），CSS 过渡一律不参与 ——
- * 拖拽 / 落位期根元素的 inline `transition: none` 就是这条契约的显式声明（票 424）。
- * 收起 / 展开则相反：只有 transform 与 opacity 的 200ms transition，可中途反向。
+ * 位置更新要么直写（拖拽 1:1）、要么交给登记弹簧逐帧写 MotionValue（松手落位），
+ * CSS 过渡一律不参与 —— 拖拽 / 落位期根元素的 inline `transition: none` 就是这条
+ * 契约的显式声明（票 424）。收起 / 展开则相反：只有 transform 与 opacity 的 200ms
+ * transition，可中途反向（角色淡出滑向右边缘，动画结束后才被 Vue 卸载）。
  *
  * **根元素尺寸恒定**（票 437 评审）：以前收起态把 width 从 56px 改成 44px，等于
  * 每次收起/展开都动一次布局属性。现在根元素始终是角色本体边长（`--jelly-size`，
@@ -741,17 +722,19 @@ onBeforeUnmount(() => {
   height: var(--jelly-handle-height);
   border-radius: var(--radius-pill) 0 0 var(--radius-pill);
   color: var(--color-ink-muted);
-  transition: color var(--motion-fast) var(--motion-ease), width var(--motion-fast) var(--motion-ease);
+  /* 锚在右边缘放大，胶囊只会向左"探出"，不改变按钮命中区（仍是 44px 布局宽度）。 */
+  transform-origin: 100% 50%;
+  transition: color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
 }
 
 .jelly-launcher__handle-arrow {
   transition: transform var(--motion-fast) var(--motion-ease);
 }
 
-/* 把手三态：hover 可见宽度 = 可见宽 + 4px（20px）+ 箭头左移 2px；按下 scale(.96)；
- * 焦点用内嵌环。宽度差写成 `calc()`：16/20 这两个数只由 `--jelly-handle-width` 派生。 */
+/* 把手三态：hover 用 `scaleX(1.25)`（= 可见 16px → 20px，不补间 width）+ 箭头左移 2px；
+ * 按下 scale(.96)；焦点用内嵌环。宽度本身仍是 `--jelly-handle-width`，命中区不变。 */
 .jelly-launcher__handle:hover .jelly-launcher__handle-capsule {
-  width: calc(var(--jelly-handle-width) + 4px);
+  transform: scaleX(1.25);
   color: var(--color-ink);
 }
 
@@ -862,6 +845,23 @@ onBeforeUnmount(() => {
 
 .jelly-launcher--disabled .jelly-launcher__button {
   cursor: not-allowed;
+}
+
+/* 收起 / 展开角色本体：200ms，只动 transform 与 opacity，可中途反向（Vue 过渡类）。
+ * 位移量 = 自身宽度 − 把手可见宽度：角色滑到贴右边缘的把手位置并淡出，动画结束才卸载。
+ * 选择器带根类前缀（0,2,0）并排在上面的七态规则之后，保证七态的挤压 transform
+ * 不会盖掉过渡的起止值。 */
+.jelly-launcher .jelly-launcher__button.jelly-character-enter-active,
+.jelly-launcher .jelly-launcher__button.jelly-character-leave-active {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
+}
+
+.jelly-launcher .jelly-launcher__button.jelly-character-enter-from,
+.jelly-launcher .jelly-launcher__button.jelly-character-leave-to {
+  opacity: 0;
+  transform: translateX(calc(100% - var(--jelly-handle-width)));
 }
 
 .jelly-launcher--reduced .jelly-launcher__body {

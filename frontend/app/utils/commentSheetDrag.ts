@@ -12,10 +12,14 @@
  * 慢拖 5 秒再甩一下只会得到 0.03 px/ms（关不掉），而快拖半屏后停住再松手反而
  * 因为平均速度高被关掉 —— 两个方向都和手感相反。现在只取**最后 100ms** 的采样：
  * 窗口内至少两点才算"有速度证据"，窗口内没有新采样就退回位移阈值判定。
+ * 采样与窗口/取点规则和捏捏松手落位共用 `utils/releaseVelocity.ts`（票 423），
+ * 这里只保留"评论面板自己的窗口"这条命名常量。
  *
  * 两个阈值都是**严格大于**才关闭 —— 与 spec 的「位移 > 面板高度 30% 或 速度 > 0.11 px/ms」
  * 一致：等于阈值时宁可弹回，不要误关读者写了一半的评论。
  */
+
+import { releaseVelocity, SHEET_RELEASE_VELOCITY_WINDOW_MS } from "./releaseVelocity";
 
 /** 下滑超过面板高度的这个比例就关闭。 */
 export const SHEET_DISMISS_DISTANCE_RATIO = 0.3;
@@ -23,13 +27,8 @@ export const SHEET_DISMISS_DISTANCE_RATIO = 0.3;
 /** 或者甩得比这个速度更快（px/ms）也关闭。 */
 export const SHEET_DISMISS_VELOCITY_PX_PER_MS = 0.11;
 
-/**
- * 松手速度只取最后这个时间窗口内的 pointermove 采样（毫秒）。
- *
- * 取 100ms 而不是"最后一帧"：采样本身有间隔（高刷屏 8ms、普通 16ms、掉帧时更久），
- * 100ms 至少能收到两点；再长就会把"拖到一半停手"也算进速度里。
- */
-export const SHEET_RELEASE_VELOCITY_WINDOW_MS = 100;
+/** 评论面板的松手采样窗口（毫秒）：常量与实现集中在 `utils/releaseVelocity.ts`。 */
+export { SHEET_RELEASE_VELOCITY_WINDOW_MS };
 
 /** 一次拖动期的 pointermove 采样：位移（px，向下为正）+ 时间戳（毫秒）。 */
 export interface SheetDragSample {
@@ -60,25 +59,15 @@ export function sheetReleaseVelocityPxPerMs({
   releaseAtMs,
   samples,
 }: Pick<SheetDragRelease, "offsetPx" | "releaseAtMs" | "samples">): number {
-  if (!Number.isFinite(releaseAtMs)) return 0;
-
-  const windowStart = releaseAtMs - SHEET_RELEASE_VELOCITY_WINDOW_MS;
-  let first: SheetDragSample | null = null;
-
-  for (const sample of samples) {
-    if (!Number.isFinite(sample.atMs) || !Number.isFinite(sample.offsetPx)) continue;
-    // 只认窗口内、且严格早于松手点的采样：松手点自己不能当"起点"（差为 0）。
-    if (sample.atMs < windowStart || sample.atMs >= releaseAtMs) continue;
-    if (!first || sample.atMs < first.atMs) first = sample;
-  }
-
-  if (!first) return 0;
-
-  const elapsed = releaseAtMs - first.atMs;
-  if (elapsed <= 0) return 0;
-
   const offset = Number.isFinite(offsetPx) ? offsetPx : 0;
-  return (offset - first.offsetPx) / elapsed;
+  // 共用算法要求"最后一个采样就是松手点"：把松手位移追加上去，而不是让算法读
+  // 一个额外的 `releaseOffset` 参数（两处消费者的输入形状因此完全一样）。
+  const releaseSamples = [
+    ...samples.map((sample) => ({ x: 0, y: sample.offsetPx, t: sample.atMs })),
+    { x: 0, y: offset, t: releaseAtMs },
+  ];
+
+  return releaseVelocity(releaseSamples, releaseAtMs, SHEET_RELEASE_VELOCITY_WINDOW_MS).y;
 }
 
 /**

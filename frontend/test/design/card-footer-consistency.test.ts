@@ -57,10 +57,17 @@ function darkBlock(): string {
   return match[1]!;
 }
 
-/** 从 `rgb(R G B / A)` 里取 alpha；取不到返回 NaN（用于比较档位）。 */
-function alphaOf(value: string): number {
-  const match = /\/\s*([0-9.]+)\s*\)/u.exec(value);
-  return match ? Number(match[1]) : Number.NaN;
+/** 6 位十六进制 → RGB 通道（用于比较两档纸面差）。 */
+function rgbChannels(hex: string): [number, number, number] {
+  const match = /^#([0-9a-f]{6})$/u.exec(hex.trim());
+  if (!match) throw new Error(`不是 6 位十六进制：${hex}`);
+  const raw = match[1]!;
+
+  return [0, 2, 4].map((offset) => Number.parseInt(raw.slice(offset, offset + 2), 16)) as [
+    number,
+    number,
+    number,
+  ];
 }
 
 describe("置顶卡：取卡片圆角阶梯（不再直角咬 20px 圆角面板）", () => {
@@ -142,22 +149,32 @@ describe("条目卡 hover：极轻纸面回应，只在 hover-capable 设备", (
     expect(block).toMatch(/transform:\s*translateY\(-1px\)/u);
   });
 
-  it("底色差 ≤ 3% 纸面：发丝线 token 与纸面混一档，明暗两态都不过线", () => {
+  it("底色由语义 token --color-hover-surface 给出，明暗两态纸面差都 ≤3%", () => {
     const block = blockAfterContaining(tailwindCss, "@media (hover: hover)", ".feed-entry:hover");
-    const match =
-      /background-color:\s*color-mix\(in srgb, var\(--color-line-faint\) ([0-9.]+)%, var\(--color-surface\)\)/u.exec(
-        block,
-      );
 
-    expect(
-      match,
-      "hover 底色必须是由 var(--color-line-faint) 与 var(--color-surface) 混出来的极淡一档",
-    ).not.toBeNull();
-    const mix = Number(match![1]) / 100;
-    // 发丝线本身就是墨色 10%（亮）/ 8%（暗）的透明度：再乘混入比例才是叠加到
-    // 纸面上的实际墨量，两态都必须 ≤ 3%。
-    expect(mix * alphaOf(declarationIn(rootBlock(), "--color-line-faint", "亮色"))).toBeLessThanOrEqual(0.03);
-    expect(mix * alphaOf(declarationIn(darkBlock(), "--color-line-faint", "暗色"))).toBeLessThanOrEqual(0.03);
+    // 组件只消费语义 token：运行时 color-mix 混裸 alpha 会重新引入第三个颜色来源。
+    expect(block).toContain("background-color: var(--color-hover-surface)");
+    expect(stripComments(block)).not.toContain("color-mix");
+
+    const lightHover = declarationIn(rootBlock(), "--color-hover-surface", "亮色");
+    const darkHover = declarationIn(darkBlock(), "--color-hover-surface", "暗色");
+    const lightSurface = declarationIn(rootBlock(), "--jelly-cream", "亮色纸面");
+    const darkSurface = declarationIn(darkBlock(), "--color-surface", "暗色纸面");
+
+    expect(lightHover).toMatch(/^#[0-9a-f]{6}$/u);
+    expect(darkHover).toMatch(/^#[0-9a-f]{6}$/u);
+
+    // 3% 纸面差：换算到 RGB 通道就是每通道 ≤ 8（255 × 0.03 = 7.65）。
+    for (const [label, hover, surface] of [
+      ["亮色", lightHover, lightSurface],
+      ["暗色", darkHover, darkSurface],
+    ] as const) {
+      const maxDelta = Math.max(...rgbChannels(hover).map((channel, index) =>
+        Math.abs(channel - rgbChannels(surface)[index]!),
+      ));
+
+      expect(maxDelta, `${label} hover 底与纸面的通道差`).toBeLessThanOrEqual(8);
+    }
   });
 
   it("悬停不碰阴影：所有 .feed-entry:hover 规则块里都没有 box-shadow", () => {

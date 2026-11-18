@@ -172,10 +172,10 @@ function goToBanner(index: number) {
  * 自动轮播
  *
  * 只在"真的能看"的条件下走：≥2 张、页面可见、间隔 > 0、读者没有按暂停。
- * 「减少动态」不是在这里判的：它决定 `userPaused` 的**初始值**（默认暂停），
- * 读者显式点「继续轮播」后才动 —— 控件因此常显、且点了有意义（票 437 评审）。
- * 指针停上去 / 键盘焦点进入 / 标签页切到后台就停表 —— 用户在读标题或操作控件时，
- * 图不该自己跑掉。
+ * 「减少动态」不是在这里判的：它决定 `userPaused` 的**初始值**（默认暂停），并让
+ * 播放按钮保持禁用 —— spec 432 要求该偏好下不启动自动播放，点击不能重新开表
+ * （票 423）。指针停上去 / 键盘焦点进入 / 标签页切到后台就停表 —— 用户在读标题或
+ * 操作控件时，图不该自己跑掉。
  *
  * 手动切换后重新计时（而不是"到点立刻跳"），否则刚点完下一张就会被打断。
  * 读者按下暂停后，这些"被动暂停"不再能把它偷偷恢复：`userPaused` 只有再点一次才翻。
@@ -226,21 +226,27 @@ function onVisibilityChange() {
   }
 }
 
-/** 播放/暂停按钮的文案随状态变化（暂停轮播 / 继续轮播）。 */
-const playbackLabel = computed(() => (userPaused.value ? "继续轮播" : "暂停轮播"));
+/** 播放/暂停按钮的文案随状态变化；减少动态下说明"自动轮播已按系统偏好关闭"。 */
+const playbackDisabled = computed(() => prefersReducedMotion.value);
+const playbackLabel = computed(() => {
+  if (prefersReducedMotion.value) return "已按系统偏好关闭自动轮播";
+  return userPaused.value ? "继续轮播" : "暂停轮播";
+});
 
 /**
  * 播放/暂停控件**常显**（spec 432：控件行必须提供播放/暂停切换；票 437 评审）。
  *
- * 「减少动态」只决定"默认不自动播放"（`userPaused` 初始为 true），控件本身仍然
- * 在：读者想让它动起来时必须能显式点击「继续轮播」——把整个控件藏掉等于替他做了
- * 决定，而且控件行就少了一件 spec 要求的东西。
+ * 「减少动态」下按钮保持可见但**禁用**（`disabled` + `aria-disabled`）：spec 432 要求
+ * 该偏好下仍不启动自动播放，读者再点「继续轮播」也不能把定时器开起来。禁用比隐藏好：
+ * 控件行结构不变、读者能看到"为什么没动"，而不是一个凭空消失的按钮。
  */
 const hasPlaybackControl = computed(
   () => props.autoPlayInterval > 0 && props.banners.length > 1,
 );
 
 function toggleAutoPlay() {
+  // 防御：禁用态在浏览器里不会派发 click，但键盘/程序化触发仍要挡住。
+  if (prefersReducedMotion.value) return;
   userPaused.value = !userPaused.value;
   if (userPaused.value) stopAutoPlay();
   else restartAutoPlay();
@@ -435,6 +441,8 @@ function resumeAutoPlay() {
                 type="button"
                 class="banner-playback"
                 :aria-label="playbackLabel"
+                :aria-disabled="playbackDisabled ? 'true' : undefined"
+                :disabled="playbackDisabled"
                 @click="toggleAutoPlay"
               >
                 <IconPlayerPause v-if="!userPaused" :size="18" aria-hidden="true" />
@@ -687,6 +695,13 @@ function resumeAutoPlay() {
   touch-action: manipulation;
 }
 
+/* 减少动态（票 423）：按钮可见但禁用 —— 控件行不变，读者能看到"已按系统偏好关闭"，
+ * 但不再有任何"点一下就能启动自动轮播"的路径。 */
+.banner-playback:disabled {
+  color: var(--color-on-inverse-muted);
+  cursor: default;
+}
+
 .banner-arrow {
   display: inline-flex;
   min-height: 44px;
@@ -766,10 +781,11 @@ function resumeAutoPlay() {
     transition: none;
   }
 
-  /* 按下态（票 427）：减少动态下不缩放，改走反白描边/底色 —— 反馈仍在，只是不位移。 */
+  /* 按下态（票 427）：减少动态下不缩放，改走反白描边/底色 —— 反馈仍在，只是不位移。
+   * 底色是语义 token（反白 16% 档），不在组件里用 color-mix 混裸 alpha。 */
   .banner-arrow:active {
     transform: none;
-    background-color: color-mix(in srgb, var(--color-on-inverse) 16%, transparent);
+    background-color: var(--color-on-inverse-line-strong);
   }
 
   .banner-dot:active {

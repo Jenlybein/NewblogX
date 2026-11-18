@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -111,5 +111,29 @@ describe("断点 1024px：任何宽度只有一个入口，底部没有第二条
     // hero 那份在文档流里（不吸底）：只靠 flex 布局，不出现 position: fixed。
     const narrow = narrowActionsBlock(source);
     expect(narrow).not.toMatch(/\.article-actions-bar--hero\s*\{[^}]*position:\s*fixed/u);
+  });
+});
+
+describe("磁吸退役（#433）", () => {
+  const componentSource = () =>
+    readFileSync(join(process.cwd(), "app/components/article/ArticleActionsBar.vue"), "utf8");
+
+  it("互动条不再接线磁吸：组件与样式表都不提 useMagnetButtons / data-magnet", () => {
+    const component = componentSource();
+
+    expect(component).not.toContain("useMagnetButtons");
+    expect(component).not.toContain("data-magnet");
+    expect(css()).not.toContain("data-magnet");
+  });
+
+  it("整个实现退场：composable 与它的测试文件都已删除（不留没有消费者的代码）", () => {
+    expect(existsSync(join(process.cwd(), "app/composables/useMagnetButtons.ts"))).toBe(false);
+    expect(existsSync(join(process.cwd(), "test/composables/useMagnetButtons.test.ts"))).toBe(false);
+  });
+
+  it("按钮 hover 不再产生位移：悬停规则里没有 transform / translate", () => {
+    const hover = blockAfter(css(), ".article-action:hover {");
+
+    expect(hover).not.toMatch(/transform|translate/u);
   });
 });

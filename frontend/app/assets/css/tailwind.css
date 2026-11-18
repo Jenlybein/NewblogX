@@ -636,9 +636,12 @@
   }
 
   .article-reading-progress__fill {
-    @apply block h-full;
+    @apply block h-full w-full;
+    /* 票 433：进度跟手 —— 用合成层的 `transform: scaleX` 而不是 `width` 补间。
+       组件按百分比内联写 scaleX，原点在左边中点，缩放永远以整条轨道为基准；
+       原来 200ms 的宽度过渡退场，滚动时显示的就是当下的位置，不再"追着跑"。 */
+    transform-origin: 0 50%;
     background: var(--color-ink);
-    transition: width var(--motion-base) var(--motion-ease);
   }
 
   .article-toc {

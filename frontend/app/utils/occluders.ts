@@ -79,6 +79,66 @@ export function hasVisibleInk(
   return hasBorder || hasBackground || style.boxShadow !== "none";
 }
 
+/**
+ * 元素的**可见外框**：把自身矩形逐层与「裁剪祖先」的内边距盒求交。
+ *
+ * 为什么必须这么做：遮挡判据取的是 `getBoundingClientRect()`，它给的是**布局盒**，
+ * 而不是肉眼看到的形状。轮播图的图片层为了给视差留余量，外扩了约 41px，却被面板的
+ * `overflow: clip` + 圆角裁掉 —— 按布局盒算，墨流会在卡片四周白白空出一圈黑边
+ * （用户反馈的"碰撞范围太大"就是这个）。求交之后，墙正好落在卡片可见的圆角边上。
+ *
+ * 圆角同样跟着裁剪切：图片层自己是 0 圆角，但可见形状由面板的 20px 圆角决定。
+ * 所以**裁剪真的发生**（元素超出了祖先的内边距盒）时，半径取该祖先的半径；
+ * 元素完全落在祖先里时，仍用自身的半径。
+ */
+export function visibleOccluderRect(
+  el: Element,
+  host: Element | null,
+): { x: number; y: number; w: number; h: number; radius: number } | null {
+  const own = el.getBoundingClientRect();
+  let left = own.left;
+  let top = own.top;
+  let right = own.right;
+  let bottom = own.bottom;
+  let radius = Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+
+  for (
+    let ancestor = el.parentElement;
+    ancestor && ancestor !== el.ownerDocument.body && ancestor !== el.ownerDocument.documentElement;
+    ancestor = ancestor.parentElement
+  ) {
+    const style = getComputedStyle(ancestor);
+    // 空串在部分 DOM 实现里代表"没声明 → 按 visible 处理"，不能当成裁剪。
+    const clips =
+      (Boolean(style.overflowX) && style.overflowX !== "visible") ||
+      (Boolean(style.overflowY) && style.overflowY !== "visible");
+    if (clips) {
+      const box = ancestor.getBoundingClientRect();
+      // 裁剪边 = 内边距盒（`overflow: clip` 的 clip edge 就落在这里）。
+      const padLeft = box.left + (Number.parseFloat(style.borderLeftWidth) || 0);
+      const padTop = box.top + (Number.parseFloat(style.borderTopWidth) || 0);
+      const padRight = box.right - (Number.parseFloat(style.borderRightWidth) || 0);
+      const padBottom = box.bottom - (Number.parseFloat(style.borderBottomWidth) || 0);
+      if (padRight <= padLeft || padBottom <= padTop) return null;
+
+      const cropped =
+        left < padLeft - 0.5 || top < padTop - 0.5 ||
+        right > padRight + 0.5 || bottom > padBottom + 0.5;
+      left = Math.max(left, padLeft);
+      top = Math.max(top, padTop);
+      right = Math.min(right, padRight);
+      bottom = Math.min(bottom, padBottom);
+      if (right <= left || bottom <= top) return null;
+      if (cropped) {
+        radius = Number.parseFloat(style.borderTopLeftRadius) || 0;
+      }
+    }
+    if (ancestor === host) break;
+  }
+
+  return { x: left, y: top, w: right - left, h: bottom - top, radius };
+}
+
 export interface CollectOccludersOptions {
   /** 小于这个边长（px）的碎片直接忽略。 */
   minSize?: number;
@@ -126,17 +186,22 @@ export function collectOccluders(
     if (skipSelector && el.closest(skipSelector)) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width < minSize || rect.height < minSize) continue;
-    if (rect.width * rect.height > hostArea * maxAreaRatio) continue;
     const style = getComputedStyle(el);
     if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
       continue;
     }
+    // 布局盒 → 可见盒：被裁剪祖先（如带圆角 + `overflow: clip` 的卡片）切掉的部分
+    // 不该算成墙，否则装饰会在卡片四周空出一圈。
+    const visible = visibleOccluderRect(el, host);
+    if (!visible || visible.w < minSize || visible.h < minSize) continue;
+    // 面积上限按**可见面积**判：整屏级的版式容器依然是墙，但它被裁到卡片大小的子块不会。
+    if (visible.w * visible.h > hostArea * maxAreaRatio) continue;
     const box: OccluderBox = {
-      x: rect.left - base.left,
-      y: rect.top - base.top,
-      w: rect.width,
-      h: rect.height,
-      radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
+      x: visible.x - base.left,
+      y: visible.y - base.top,
+      w: visible.w,
+      h: visible.h,
+      radius: visible.radius,
     };
     const ink = hasVisibleInk(style);
     const text = el.textContent?.trim() ?? "";

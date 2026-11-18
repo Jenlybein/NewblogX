@@ -176,9 +176,27 @@ function createInkFluid(
       const x1 = Math.min(maskW, Math.round(((box.x + box.w) / Math.max(1, rect.width)) * maskW));
       const y0 = Math.max(0, Math.round((box.y / Math.max(1, rect.height)) * maskH));
       const y1 = Math.min(maskH, Math.round(((box.y + box.h) / Math.max(1, rect.height)) * maskH));
+      // 圆角参与遮罩：卡片四角外侧那一小块不该被当成墙（否则墨会绕出一圈方角）。
+      // 只在内缩 `radius` 之外的一圈做圆判定，矩形内部仍是纯拷贝，成本可以忽略。
+      const r = Math.max(0, box.radius);
+      const innerX = box.x + r;
+      const innerY = box.y + r;
+      const innerRight = box.x + box.w - r;
+      const innerBottom = box.y + box.h - r;
       for (let y = y0; y < y1; y += 1) {
         const row = (maskH - 1 - y) * maskW;
-        for (let x = x0; x < x1; x += 1) data[row + x] = 255;
+        const py = ((y + 0.5) / maskH) * rect.height;
+        for (let x = x0; x < x1; x += 1) {
+          if (r > 0) {
+            const px = ((x + 0.5) / maskW) * rect.width;
+            const cx = Math.min(Math.max(px, innerX), innerRight);
+            const cy = Math.min(Math.max(py, innerY), innerBottom);
+            const dx = px - cx;
+            const dy = py - cy;
+            if (dx * dx + dy * dy > r * r) continue;
+          }
+          data[row + x] = 255;
+        }
       }
     }
     gl.bindTexture(gl.TEXTURE_2D, tex);

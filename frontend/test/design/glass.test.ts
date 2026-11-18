@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // blockAfter 与 collectFiles 在多个 design 测试里逐字节重复，已收进 helpers。
-import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
+import { blockAfter, blockAfterContaining, collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
  * 液态玻璃层的作用域 / 材料 / 降级设计测试（ADR-0011 决策 5 与约束 6–7）。
@@ -205,7 +205,7 @@ describe("四类降级各自生效", () => {
   });
 
   it("③ 系统「减少动态」→ 关指针高光（进场归零由 .motion-reveal 承担）", () => {
-    const block = blockAfter(tailwindCss, "@media (prefers-reduced-motion: reduce)", true);
+    const block = blockAfterContaining(tailwindCss, "@media (prefers-reduced-motion: reduce)", ".motion-reveal");
 
     expect(block).toContain("--glass-specular: none");
     expect(block).toContain(".motion-reveal");

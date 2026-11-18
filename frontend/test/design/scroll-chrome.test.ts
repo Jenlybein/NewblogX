@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // blockAfter 在多个 design 测试里逐字节相同，已收进 test/helpers/designFiles。
-import { blockAfter } from "../helpers/designFiles";
+import { blockAfter, blockAfterContaining } from "../helpers/designFiles";
 
 import { MOTION_REVEAL_OFFSET_PX, PARALLAX_MAX_PX } from "~/utils/motion";
 
@@ -148,7 +148,7 @@ describe("动效档位 C：区块滚动进场", () => {
   });
 
   it("减少动态下整段归零：CSS 直接可见 + transition: none", () => {
-    const reduced = blockAfter(tailwindCss, "@media (prefers-reduced-motion: reduce)", true);
+    const reduced = blockAfterContaining(tailwindCss, "@media (prefers-reduced-motion: reduce)", ".motion-reveal");
 
     expect(reduced).toContain(".motion-reveal");
     expect(reduced).toContain("transition: none");

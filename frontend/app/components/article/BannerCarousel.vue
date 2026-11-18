@@ -459,6 +459,21 @@ watch(
   background: var(--color-on-inverse);
 }
 
+/*
+ * 按下态（票 427）：与 tailwind.css 的按钮词表同一档 —— 按下缩 .97、松手弹回。
+ * 这两个是 scoped 类，全局再声明同名类会撞 `global-class-collision` 门禁，所以规则
+ * 落在这里。基态登记 transform 过渡（圆点自身的 width 过渡留在内部 span 上）。
+ */
+.banner-arrow,
+.banner-dot {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.banner-arrow:active,
+.banner-dot:active {
+  transform: scale(0.97);
+}
+
 /* 键盘焦点：功能蓝描边压一圈深墨垫环 —— 任意底图上都 ≥3:1，焦点环不会被照片吃掉。 */
 .banner-arrow:focus-visible,
 .banner-dot:focus-visible span {
@@ -470,6 +485,21 @@ watch(
 @media (prefers-reduced-motion: reduce) {
   .banner-dot span {
     transition: none;
+  }
+
+  /* 按下态（票 427）：减少动态下不缩放，改走反白描边/底色 —— 反馈仍在，只是不位移。 */
+  .banner-arrow:active {
+    transform: none;
+    background-color: color-mix(in srgb, var(--color-on-inverse) 16%, transparent);
+  }
+
+  .banner-dot:active {
+    transform: none;
+  }
+
+  .banner-dot:active span {
+    background-color: var(--color-on-inverse-muted);
+    border-color: var(--color-on-inverse);
   }
 }
 </style>

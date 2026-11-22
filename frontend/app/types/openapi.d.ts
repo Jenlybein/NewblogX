@@ -9777,6 +9777,10 @@ export interface components {
             words?: components["schemas"]["conf.ContentFilterWord"][];
         };
         "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+            /** @description MissingRequiredCategories 是其中当前一条词都没有的（为空表示覆盖完整）。 */
+            missing_required_categories?: string[];
+            /** @description RequiredCategories 是"必须非空"的类目（当前是 politics 与 violence）。 */
+            required_categories?: string[];
             /**
              * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
              *

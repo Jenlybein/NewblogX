@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
@@ -396,7 +397,38 @@ func (h *Handler) PublicDecoSection(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[SiteSectionContentFilterResponse]
 // @Router /site/admin/content_filter [get]
 func (h *Handler) AdminContentFilterSection(c *gin.Context) {
-	res.OkWithData(SiteSectionContentFilterResponse(h.svc.AdminContentFilter()), c)
+	section := h.svc.AdminContentFilter()
+	res.OkWithData(contentFilterSectionResponse(section), c)
+}
+
+// contentFilterSectionResponse 把词表段包成响应，并算上必需类目的覆盖情况。
+//
+// 判据只有一处：contentfilter.RequiredCategories。启动日志的 Warn、`-filter-coverage`
+// 命令、这个接口都读它，所以后台红条不会与线上告警说不一样的话。
+func contentFilterSectionResponse(section conf.ContentFilter) SiteSectionContentFilterResponse {
+	words := make([]contentfilter.Word, 0, len(section.Words))
+	for _, entry := range section.Words {
+		words = append(words, contentfilter.Word{
+			Word:     entry.Word,
+			Tier:     contentfilter.Tier(entry.Tier),
+			Category: contentfilter.Category(entry.Category),
+		})
+	}
+
+	required := make([]string, 0, len(contentfilter.RequiredCategories))
+	for _, category := range contentfilter.RequiredCategories {
+		required = append(required, string(category))
+	}
+	missing := make([]string, 0, len(contentfilter.RequiredCategories))
+	for _, category := range contentfilter.MissingRequiredCategories(words) {
+		missing = append(missing, string(category))
+	}
+
+	return SiteSectionContentFilterResponse{
+		ContentFilter:             section,
+		RequiredCategories:        required,
+		MissingRequiredCategories: missing,
+	}
 }
 
 // AdminCaptchaSection 返回 captcha 段管理端配置。

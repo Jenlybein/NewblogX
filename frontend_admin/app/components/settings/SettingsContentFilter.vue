@@ -77,18 +77,13 @@ const words = computed<ContentFilterWord[]>(() => config.value.words ?? [])
 /**
  * 必需非空的类目（与后端 contentfilter.RequiredCategories 同一口径）。
  *
- * 为什么前端也要算一遍：后端只在启动与保存时打日志，而运营打开这一页时
- * 最该看到的就是"这两类是空的"。词表已经在客户端了，不需要再多一次请求。
+ * 清单由**后端下发**（content_filter 段响应里的 required_categories /
+ * missing_required_categories），前端不再自己抄一份类目列表：抄一份就等于同一件事
+ * 有了两个真相，改一处忘另一处时，红条会在一台机器上安静、在另一台上尖叫。
  */
-const REQUIRED_CATEGORIES: Category[] = ['politics', 'violence']
-
-const missingRequiredCategories = computed<Category[]>(() => {
-  const counts = new Map<string, number>()
-  for (const entry of words.value) {
-    counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1)
-  }
-  return REQUIRED_CATEGORIES.filter(category => (counts.get(category) ?? 0) === 0)
-})
+const missingRequiredCategories = computed<string[]>(
+  () => config.value.missing_required_categories ?? [],
+)
 const whitelist = computed<string[]>(() => config.value.whitelist ?? [])
 
 /** 窗口内命中处数（来自 word-stats；没有命中记录时为 0）。 */
@@ -120,17 +115,25 @@ const filteredWords = computed(() => {
 const blockCount = computed(() => words.value.filter(entry => entry.tier === 'block').length)
 const watchCount = computed(() => words.value.filter(entry => entry.tier === 'watch').length)
 
+/**
+ * 把后端返回的段落到表单上。
+ *
+ * 后端把 nil 切片序列化成 null（老库的段可能字段不全）：在入口处补成空数组，
+ * 模板里就不必到处判空。required/missing 原样保留 —— 红条只认后端给的结论。
+ */
+function applyConfig(current: ContentFilterRuntimeConfig) {
+  config.value = {
+    ...current,
+    words: current.words ?? [],
+    whitelist: current.whitelist ?? [],
+    retain_days: current.retain_days ?? 90,
+  }
+}
+
 async function load() {
   loading.value = true
   try {
-    const current = await getContentFilterRuntimeConfig()
-    // 后端把 nil 切片序列化成 null（老库的段可能两个字段都不全）：
-    // 先在入口处补成空数组，模板里就不必到处判空。
-    config.value = {
-      words: current.words ?? [],
-      whitelist: current.whitelist ?? [],
-      retain_days: current.retain_days ?? 90,
-    }
+    applyConfig(await getContentFilterRuntimeConfig())
     loaded.value = true
   } catch {
     message.error('内容过滤配置加载失败')
@@ -160,6 +163,9 @@ async function save() {
       whitelist: whitelist.value,
       retain_days: config.value.retain_days,
     })
+    // 保存后重新拉一次：缺口清单是后端算的，改完词表要按新词表重新判，
+    // 否则刚删空某一类的红条要等下次进页面才出现。
+    applyConfig(await getContentFilterRuntimeConfig())
     message.success('词表已保存；过滤器按新词表重建，立即生效')
   } catch {
     message.error('保存失败')
@@ -306,13 +312,21 @@ onMounted(load)
     <!-- 类目覆盖自检（ADR-0032 决策 8）：
          涉政与暴恐两类按设计只进数据库、不进仓库，所以仓库与 CI 全绿并不代表线上
          词库完整。2026-11-22 生产实测就是这两类各 0 条，而当时六个文本面
-         对涉政内容完全不拦——这个红条就是为了让那种情况没法再静默通过。 -->
-    <NAlert v-if="missingRequiredCategories.length > 0" type="error" :bordered="false" class="mb-4">
-      <strong>缺少必需类目的词条：{{ missingRequiredCategories.map(c => CATEGORY_LABEL[c]).join('、') }}。</strong>
-      这两类按设计<strong>只进数据库、不进仓库</strong>，必须由部署侧生成后导入（在后台逐条添加 3 万条并不现实）：
-      <code>node scripts/content-filter/build-wordlist.mjs --include-all --out /tmp/words.tsv</code>
-      然后 <code>server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply</code>。
-      导入前这几个文本面对应内容处于<strong>完全不过滤</strong>状态。
+         对涉政内容完全不拦——这个红条就是为了让那种情况没法再静默通过。
+
+         必须等 loaded 再判断：加载中 config 是空对象，missing 会被算成"两类都缺"，
+         红条就在每次进页面时先闪一下——那种"永远在报警"的红条等于没有红条。 -->
+    <NAlert
+      v-if="loaded && missingRequiredCategories.length > 0"
+      type="error"
+      :bordered="false"
+      class="mb-4">
+      <strong>缺少必需类目的词条：{{ missingRequiredCategories.map(c => CATEGORY_LABEL[c] ?? c).join('、') }}。</strong>
+      这几类按设计<strong>只进数据库、不进仓库</strong>，必须由部署侧生成后导入（在后台逐条添加几万条并不现实）：
+      在<strong>有 node 的机器</strong>上跑
+      <code>BLOGX_VIOLENCE_HINTS=&lt;私有暴恐词文件&gt; node scripts/content-filter/build-wordlist.mjs --include-all --out words.tsv</code>，
+      传到部署机后 <code>server -f config/settings.yaml -filter-import words.tsv -filter-import-apply</code>，再重启服务。
+      详见 README「内容过滤：词表的生成、导入与体检」。导入前这些类目对应内容处于<strong>完全不过滤</strong>状态。
     </NAlert>
 
     <NTabs v-if="loaded" v-model:value="activeTab" type="line">
@@ -490,5 +504,7 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
+
 
 

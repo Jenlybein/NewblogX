@@ -53,7 +53,8 @@ func InitContentFilter(infra *Infra) error {
 	infra.Filter = filterapp.New(engine, filtermysql.New(infra.DB), infra.Logger)
 	if infra.Logger != nil {
 		infra.Logger.Infof(
-			"内容过滤引擎已构建：词条 %d 条（含白名单命中的统计口径见风险页）；类目分布 %s",
+			"内容过滤引擎已构建：词表 %d 条（引擎去重与短词剔除后 %d 条）；词表类目分布 %s",
+			len(words),
 			engine.WordCount(),
 			contentfilter.FormatCategoryCounts(contentfilter.CategoryCounts(words)),
 		)
@@ -242,7 +243,8 @@ func rebuildContentFilter(infra *Infra, contentFilter conf.ContentFilter) {
 		return
 	}
 	if infra.Logger != nil {
-		infra.Logger.Infof("内容过滤引擎已按新词表重建：词条 %d 条；类目分布 %s",
+		infra.Logger.Infof("内容过滤引擎已按新词表重建：词表 %d 条（引擎收 %d 条）；词表类目分布 %s",
+			len(words),
 			infra.ContentFilter.WordCount(),
 			contentfilter.FormatCategoryCounts(contentfilter.CategoryCounts(words)),
 		)

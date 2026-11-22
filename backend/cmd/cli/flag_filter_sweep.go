@@ -13,7 +13,6 @@ import (
 	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	"myblogx/internal/platform/config"
 	"myblogx/internal/platform/contentfilter"
 
 	"github.com/sirupsen/logrus"
@@ -72,12 +71,16 @@ type contentSweeper struct {
 	apply     bool
 	batchSize int
 	now       func() time.Time
-	// categorySpans 按类目累计替换处数（误伤评估口径）。
+	// categoryHits 按类目累计**命中实体条数**（误伤评估口径）。
 	//
 	// 为什么要它：词表一变大，"命中 176 处"这个总数无法判断该不该 apply ——
-	// 176 处来自涉政宽泛词和来自毒品垃圾词是完全不同的两件事。这里只统计
-	// **类目与处数**，不记录任何词条（词表是敏感数据，报告会进运维记录）。
-	categorySpans map[contentfilter.Category]int
+	// 176 处来自涉政宽泛词和来自毒品垃圾词是完全不同的两件事。
+	//
+	// 口径是**实体条数**而不是替换处数：处数是引擎给出的区间并集，跨词重叠只算一次；
+	// 而"哪一类打中了这条内容"只需要每类记一次。两个数本来就不是一回事，硬凑相等
+	// 反而会让人以为其中一个是错的。这里只记类目与条数，不记录任何词条
+	// （词表是敏感数据，报告会进运维记录）。
+	categoryHits map[contentfilter.Category]int
 }
 
 // sweepSurfaceStats 是一个文本面的统计。
@@ -113,8 +116,8 @@ type filterSweepReport struct {
 	PendingComments int64
 	// RetiredComments 是本次真正转成已删除的条数（dry-run 恒为 0）。
 	RetiredComments int64
-	// CategorySpans 是**按类目**的替换处数（误伤评估用；只含类目名与数字）。
-	CategorySpans map[contentfilter.Category]int
+	// CategoryHits 是**按类目**的命中实体条数（误伤评估用；只含类目名与数字）。
+	CategoryHits map[contentfilter.Category]int
 }
 
 // String 渲染报告。
@@ -149,45 +152,51 @@ func (r filterSweepReport) String() string {
 		fmt.Fprintf(&b, "评论「审核中」存量: %d 条（apply 时按已删除处理，不计入上面的命中）\n",
 			r.PendingComments)
 	}
+	// 类目归因也是报告的一部分：上一版把它拼在 String() 外面，于是"格式是稳定契约"
+	// 这句注释就不再成立了（新增一行可以绕过所有断言）。
+	if line := filterSweepCategoryLine(r.CategoryHits); line != "" {
+		b.WriteString(line)
+	}
 	return b.String()
 }
 
-// filterSweepCategoryLine 渲染"按类目的替换处数"，按处数降序。
+// filterSweepCategoryLine 渲染"按类目的命中实体条数"，按条数降序。
+//
+// 为什么不是"替换处数"：处数是引擎给出的区间并集（跨词重叠只算一次），
+// 而类目归因只要回答"这条内容是哪一类打中的"，同一条里同一类目算一次。
+// 两个口径本来就不同，标签必须说实话，否则运维会拿它去对账。
 //
 // 只输出类目名与数字：这条报告会被人贴进工单与运维记录，词条不能出现。
 // 没有命中时返回空串（不打印一行 0，避免报告变长）。
-func filterSweepCategoryLine(spans map[contentfilter.Category]int) string {
-	if len(spans) == 0 {
-		return ""
-	}
+func filterSweepCategoryLine(hits map[contentfilter.Category]int) string {
 	type row struct {
 		category contentfilter.Category
-		spans    int
+		hits     int
 	}
-	rows := make([]row, 0, len(spans))
-	for category, count := range spans {
+	rows := make([]row, 0, len(hits))
+	for category, count := range hits {
 		if count <= 0 {
 			continue
 		}
-		rows = append(rows, row{category: category, spans: count})
+		rows = append(rows, row{category: category, hits: count})
 	}
 	if len(rows) == 0 {
 		return ""
 	}
 	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].spans != rows[j].spans {
-			return rows[i].spans > rows[j].spans
+		if rows[i].hits != rows[j].hits {
+			return rows[i].hits > rows[j].hits
 		}
 		return rows[i].category < rows[j].category
 	})
 
 	var b strings.Builder
-	b.WriteString("类目分布:     ")
+	b.WriteString("类目归因:     ")
 	for i, item := range rows {
 		if i > 0 {
 			b.WriteString(" / ")
 		}
-		fmt.Fprintf(&b, "%s %d 处", item.category, item.spans)
+		fmt.Fprintf(&b, "%s %d 条", item.category, item.hits)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -225,13 +234,9 @@ func FlagFilterSweep(deps Options, configFile string, apply, reindex bool) error
 		return fmt.Errorf("存量清洗失败: ES 未启用，无法在清洗后重建索引（去掉 -filter-sweep-reindex，改用 -es 子命令）")
 	}
 
-	defaults, defaultsErr := config.LoadDefaults(configFile)
-	if defaultsErr != nil && deps.Logger != nil {
-		deps.Logger.Warnf("读取站点默认配置失败，存量清洗将只用库里那份运行时配置: %v", defaultsErr)
-	}
-	svc := config.NewRuntimeConfigService(defaults, deps.Logger, deps.DB)
-	if err := svc.InitRuntimeConfig(); err != nil {
-		return fmt.Errorf("存量清洗失败: 读取运行时配置: %w", err)
+	svc, err := runtimeConfigServiceForCommand(deps.DB, deps.Logger, configFile, "存量清洗", false)
+	if err != nil {
+		return err
 	}
 
 	contentFilter := svc.GetRuntimeContentFilter()
@@ -259,9 +264,6 @@ func FlagFilterSweep(deps Options, configFile string, apply, reindex bool) error
 	}
 
 	fmt.Print(report.String())
-	if line := filterSweepCategoryLine(report.CategorySpans); line != "" {
-		fmt.Print(line)
-	}
 	if deps.Logger != nil {
 		// 只记数量与面分布，不记命中词与上下文（ADR-0032 安全约束）。
 		var hit, spans int
@@ -353,7 +355,7 @@ func sweepContent(
 		}
 		report.RetiredComments = retired
 	}
-	report.CategorySpans = sweeper.categorySpans
+	report.CategoryHits = sweeper.categoryHits
 	return report, nil
 }
 
@@ -372,15 +374,27 @@ func countLegacyExaminingComments(ctx context.Context, db *gorm.DB) (int64, erro
 // scan 过滤一段文本：返回替换后的文本、命中明细与替换处数。只算不写。
 func (s *contentSweeper) scan(text string) (string, []contentfilter.Hit, int) {
 	result := s.engine.Filter(text)
-	if len(result.Hits) > 0 {
-		if s.categorySpans == nil {
-			s.categorySpans = make(map[contentfilter.Category]int, len(contentfilter.AllCategories))
-		}
-		for _, hit := range result.Hits {
-			s.categorySpans[hit.Category] += len(hit.Snippets)
-		}
-	}
 	return result.Masked, result.Hits, result.MaskedSpans
+}
+
+// countRowCategories 给一条实体的命中类目各记一次（同一条里同一类目只算一次）。
+//
+// 在**实体**这一层计数，而不是在 scan 里按字段累计：文章有标题/摘要/正文三个字段，
+// 同一类目在三个字段都命中时它仍是"一条被这类打中的内容"。
+func (s *contentSweeper) countRowCategories(hits []contentfilter.Hit) {
+	if len(hits) == 0 {
+		return
+	}
+	if s.categoryHits == nil {
+		s.categoryHits = make(map[contentfilter.Category]int, len(contentfilter.AllCategories))
+	}
+	seen := make(map[contentfilter.Category]struct{}, len(contentfilter.AllCategories))
+	for _, hit := range hits {
+		seen[hit.Category] = struct{}{}
+	}
+	for category := range seen {
+		s.categoryHits[category]++
+	}
 }
 
 // recordHit 在 apply 模式补写一条命中记录。
@@ -481,12 +495,14 @@ func (s *contentSweeper) sweepArticles(ctx context.Context) (sweepSurfaceStats, 
 					{"content", row.Content},
 				}
 				spans := 0
+				rowHits := make([]contentfilter.Hit, 0, len(fields))
 				for _, field := range fields {
 					masked, hits, count := s.scan(field.text)
 					if count == 0 {
 						continue
 					}
 					spans += count
+					rowHits = append(rowHits, hits...)
 					if !s.apply {
 						continue
 					}
@@ -500,6 +516,7 @@ func (s *contentSweeper) sweepArticles(ctx context.Context) (sweepSurfaceStats, 
 				if spans > 0 {
 					stats.Hit++
 					stats.Spans += spans
+					s.countRowCategories(rowHits)
 				}
 			}
 			return nil
@@ -548,6 +565,7 @@ func (s *contentSweeper) sweepComments(ctx context.Context) (sweepSurfaceStats, 
 				}
 				stats.Hit++
 				stats.Spans += count
+				s.countRowCategories(hits)
 				if !s.apply {
 					continue
 				}
@@ -602,6 +620,7 @@ func (s *contentSweeper) sweepNicknames(ctx context.Context) (sweepSurfaceStats,
 				}
 				stats.Hit++
 				stats.Spans += count
+				s.countRowCategories(hits)
 				if !s.apply {
 					continue
 				}
@@ -638,12 +657,14 @@ func (s *contentSweeper) sweepNicknames(ctx context.Context) (sweepSurfaceStats,
 					{"reply_user_nickname", row.ReplyUserNickname, replyNicknameOwner(row)},
 				}
 				spans := 0
+				rowHits := make([]contentfilter.Hit, 0, len(fields))
 				for _, field := range fields {
 					masked, hits, count := s.scan(field.text)
 					if count == 0 {
 						continue
 					}
 					spans += count
+					rowHits = append(rowHits, hits...)
 					if !s.apply {
 						continue
 					}
@@ -657,6 +678,7 @@ func (s *contentSweeper) sweepNicknames(ctx context.Context) (sweepSurfaceStats,
 				if spans > 0 {
 					stats.Hit++
 					stats.Spans += spans
+					s.countRowCategories(rowHits)
 				}
 			}
 			return nil
@@ -693,6 +715,7 @@ func (s *contentSweeper) sweepAbstracts(ctx context.Context) (sweepSurfaceStats,
 				}
 				stats.Hit++
 				stats.Spans += count
+				s.countRowCategories(hits)
 				if !s.apply {
 					continue
 				}
@@ -743,6 +766,7 @@ func (s *contentSweeper) sweepChats(ctx context.Context) (sweepSurfaceStats, err
 				}
 				stats.Hit++
 				stats.Spans += count
+				s.countRowCategories(hits)
 				if !s.apply {
 					continue
 				}
@@ -793,12 +817,14 @@ func (s *contentSweeper) sweepCollections(ctx context.Context) (sweepSurfaceStat
 					{"description", row.Description},
 				}
 				spans := 0
+				rowHits := make([]contentfilter.Hit, 0, len(fields))
 				for _, field := range fields {
 					masked, hits, count := s.scan(field.text)
 					if count == 0 {
 						continue
 					}
 					spans += count
+					rowHits = append(rowHits, hits...)
 					if !s.apply {
 						continue
 					}
@@ -812,6 +838,7 @@ func (s *contentSweeper) sweepCollections(ctx context.Context) (sweepSurfaceStat
 				if spans > 0 {
 					stats.Hit++
 					stats.Spans += spans
+					s.countRowCategories(rowHits)
 				}
 			}
 			return nil

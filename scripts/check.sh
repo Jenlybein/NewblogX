@@ -402,6 +402,9 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
   # 按 #287 AC4 留在门禁清单之外（gates.json 的 notGates 显式登记第 14 节），
   # 因此在这里与 ci.yml 的 frontend-lint、verify-gates.sh 第 14 节直接调用。
   run "生成式装饰参数校验" node scripts/generate-deco-parameters.mjs --check
+  # 词表生成 / 主干推导脚本的用例。同一处置：不进 gates.json，在这里与
+  # ci.yml 的 frontend-lint 各自直接调用（否则新写的用例永远不会失败）。
+  run "词表脚本单测（content-filter）" bash -c "cd '$ROOT/scripts/content-filter' && node --test"
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi
 

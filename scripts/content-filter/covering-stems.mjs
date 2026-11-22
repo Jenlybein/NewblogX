@@ -9,7 +9,7 @@
 //   - 表里有「仿真气枪出售」「仿真气枪批发」，没有「仿真气枪」；
 //   - 文章里单独写「仿真气枪」时不命中，写成「仿真气枪出售」反而命中。
 //
-// 2026-11-22 生产实测：33055 条词表里有 3676 个这类"只有变体、没有主干"的缺口，
+// 2026-11-22 生产实测：33873 条词表里有 3676 个这类"只有变体、没有主干"的缺口，
 // 其中 1009 个是 2–4 字的短主干（`雷管`、`仿真气枪` 这类本身就是完整词）。
 //
 // ## 为什么要额外允许「1 个中文字 + 拉丁/数字」的候选
@@ -160,12 +160,6 @@ export function isCandidateStem(stem) {
 }
 
 /**
- * 从词条里推导缺失的主干。
- *
- * @param entries 词条数组 `{ word, tier, category }`
- * @returns `{ stems: [{ word, tier, category, support }], stats }`
- */
-/**
  * 一条词条可能推出的全部主干候选：剥尾、剥头、两头都剥。
  *
  * 三者都试，是因为组合词的方向不固定（`冰毒qq` 主干在前，`出售雷管` 主干在后）。
@@ -200,6 +194,12 @@ function countCandidate(candidates, key, stem, entry) {
   candidates.set(key, { word: stem, support: 1, tags: new Map([[tag, 1]]) });
 }
 
+/**
+ * 从词条里推导缺失的主干。
+ *
+ * @param entries 词条数组 `{ word, tier, category }`
+ * @returns `{ stems: [{ word, tier, category, support }], stats }`
+ */
 export function deriveCoveringStems(entries) {
   const existing = new Set();
   for (const entry of entries) {
@@ -318,7 +318,7 @@ function main() {
   const entries = parseTsv(readFileSync(options.in, "utf8"));
   const { stems, stats } = deriveCoveringStems(entries);
 
-  console.log(`读入 ${stats.entries} 条；可剥离后缀 ${stats.stripped} 条；候选主干 ${stats.candidates} 个；选出 ${stats.emitted} 个`);
+  console.log(`读入 ${stats.entries} 条；推得出候选的词条 ${stats.stripped} 条；候选主干 ${stats.candidates} 个；选出 ${stats.emitted} 个`);
 
   if (options.dryRun || !options.out) {
     console.log("这是预演：没有写文件。带 --out <file> 才会输出。");
@@ -332,6 +332,8 @@ function main() {
 if (process.argv[1] && process.argv[1].endsWith("covering-stems.mjs")) {
   main();
 }
+
+
 
 
 

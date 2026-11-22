@@ -67,8 +67,10 @@ func FormatCategoryCounts(counts map[Category]int) string {
 
 // CategoryCoverageHint 是"缺类目"时给运维的下一步动作（日志与后台提示共用一句）。
 //
-// 刻意写清楚了要去哪台机器做什么：这句话通常出现在凌晨的启动日志里，
-// 读它的人不该还需要回来翻 ADR。
+// 刻意把"在哪台机器做什么"写全了：这句话通常出现在凌晨的启动日志里，
+// 而**生产镜像里没有 node**（Go 运行时镜像），照着一句含糊的"跑生成脚本"去做
+// 只会在服务器上撞墙；漏掉 BLOGX_VIOLENCE_HINTS 则会让 violence 依然为 0。
+// 完整步骤以 README 的「词表的生成、导入与体检」一节为准，这里只给最短可执行路径。
 func CategoryCoverageHint(missing []Category) string {
 	if len(missing) == 0 {
 		return ""
@@ -79,7 +81,9 @@ func CategoryCoverageHint(missing []Category) string {
 	}
 	sort.Strings(names)
 	return "缺少必需类目词条: " + strings.Join(names, ", ") +
-		"（这两类只进数据库、不进仓库；在部署机生成后导入：" +
-		"node scripts/content-filter/build-wordlist.mjs --include-all --out /tmp/words.tsv 然后 " +
-		"server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply）"
+		"（这两类只进数据库、不进仓库，且生产镜像没有 node —— 要" +
+		"在**有 node 的机器**上生成：BLOGX_VIOLENCE_HINTS=<私有暴恐词文件> " +
+		"node scripts/content-filter/build-wordlist.mjs --include-all --out words.tsv，" +
+		"再 scp 到部署机执行 server -f config/settings.yaml -filter-import words.tsv " +
+		"-filter-import-apply 并重启服务；完整步骤见 README 12.2.3）"
 }

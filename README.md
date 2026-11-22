@@ -1404,8 +1404,9 @@ docker tag blogx-admin:production  blogx-admin:2026-10-26
 - [ ] 上传一张图片，确认返回七牛 CDN 域名且能打开。**没配七牛时这一项会报「站点未启用图片上传」，属预期**
 - [ ] 发一篇文章，等几秒后在站内搜索能搜到（验证 river 链路）
 - [ ] 后台日志页有数据（验证 ClickHouse 链路）
+- [ ] 备份任务已配置（见 [12.3](#123-备份与恢复)）
 - [ ] 「站点配置 → 内容过滤」页顶部没有红色「缺少必需类目」提示
-- [ ] **词表覆盖体检通过**：`/app/server -f config/settings.yaml -filter-coverage` 打印「七个必需类目均非空」（见 [12.2.3](#1223-内容过滤词表的生成导入与体检)）。涉政 / 暴恐两类只进数据库、不进仓库，漏导入不会让任何 CI 变红
+- [ ] **词表覆盖体检通过**：`/app/server -f config/settings.yaml -filter-coverage` 打印「必需类目均非空（politics, violence）」（见 [12.2.3](#1223-内容过滤词表的生成导入与体检)）。涉政 / 暴恐两类只进数据库、不进仓库，漏导入不会让任何 CI 变红
 
 ---
 
@@ -1597,9 +1598,9 @@ mkdir -p .gotmp && $EDITOR .gotmp/violence-hints.txt
 BLOGX_VIOLENCE_HINTS=.gotmp/violence-hints.txt \
   node scripts/content-filter/build-wordlist.mjs --include-all --out .gotmp/words.tsv
 
-# 2) 只把缺的两类传上去（其余五类线上已经有了；整份传会把总量顶到 4 万+ 而覆盖不增反降）
-awk -F'\t' '$3=="politics" || $3=="violence"' .gotmp/words.tsv > .gotmp/words-politics-violence.tsv
-scp .gotmp/words-politics-violence.tsv ubuntu@<服务器>:/tmp/words.tsv && ssh ubuntu@<服务器> chmod 600 /tmp/words.tsv
+# 2) 整份传上去（默认就是把整个词库导进去）。导入是幂等的：库里已有的词会算进
+#    「跳过已有」，一个词都不会重复；想先看差异就先只跑第 4 步的 dry-run。
+scp .gotmp/words.tsv ubuntu@<服务器>:/tmp/words.tsv && ssh ubuntu@<服务器> chmod 600 /tmp/words.tsv
 
 # ── 在部署机上做 ─────────────────────────────────────────────────────
 cd /opt/blogx/deploy/compose/production
@@ -1615,7 +1616,7 @@ docker compose exec blogx_server /app/server -f config/settings.yaml -filter-imp
 # 5) 重启让引擎按新词表重建（导入是写库，跑着的进程仍在用启动时那份词表）
 docker compose restart blogx_server
 
-# 6) 体检：只读，打印总量 + 七类分布；缺必需类目时给 ⚠ 与下一步动作。
+# 6) 体检：只读（不写库、不补默认行），打印总量 + 七类分布；缺必需类目时给 ⚠ 与下一步动作。
 #    输出只有类目名与条数，不打印任何词条（词表是敏感数据）。
 docker compose exec blogx_server /app/server -f config/settings.yaml -filter-coverage
 
@@ -1623,34 +1624,42 @@ docker compose exec blogx_server /app/server -f config/settings.yaml -filter-cov
 docker compose exec blogx_server rm -f /tmp/words.tsv && rm -f /tmp/words.tsv
 ```
 
-**第 6 步的输出必须看到「七个必需类目均非空」**才算导入完成。同一份体检也会在
-服务启动与后台保存词表时写进日志（缺类目时是 `Warn` 级），后台「站点配置 → 内容过滤」
-页顶部另有红条提示。三处用的是同一份判据（`contentfilter.RequiredCategories`）。
+**第 6 步的输出必须看到「必需类目均非空（politics, violence）」**才算导入完成 ——
+必需类目只有这两类（`contentfilter.RequiredCategories`），其余五类缺了通常会反映在
+导入报告里，不单列为红灯。同一份体检也会在服务启动与后台保存词表时写进日志
+（缺类目时是 `Warn` 级）；后台「站点配置 → 内容过滤」页顶部另有红条，红条判定用的是
+后端下发的 `missing_required_categories`，与日志同一份判据。
 
 > 一个已知的类目偏差：如果你之前没配 `violence-hints.txt`，枪爆刀那批词在库里一直是
 > `fraud` 类。导入时**同词不会改分类**（这是有意的，避免覆盖人工调整），所以这批词会
 > 留在「诈骗」下——仍然拦截，只是后台按类目筛时看不到它们。`violence` 只收新增的那部分。
 
-词表变了之后还要做两件事，否则**历史内容不会被改写**：
+词表变了之后，历史内容不会自动改写。这一步**必须先预演、由人判断**，而不是照着跑一遍：
 
 ```bash
-# 4) 存量清洗：扫六个文本面（文章标题/摘要/正文、评论、昵称、简介、私信、合集），
-#    把历史命中词替换成等长 *，并补写「关键词风险」记录。默认 dry-run。
-#    第 11 段为空时这条命令会直接报错，而不是打印一份「0 命中、看起来很干净」的报告。
+# 8) 存量清洗预演（dry-run 默认，什么都不写）：扫六个文本面（文章标题/摘要/正文、
+#    评论、昵称、简介、私信、合集），报告每个面的命中条数 / 替换处数，最后一行是
+#    「类目归因」—— 告诉你这些命中来自哪一类。第 11 段为空时这条命令会直接报错，
+#    而不是打印一份「0 命中、看起来很干净」的报告。
 docker compose exec blogx_server /app/server -f config/settings.yaml -filter-sweep
-docker compose exec blogx_server /app/server -f config/settings.yaml -filter-sweep -filter-sweep-apply
 
-# 5) 重建 ES 索引：MySQL 里已经是替换后的文本了，但 ES 里还是旧文档。
-#    两条命令等价，二选一（带 -filter-sweep-reindex 会在第 4 步末尾自动做）。
+# 9) 只有预演结果被人确认才可以 apply（会把历史文本替换成等长 *，不可逆）：
+#    docker compose exec blogx_server /app/server -f config/settings.yaml -filter-sweep -filter-sweep-apply
+#    2026-11-22 这次上线就**没有** apply：预演显示 272 处命中里 176 处来自涉政宽泛词
+#    （技术文章里出现"政府""政策"这类语境很正常），先收窄词表再谈清洗。
+
+# 10) 重建 ES 索引：MySQL 里已经是替换后的文本了，但 ES 里还是旧文档。
+#     两条命令等价，二选一（带 -filter-sweep-reindex 会在第 9 步末尾自动做）。
 docker compose exec blogx_server /app/server -f config/settings.yaml -es -s init
 docker compose exec blogx_server /app/server -f config/settings.yaml -es -s article-sync
 ```
 
-验收口径：
+验收口径（按你做到哪一步看对应几条）：
 
-- `-filter-coverage` 打印七类均非空；「关键词风险」后台页能看到命中记录；
-- 清洗命令输出里六个文本面各有 `hit` 计数，重复执行第 4 步应报告 0 命中（幂等）；
-- 用旧词搜索不到历史内容。
+- 导入那一步：`-filter-coverage` 打印「必需类目均非空（politics, violence）」；
+- 清洗那一步：预演的「类目归因」里没有你无法接受的大头（否则先收窄词表或加白名单）；
+- apply 之后：「关键词风险」后台页能看到记录，重复跑第 8 步应报告 0 命中（幂等），
+  用旧词搜索不到历史内容（前提是第 10 步重建过索引）。
 
 ### 12.2.4 主干补全：把「只有变体、没有主干」的缺口补上
 
@@ -1695,15 +1704,17 @@ node scripts/content-filter/covering-stems.mjs --in cur.tsv --out stems.tsv
 **扩大词表后，别急着 `-filter-sweep-apply`。** 先跑预演并看报告的最后一节：
 
 ```
-类目分布:     politics 168 处 / drugs 3 处 / ...
+合计           扫描 235 条 / 命中 80 条 / 替换 209 处
+类目归因:     politics 72 条 / fake_docs 12 条 / porn 4 条 / ...
 ```
 
-这一行是按类目统计的替换处数（只有类目名与数字，不含词条）。它回答的是"这 176 处到底来自
-哪一类"——同样 176 处，来自涉政宽泛词意味着大面积误伤（技术文章里出现"政府""公安"这类词
-很正常），来自毒品垃圾词则说明确实有垃圾内容。**误伤判断只能靠人**，工具的职责是把
-"来自哪一类"摆在你面前，而不是替你下结论。
+「类目归因」这一行的口径是**命中实体条数**：一条内容被同一类目打中只算一次。它和上面的
+「替换 N 处」不是同一个数（处数是引擎算的区间并集，跨词重叠只算一次），不要拿它们对账 ——
+它只回答一个问题："这些命中来自哪一类"。同样 200 处，来自涉政宽泛词意味着大面积误伤
+（技术文章里出现"政府""政策"这类语境很正常），来自毒品垃圾词则说明确实有垃圾内容。
+**误伤判断只能靠人**，工具的职责是把"来自哪一类"摆在你面前，而不是替你下结论。
 
-确认可以接受之后，再按上面的顺序 apply → 重建 ES。
+确认可以接受之后，再按第 9 步 apply → 重建 ES。
 
 ### 12.3 备份与恢复
 

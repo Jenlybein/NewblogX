@@ -42,7 +42,21 @@ type SiteSectionImageGcResponse conf.ImageGC
 type SiteSectionImageGcRequest conf.ImageGC
 
 // 第 11 段 content_filter（ADR-0032）：只有后台具名端点，没有公开读。
-type SiteSectionContentFilterResponse conf.ContentFilter
+//
+// 响应在词表之外多带两个字段：**必需类目**与**当前缺失的必需类目**。
+//
+// 为什么由后端下发而不是让后台自己数：这两个清单是过滤层的判据
+// （contentfilter.RequiredCategories，启动与保存词表时打 Warn 用的也是它）。
+// 前端自己再抄一份，就等于同一件事有了两个真相 —— 改一处忘另一处时，
+// 红条会在一台机器上安静、在另一台上尖叫。
+type SiteSectionContentFilterResponse struct {
+	conf.ContentFilter
+	// RequiredCategories 是"必须非空"的类目（当前是 politics 与 violence）。
+	RequiredCategories []string `json:"required_categories"`
+	// MissingRequiredCategories 是其中当前一条词都没有的（为空表示覆盖完整）。
+	MissingRequiredCategories []string `json:"missing_required_categories"`
+}
+
 type SiteSectionContentFilterRequest conf.ContentFilter
 
 // 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，同样只有后台具名端点。

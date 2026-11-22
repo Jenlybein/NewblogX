@@ -1729,6 +1729,22 @@ node scripts/content-filter/covering-stems.mjs --in cur.tsv --out stems.tsv
 
 确认可以接受之后，再按第 9 步 apply → 重建 ES。
 
+**词表上到 6 万条以后，后台「内容过滤」页要过 gzip 这一关。** 那一段是整表下发：
+6 万条约 3.8MB JSON，未压缩就是 3.8MB 走公网 —— 2026-11-22 线上就是因此在
+15s 超时后报「内容过滤配置加载失败」（服务端日志里是正常的 200/27ms，所以不像后端坏了）。
+两层保障现在是：
+
+- **nginx 压 JSON**：`deploy/docker/nginx/nginx.conf.tmpl` 的 `gzip_types` 必须含
+  `application/json`，并且 `gzip_proxied any`（本栈每个响应都是反代响应）。改完
+  `docker compose up -d --force-recreate nginx` 才生效。实测同一响应 3.8MB → ~1.2MB。
+  `scripts/deploy-config` 有源码级断言守着这两行，别在精简 `gzip_types` 时把它删掉。
+- **页面只渲染一窗**：词云默认渲染 600 个，底部给「再显示 N 个」；搜索与类目收窄时窗口归位。
+  6 万个 `<button>` 一次塞进 DOM 会卡死浏览器，这一步和超时无关，纯前端规模问题。
+
+请求超时也放宽到 120s（`CONTENT_FILTER_TIMEOUT_MS`）：这是慢链路上的兜底，不是性能目标。
+**真正的解法是服务端分页**（词表单列一个分页接口、保存改成逐条/增量），还没做 —— 见
+[ADR-0032](./docs/adr/0032-content-filter.md)「补丁五」里记的待办。
+
 ### 12.3 备份与恢复
 
 必须备份的只有两样：MySQL、`state/api/var`（river 位点）。`uploads/` 目录当前没有写入方（图片在七牛），除非你手工往里放过文件，否则不用备份。ES 与 ClickHouse 都是**可重建的派生数据**（ES 靠 `article-sync` 回填，日志库丢了就是丢历史日志）。

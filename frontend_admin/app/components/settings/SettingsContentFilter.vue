@@ -73,6 +73,22 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
 )
 
 const words = computed<ContentFilterWord[]>(() => config.value.words ?? [])
+
+/**
+ * 必需非空的类目（与后端 contentfilter.RequiredCategories 同一口径）。
+ *
+ * 为什么前端也要算一遍：后端只在启动与保存时打日志，而运营打开这一页时
+ * 最该看到的就是"这两类是空的"。词表已经在客户端了，不需要再多一次请求。
+ */
+const REQUIRED_CATEGORIES: Category[] = ['politics', 'violence']
+
+const missingRequiredCategories = computed<Category[]>(() => {
+  const counts = new Map<string, number>()
+  for (const entry of words.value) {
+    counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1)
+  }
+  return REQUIRED_CATEGORIES.filter(category => (counts.get(category) ?? 0) === 0)
+})
 const whitelist = computed<string[]>(() => config.value.whitelist ?? [])
 
 /** 窗口内命中处数（来自 word-stats；没有命中记录时为 0）。 */
@@ -287,6 +303,18 @@ onMounted(load)
       词表<strong>不会出现在任何匿名接口</strong>里，只有后台能读写。保存后立即生效，不需要重启。
     </NAlert>
 
+    <!-- 类目覆盖自检（ADR-0032 决策 8）：
+         涉政与暴恐两类按设计只进数据库、不进仓库，所以仓库与 CI 全绿并不代表线上
+         词库完整。2026-11-22 生产实测就是这两类各 0 条，而当时六个文本面
+         对涉政内容完全不拦——这个红条就是为了让那种情况没法再静默通过。 -->
+    <NAlert v-if="missingRequiredCategories.length > 0" type="error" :bordered="false" class="mb-4">
+      <strong>缺少必需类目的词条：{{ missingRequiredCategories.map(c => CATEGORY_LABEL[c]).join('、') }}。</strong>
+      这两类按设计<strong>只进数据库、不进仓库</strong>，必须由部署侧生成后导入（在后台逐条添加 3 万条并不现实）：
+      <code>node scripts/content-filter/build-wordlist.mjs --include-all --out /tmp/words.tsv</code>
+      然后 <code>server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply</code>。
+      导入前这几个文本面对应内容处于<strong>完全不过滤</strong>状态。
+    </NAlert>
+
     <NTabs v-if="loaded" v-model:value="activeTab" type="line">
       <NTabPane name="words" :tab="`词表（${words.length}）`">
         <NCard class="admin-card mb-4" size="small">
@@ -462,4 +490,5 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
 

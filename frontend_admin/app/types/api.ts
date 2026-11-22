@@ -302,8 +302,19 @@ export type ContentFilterWordStatItem =
 export type ContentFilterWordStatsData =
   RequiredSchema<"internal_filter_adapter_http.WordStatsResponse">
 
+/**
+ * 读 content_filter 段（后台）。
+ *
+ * 除词表外还带 `required_categories` / `missing_required_categories`：这两份清单是
+ * 过滤层的判据（后端 contentfilter.RequiredCategories），由后端算好下发，
+ * 前端不再自己抄一份 —— 抄一份就是同一件事有两个真相。
+ */
 export type ContentFilterRuntimeConfig =
   RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterResponse">
+
+/** 写 content_filter 段：只提交词表本身，覆盖类目清单由后端自己算。 */
+export type ContentFilterRuntimeConfigPayload =
+  RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterRequest">
 /** 词表里的一条：词 + 档位（block/watch）+ 类目（固定七类）。 */
 export type ContentFilterWord = RequiredSchema<"conf.ContentFilterWord">
 
@@ -441,4 +452,5 @@ export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_ada
 
 
 export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_http.AppealItem">;
+
 

@@ -254,6 +254,36 @@ func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	return nil
 }
 
+// LoadRuntimeConfig 只读加载运行时配置：与 InitRuntimeConfig 读同一条路径，但**不写库**。
+//
+// 给只读命令用（`-filter-coverage` 这类体检）。区别只有一个，但很要紧：
+// InitRuntimeConfig 会在库里缺某个段时 seedMissing 补一行默认值 —— 对启动来说这是
+// 正确的（否则运行期没有该段），对一个号称"只读体检"的命令却是改数据。运维会在
+// 事故复盘里问"体检动没动库"，答案必须是没动。
+func (s *RuntimeConfigService) LoadRuntimeConfig() error {
+	if s.db == nil {
+		return apperr.New(apperr.CodeRuntimeConfigDBMissing)
+	}
+	if !s.db.Migrator().HasTable(&runtimeConfigRow{}) {
+		return apperr.New(apperr.CodeRuntimeConfigTableMissing)
+	}
+
+	var loaded *RuntimeConfig
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		payloads, err := loadPayloads(tx)
+		if err != nil {
+			return err
+		}
+		loaded = s.decodeAll(payloads)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	s.setCache(loaded)
+	return nil
+}
+
 // loadPayloads 读出所有段，返回 name → payload。
 //
 // 只取未软删除的行：软删除在这里的语义是"这段配置作废、回到默认值"。

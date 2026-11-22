@@ -56,6 +56,7 @@ import type {
   TagWritePayload,
   CaptchaRuntimeConfig,
   ContentFilterRuntimeConfig,
+  ContentFilterRuntimeConfigPayload,
   ContentFilterHitListData,
   ContentFilterHandleResult,
   ContentFilterHandleBatchResult,
@@ -673,7 +674,7 @@ export function getContentFilterRuntimeConfig() {
   return getRuntimeSection<ContentFilterRuntimeConfig>('content_filter')
 }
 
-export function updateContentFilterRuntimeConfig(payload: ContentFilterRuntimeConfig) {
+export function updateContentFilterRuntimeConfig(payload: ContentFilterRuntimeConfigPayload) {
   return updateRuntimeSection('content_filter', payload)
 }
 
@@ -827,5 +828,6 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+
 
 

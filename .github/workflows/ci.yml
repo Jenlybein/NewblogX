@@ -521,6 +521,16 @@ jobs:
         working-directory: .
         run: node scripts/generate-deco-parameters.mjs --check
 
+      # 词表生成 / 主干推导脚本的用例（scripts/content-filter，`node --test`）。
+      # 与上面那道同一处置：不进 gates.json（那份清单按 #287 AC4 只收
+      # 「清单 / 版本 / 判定 / 重复安装」四件事），由这里与 check.sh 的 gates 段
+      # 直接执行。不接上的后果很具体：2026-11-22 新写的 37 条用例在 PR 上全绿，
+      # 但因为没人跑，它们永远不会失败 —— 等于没有测试。
+      - name: 词表脚本单测（content-filter）
+        if: matrix.app == 'frontend'
+        working-directory: scripts/content-filter
+        run: node --test
+
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)

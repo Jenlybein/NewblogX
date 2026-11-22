@@ -27,8 +27,9 @@
    都不命中时兜底 `fraud`（诈骗、刷单、代开发票以外的推广话术）。
    **`violence` 的细分词表不在仓库里**：它是暴恐类词，按 ADR-0032 决策 8 只允许存在
    于部署侧，构建时由 `BLOGX_VIOLENCE_HINTS` 指向的 gitignored 文件注入
-   （`scripts/content-filter/lib/violenceHints.mjs`）；没注入时这类词兜底归 `fraud`
-   —— 类目会不准，但词本身仍进库、仍拦截。
+   （`scripts/content-filter/lib/violenceHints.mjs`）；没注入时**带标签**的枪爆词兜底归 `fraud`
+   （类目不准但词仍进库、仍拦截），而**只出现在黑名单里的裸词**（`雷管` 这类没有标签的）
+   会被当成"无类目证据"丢弃 —— 所以部署侧要么配 hints、要么用 `covering-stems.mjs` 补。
 2. **多标签重排**：一个词带上游多个标签时按 `政治 > 毒品 > 违法 > 赌博 > 色情`
    取第一个，目的是让 block 档类目优先于 watch 档类目。
 3. **档位**：`politics / drugs / violence / fake_docs / fraud → block`（拦截词），
@@ -70,7 +71,7 @@
 
 ```bash
 # 1) 生成词表（首次无本地副本时会从 raw.githubusercontent.com 下载到临时目录）
-node scripts/content-filter/build-wordlist.mjs --limit 30000
+node scripts/content-filter/build-wordlist.mjs   # 默认不截断；要小词表才加 --limit <n>
 
 # 没有外网时用本地副本（仓库目录或 maven 资源目录都认）
 node scripts/content-filter/build-wordlist.mjs --source ~/data/sensitive-word-data
@@ -91,8 +92,9 @@ BLOGX_VIOLENCE_HINTS=/srv/blogx/private/violence-hints.txt \
   node scripts/content-filter/build-wordlist.mjs --include-all --out /tmp/words.tsv
 ```
 
-没设 `BLOGX_VIOLENCE_HINTS` 或文件不存在时脚本**不报错**：暴恐词兜底归 `fraud`
-（词仍进库、仍拦截，只是风险页里类目显示为诈骗）。日志只打印来源路径与条数，
+没设 `BLOGX_VIOLENCE_HINTS` 或文件不存在时脚本**不报错**：带标签的枪爆词兜底归 `fraud`
+（词仍进库、仍拦截，只是风险页里类目显示为诈骗）；没有标签的裸词（`雷管`）则因为
+"无类目证据"被丢弃，靠 `covering-stems.mjs` 或后台手工补。日志只打印来源路径与条数，
 从不打印任何词。
 
 ## 分发时的义务

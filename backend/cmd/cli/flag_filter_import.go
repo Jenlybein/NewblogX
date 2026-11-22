@@ -93,14 +93,9 @@ func FlagFilterImport(db *gorm.DB, logger *logrus.Logger, configFile, file strin
 		return fmt.Errorf("初始词表导入失败: 数据库未初始化")
 	}
 
-	defaults, defaultsErr := config.LoadDefaults(configFile)
-	if defaultsErr != nil && logger != nil {
-		logger.Warnf("读取站点默认配置失败，词表导入将只用库里那份运行时配置: %v", defaultsErr)
-	}
-
-	svc := config.NewRuntimeConfigService(defaults, logger, db)
-	if err := svc.InitRuntimeConfig(); err != nil {
-		return fmt.Errorf("初始词表导入失败: 读取运行时配置: %w", err)
+	svc, err := runtimeConfigServiceForCommand(db, logger, configFile, "初始词表导入", false)
+	if err != nil {
+		return err
 	}
 
 	entries, lines, skipped, err := parseFilterImportFile(file)
@@ -311,16 +306,9 @@ func printFilterImportReport(report filterImportReport, apply bool) {
 	fmt.Printf("新增:         %d 条\n", report.Added)
 	fmt.Printf("词表总数:     %d 条\n", report.Total)
 	fmt.Printf("档位:         block %d / watch %d\n", report.Tiers[string(contentfilter.TierBlock)], report.Tiers[string(contentfilter.TierWatch)])
+	// 类目顺序只认 contentfilter.AllCategories：这里再手列一遍，加类目时就会漏。
 	fmt.Printf("类目:         ")
-	for _, category := range []contentfilter.Category{
-		contentfilter.CategoryDrugs,
-		contentfilter.CategoryGambling,
-		contentfilter.CategoryFraud,
-		contentfilter.CategoryPorn,
-		contentfilter.CategoryFakeDocs,
-		contentfilter.CategoryPolitics,
-		contentfilter.CategoryViolence,
-	} {
+	for _, category := range contentfilter.AllCategories {
 		fmt.Printf("%s %d  ", category, report.Categories[string(category)])
 	}
 	fmt.Println()

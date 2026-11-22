@@ -55,8 +55,8 @@ const dateText = computed(() => (props.date ? formatDateLabel(props.date) : ''))
     <!-- 封面与标题只写一份：有 to 时包一层链接，没有时就是普通容器。
          用 component :is 而不是把这段复制两遍 —— 复制的那份最容易在改样式时漏掉。 -->
     <component :is="to ? 'a' : 'div'" class="article-grid-card__link" :href="to || undefined">
-      <div v-if="hasCover" class="article-grid-card__cover">
-        <img :src="normalizedSrc" :alt="title" loading="lazy" @error="markCoverFailed" />
+      <div class="article-grid-card__cover" :class="{ 'article-grid-card__cover--empty': !hasCover }">
+        <img v-if="hasCover" :src="normalizedSrc" :alt="title" loading="lazy" @error="markCoverFailed" />
       </div>
       <h3 class="article-grid-card__title">{{ title }}</h3>
     </component>

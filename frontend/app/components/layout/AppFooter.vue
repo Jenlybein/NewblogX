@@ -31,7 +31,7 @@ function scrollToTop() {
       <div class="site-footer__brand">
         <!-- 扁平矢量果冻方块放在反白方板上：深墨面铺色上仍然清晰 -->
         <span class="site-footer__plate">
-          <BrandLogo variant="flat" :size="34" decorative />
+          <BrandLogo variant="flat" :size="28" decorative />
         </span>
         <div class="site-footer__lockup">
           <BrandWordmark size="lg" tone="invert" layout="stack" />
@@ -165,4 +165,55 @@ function scrollToTop() {
     grid-column: 1 / -1;
   }
 }
+
+/* 页脚收矮：移动端品牌与导航并排，底部只留一行备案。 */
+.site-footer {
+  margin-top: 2rem;
+}
+
+.site-footer__inner {
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.site-footer__plate {
+  padding: 0.25rem;
+}
+
+.site-footer__brand {
+  gap: 0.5rem;
+}
+
+.site-footer__link {
+  min-height: 2.25rem;
+}
+
+.site-footer__meta {
+  padding-top: 0.625rem;
+}
+
+@media (max-width: 639px) {
+  .site-footer__inner {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5rem 0.75rem;
+    padding-top: 0.875rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .site-footer__nav {
+    justify-self: end;
+    gap: 0.125rem 0.75rem;
+  }
+
+  .site-footer__top {
+    margin-left: 0;
+  }
+
+  .site-footer__meta {
+    grid-column: 1 / -1;
+    padding-top: 0.5rem;
+  }
+}
 </style>
+

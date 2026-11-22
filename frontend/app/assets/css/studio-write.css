@@ -245,3 +245,55 @@
   margin: 0;
 }
 
+
+/* 写作台目录：≥1101 常驻左列，≤1100 收成左侧抽屉，用贴边「目录」窄标开合。 */
+.write-toc-tab {
+  position: fixed;
+  top: 43%;
+  left: 0;
+  z-index: 60;
+  display: none;
+  min-height: 5.5rem;
+  padding: 0.75rem 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 1100px) {
+  .write-toc-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .write-page__toc {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 70;
+    width: min(80vw, 260px);
+    overflow-y: auto;
+    background: var(--color-bg-subtle);
+    box-shadow: 20px 0 60px -30px var(--color-shadow);
+  }
+
+  .write-page__body {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+  }
+
+  .write-page__body--editor-only,
+  .write-page__body--preview-only,
+  .write-page__body--editor-only.write-page__body--hide-toc,
+  .write-page__body--preview-only.write-page__body--hide-toc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

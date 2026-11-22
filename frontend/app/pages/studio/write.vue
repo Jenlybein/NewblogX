@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useDebounce } from "@vueuse/core";
 import { useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
@@ -108,6 +108,11 @@ const articleScoreRefreshing = ref(false);
 const articleScoreData = ref<Awaited<ReturnType<typeof getArticleScoreDetail>> | null>(null);
 
 const showToc = ref(true);
+
+// 窄屏默认收起目录，避免一进来就盖住编辑器。
+onMounted(() => {
+  if (window.matchMedia("(max-width: 1100px)").matches) showToc.value = false;
+});
 const viewMode = ref<"split" | "editor" | "preview">("split");
 const publishVisible = ref(false);
 // 预览主题已退场（票 212）：创作预览与阅读页共用同一套正文主题（shadow root 内置的
@@ -319,6 +324,8 @@ useNoIndexPage();
       <p v-for="notice in writePolicyNotices" :key="notice">{{ notice }}</p>
     </div>
 
+    <button type="button" class="write-toc-tab" :aria-expanded="showToc" @click="showToc = !showToc">目录</button>
+
     <main class="write-page__body" :class="writeBodyClass">
       <StudioWriteToc
         :visible="showToc"
@@ -437,3 +444,6 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
 </template>
 
 <style scoped src="../../assets/css/studio-write.css"></style>
+
+
+

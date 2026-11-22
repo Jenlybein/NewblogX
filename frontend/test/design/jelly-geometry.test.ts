@@ -109,12 +109,12 @@ describe("JellyLauncher：固定右下角与右边缘中部的收起把手", () 
     const handle = cssBlock(".jelly-launcher__handle");
 
     expect(handle).toContain("position: fixed");
-    expect(handle).toContain("top: 45%");
-    // 独立 translate 属性做垂直居中：不会被进场 transform 覆盖。
-    expect(handle).toMatch(/translate:\s*0\s+-50%/u);
-    expect(handle).toContain("right: max(var(--jelly-margin), env(safe-area-inset-right))");
-    // 不贴底部：把手上没有 bottom 声明。
-    expect(handle).not.toMatch(/\bbottom:/u);
+    expect(handle).toContain("bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom))");
+    // 贴右下角：与角色同一条底边，不再做垂直居中位移。
+    expect(handle).not.toMatch(/translate:\s*0\s+-50%/u);
+    expect(handle).toMatch(/right:\s*0;/u);
+    // 贴底：把手与角色共用同一条底部安全区。
+    expect(handle).toContain("bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom))");
   });
 
   it("把手 z-index 50：高于页面普通 chrome，仍低于评论面板 / 弹窗的 60", () => {
@@ -233,3 +233,5 @@ describe("JellyLauncher：六态与拖拽退场", () => {
     expect(code).not.toContain("brandAiName");
   });
 });
+
+

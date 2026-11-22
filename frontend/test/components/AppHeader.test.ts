@@ -195,7 +195,7 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     const wrapper = mountHeader();
     const nav = wrapper.get('nav[aria-label="主导航"]');
 
-    expect(nav.findAll("a")).toHaveLength(4); // 首页、搜索、合集、项目
+    expect(nav.findAll("a")).toHaveLength(3); // 首页、合集、项目（搜索只保留输入框）
     expect(nav.findAll("button")).toHaveLength(0); // 创作已移到右侧动作区
     expect(wrapper.get('form[role="search"]').exists()).toBe(true);
     expect(wrapper.get('input[name="site-search"]').exists()).toBe(true);
@@ -210,7 +210,7 @@ describe("页头：结构（三档都成立的必备能力）", () => {
       .findAll("a")
       .map((link) => link.text());
 
-    expect(labels).toEqual(["首页", "搜索", "合集", "项目"]);
+    expect(labels).toEqual(["首页", "合集", "项目"]);
   });
 
   it("提供跳到正文的 skip link（键盘用户不必每次 Tab 过整个页头）", () => {
@@ -237,7 +237,7 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     expect(source).toMatch(/translateY\(-100%\)/u);
   });
 
-  it("三档响应式：手机折叠 + 平板两行 + 桌面单行（CSS 断点契约）", () => {
+  it("三档响应式：任何宽度都单行；手机折叠导航、平板/桌面展开（CSS 断点契约）", () => {
     const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
 
     // 断点分别是 640px（平板起 SKU 两行）与 1024px（桌面单行）。
@@ -295,7 +295,8 @@ describe("页头：手机端折叠菜单（键盘可达）", () => {
 
     // 收起不是卸载也不是 display:none：容器与里面的搜索框都还在。
     expect(panel.exists()).toBe(true);
-    expect(panel.find('input[name="site-search"]').exists()).toBe(true);
+    // 搜索框已移到页头中栏（不再随导航面板折叠），面板只承载导航。
+    expect(panel.find('nav[aria-label="主导航"]').exists()).toBe(true);
     // 但收起后这棵子树不可聚焦、不进读屏。
     expect(panel.attributes("inert")).toBeDefined();
     expect(panel.classes()).not.toContain("is-open");
@@ -420,10 +421,10 @@ describe("页头：搜索", () => {
 
 describe("页头：导航与账户", () => {
   it("当前页面在导航里有 aria-current", () => {
-    vi.stubGlobal("__useRouteMock", () => ({ path: "/search", query: {}, fullPath: "/search", params: {} }));
+    vi.stubGlobal("__useRouteMock", () => ({ path: "/collections", query: {}, fullPath: "/collections", params: {} }));
     const wrapper = mountHeader();
 
-    expect(wrapper.get('nav[aria-label="主导航"] a[aria-current="page"]').text()).toContain("搜索");
+    expect(wrapper.get('nav[aria-label="主导航"] a[aria-current="page"]').text()).toContain("合集");
   });
 
   it("创作入口沿用既有的登录拦截逻辑", async () => {
@@ -440,8 +441,8 @@ describe("页头：导航与账户", () => {
 
     expect(nav.findAll("button")).toHaveLength(0);
     expect(nav.text()).not.toContain("创作");
-    // 导航其余四项仍在：开关只影响写作入口，不接管整条导航。
-    expect(nav.findAll("a")).toHaveLength(4);
+    // 导航其余三项仍在：开关只影响写作入口，不接管整条导航。
+    expect(nav.findAll("a")).toHaveLength(3);
     // 创作已不在导航条里，门控直接让动作区那一项消失。
     expect(wrapper.find('button[data-chrome="write"]').exists()).toBe(false);
     expect(wrapper.get(".site-header__actions").text()).not.toContain("创作");
@@ -474,7 +475,7 @@ describe("页头：右侧动作区（#198 创作移位）", () => {
       .findAll(".site-header__actions > *")
       .map((node) => node.attributes("data-chrome") ?? "?unknown");
 
-    expect(order).toEqual(["theme", "write", "account", "menu"]);
+    expect(order).toEqual(["jump", "theme", "write", "account", "menu"]);
   });
 
   it("窄屏降级为纯图标：640px 起显示「创作」文字，更窄只留图标并带无障碍文案", () => {
@@ -795,7 +796,7 @@ describe("页头：消息中心入口（#239）", () => {
       .findAll(".site-header__actions > *")
       .map((node) => node.attributes("data-chrome") ?? "?unknown");
 
-    expect(order).toEqual(["theme", "write", "messages", "history", "account", "menu"]);
+    expect(order).toEqual(["jump", "theme", "write", "messages", "history", "account", "menu"]);
   });
 
   it("登录后若还没拉过未读汇总，页头挂载时主动刷新一次", () => {
@@ -970,4 +971,5 @@ describe("页头：滚动方向感知与阈值", () => {
     expect(body).toMatch(/position:\s*fixed;/u);
   });
 });
+
 

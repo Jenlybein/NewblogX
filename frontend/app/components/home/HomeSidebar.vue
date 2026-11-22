@@ -68,6 +68,12 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
 </script>
 
 <template>
+  <input v-if="hasCards" id="home-sidebar-toggle" class="sidebar-drawer-toggle" type="checkbox" aria-label="打开首页右栏">
+  <label v-if="hasCards" class="sidebar-edge-tab sidebar-edge-tab--right" for="home-sidebar-toggle" role="button" tabindex="0">
+    <span class="sidebar-edge-tab__label">侧栏</span>
+  </label>
+  <label v-if="hasCards" class="sidebar-drawer-scrim" for="home-sidebar-toggle" aria-label="关闭首页右栏"></label>
+
   <aside
     v-if="hasCards"
     ref="revealTarget"
@@ -75,6 +81,9 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
     :style="[sidebarStyle, revealStyle]"
     data-home-sidebar
   >
+    <label class="sidebar-drawer-close" for="home-sidebar-toggle" aria-label="收起首页右栏" role="button" tabindex="0">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6l-12 12M6 6l12 12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
+    </label>
     <section v-if="pending" class="blueprint-panel" data-home-section="sidebar-skeleton">
       <NSkeleton text width="96px" />
       <NSkeleton text class="mt-3" :repeat="2" />
@@ -292,3 +301,5 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
   color: var(--color-ink);
 }
 </style>
+
+

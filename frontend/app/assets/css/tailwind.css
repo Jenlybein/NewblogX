@@ -3771,6 +3771,206 @@ html {
   opacity: 0.6;
 }
 
+/* 条目卡：始终横向长条；标题单行，摘要两行；窄屏隐藏封面并缩小字号。 */
+.feed-entry {
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.feed-entry__title {
+  display: block;
+  overflow: hidden;
+  padding-top: 1px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-entry__footline,
+.feed-entry__tags,
+.feed-entry__stats,
+.feed-entry__meta {
+  flex-wrap: nowrap;
+}
+
+.feed-entry__tags {
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .feed-entry {
+    grid-template-columns: minmax(0, 168px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .feed-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feed-entry__cover {
+    display: none;
+  }
+
+  .feed-entry__title {
+    font-size: 17px;
+    line-height: 1.5;
+  }
+
+  .feed-entry__abstract {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .feed-entry__meta {
+    gap: 0 0.5rem;
+    font-size: 12px;
+  }
+
+  .feed-entry__dot,
+  .feed-entry__status {
+    display: none;
+  }
+
+  .feed-entry__tag:nth-of-type(3),
+  .feed-entry__tag--more {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .feed-entry__stat[data-stat="comment"] {
+    display: none;
+  }
+}
+
+/* 无封面：保留 16:9 封面位，卡片宽高与有封面项一致。 */
+.article-grid-card__cover--empty {
+  background: var(--color-bg-subtle);
+}
+
+/* 侧栏抽屉：≥1024 留在流内，窄屏收成贴边抽屉；两侧共用一套开关。 */
+.sidebar-drawer-toggle {
+  display: none;
+}
+
+.sidebar-edge-tab {
+  position: fixed;
+  top: 43%;
+  left: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 6rem;
+  padding: 0.75rem 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-edge-tab::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-highlight);
+}
+
+.sidebar-edge-tab--right {
+  right: 0;
+  left: auto;
+  border-right: 0;
+  border-left: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.sidebar-drawer-scrim {
+  display: none;
+}
+
+.sidebar-drawer-close {
+  display: none;
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+@media (max-width: 1023px) {
+  .message-center__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .message-center__subnav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .home-sidebar,
+  .profile-sidebar,
+  .studio-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 70;
+    width: min(86vw, 340px);
+    padding: 1.25rem;
+    overflow-y: auto;
+    background: var(--color-bg-page);
+    box-shadow: -20px 0 60px -30px var(--color-shadow);
+  }
+
+  .home-sidebar,
+  .profile-sidebar {
+    right: 0;
+    transform: translateX(100%);
+  }
+
+  .studio-sidebar {
+    left: 0;
+    transform: translateX(-100%);
+  }
+
+  .sidebar-drawer-toggle:checked ~ .home-sidebar,
+  .sidebar-drawer-toggle:checked ~ .profile-sidebar,
+  .sidebar-drawer-toggle:checked ~ .studio-sidebar {
+    transform: none;
+  }
+
+  .sidebar-drawer-toggle:checked ~ .sidebar-drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+  }
+
+  .sidebar-edge-tab,
+  .sidebar-drawer-close {
+    display: flex;
+  }
+
+  .sidebar-drawer-close {
+    display: grid;
+  }
+}
 /* ============================================================================
  * 按下态（票 427）：自绘可点面统一回弹（spec 423 第 1 批第 1 条）
  *

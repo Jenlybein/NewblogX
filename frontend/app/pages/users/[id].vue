@@ -629,7 +629,16 @@ useSeoMeta({
         </section>
       </div>
 
+      <input id="profile-sidebar-toggle" class="sidebar-drawer-toggle" type="checkbox" aria-label="打开个人资料">
+      <label class="sidebar-edge-tab sidebar-edge-tab--right" for="profile-sidebar-toggle" role="button" tabindex="0">
+        <span class="sidebar-edge-tab__label">资料</span>
+      </label>
+      <label class="sidebar-drawer-scrim" for="profile-sidebar-toggle" aria-label="关闭个人资料"></label>
+
       <aside class="profile-sidebar">
+        <label class="sidebar-drawer-close" for="profile-sidebar-toggle" aria-label="收起个人资料" role="button" tabindex="0">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6l-12 12M6 6l12 12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
+        </label>
         <section class="blueprint-panel">
           <div class="eyebrow">Profile</div>
           <div class="section-title mt-2">个人成就</div>
@@ -700,3 +709,5 @@ useSeoMeta({
     </div>
   </div>
 </template>
+
+

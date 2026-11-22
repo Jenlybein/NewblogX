@@ -3774,9 +3774,14 @@ html {
 /* 首页列表条目：始终横向长条；标题单行，摘要两行；窄屏隐藏封面并缩小字号。
  * 只作用于 `--list`，搜索/收藏架沿用各自的 120px 封面与多行标题。 */
 .feed-entry--list {
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   align-items: start;
   gap: 0.75rem;
+}
+
+/* 无封面时正文占满整卡；用双类名压过上面的 `--list` 列宽，所有宽度都生效。 */
+.feed-entry.feed-entry--no-cover {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .feed-entry--list .feed-entry__title {
@@ -3872,26 +3877,18 @@ html {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 6rem;
-  padding: 0.75rem 0.5rem;
+  min-height: 5rem;
+  padding: 0.9rem 0.45rem;
   border: 1px solid var(--color-line-strong);
   border-left: 0;
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: var(--color-surface);
+  background: var(--color-surface-raised);
   color: var(--color-ink-muted);
-  font-size: 0.8125rem;
-  letter-spacing: 0.2em;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
   writing-mode: vertical-rl;
   cursor: pointer;
   box-shadow: var(--shadow-card);
-}
-
-.sidebar-edge-tab::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-highlight);
 }
 
 .sidebar-edge-tab--right {
@@ -3912,12 +3909,12 @@ html {
   top: 0.75rem;
   right: 0.75rem;
   z-index: 2;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
   place-items: center;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
+  background: var(--color-surface-raised);
   color: var(--color-ink-muted);
   cursor: pointer;
 }
@@ -3977,7 +3974,42 @@ html {
     display: grid;
   }
 }
-/* 私信会话：≤767 列表收成左边缘「会话」抽屉；≥768 仍是双栏。 */
+
+/* 右栏抽屉的视觉外壳：顶部标题带、圆角与卡片抬升，避免"把页面卡片直接拖出来"的观感。 */
+@media (max-width: 1023px) {
+  .home-sidebar,
+  .profile-sidebar {
+    padding: 0 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+    border-left: 1px solid var(--color-line);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    background: var(--color-surface);
+  }
+
+  .home-sidebar::before,
+  .profile-sidebar::before {
+    content: attr(data-drawer-label);
+    display: block;
+    margin: 0 -1.25rem 1rem;
+    padding: 1rem 3.75rem 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    line-height: 1.4;
+  }
+
+  .home-sidebar .blueprint-panel,
+  .profile-sidebar .blueprint-panel {
+    background: var(--color-surface-raised);
+  }
+
+  .sidebar-drawer-close {
+    top: 0.875rem;
+    right: 0.875rem;
+  }
+}/* 私信会话：≤767 列表收成左边缘「会话」抽屉；≥768 仍是双栏。 */
 .studio-chat-sessions-tab {
   display: none;
 }
@@ -4080,15 +4112,15 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 5.5rem;
-    padding: 0.75rem 0.5rem;
+    min-height: 5rem;
+    padding: 0.9rem 0.45rem;
     border: 1px solid var(--color-line-strong);
     border-right: 0;
     border-radius: var(--radius-md) 0 0 var(--radius-md);
-    background: var(--color-surface);
+    background: var(--color-surface-raised);
     color: var(--color-ink-muted);
-    font-size: 0.8125rem;
-    letter-spacing: 0.2em;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
     writing-mode: vertical-rl;
     cursor: pointer;
     box-shadow: var(--shadow-card);
@@ -4101,9 +4133,11 @@ html {
     bottom: 0;
     z-index: 70;
     width: min(92vw, 360px);
-    padding: 1.25rem;
+    padding: 0 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
     overflow-y: auto;
-    background: var(--color-bg-page);
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-line);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
     visibility: hidden;
     translate: 100% 0;
     transition: translate var(--motion-fast) var(--motion-ease);
@@ -4113,6 +4147,29 @@ html {
     box-shadow: var(--shadow-lg);
   }
 
+  .article-aside-drawer::before {
+    content: attr(data-drawer-label);
+    display: block;
+    margin: 0 -1.25rem 1rem;
+    padding: 1rem 3.75rem 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    line-height: 1.4;
+  }
+
+  .article-aside-drawer .article-paper {
+    background: var(--color-surface-raised);
+  }
+
+  /* 右栏改抽屉后，互动条不能再沿用 <1024 的隐藏规则：抽屉打开时要完整。 */
+  .article-aside-drawer .article-actions-card {
+    display: block;
+  }
+
   .article-aside.is-aside-open {
     visibility: visible;
     translate: 0 0;
@@ -4120,8 +4177,8 @@ html {
 
   .article-aside__close {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+    top: 0.875rem;
+    right: 0.875rem;
     z-index: 2;
     display: grid;
     width: 2.75rem;
@@ -4129,7 +4186,7 @@ html {
     place-items: center;
     border: 1px solid var(--color-line);
     border-radius: var(--radius-pill);
-    background: var(--color-surface);
+    background: var(--color-surface-raised);
     color: var(--color-ink-muted);
     font-size: 1.125rem;
     cursor: pointer;
@@ -4270,6 +4327,12 @@ html {
     transform: none;
   }
 }
+
+
+
+
+
+
 
 
 

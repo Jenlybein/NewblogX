@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section
-    v-if="headings.length && tocVisible"
+    v-if="headings.length"
     class="article-paper article-toc"
     :data-toc-pinned="pinnedId ? 'true' : 'false'"
   >
@@ -292,3 +292,4 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 </style>
+

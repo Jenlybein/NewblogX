@@ -725,6 +725,7 @@ useHead(() => {
         <aside
           id="article-aside-panel"
           class="article-aside article-aside-drawer"
+          data-drawer-label="文章栏"
           :class="{ 'is-aside-open': articleAsideOpen }"
         >
           <button
@@ -879,3 +880,4 @@ useHead(() => {
     />
   </div>
 </template>
+

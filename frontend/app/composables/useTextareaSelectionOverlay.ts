@@ -7,6 +7,10 @@ interface SelectionOverlayPosition {
   left: number;
 }
 
+const TOOLBAR_HALF_WIDTH_PX = 176;
+const TOOLBAR_GAP_PX = 54;
+const VIEWPORT_MARGIN_PX = 12;
+
 const MIRROR_STYLE_PROPS = [
   "boxSizing",
   "width",
@@ -43,9 +47,21 @@ const MIRROR_STYLE_PROPS = [
   "wordWrap",
 ] as const;
 
+/**
+ * 把 textarea 的排版样式抄到镜像 div 上。
+ *
+ * 宽度**不抄 border-box 的 `width`**：textarea 是滚动容器，原生滚动条会占掉内容宽，
+ * 按 border-box 宽度抄出来的镜像比正文实际可用宽度更宽 —— 换行位置跟着提前/推迟，
+ * 选区在镜像里落到另一行，算出的锚点就会整体飘高（选中后弹窗不在选区正上方）。
+ * 改用 `clientWidth / clientHeight`（已排除边框与滚动条），再配合 `border: 0`，
+ * 镜像的文本宽度与 textarea 的完全一致。
+ */
 function copyTextareaStyles(textarea: HTMLTextAreaElement, mirror: HTMLDivElement) {
   const style = window.getComputedStyle(textarea);
   for (const prop of MIRROR_STYLE_PROPS) {
+    if (prop === "width" || prop === "height" || prop.startsWith("border")) {
+      continue;
+    }
     mirror.style.setProperty(prop, style.getPropertyValue(prop));
   }
 
@@ -58,6 +74,10 @@ function copyTextareaStyles(textarea: HTMLTextAreaElement, mirror: HTMLDivElemen
   mirror.style.whiteSpace = "pre-wrap";
   mirror.style.wordWrap = "break-word";
   mirror.style.overflow = "hidden";
+  mirror.style.boxSizing = "border-box";
+  mirror.style.width = `${textarea.clientWidth}px`;
+  mirror.style.height = `${textarea.clientHeight}px`;
+  mirror.style.borderWidth = "0";
 }
 
 function buildSelectionMirror(textarea: HTMLTextAreaElement, selectionStart: number, selectionEnd: number) {
@@ -95,12 +115,17 @@ function resolveSelectionAnchor(textarea: HTMLTextAreaElement, selectionStart: n
     const selectionRect = selectionSpan.getBoundingClientRect();
     const textareaRect = textarea.getBoundingClientRect();
 
+    // 镜像未滚动、textarea 已滚动：选区在**当前可视区**的纵向位置要减去 scrollTop。
     const contentTop = selectionRect.top - mirrorRect.top - textarea.scrollTop;
     const contentLeft = selectionRect.left - mirrorRect.left - textarea.scrollLeft;
     const centerX = contentLeft + Math.max(0, Math.min(selectionRect.width, textareaRect.width)) / 2;
 
+    // 选区最后一行（用于上方放不下时改放下方）。
+    const contentBottom = contentTop + Math.max(selectionRect.height, 0);
+
     return {
       top: textareaRect.top + contentTop,
+      bottom: textareaRect.top + contentBottom,
       left: textareaRect.left + centerX,
     };
   } finally {
@@ -152,9 +177,18 @@ export function useTextareaSelectionOverlay(
       return;
     }
 
+    // 悬浮条宽约 344px（四个按钮 + 内边距），只有中心对齐还不够：
+    // 贴边选中时必须整体退回来，否则会被视口裁掉一半。
+    const toolbarHalfWidth = TOOLBAR_HALF_WIDTH_PX;
+    position.left = Math.max(
+      toolbarHalfWidth + VIEWPORT_MARGIN_PX,
+      Math.min(window.innerWidth - toolbarHalfWidth - VIEWPORT_MARGIN_PX, anchor.left),
+    );
+
+    // 默认浮在选区正上方；顶部放不下时改放到选区下方，而不是被挤在视口边缘。
+    const above = anchor.top - TOOLBAR_GAP_PX;
+    position.top = above >= VIEWPORT_MARGIN_PX ? above : anchor.bottom + VIEWPORT_MARGIN_PX;
     position.visible = true;
-    position.left = Math.max(24, Math.min(window.innerWidth - 24, anchor.left));
-    position.top = Math.max(16, anchor.top - 54);
   }
 
   function handleDocumentPointerDown(event: PointerEvent) {

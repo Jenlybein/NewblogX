@@ -2,6 +2,7 @@
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useDebounce } from "@vueuse/core";
+import { activateClickable } from "~/utils/activateClickable";
 import { useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
@@ -327,6 +328,13 @@ useNoIndexPage();
     <button type="button" class="write-toc-tab" :aria-expanded="showToc" @click="showToc = !showToc">目录</button>
 
     <main class="write-page__body" :class="writeBodyClass">
+      <!-- 窄屏：预览栏收成右侧抽屉（与目录抽屉同一套开合），用贴边「预览」窄标唤出。 -->
+      <input id="write-preview-toggle" class="write-preview-toggle" type="checkbox" aria-label="打开预览">
+      <label class="write-preview-tab" for="write-preview-toggle" role="button" tabindex="0" @keydown="activateClickable">
+        预览
+      </label>
+      <label class="write-preview-scrim" for="write-preview-toggle" aria-label="关闭预览"></label>
+
       <StudioWriteToc
         :visible="showToc"
         :items="tocItems"
@@ -351,6 +359,15 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
         :source="debouncedContent"
         :extra-style-hrefs="writePreviewStyleHrefs"
         @headings-change="handlePreviewHeadingsChange" />
+      <label
+        class="write-preview-close"
+        for="write-preview-toggle"
+        aria-label="收起预览"
+        role="button"
+        tabindex="0"
+        @keydown="activateClickable">
+        ×
+      </label>
     </main>
 
     <footer class="write-page__statusbar">

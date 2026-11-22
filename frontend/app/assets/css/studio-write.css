@@ -185,8 +185,7 @@
     justify-content: flex-end;
   }
 
-  .write-page__toolbar-group--right,
-  .write-page__pane--preview {
+  .write-page__toolbar-group--right {
     display: none !important;
   }
 
@@ -249,7 +248,8 @@
 }
 
 
-/* 写作台目录：≥1101 常驻左列，≤1100 收成左侧抽屉，用贴边「目录」窄标开合。 */
+/* 写作台目录：宽屏常驻左列，≤1120（三栏折叠的那一档）收成左侧抽屉，
+ * 用贴边「目录」窄标开合。 */
 .write-toc-tab {
   position: fixed;
   top: 43%;
@@ -275,7 +275,7 @@
   transform: scale(0.97);
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1120px) {
   .write-toc-tab {
     display: flex;
     align-items: center;
@@ -297,5 +297,131 @@
 
   .write-page__body {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 写作台预览栏：≤1120 收成右侧「预览」抽屉（与目录抽屉同一套开合语言）。
+ * 预览是 Markdown 渲染结果，抽屉要够宽才读得舒服，所以给到 460px 上限。 */
+.write-preview-toggle,
+.write-preview-tab,
+.write-preview-scrim,
+.write-preview-close {
+  display: none;
+}
+
+@media (max-width: 1120px) {
+  .write-preview-tab {
+    position: fixed;
+    top: 43%;
+    right: 0;
+    z-index: 92;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5rem;
+    padding: 0.9rem 0.45rem;
+    border: 1px solid var(--color-line-strong);
+    border-right: 0;
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .write-preview-tab:active {
+    transform: scale(0.97);
+  }
+
+  .write-page__pane--preview {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 95;
+    width: min(92vw, 460px);
+    padding: 0;
+    overflow-y: auto;
+    background: var(--color-bg-page);
+    border: 0;
+    border-left: 1px solid var(--color-line);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    visibility: hidden;
+    translate: 100% 0;
+    transition: translate var(--motion-fast) var(--motion-ease);
+  }
+
+  /* 抽屉标题带：与首页右栏 / 个人资料抽屉同一档观感。 */
+  .write-page__pane--preview::before {
+    content: "预览";
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: block;
+    padding: 1rem 3.75rem 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    line-height: 1.4;
+  }
+
+  #write-preview-toggle:checked ~ .write-page__pane--preview {
+    visibility: visible;
+    translate: 0 0;
+  }
+
+  #write-preview-toggle:checked ~ .write-preview-close {
+    position: fixed;
+    top: 0.875rem;
+    right: 0.875rem;
+    z-index: 96;
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-size: 1.125rem;
+    cursor: pointer;
+  }
+
+  #write-preview-toggle:checked ~ .write-preview-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 93;
+    display: block;
+    background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+    cursor: pointer;
+  }
+
+  /* 「仅预览区」模式下预览是唯一内容：不再收抽屉，保持整栏在流内。 */
+  .write-page__body--preview-only .write-page__pane--preview {
+    position: static;
+    width: auto;
+    visibility: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    translate: none;
+  }
+
+  .write-page__body--preview-only .write-page__pane--preview::before,
+  .write-page__body--preview-only .write-preview-tab,
+  .write-page__body--preview-only .write-preview-close {
+    display: none;
+  }
+
+  /* 「仅编辑区」模式下预览栏整体不显示：窄标也一起收掉，避免点开一个空抽屉。 */
+  .write-page__body--editor-only .write-preview-tab {
+    display: none;
   }
 }

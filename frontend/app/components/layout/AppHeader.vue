@@ -130,6 +130,7 @@ async function submitSearch() {
   <header
     class="site-header"
     :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
+    :data-header-hidden="hidden ? 'true' : undefined"
     :inert="hidden ? true : undefined"
     @pointermove="handlePointerMove"
   >
@@ -1024,4 +1025,3 @@ async function submitSearch() {
   }
 }
 </style>
-

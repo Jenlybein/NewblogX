@@ -45,7 +45,8 @@ function heroActionsSource(source: string): string {
 
 /** 右栏（`<aside class="article-aside">` … `</aside>`）。 */
 function asideSource(source: string): string {
-  const start = source.indexOf('<aside class="article-aside">');
+  const match = /<aside[^>]*class="[^"]*article-aside[^"]*"[^>]*>/u.exec(source);
+  const start = match?.index ?? -1;
   expect(start, "页面里找不到右栏 .article-aside").toBeGreaterThan(-1);
   const end = source.indexOf("</aside>", start);
   expect(end, "右栏没有闭合").toBeGreaterThan(start);
@@ -213,3 +214,4 @@ describe("页面模板约束（本票验收）", () => {
     expect(findColorLiterals(source)).toEqual([]);
   });
 });
+

@@ -4058,6 +4058,93 @@ html {
     transition: translate var(--motion-fast) var(--motion-ease);
   }
 }
+
+/* 文章页右栏：≤1100 收成右侧「文章栏」抽屉，≥1101 保持 320px 常驻列。
+ * 与首页右栏、个人资料右栏同一套交互：边缘窄标、遮罩、关闭按钮、Esc 收起。 */
+.article-aside-tab,
+.article-aside__close,
+.article-aside-scrim {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .article-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .article-aside-tab {
+    position: fixed;
+    top: 43%;
+    right: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5.5rem;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid var(--color-line-strong);
+    border-right: 0;
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    font-size: 0.8125rem;
+    letter-spacing: 0.2em;
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+  }
+
+  .article-aside {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    width: min(92vw, 360px);
+    padding: 1.25rem;
+    overflow-y: auto;
+    background: var(--color-bg-page);
+    visibility: hidden;
+    translate: 100% 0;
+    transition: translate var(--motion-fast) var(--motion-ease);
+  }
+
+  .article-aside-drawer {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .article-aside.is-aside-open {
+    visibility: visible;
+    translate: 0 0;
+  }
+
+  .article-aside__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    font-size: 1.125rem;
+    cursor: pointer;
+  }
+
+  .article-aside-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    display: block;
+    border: 0;
+    background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+    cursor: pointer;
+  }
+}
 /* ============================================================================
  * 按下态（票 427）：自绘可点面统一回弹（spec 423 第 1 批第 1 条）
  *
@@ -4127,6 +4214,8 @@ html {
   .sidebar-drawer-close,
   .studio-chat-sessions-tab,
   .studio-chat-sessions-close,
+  .article-aside-tab,
+  .article-aside__close,
   .favorite-chooser-row,
   .studio-chat-session
 ) {
@@ -4181,3 +4270,6 @@ html {
     transform: none;
   }
 }
+
+
+

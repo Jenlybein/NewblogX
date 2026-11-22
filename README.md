@@ -1730,13 +1730,13 @@ node scripts/content-filter/covering-stems.mjs --in cur.tsv --out stems.tsv
 确认可以接受之后，再按第 9 步 apply → 重建 ES。
 
 **词表上到 6 万条以后，后台「内容过滤」页要过 gzip 这一关。** 那一段是整表下发：
-6 万条约 3.8MB JSON，未压缩就是 3.8MB 走公网 —— 2026-11-22 线上就是因此在
+6 万条约 4.1MB JSON，未压缩就是 4.1MB 走公网 —— 2026-11-22 线上就是因此在
 15s 超时后报「内容过滤配置加载失败」（服务端日志里是正常的 200/27ms，所以不像后端坏了）。
 两层保障现在是：
 
 - **nginx 压 JSON**：`deploy/docker/nginx/nginx.conf.tmpl` 的 `gzip_types` 必须含
   `application/json`，并且 `gzip_proxied any`（本栈每个响应都是反代响应）。改完
-  `docker compose up -d --force-recreate nginx` 才生效。实测同一响应 3.8MB → ~1.2MB。
+  `docker compose up -d --force-recreate nginx` 才生效。实测同一响应 4.1MB → 0.40MB。
   `scripts/deploy-config` 有源码级断言守着这两行，别在精简 `gzip_types` 时把它删掉。
 - **页面只渲染一窗**：词云默认渲染 600 个，底部给「再显示 N 个」；搜索与类目收窄时窗口归位。
   6 万个 `<button>` 一次塞进 DOM 会卡死浏览器，这一步和超时无关，纯前端规模问题。

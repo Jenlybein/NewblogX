@@ -28,8 +28,8 @@ http {
   gzip_comp_level 7;
   # application/json 必须在列表里：所有 API 响应都是 JSON，而本栈的每个响应都要
   # 经 nginx 转发（proxy_pass），不压的话大响应就是原样几 MB 走公网。
-  # 2026-11-22 实测：后台「内容过滤」段响应 6 万条词表 ≈ 3.8MB JSON 未压缩，
-  # 页面 15s 超时、报「配置加载失败」；把 application/json 加进来后同一响应 ~1.2MB。
+  # 2026-11-22 实测：后台「内容过滤」段响应 6 万条词表 ≈ 4.1MB JSON 未压缩，
+  # 页面 15s 超时、报「配置加载失败」；把 application/json 加进来后同一响应 0.40MB（gzip -7 实测，词表重复度高，压得狠）。
   # （JS/CSS 之前就已经压过：_nuxt 的 348KB chunk 压到 109KB，说明 gzip 本身是通的，
   #   缺的只是 JSON 这个类型。）
   gzip_types       text/plain application/javascript text/css application/xml text/javascript

@@ -200,12 +200,31 @@ export function classifyIllegal(word, violenceHints = []) {
 }
 
 /**
+ * 词条是否带**类目证据**：命中了某个类目的触发词，而不是走 fraud 兜底。
+ *
+ * 为什么需要这个判定（而不是直接看 classifyIllegal 的返回值）：`classifyIllegal`
+ * 在"什么都没命中"时也返回 fraud（兜底），与"命中了一条诈骗规则"无法区分。
+ *
+ * 上游 dict 里那两万多条没有标签的词，绝大多数是长句垃圾（`qq出售某某`），但也有
+ * `雷管`、`k粉`、`猎枪` 这种完整裸词——它们**只出现在 dict 里、没进 tags**，早年
+ * 按"无标签就丢弃"的规则被整批扔掉了，结果词表里有 `qq提供雷管炸药` 却没有 `雷管`：
+ * 单独写 `雷管` 不命中，写变体反而命中。用触发词把两者分开，就能只收有证据的那一小撮。
+ */
+export function hasCategoryEvidence(word, violenceHints = []) {
+  const text = String(word ?? "");
+  if (ILLEGAL_KEYWORDS.some((rule) => rule.words.some((keyword) => text.includes(keyword)))) {
+    return true;
+  }
+  return violenceHints.some((keyword) => text.includes(keyword));
+}
+
+/**
  * 把上游两份文件变成候选词条（已映射类目与档位，未去重、未截断）。
  *
  * 三种丢弃分别计数，导入前后对得上账：
  *   - cjkShort：CJK 少于 2（单字词与纯拉丁/数字词，宽泛到无法使用）；
  *   - tooLong：超过 maxRunes（上游有拼接整句话的噪音词，会整段打星）；
- *   - untagged：只出现在 dict 里、没有标签，默认丢弃（没有可信类目）；
+ *   - untagged：只出现在 dict 里、没有标签，且**没有任何类目证据** → 丢弃；
  *   - dirty：含制表符/控制字符，写不进 TSV。
  */
 export function buildCandidates({
@@ -220,7 +239,15 @@ export function buildCandidates({
   allowShort = false,
 }) {
   const entries = [];
-  const dropped = { cjkShort: 0, tooLong: 0, untagged: 0, dirty: 0, noCategory: 0, shortGeneric: 0 };
+  const dropped = {
+    cjkShort: 0,
+    tooLong: 0,
+    untagged: 0,
+    untaggedEvidence: 0,
+    dirty: 0,
+    noCategory: 0,
+    shortGeneric: 0,
+  };
   const seen = new Set();
 
   const accept = (word, tagset) => {
@@ -228,9 +255,15 @@ export function buildCandidates({
       dropped.dirty += 1;
       return;
     }
+    // CJK 门槛防的是"毒""赌"这类单字噪音。这条防噪音的目的在有**类目证据**时
+    // 就不再成立：`k粉` 只有 1 个中文字，但它是明确的毒品词，丢掉它就等于漏掉
+    // "k粉出售"以外的所有 `k粉` 写法。所以有证据时只要求整词长度 ≥ 2。
     if (cjkCount(word) < minCjk) {
-      dropped.cjkShort += 1;
-      return;
+      const evidenced = runeLength(word) >= 2 && hasCategoryEvidence(word, violenceHints);
+      if (!evidenced) {
+        dropped.cjkShort += 1;
+        return;
+      }
     }
     if (runeLength(word) > maxRunes) {
       dropped.tooLong += 1;
@@ -271,13 +304,24 @@ export function buildCandidates({
       accept(word, ["4"]);
     }
   } else {
+    // 没有标签的词：只收**带类目证据**的（`雷管`、`k粉` 这类完整裸词），
+    // 其余的仍是长句垃圾，丢弃。证据判定与类目细分共用同一套触发词，
+    // 所以这里先塞一个"违法"标签，让 accept 里的 mapCategory 走同一个细分。
     let untagged = 0;
+    let untaggedEvidence = 0;
     for (const word of dictWords) {
-      if (!tags.has(word)) {
-        untagged += 1;
+      if (tags.has(word)) {
+        continue;
       }
+      if (!hasCategoryEvidence(word, violenceHints)) {
+        untagged += 1;
+        continue;
+      }
+      untaggedEvidence += 1;
+      accept(word, ["4"]);
     }
     dropped.untagged += untagged;
+    dropped.untaggedEvidence += untaggedEvidence;
   }
 
   return { entries, dropped };
@@ -403,5 +447,8 @@ export function summarize(entries) {
   }
   return { total: entries.length, tiers, categories };
 }
+
+
+
 
 

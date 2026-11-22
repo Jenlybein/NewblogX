@@ -1662,6 +1662,11 @@ docker compose exec blogx_server /app/server -f config/settings.yaml -es -s arti
 2026-11-22 生产实测：33873 条词表里有 3676 个这类缺口，其中 1009 个是 2–4 字的短主干
 （`雷管`、`k粉`、`仿真气枪` 本身就已经是完整词）。
 
+这些裸词**上游词库里其实有**，只是躺在另一份「黑名单」文件（`sensitive_word_dict.txt`，
+64419 条）里、没有类目标签；而生成脚本早年按"无标签就丢弃"整批扔掉了那两万条。
+现在生成期改成**有类目证据就收**（命中毒品 / 假证发票 / 暴恐等触发词），无证据的长句垃圾
+才丢 —— 所以重新生成一次词表，这类裸词会自然进来，不必依赖下面的推导工具。
+
 ```bash
 # 在有 node 的机器上：从当前词表（库里导出的 / 刚生成的那份）推导缺失主干
 node scripts/content-filter/covering-stems.mjs --in cur.tsv --out stems.tsv --dry-run  # 先看数量

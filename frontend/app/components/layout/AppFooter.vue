@@ -186,7 +186,7 @@ function scrollToTop() {
 }
 
 .site-footer__link {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
 }
 
 .site-footer__meta {

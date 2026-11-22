@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { blockAfter, stripComments } from "../helpers/designFiles";
+import { blockAfter, blockAfterContaining, stripComments } from "../helpers/designFiles";
 
 /**
  * 消息中心（#239）的视觉与路由契约门禁。
@@ -169,7 +169,7 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
   });
 
   it("窄屏导航条仍是一行可横向滚动（不切回竖导航）", () => {
-    const narrow = blockAfter(tailwindCss, "@media (max-width: 1023px)", true);
+    const narrow = blockAfterContaining(tailwindCss, "@media (max-width: 1023px)", ".message-center__layout");
 
     expect(narrow).toContain(".message-center__layout");
     expect(narrow).toContain("grid-template-columns: minmax(0, 1fr)");

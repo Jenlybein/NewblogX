@@ -10,6 +10,7 @@ import {
   IconUserSquareRounded,
 } from "@tabler/icons-vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
+import { activateClickable } from "~/utils/activateClickable";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -75,13 +76,13 @@ function isChildActive(child: { to: string }) {
 
 <template>
   <input id="studio-sidebar-toggle" class="sidebar-drawer-toggle" type="checkbox" aria-label="打开个人中心导航">
-  <label class="sidebar-edge-tab" for="studio-sidebar-toggle" role="button" tabindex="0">
+  <label class="sidebar-edge-tab" for="studio-sidebar-toggle" role="button" tabindex="0" @keydown="activateClickable">
     <span class="sidebar-edge-tab__label">个人中心</span>
   </label>
   <label class="sidebar-drawer-scrim" for="studio-sidebar-toggle" aria-label="关闭个人中心导航"></label>
 
-  <aside class="surface-card studio-sidebar">
-    <label class="sidebar-drawer-close" for="studio-sidebar-toggle" aria-label="收起个人中心导航" role="button" tabindex="0">
+  <aside class="surface-card studio-sidebar sidebar-drawer">
+    <label class="sidebar-drawer-close" for="studio-sidebar-toggle" aria-label="收起个人中心导航" role="button" tabindex="0" @keydown="activateClickable">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6l-12 12M6 6l12 12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
     </label>
     <div class="studio-sidebar__profile">

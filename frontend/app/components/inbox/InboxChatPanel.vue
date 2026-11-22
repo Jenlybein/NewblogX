@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
+import { useMediaQuery } from "@vueuse/core";
 import { IconLoader2, IconPhoto, IconPlugConnectedX } from "@tabler/icons-vue";
 import { NButton, NInput, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -74,6 +75,9 @@ const socketBadgeLabel = computed(() => {
  * 窄屏二选一：<1024px 时列表与聊天窗不能同时显示。宽屏该状态不生效。
  */
 const narrowPane = ref<"list" | "chat">(props.currentSession ? "chat" : "list");
+// <768：会话列表收成左侧抽屉；宽屏仍是常驻双栏，这个状态不生效。
+const sessionsDrawerOpen = ref(false);
+const isPhoneViewport = useMediaQuery("(max-width: 767px)");
 const narrowPaneClass = computed(() => (narrowPane.value === "chat" ? "is-narrow-chat" : "is-narrow-list"));
 
 watch(
@@ -84,11 +88,16 @@ watch(
 );
 
 function selectSession(sessionId: string) {
+  sessionsDrawerOpen.value = false;
   narrowPane.value = "chat";
   emit("update:activeSessionId", sessionId);
 }
 
 function backToSessionList() {
+  if (isPhoneViewport.value) {
+    sessionsDrawerOpen.value = true;
+    return;
+  }
   narrowPane.value = "list";
 }
 
@@ -159,9 +168,31 @@ function handleImagePicked(event: Event) {
 </script>
 
 <template>
-  <section class="surface-card studio-inbox-card">
+  <section class="surface-card studio-inbox-card" :class="{ 'is-sessions-drawer-open': sessionsDrawerOpen }">
     <div class="studio-inbox-grid" :class="narrowPaneClass">
-      <aside class="studio-inbox-grid__aside">
+      <button
+        type="button"
+        class="studio-chat-sessions-tab"
+        aria-controls="studio-chat-sessions"
+        :aria-expanded="sessionsDrawerOpen"
+        @click="sessionsDrawerOpen = true"
+      >
+        会话
+      </button>
+      <button
+        v-if="sessionsDrawerOpen"
+        type="button"
+        class="studio-chat-sessions-scrim"
+        aria-label="关闭会话列表"
+        @click="sessionsDrawerOpen = false"
+      ></button>
+
+      <aside
+        id="studio-chat-sessions"
+        class="studio-inbox-grid__aside studio-chat-sessions-drawer"
+        :inert="isPhoneViewport && !sessionsDrawerOpen ? true : undefined"
+      >
+        <button type="button" class="studio-chat-sessions-close" aria-label="收起会话列表" @click="sessionsDrawerOpen = false">×</button>
         <div class="studio-toolbar studio-toolbar--stack">
           <h2 class="section-title">私信会话</h2>
           <NInput

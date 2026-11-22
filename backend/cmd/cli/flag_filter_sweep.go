@@ -3,12 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	commentmysql "myblogx/internal/comment/adapter/mysql"
-	filterapp "myblogx/internal/filter/app"
 	filtermysql "myblogx/internal/filter/adapter/mysql"
+	filterapp "myblogx/internal/filter/app"
 	filterdomain "myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
@@ -71,6 +72,12 @@ type contentSweeper struct {
 	apply     bool
 	batchSize int
 	now       func() time.Time
+	// categorySpans 按类目累计替换处数（误伤评估口径）。
+	//
+	// 为什么要它：词表一变大，"命中 176 处"这个总数无法判断该不该 apply ——
+	// 176 处来自涉政宽泛词和来自毒品垃圾词是完全不同的两件事。这里只统计
+	// **类目与处数**，不记录任何词条（词表是敏感数据，报告会进运维记录）。
+	categorySpans map[contentfilter.Category]int
 }
 
 // sweepSurfaceStats 是一个文本面的统计。
@@ -106,6 +113,8 @@ type filterSweepReport struct {
 	PendingComments int64
 	// RetiredComments 是本次真正转成已删除的条数（dry-run 恒为 0）。
 	RetiredComments int64
+	// CategorySpans 是**按类目**的替换处数（误伤评估用；只含类目名与数字）。
+	CategorySpans map[contentfilter.Category]int
 }
 
 // String 渲染报告。
@@ -140,6 +149,47 @@ func (r filterSweepReport) String() string {
 		fmt.Fprintf(&b, "评论「审核中」存量: %d 条（apply 时按已删除处理，不计入上面的命中）\n",
 			r.PendingComments)
 	}
+	return b.String()
+}
+
+// filterSweepCategoryLine 渲染"按类目的替换处数"，按处数降序。
+//
+// 只输出类目名与数字：这条报告会被人贴进工单与运维记录，词条不能出现。
+// 没有命中时返回空串（不打印一行 0，避免报告变长）。
+func filterSweepCategoryLine(spans map[contentfilter.Category]int) string {
+	if len(spans) == 0 {
+		return ""
+	}
+	type row struct {
+		category contentfilter.Category
+		spans    int
+	}
+	rows := make([]row, 0, len(spans))
+	for category, count := range spans {
+		if count <= 0 {
+			continue
+		}
+		rows = append(rows, row{category: category, spans: count})
+	}
+	if len(rows) == 0 {
+		return ""
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].spans != rows[j].spans {
+			return rows[i].spans > rows[j].spans
+		}
+		return rows[i].category < rows[j].category
+	})
+
+	var b strings.Builder
+	b.WriteString("类目分布:     ")
+	for i, item := range rows {
+		if i > 0 {
+			b.WriteString(" / ")
+		}
+		fmt.Fprintf(&b, "%s %d 处", item.category, item.spans)
+	}
+	b.WriteString("\n")
 	return b.String()
 }
 
@@ -209,6 +259,9 @@ func FlagFilterSweep(deps Options, configFile string, apply, reindex bool) error
 	}
 
 	fmt.Print(report.String())
+	if line := filterSweepCategoryLine(report.CategorySpans); line != "" {
+		fmt.Print(line)
+	}
 	if deps.Logger != nil {
 		// 只记数量与面分布，不记命中词与上下文（ADR-0032 安全约束）。
 		var hit, spans int
@@ -300,6 +353,7 @@ func sweepContent(
 		}
 		report.RetiredComments = retired
 	}
+	report.CategorySpans = sweeper.categorySpans
 	return report, nil
 }
 
@@ -318,6 +372,14 @@ func countLegacyExaminingComments(ctx context.Context, db *gorm.DB) (int64, erro
 // scan 过滤一段文本：返回替换后的文本、命中明细与替换处数。只算不写。
 func (s *contentSweeper) scan(text string) (string, []contentfilter.Hit, int) {
 	result := s.engine.Filter(text)
+	if len(result.Hits) > 0 {
+		if s.categorySpans == nil {
+			s.categorySpans = make(map[contentfilter.Category]int, len(contentfilter.AllCategories))
+		}
+		for _, hit := range result.Hits {
+			s.categorySpans[hit.Category] += len(hit.Snippets)
+		}
+	}
 	return result.Masked, result.Hits, result.MaskedSpans
 }
 
@@ -450,14 +512,14 @@ func (s *contentSweeper) sweepArticles(ctx context.Context) (sweepSurfaceStats, 
 
 // commentSweepRow 是评论面的扫描投影（内容面与昵称快照面共用）。
 type commentSweepRow struct {
-	ID                ctype.ID            `gorm:"primaryKey;column:id"`
-	Content           string              `gorm:"column:content"`
-	UserID            ctype.ID            `gorm:"column:user_id"`
-	UserNickname      string              `gorm:"column:user_nickname"`
-	ReplyUserID       ctype.ID            `gorm:"column:reply_user_id"`
-	ReplyUserNickname string              `gorm:"column:reply_user_nickname"`
+	ID                ctype.ID           `gorm:"primaryKey;column:id"`
+	Content           string             `gorm:"column:content"`
+	UserID            ctype.ID           `gorm:"column:user_id"`
+	UserNickname      string             `gorm:"column:user_nickname"`
+	ReplyUserID       ctype.ID           `gorm:"column:reply_user_id"`
+	ReplyUserNickname string             `gorm:"column:reply_user_nickname"`
 	Status            enum.CommentStatus `gorm:"column:status"`
-	DeletedAt         gorm.DeletedAt      `gorm:"column:deleted_at"`
+	DeletedAt         gorm.DeletedAt     `gorm:"column:deleted_at"`
 }
 
 // TableName 固定表名。
@@ -768,4 +830,3 @@ var _ filterdomain.Logger = (*logrus.Logger)(nil)
 
 // sweepSweepRecorderAssert 编译期断言生产实现满足 sweepRecorder。
 var _ sweepRecorder = (*filterapp.Service)(nil)
-

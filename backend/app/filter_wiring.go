@@ -43,7 +43,8 @@ func InitContentFilter(infra *Infra) error {
 		return fmt.Errorf("初始化内容过滤失败: 运行时配置或基础设施未就绪")
 	}
 	contentFilter := infra.RuntimeSite.GetRuntimeContentFilter()
-	engine, err := contentfilter.NewEngine(contentFilterWords(contentFilter), contentFilter.Whitelist)
+	words := contentFilterWords(contentFilter)
+	engine, err := contentfilter.NewEngine(words, contentFilter.Whitelist)
 	if err != nil {
 		return fmt.Errorf("内容过滤引擎构建失败（无过滤上线等于裸奔）: %w", err)
 	}
@@ -52,11 +53,32 @@ func InitContentFilter(infra *Infra) error {
 	infra.Filter = filterapp.New(engine, filtermysql.New(infra.DB), infra.Logger)
 	if infra.Logger != nil {
 		infra.Logger.Infof(
-			"内容过滤引擎已构建：词条 %d 条（含白名单命中的统计口径见风险页）",
+			"内容过滤引擎已构建：词条 %d 条（含白名单命中的统计口径见风险页）；类目分布 %s",
 			engine.WordCount(),
+			contentfilter.FormatCategoryCounts(contentfilter.CategoryCounts(words)),
 		)
 	}
+	warnMissingCategories(infra, words)
 	return nil
+}
+
+// warnMissingCategories 在"必需类目为空"时打一条 Warn。
+//
+// 为什么要专门一条日志：这两类词按 ADR-0032 决策 8 只进数据库、不进仓库，
+// 仓库默认排除、CI 也看不到，所以**没有任何环节会失败**。生产上真的发生过
+// "词库 3 万条、后台看起来很满、涉政与暴恐却是 0 条"，而当时七个文本面
+// 对涉政内容完全不拦 —— 这条 Warn 是那个缺口的唯一红灯。
+//
+// 只打类目名与条数，不打词条（词表是敏感数据，日志里不能出现词）。
+func warnMissingCategories(infra *Infra, words []contentfilter.Word) {
+	if infra == nil || infra.Logger == nil {
+		return
+	}
+	missing := contentfilter.MissingRequiredCategories(words)
+	if len(missing) == 0 {
+		return
+	}
+	infra.Logger.Warnf("%s", contentfilter.CategoryCoverageHint(missing))
 }
 
 // WireFilter 把关键词风险处理器注入路由树。
@@ -212,15 +234,20 @@ func rebuildContentFilter(infra *Infra, contentFilter conf.ContentFilter) {
 	if infra == nil || infra.ContentFilter == nil {
 		return
 	}
-	if err := infra.ContentFilter.Rebuild(contentFilterWords(contentFilter), contentFilter.Whitelist); err != nil {
+	words := contentFilterWords(contentFilter)
+	if err := infra.ContentFilter.Rebuild(words, contentFilter.Whitelist); err != nil {
 		if infra.Logger != nil {
 			infra.Logger.Errorf("内容过滤引擎重建失败，继续使用旧词表: %v", err)
 		}
 		return
 	}
 	if infra.Logger != nil {
-		infra.Logger.Infof("内容过滤引擎已按新词表重建：词条 %d 条", infra.ContentFilter.WordCount())
+		infra.Logger.Infof("内容过滤引擎已按新词表重建：词条 %d 条；类目分布 %s",
+			infra.ContentFilter.WordCount(),
+			contentfilter.FormatCategoryCounts(contentfilter.CategoryCounts(words)),
+		)
 	}
+	// 保存词表时也自查一次：后台把某一类删空、或换了台机器重新导入，
+	// 这是最容易再次出现空类目的时刻。
+	warnMissingCategories(infra, words)
 }
-
-

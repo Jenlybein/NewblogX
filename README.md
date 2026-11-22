@@ -267,6 +267,10 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 > 「发布与展示」是这次（ADR-0015）替换掉旧「站点模式」的那张卡：站点模式从未被任何代码读取，已删除；想要"单人博客"就把前两个开关关掉。
 
+同组的「**内容过滤**」页是全站唯一的敏感词表（文章、评论、昵称、简介、私信、合集都用它），
+保存即生效、不需要重启。注意它默认**不含涉政与暴恐**两类：那两类按设计只进数据库、不进仓库，
+必须由部署侧单独导入——完整步骤与验收口径见 [12.2.3](#1223-内容过滤词表的生成导入与体检)。
+
 ### 2.3 AI 助手（「AI 助手」页）
 
 AI 是**两层开关**，只开一层不生效：
@@ -811,6 +815,7 @@ CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注�
 | `-t imagegc` | 可选 `-apply` | 孤儿图清单（只读）；带 `-apply` 才真删图片 |
 | `-t imagerefgc` | 可选 `-apply` | 孤儿图片引用清单（只读）；带 `-apply` 才删引用行 |
 | `-filter-import` | 文件路径 | 初始词表导入（TSV / NDJSON），默认只报告；带 `-filter-import-apply` 才写库 |
+| `-filter-coverage` | 无 | 词表覆盖体检：打印总量与七类分布，缺必需类目时告警（只读，不打印词条） |
 | `-filter-sweep` | 可选 `-filter-sweep-apply` / `-filter-sweep-reindex` | 存量内容清洗：扫六个文本面替换命中词，默认只报告；`-apply` 才写库 |
 | `-version` / `-v` | 无 | 打印版本（**在读取配置之前处理**，缺环境变量也能用） |
 
@@ -1399,7 +1404,8 @@ docker tag blogx-admin:production  blogx-admin:2026-10-26
 - [ ] 上传一张图片，确认返回七牛 CDN 域名且能打开。**没配七牛时这一项会报「站点未启用图片上传」，属预期**
 - [ ] 发一篇文章，等几秒后在站内搜索能搜到（验证 river 链路）
 - [ ] 后台日志页有数据（验证 ClickHouse 链路）
-- [ ] 备份任务已配置（见 [12.3](#123-备份与恢复)）
+- [ ] 「站点配置 → 内容过滤」页顶部没有红色「缺少必需类目」提示
+- [ ] **词表覆盖体检通过**：`/app/server -f config/settings.yaml -filter-coverage` 打印「七个必需类目均非空」（见 [12.2.3](#1223-内容过滤词表的生成导入与体检)）。涉政 / 暴恐两类只进数据库、不进仓库，漏导入不会让任何 CI 变红
 
 ---
 
@@ -1471,11 +1477,11 @@ cd /opt/blogx/deploy/compose/production
 set -a; . ./.env; set +a
 
 # ① 只读统计：看清楚再动（默认就是这个模式，不删任何东西）
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml \
+docker compose exec blogx_server /app/server -f config/settings.yaml \
   -t reconcile -s digg
 
 # ② 确认无误后加 -apply，物理删掉软删残行（活行一条不动）
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml \
+docker compose exec blogx_server /app/server -f config/settings.yaml \
   -t reconcile -s digg -apply
 ```
 
@@ -1513,10 +1519,10 @@ cd /opt/blogx/deploy/compose/production
 set -a; . ./.env; set +a
 
 # 只读清单 + 二次确认预演：图片行、引用账本、存储对象都不会被改动
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t imagegc
+docker compose exec blogx_server /app/server -f config/settings.yaml -t imagegc
 
 # 真删：重扫真实引用做二次确认后，先删存储对象、成功才清账本并硬删行
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t imagegc -apply
+docker compose exec blogx_server /app/server -f config/settings.yaml -t imagegc -apply
 ```
 
 输出含义：
@@ -1559,34 +1565,108 @@ docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t image
 
 **`state/api/var` 不要随便删。** river 的 binlog 位点存在这里，删了会从头重扫，轻则重复同步、重则把旧数据覆盖回去。
 
-### 12.2.3 内容过滤的上线顺序（词表 → 清洗 → 重建索引）
+### 12.2.3 内容过滤：词表的生成、导入与体检
 
-内容过滤（ADR-0032）把「命中词替换成 `*`」放在落库之前，因此上线时**顺序不能乱**。
-尤其是三层之间有一个硬约束：**词表必须先于存量清洗导入**——旧的两份词表不会
-自动迁移（词表机审已随 #401 退场），第 11 段为空时清洗命令会直接报错，而不是
-打印一份「0 命中、看起来很干净」的报告。
+内容过滤（ADR-0032）把「命中词替换成 `*`」放在落库之前，所以词表本身是**运行时配置**：
+线上一共有哪些词，只能看库，不能看仓库。
+
+词表分两段来源，这是最容易出错的地方：
+
+| 类目 | 从哪来 | 为什么 |
+| --- | --- | --- |
+| 毒品 / 赌博 / 诈骗 / 色情 / 假证发票 | 仓库里的生成脚本默认产出 | 词条不敏感，可以进 git 与 CI |
+| **涉政 / 暴恐** | **只在部署机生成、直接导入数据库** | 词表一旦进 git 历史就等于永久公开（`git log` 无法遗忘），所以 ADR-0032 决策 8 要求这两类**不进仓库、不进默认配置、不进 CI 日志** |
+
+后果是：**仓库全绿、CI 全绿、后台页面显示三万条，仍然可能这两类是空的。**
+2026-11-22 生产就是这样——`politics` 0 条、`violence` 0 条，而当时六个文本面对涉政内容完全不拦，
+没有任何环节报错。下面三步里的第 3 步（体检）就是为了让这种情况没法再静默通过。
 
 ```bash
-cd deploy/compose/production
+# ── 在**有 node 的机器**上做（开发机即可）────────────────────────────────
+# 生产镜像里没有 node（Go 运行时镜像），所以生成这一步不在服务器上跑。
+#
+# 0) （一次性）暴恐类的分类触发词写在本地私有文件里，每行一词；文件放 .gotmp/（已 gitignore）。
+#    不配也能导入，但枪爆刀各类会兜底归到「诈骗」，后台按类目筛就看不见它们。
+mkdir -p .gotmp && $EDITOR .gotmp/violence-hints.txt
 
-# 1) 词表：从部署侧的词表文件导入（涉政 / 暴恐类只放部署侧，不进仓库）。
-#    默认 dry-run，先看清「会新增多少条」再决定写库。
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-import /tmp/words.tsv
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply
+# 1) 生成词表：--include-all 才会带上涉政与暴恐两类。
+#    默认 30000 是**按类目比例截断**，加了两类会把别的类目挤小，所以抬到 40000。
+#    产物落 .gotmp/（gitignored）：绝不提交、绝不贴进 issue / 日志。
+BLOGX_VIOLENCE_HINTS=.gotmp/violence-hints.txt \
+  node scripts/content-filter/build-wordlist.mjs --include-all --limit 40000 --out .gotmp/words.tsv
 
-# 2) 存量清洗：扫六个文本面（文章标题/摘要/正文、评论、昵称、简介、私信、合集），
-#    把历史命中词替换成等长 *，并补写「关键词风险」记录。默认 dry-run。
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-sweep
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -filter-sweep -filter-sweep-apply
+# 2) 只把缺的两类传上去（其余五类线上已经有了；整份传会把总量顶到 4 万+ 而覆盖不增反降）
+awk -F'\t' '$3=="politics" || $3=="violence"' .gotmp/words.tsv > .gotmp/words-politics-violence.tsv
+scp .gotmp/words-politics-violence.tsv ubuntu@<服务器>:/tmp/words.tsv && ssh ubuntu@<服务器> chmod 600 /tmp/words.tsv
 
-# 3) 重建 ES 索引：MySQL 里已经是替换后的文本了，但 ES 里还是旧文档。
-#    两条命令等价，二选一（带 -filter-sweep-reindex 会在第 2 步末尾自动做）。
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -es -s init
-docker compose exec blogx_server ./blogx-server -f config/settings.yaml -es -s article-sync
+# ── 在部署机上做 ─────────────────────────────────────────────────────
+cd /opt/blogx/deploy/compose/production
+
+# 3) 拷进容器（容器里读这个文件；跑完就删）
+docker compose cp /tmp/words.tsv blogx_server:/tmp/words.tsv
+
+# 4) 导入：先 dry-run 看清「会新增多少条」，再写库
+#    幂等：重跑不产生重复词；**同词保留库里已有的档位与类目**（不覆盖人工改过的分类）
+docker compose exec blogx_server /app/server -f config/settings.yaml -filter-import /tmp/words.tsv
+docker compose exec blogx_server /app/server -f config/settings.yaml -filter-import /tmp/words.tsv -filter-import-apply
+
+# 5) 重启让引擎按新词表重建（导入是写库，跑着的进程仍在用启动时那份词表）
+docker compose restart blogx_server
+
+# 6) 体检：只读，打印总量 + 七类分布；缺必需类目时给 ⚠ 与下一步动作。
+#    输出只有类目名与条数，不打印任何词条（词表是敏感数据）。
+docker compose exec blogx_server /app/server -f config/settings.yaml -filter-coverage
+
+# 7) 清理：容器与宿主机上的词表文件都删掉
+docker compose exec blogx_server rm -f /tmp/words.tsv && rm -f /tmp/words.tsv
 ```
 
-验收口径：命令输出里六个文本面各有 `hit` 计数；「关键词风险」后台页能看到记录；
-用旧词搜索不到历史内容；重复执行第 2 步应报告 0 命中（幂等）。
+**第 6 步的输出必须看到「七个必需类目均非空」**才算导入完成。同一份体检也会在
+服务启动与后台保存词表时写进日志（缺类目时是 `Warn` 级），后台「站点配置 → 内容过滤」
+页顶部另有红条提示。三处用的是同一份判据（`contentfilter.RequiredCategories`）。
+
+> 一个已知的类目偏差：如果你之前没配 `violence-hints.txt`，枪爆刀那批词在库里一直是
+> `fraud` 类。导入时**同词不会改分类**（这是有意的，避免覆盖人工调整），所以这批词会
+> 留在「诈骗」下——仍然拦截，只是后台按类目筛时看不到它们。`violence` 只收新增的那部分。
+
+词表变了之后还要做两件事，否则**历史内容不会被改写**：
+
+```bash
+# 4) 存量清洗：扫六个文本面（文章标题/摘要/正文、评论、昵称、简介、私信、合集），
+#    把历史命中词替换成等长 *，并补写「关键词风险」记录。默认 dry-run。
+#    第 11 段为空时这条命令会直接报错，而不是打印一份「0 命中、看起来很干净」的报告。
+docker compose exec blogx_server /app/server -f config/settings.yaml -filter-sweep
+docker compose exec blogx_server /app/server -f config/settings.yaml -filter-sweep -filter-sweep-apply
+
+# 5) 重建 ES 索引：MySQL 里已经是替换后的文本了，但 ES 里还是旧文档。
+#    两条命令等价，二选一（带 -filter-sweep-reindex 会在第 4 步末尾自动做）。
+docker compose exec blogx_server /app/server -f config/settings.yaml -es -s init
+docker compose exec blogx_server /app/server -f config/settings.yaml -es -s article-sync
+```
+
+验收口径：
+
+- `-filter-coverage` 打印七类均非空；「关键词风险」后台页能看到命中记录；
+- 清洗命令输出里六个文本面各有 `hit` 计数，重复执行第 4 步应报告 0 命中（幂等）；
+- 用旧词搜索不到历史内容。
+
+**词表规模别只看条数。** 引擎是子串匹配（AC），命中「冰毒」就等于命中「qq出售冰毒」，
+所以「主干 + 出售/批发/QQ/电话」这类组合词对覆盖几乎没有增量（生产实测 3 万条里
+有 42% 是这种组合）。真正要盯的是**主干是否在表里**（例如 `k粉` 因为只有一个中文字
+会被「CJK ≥2」规则丢弃），以及**必需类目是否为空**。
+
+**扩大词表后，别急着 `-filter-sweep-apply`。** 先跑预演并看报告的最后一节：
+
+```
+类目分布:     politics 168 处 / drugs 3 处 / ...
+```
+
+这一行是按类目统计的替换处数（只有类目名与数字，不含词条）。它回答的是"这 176 处到底来自
+哪一类"——同样 176 处，来自涉政宽泛词意味着大面积误伤（技术文章里出现"政府""公安"这类词
+很正常），来自毒品垃圾词则说明确实有垃圾内容。**误伤判断只能靠人**，工具的职责是把
+"来自哪一类"摆在你面前，而不是替你下结论。
+
+确认可以接受之后，再按上面的顺序 apply → 重建 ES。
 
 ### 12.3 备份与恢复
 

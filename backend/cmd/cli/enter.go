@@ -34,6 +34,8 @@ type FlagOptions struct {
 	FilterImport string
 	// FilterImportApply 才真正写库；默认 dry-run 只报告。
 	FilterImportApply bool
+	// FilterCoverage 打印当前词表的类目覆盖（只读体检，不打印词条）。
+	FilterCoverage bool
 	// FilterSweep 是存量内容清洗（票 402）：扫六个文本面，默认 dry-run 只报告。
 	FilterSweep bool
 	// FilterSweepApply 才真正写库（替换文本 + 补写关键词风险记录）。
@@ -74,6 +76,7 @@ func Parse() *FlagOptions {
 	flag.BoolVar(&Flags.EncryptConfig, "encrypt-config", false, "把已存的明文密钥加密(需要环境变量 BLOGX_CONFIG_SECRET_KEY)")
 	flag.StringVar(&Flags.FilterImport, "filter-import", "", "从文件导入初始词表(TSV: 词<TAB>档位<TAB>类目，或 NDJSON)，默认只报告不写库")
 	flag.BoolVar(&Flags.FilterImportApply, "filter-import-apply", false, "初始词表导入真正写库(默认 dry-run)")
+	flag.BoolVar(&Flags.FilterCoverage, "filter-coverage", false, "词表覆盖体检: 打印总量与七类分布，缺必需类目时告警(只读，不打印词条)")
 	flag.BoolVar(&Flags.FilterSweep, "filter-sweep", false, "存量内容清洗: 扫描六个文本面的命中词，默认只报告不写库(需先导入词表)")
 	flag.BoolVar(&Flags.FilterSweepApply, "filter-sweep-apply", false, "存量清洗真正写库(替换为等长 * + 补写关键词风险记录)")
 	flag.BoolVar(&Flags.FilterSweepReindex, "filter-sweep-reindex", false, "清洗完成后顺带重建 ES 索引(等价于 -es -s init + -es -s article-sync)")
@@ -106,6 +109,14 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 			return RunResult{}, fmt.Errorf("-filter-import-apply 需要配合 -filter-import <file> 使用")
 		}
 		if err := FlagFilterImport(deps.DB, deps.Logger, op.File, op.FilterImport, op.FilterImportApply); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
+	}
+
+	if op.FilterCoverage {
+		// 词表覆盖体检（ADR-0032 决策 8 的运维补丁）：只读，不改任何数据。
+		if err := FlagFilterCoverage(deps.DB, deps.Logger, op.File); err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{ContinueStartup: false}, nil

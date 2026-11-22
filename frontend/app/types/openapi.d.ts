@@ -9823,6 +9823,13 @@ export interface components {
              */
             whitelist_phrases?: string[];
             /**
+             * @description WhitelistStats 是白名单的三个口径（总数/词级/短语级/跨表重复）。
+             *
+             *     由后端算好下发，是因为"去重"是后端口径（`contentfilter.CountWhitelist`）：
+             *     前端自己把两个数组长度相加，会出现"页面显示 50、体检显示 49"的偏差。
+             */
+            whitelist_stats?: components["schemas"]["internal_site_adapter_http.WhitelistStatsResponse"];
+            /**
              * @description Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），
              *     单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。
              */
@@ -10157,6 +10164,12 @@ export interface components {
              *     本字段非空则以本字段为准，为空才回落旧段，保证迁移期行为不变。
              */
             whitelist?: string[];
+        };
+        "internal_site_adapter_http.WhitelistStatsResponse": {
+            duplicates?: number;
+            phrases?: number;
+            total?: number;
+            words?: number;
         };
         "internal_user_adapter_http.AdminCreateRequest": {
             email?: string;

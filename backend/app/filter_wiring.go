@@ -44,7 +44,7 @@ func InitContentFilter(infra *Infra) error {
 	}
 	contentFilter := infra.RuntimeSite.GetRuntimeContentFilter()
 	words := contentFilterWords(contentFilter)
-	engine, err := contentfilter.NewEngine(words, contentFilterWhitelist(contentFilter))
+	engine, err := contentfilter.NewEngine(words, contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases))
 	if err != nil {
 		return fmt.Errorf("内容过滤引擎构建失败（无过滤上线等于裸奔）: %w", err)
 	}
@@ -227,15 +227,6 @@ func contentFilterWords(contentFilter conf.ContentFilter) []contentfilter.Word {
 	return words
 }
 
-// contentFilterWhitelist 合并词级与短语级白名单（引擎只认一张表，见 MergeWhitelist）。
-//
-// 两处构建（启动与保存后重建）必须走同一个函数：只要有一处只传了词级那份，
-// 短语白名单就会在"保存一次词表之后悄悄失效"—— 这种 bug 只在后台点过保存才出现，
-// 本地起服务怎么试都是好的。
-func contentFilterWhitelist(contentFilter conf.ContentFilter) []string {
-	return contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases)
-}
-
 // rebuildContentFilter 按新词表原子重建引擎（词表保存后由站点用例回调）。
 //
 // 重建失败只记日志、不切换：旧匹配器继续生效。后台保存一份坏词表不该把线上
@@ -245,7 +236,7 @@ func rebuildContentFilter(infra *Infra, contentFilter conf.ContentFilter) {
 		return
 	}
 	words := contentFilterWords(contentFilter)
-	if err := infra.ContentFilter.Rebuild(words, contentFilterWhitelist(contentFilter)); err != nil {
+	if err := infra.ContentFilter.Rebuild(words, contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases)); err != nil {
 		if infra.Logger != nil {
 			infra.Logger.Errorf("内容过滤引擎重建失败，继续使用旧词表: %v", err)
 		}

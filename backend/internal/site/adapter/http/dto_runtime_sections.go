@@ -55,6 +55,19 @@ type SiteSectionContentFilterResponse struct {
 	RequiredCategories []string `json:"required_categories"`
 	// MissingRequiredCategories 是其中当前一条词都没有的（为空表示覆盖完整）。
 	MissingRequiredCategories []string `json:"missing_required_categories"`
+	// WhitelistStats 是白名单的三个口径（总数/词级/短语级/跨表重复）。
+	//
+	// 由后端算好下发，是因为"去重"是后端口径（`contentfilter.CountWhitelist`）：
+	// 前端自己把两个数组长度相加，会出现"页面显示 50、体检显示 49"的偏差。
+	WhitelistStats WhitelistStatsResponse `json:"whitelist_stats"`
+}
+
+// WhitelistStatsResponse 是白名单计数（去重后的口径）。
+type WhitelistStatsResponse struct {
+	Total      int `json:"total"`
+	Words      int `json:"words"`
+	Phrases    int `json:"phrases"`
+	Duplicates int `json:"duplicates"`
 }
 
 type SiteSectionContentFilterRequest conf.ContentFilter

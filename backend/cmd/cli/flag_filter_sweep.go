@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"myblogx/conf"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	filtermysql "myblogx/internal/filter/adapter/mysql"
 	filterapp "myblogx/internal/filter/app"
@@ -218,6 +219,18 @@ func filterSweepESHint(apply bool) string {
 	return b.String()
 }
 
+// sweepEngine 按当前词表段构建清洗用的引擎。
+//
+// 单独成函数是为了能被测试直接断言：清洗与在线路径必须用**同一套白名单**
+// （词级 + 短语级合并）。漏了短语级，预演会多报几处假命中；带上 -apply 就会
+// 在真实文章上错打星 —— 这是清洗命令最不该出错的地方。
+func sweepEngine(contentFilter conf.ContentFilter) (*contentfilter.Engine, error) {
+	return contentfilter.NewEngine(
+		toFilterWords(contentFilter.Words),
+		contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases),
+	)
+}
+
 // FlagFilterSweep 执行存量清洗，按 apply 决定是否写库。
 //
 // configFile 用来定位 site_default_settings.yaml：词表段缺字段时由默认值补齐
@@ -248,10 +261,7 @@ func FlagFilterSweep(deps Options, configFile string, apply, reindex bool) error
 				"旧的两份词表不会自动迁移，请先跑 -filter-import 导入词表，再执行清洗",
 		)
 	}
-	engine, err := contentfilter.NewEngine(
-		toFilterWords(contentFilter.Words),
-		contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases),
-	)
+	engine, err := sweepEngine(contentFilter)
 	if err != nil {
 		return fmt.Errorf("存量清洗失败: 词表不合法，无法构建过滤引擎: %w", err)
 	}

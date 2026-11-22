@@ -55,14 +55,22 @@ func FlagFilterCoverage(db *gorm.DB, logger *logrus.Logger, configFile string) e
 // 不写"七个类目都非空"—— 那样等于宣称验了七类，而实际只校验这两类。
 func coverageReportLines(contentFilter conf.ContentFilter) []string {
 	words := toFilterWords(contentFilter.Words)
-	counts := contentfilter.CategoryCounts(words)
+	categoryCounts := contentfilter.CategoryCounts(words)
+
+	// 三个数字必须自洽（口径见 contentfilter.CountWhitelist）：总数去重、分项也去重，
+	// 跨表重复单独说出来 —— 否则"词 46 + 短语 4"加不出 50，运维只能猜。
+	counts := contentfilter.CountWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases)
+	whitelistLine := fmt.Sprintf("白名单 %d 条（词级 %d + 短语级 %d", counts.Total, counts.Words, counts.Phrases)
+	if counts.Duplicates > 0 {
+		whitelistLine += fmt.Sprintf("；跨表重复 %d 条已合并", counts.Duplicates)
+	}
+	whitelistLine += "）"
+
 	lines := []string{
-		fmt.Sprintf("词表覆盖：总词条 %d 条；类目分布 %s；白名单 %d 条（词 %d + 短语 %d）",
+		fmt.Sprintf("词表覆盖：总词条 %d 条；类目分布 %s；%s",
 			len(words),
-			contentfilter.FormatCategoryCounts(counts),
-			len(contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases)),
-			len(contentFilter.Whitelist),
-			len(contentFilter.WhitelistPhrases),
+			contentfilter.FormatCategoryCounts(categoryCounts),
+			whitelistLine,
 		),
 	}
 

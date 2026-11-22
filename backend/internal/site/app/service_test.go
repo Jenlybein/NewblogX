@@ -301,7 +301,8 @@ func TestUpdateContentFilterNormalizesAndRejectsInvalid(t *testing.T) {
 			{Word: "刷单", Tier: "watch", Category: "fraud"},
 			{Word: "   ", Tier: "watch", Category: "fraud"},
 		},
-		Whitelist: []string{"  ", "测试"},
+		Whitelist:        []string{"  ", "测试"},
+		WhitelistPhrases: []string{" 安全套接层 ", "", "安全套接层"},
 	}); err != nil {
 		t.Fatalf("保存词表失败: %v", err)
 	}
@@ -311,6 +312,11 @@ func TestUpdateContentFilterNormalizesAndRejectsInvalid(t *testing.T) {
 	}
 	if len(got.Whitelist) != 1 || got.Whitelist[0] != "测试" {
 		t.Fatalf("白名单应只剩 1 条，得到 %+v", got.Whitelist)
+	}
+	// 短语白名单同样要去空白去重：否则跨表重复会让体检里的三个数字对不上，
+	// 也让引擎收到带空格的条目（永远匹配不上，静默失效）。
+	if len(got.WhitelistPhrases) != 1 || got.WhitelistPhrases[0] != "安全套接层" {
+		t.Fatalf("短语白名单应只剩去空白后的 1 条，得到 %+v", got.WhitelistPhrases)
 	}
 
 	// 校验失败必须拒绝保存：坏词条写进库里只会在启动构建引擎时炸。

@@ -4564,6 +4564,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "whitelist_stats": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.WhitelistStatsResponse",
+                        "description": "WhitelistStats 是白名单的三个口径（总数/词级/短语级/跨表重复）。\n\n由后端算好下发，是因为\"去重\"是后端口径（`contentfilter.CountWhitelist`）：\n前端自己把两个数组长度相加，会出现\"页面显示 50、体检显示 49\"的偏差。"
+                    },
                     "words": {
                         "description": "Words 是词表。匹配前会做归一化（全角折叠、拉丁小写、零宽字符当分隔符），\n单字词不入表（误报压过收益），档位与类目决定风险页的标识与筛选。",
                         "items": {
@@ -5113,6 +5117,23 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.WhitelistStatsResponse": {
+                "properties": {
+                    "duplicates": {
+                        "type": "integer"
+                    },
+                    "phrases": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    },
+                    "words": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"

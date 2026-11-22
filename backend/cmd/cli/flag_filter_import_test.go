@@ -268,3 +268,31 @@ func TestFlagFilterImportEndToEnd(t *testing.T) {
 		t.Fatalf("重复导入应幂等，payload 变了:\n第一次 %s\n第二次 %s", applied, again)
 	}
 }
+
+// TestImportContentFilterPreservesOtherFields 钉住"补词不等于重置这一段配置"。
+//
+// 上一版手写 {Words, Whitelist} 两个字面量回写，于是每跑一次导入就把
+// WhitelistPhrases 与 RetainDays 清空 —— 而体检与清洗的报错文案正是让人去跑这条命令。
+func TestImportContentFilterPreservesOtherFields(t *testing.T) {
+	store := &fakeFilterStore{current: conf.ContentFilter{
+		Words:            []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+		Whitelist:        []string{"独立"},
+		WhitelistPhrases: []string{"安全套接层"},
+		RetainDays:       30,
+	}}
+	entries := []conf.ContentFilterWord{{Word: "成人视频", Tier: "watch", Category: "porn"}}
+
+	if _, err := importContentFilter(store, entries, true); err != nil {
+		t.Fatalf("导入失败: %v", err)
+	}
+
+	if len(store.current.WhitelistPhrases) != 1 || store.current.WhitelistPhrases[0] != "安全套接层" {
+		t.Fatalf("导入不该动短语白名单，实际 %v", store.current.WhitelistPhrases)
+	}
+	if store.current.RetainDays != 30 {
+		t.Fatalf("导入不该动保留天数，实际 %d", store.current.RetainDays)
+	}
+	if len(store.current.Whitelist) != 1 || store.current.Whitelist[0] != "独立" {
+		t.Fatalf("导入不该动词级白名单，实际 %v", store.current.Whitelist)
+	}
+}

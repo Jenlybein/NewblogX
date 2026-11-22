@@ -152,13 +152,16 @@ test("buildCandidates：去重键是小写，保留首次出现的写法", () =>
   assert.deepEqual(entries.map((entry) => entry.word), ["ABC冰毒"]);
 });
 
-test("buildCandidates：默认丢弃无标签词，--include-untagged 时按违法兜底纳入", () => {
+test("buildCandidates：无标签词只收带类目证据的，--include-untagged 时才全收（按违法兜底）", () => {
   const tags = new Map([["冰毒", ["1"]]]);
   const dictWords = ["无标签词", "无标签冰毒", "冰毒"];
 
+  // 默认口径：没标签的词只收**带类目证据**的（含触发词），其余丢弃。
+  // `无标签冰毒` 含"冰毒"这条毒品触发词 → 收；`无标签词` 没有任何证据 → 丢。
   const withoutUntagged = buildCandidates({ tags, dictWords });
-  assert.deepEqual(withoutUntagged.entries.map((entry) => entry.word), ["冰毒"]);
-  assert.equal(withoutUntagged.dropped.untagged, 2);
+  assert.deepEqual(withoutUntagged.entries.map((entry) => entry.word), ["冰毒", "无标签冰毒"]);
+  assert.equal(withoutUntagged.dropped.untagged, 1);
+  assert.equal(withoutUntagged.dropped.untaggedEvidence, 1);
 
   const withUntagged = buildCandidates({ tags, dictWords, includeUntagged: true });
   const byWord = new Map(withUntagged.entries.map((entry) => [entry.word, entry]));
@@ -280,4 +283,5 @@ test("parseArgs：非法参数给出中文错误而不是静默忽略", () => {
   assert.throws(() => parseArgs(["--nope"]), /不认识的参数/);
   assert.throws(() => parseArgs(["--source"]), /需要一个值/);
 });
+
 

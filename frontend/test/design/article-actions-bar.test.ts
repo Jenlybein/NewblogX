@@ -43,12 +43,12 @@ function atRuleBlocks(source: string, atRule: string): string[] {
   }
 }
 
-/** 窄屏（<1024px）里接管互动条入口的那一段。 */
+/** 窄屏（≤1100px，右栏收成抽屉）里接管互动条入口的那一段。 */
 function narrowActionsBlock(source: string): string {
-  const block = atRuleBlocks(source, "@media (max-width: 1023px)").find((candidate) =>
+  const block = atRuleBlocks(source, "@media (max-width: 1100px)").find((candidate) =>
     candidate.includes(".article-actions-bar--hero"),
   );
-  expect(block, "找不到 <1024px 的互动条断点规则").toBeDefined();
+  expect(block, "找不到 ≤1100px 的互动条断点规则").toBeDefined();
   return block!;
 }
 
@@ -81,25 +81,24 @@ describe("互动条：右栏与 hero 是同一组件的两种变体（决定清�
   });
 });
 
-describe("断点 1024px：任何宽度只有一个入口，底部没有第二条", () => {
+describe("断点 1100px（右栏抽屉）：任何宽度只有一个入口，底部没有第二条", () => {
   it("hero 变体默认不显示（≥1024 由右栏那份接过）", () => {
     const hero = blockAfter(css(), ".article-actions-bar--hero,");
 
     expect(hero).toContain("display: none");
   });
 
-  it("<1024px：右栏互动条隐藏、hero 那份出现（不会两处同时出现，也不会都没有）", () => {
+  it("≤1100px：互动条进右栏那份，hero 那份让位（不会两处同时出现，也不会都没有）", () => {
     const narrow = narrowActionsBlock(css());
 
-    expect(blockAfter(narrow, ".article-actions-bar--aside {")).toContain("display: none");
-    expect(blockAfter(narrow, ".article-actions-bar--hero {")).toMatch(/display:\s*flex/u);
-    expect(blockAfter(narrow, ".article-actions-card--hero {")).toMatch(/display:\s*block/u);
+    expect(blockAfter(narrow, ".article-actions-bar--aside {")).toMatch(/display:\s*grid/u);
+    expect(narrow).toMatch(/\.article-actions-card--hero,\s*\.article-actions-bar--hero\s*\{\s*display: none;/u);
   });
 
-  it("<1024px：右栏那张纸面卡片一起隐藏，不在右栏留一条空纸面带", () => {
+  it("≤1100px：右栏那张纸面卡片显示出来（互动条有容器，不再是一条空纸面带）", () => {
     const narrow = narrowActionsBlock(css());
 
-    expect(blockAfter(narrow, ".article-aside .article-actions-card {")).toContain("display: none");
+    expect(blockAfter(narrow, ".article-aside .article-actions-card {")).toMatch(/display:\s*block/u);
   });
 
   it("底部固定条彻底退场：没有 --fixed 规则、没有 fixed 定位、页面也不再给它让高度", () => {

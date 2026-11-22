@@ -285,7 +285,7 @@ async function handleFavorite() {
   favoriteModalOpen.value = true;
 }
 
-// 互动条的唯一状态源（票 236 验收：右栏与 <1024px 底部条绑同一份 props，不可能不同步）：
+// 互动条的唯一状态源（票 236 验收：右栏 / 右栏抽屉与 hero 那份绑同一份 props，不可能不同步）：
 // 点赞取 `useArticleDigg` 的乐观值（票 235），收藏 / 评论 / 已藏态取正文的权威字段。
 const articleActionProps = computed(() => ({
   diggCount: articleDiggCount.value,
@@ -604,8 +604,8 @@ useHead(() => {
         </div>
       </header>
 
-      <!-- <1024px 的互动条（决定清单 §3 第 13 条）：挂在 hero 下方，正文开头就能看见。
-           ≥1024 由 CSS 让位给右栏那一份；两份不会同时可见，底部永远没有第三条。 -->
+      <!-- hero 互动条的挂载点（决定清单 §3 第 13 条）：现在只在 ≥1101 的桌面右栏常驻时
+           由 CSS 隐藏；≤1100 右栏收成抽屉后，互动条跟着进抽屉，正文里不再单占一条。 -->
       <section class="article-paper article-actions-card article-actions-card--hero">
         <ArticleActionsBar
           v-bind="articleActionProps"
@@ -841,7 +841,7 @@ useHead(() => {
         </aside>
       </div>
 
-      <!-- 窄屏兜底那条固定条已删除（决定清单 §3 第 12 条）：互动条只在右栏与 hero 下方各一份，
+      <!-- 窄屏兜底那条固定条已删除（决定清单 §3 第 12 条）：互动条只在右栏（含抽屉）与 hero 下方各一份，
            宽度由 CSS 断点互斥，任何视口都只出现一份可见。 -->
     </template>
 
@@ -880,4 +880,3 @@ useHead(() => {
     />
   </div>
 </template>
-

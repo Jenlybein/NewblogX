@@ -140,9 +140,9 @@ describe("<1024px 的 hero 形态：同一组件、同一状态源（底部固�
 
     expect(css).not.toContain(".article-actions-bar--fixed");
     expect(css).toContain(".article-actions-bar--hero");
-    // <1024 隐藏 aside、显示 hero；≥1024 相反（默认 hero 不占位）。
-    expect(css).toMatch(/@media \(max-width: 1023px\)[\s\S]*\.article-actions-bar--aside\s*\{\s*display: none;/u);
-    expect(css).toMatch(/\.article-actions-bar--hero,[\s\S]*?display: none;/u);
+    // ≤1100（右栏收成抽屉）互动条进右栏那份，hero 那份让位；≥1101 相反。
+    expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*\.article-actions-bar--aside\s*\{\s*display: grid;/u);
+    expect(css).toMatch(/\.article-actions-card--hero,\s*\.article-actions-bar--hero\s*\{\s*display: none;/u);
   });
 
   it("右栏互动条与 hero 互动条绑同一个 props 对象：两处不可能显示不同的赞/藏态", () => {
@@ -214,4 +214,3 @@ describe("页面模板约束（本票验收）", () => {
     expect(findColorLiterals(source)).toEqual([]);
   });
 });
-

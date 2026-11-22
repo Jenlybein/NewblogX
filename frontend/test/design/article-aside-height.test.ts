@@ -50,31 +50,28 @@ function atRuleBlocks(source: string, atRule: string): string[] {
   }
 }
 
-/** ≥1024px 的吸顶右栏那一段（`position: sticky` 与限高必须待在同一块里）。 */
+/** ≥1101px 的吸顶右栏那一段（`position: sticky` 与限高必须待在同一块里）。 */
 function stickyAsideBlock(source: string): string {
-  const block = atRuleBlocks(source, "@media (min-width: 1024px)").find(
+  const block = atRuleBlocks(source, "@media (min-width: 1101px)").find(
     (candidate) => candidate.includes(".article-aside") && candidate.includes("position: sticky"),
   );
-  expect(block, "找不到 ≥1024px 的吸顶右栏规则").toBeDefined();
+  expect(block, "找不到 ≥1101px 的吸顶右栏规则").toBeDefined();
   return block!;
 }
 
-/** <1024px 里把右栏退回普通流的那一段。
- *  注意用带花括号的 `.article-aside {` 作锚点：<1024px 里还有一段
- *  `.article-aside .article-actions-card { display: none }`（互动条让位），
- *  只按类名前缀找会先命中它。 */
+/** ≤1100px 里把右栏收成贴边抽屉的那一段。 */
 function narrowAsideBlock(source: string): string {
-  const block = atRuleBlocks(source, "@media (max-width: 1023px)").find((candidate) =>
+  const block = atRuleBlocks(source, "@media (max-width: 1100px)").find((candidate) =>
     candidate.includes(".article-aside {"),
   );
-  expect(block, "找不到 <1024px 的右栏规则").toBeDefined();
+  expect(block, "找不到 ≤1100px 的右栏抽屉规则").toBeDefined();
   return block!;
 }
 
 /** 矮视口（高 <820px）里给作者卡瘦身的那一段（嵌在吸顶右栏里，别溢到窄屏去）。 */
 function compactAsideBlock(source: string): string {
   const sticky = stickyAsideBlock(source);
-  expect(sticky, "矮视口的瘦身规则必须嵌在 ≥1024px 的吸顶区间里").toContain("@media (max-height: 820px)");
+  expect(sticky, "矮视口的瘦身规则必须嵌在 ≥1101px 的吸顶区间里").toContain("@media (max-height: 820px)");
   return blockAfter(sticky, "@media (max-height: 820px)");
 }
 
@@ -84,21 +81,20 @@ describe("吸顶右栏：按视口高度收敛，不再把底部裁掉", () => {
 
     // 原先的两条（吸顶位置）保持不动，本票只是加高度约束。
     expect(aside).toContain("position: sticky");
-    expect(aside).toContain("top: 88px");
-    expect(aside).toMatch(/max-height:\s*calc\(100dvh\s*-\s*88px\)/u);
+    expect(aside).toMatch(/top:\s*calc\(var\(--site-header-height\)\s*\+\s*1rem\)/u);
+    expect(aside).toMatch(/max-height:\s*calc\(100dvh\s*-\s*var\(--site-header-height\)\s*-\s*1rem\)/u);
     expect(aside).toMatch(/overflow-y:\s*auto/u);
     // 只给 overflow-y 会让 overflow-x 自动变 auto：焦点环 / hover 面底会在
     // 右栏边缘多出一条横向滚动条。显式关掉横向。
     expect(aside).toMatch(/overflow-x:\s*hidden/u);
   });
 
-  it("限高不写进裸选择器：≥1024 才生效，窄屏右栏仍是 static（入口交给底部固定条）", () => {
+  it("限高不写进裸选择器：≥1101 才生效，≤1100 右栏是 fixed 抽屉（不继承吸顶限高）", () => {
     expect(blockAfter(css(), ".article-aside {")).not.toContain("max-height");
 
     const narrow = blockAfter(narrowAsideBlock(css()), ".article-aside {");
-    expect(narrow).toContain("position: static");
+    expect(narrow).toContain("position: fixed");
     expect(narrow).not.toContain("max-height");
-    expect(narrow).not.toContain("overflow");
   });
 
   it("整列滚动是兜底：滚到底不把页面一起带走（不滚链到整页）", () => {
@@ -155,7 +151,7 @@ describe("作者签名：两行截断", () => {
 });
 
 describe("矮视口（高 <820px）：作者卡自动瘦身", () => {
-  it("瘦身规则嵌在 ≥1024 的吸顶区间：窄屏整页滚动时作者信息照旧（stats 不折叠）", () => {
+  it("瘦身规则嵌在 ≥1101 的吸顶区间：抽屉 / 窄屏整页滚动时作者信息照旧（stats 不折叠）", () => {
     const source = css();
     const sticky = stickyAsideBlock(source);
 

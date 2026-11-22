@@ -1018,29 +1018,20 @@
     display: none;
   }
 
-  /* <1024px：右栏那份让位，hero 下方这份接手（两处互斥，任何宽度只出现一份）。 */
-  @media (max-width: 1023px) {
+  /* ≤1100px：右栏收成抽屉，互动条**跟着进抽屉**（不再在正文里单占一条）。
+   * 断点与右栏抽屉对齐（1100），任何宽度仍只出现一份可见。 */
+  @media (max-width: 1100px) {
     .article-actions-bar--aside {
-      display: none;
+      display: grid;
     }
 
-    /* 右栏的纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
     .article-aside .article-actions-card {
-      display: none;
-    }
-
-    .article-actions-card--hero {
       display: block;
     }
 
+    .article-actions-card--hero,
     .article-actions-bar--hero {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    /* 窄屏五等分：每格都能点到，且不再需要给固定条留安全区。 */
-    .article-actions-bar--hero .article-actions-bar__button {
-      flex: 1;
+      display: none;
     }
   }
 
@@ -1595,12 +1586,6 @@
     @apply mt-3;
   }
 
-  @media (max-width: 1023px) {
-    .article-aside {
-      position: static;
-    }
-  }
-
   @media (max-width: 640px) {
     .article-hero__title {
       @apply text-[1.7rem];
@@ -1627,11 +1612,18 @@
     }
   }
 
-  /* 吸顶右栏（票 237）：≥1024 才限高。
+  /* 吸顶右栏（票 237）：≥1101（右栏仍是常驻列）才吸顶并限高。
+   *
+   * 断点与「右栏收成抽屉」的 1100 对齐：≤1100 时右栏是 fixed 抽屉，若这段吸顶
+   * 规则还在生效，抽屉会继承 `max-height: 100dvh - 吸顶偏移`，底部空出一条、
+   * 内部滚动条也随之错位。
    *
    * 为什么限高：右栏是 sticky 的，内容（作者卡 + 互动条卡 + 目录卡）合计约 850px，
    * 视口高低于 ~938px 时下半截直接被裁掉（不是滚动，是看不见）。限到
-   * `100dvh - 88px`（88px = 吸顶偏移 + 页头呼吸）以后，超出部分由整列内部滚动兜底。
+   * `100dvh - 吸顶偏移` 以后，超出部分由整列内部滚动兜底。
+   *
+   * 吸顶偏移直接取页头高度 token（+1rem 呼吸）：页头是 sticky、高度就是
+   * `--site-header-height`，写死 88px 会随 token 改动静默错位。
    *
    * 为什么 overflow-x 也要写：只给 overflow-y 时，规范会把另一轴的 visible 算成 auto，
    * 焦点环 / hover 面底在右栏边缘会多出一条横向滚动条。
@@ -1639,11 +1631,11 @@
    * 真正的滚动仍然留给目录体（它在矮视口有自己的 dvh 档高度）；整列滚动只是兜底，
    * 不是把页面滚动改到这里来。
    */
-  @media (min-width: 1024px) {
+  @media (min-width: 1101px) {
     .article-aside {
       position: sticky;
-      top: 88px;
-      max-height: calc(100dvh - 88px);
+      top: calc(var(--site-header-height) + 1rem);
+      max-height: calc(100dvh - var(--site-header-height) - 1rem);
       overflow-y: auto;
       overflow-x: hidden;
       /* 滚到右栏底不再把整页一起带着滚（两层滚动条里外联动最招人烦）。 */
@@ -1657,7 +1649,7 @@
     }
 
     /* 矮视口（高 <820px）：作者卡瘦身，把省下来的高度让给互动条与目录。
-     * 刻意只嵌在 ≥1024 的吸顶区间里 —— 窄屏是整页滚动，作者信息不该被折叠
+     * 刻意只嵌在 ≥1101 的吸顶区间里 —— 抽屉 / 窄屏是整页滚动，作者信息不该被折叠
      * （stats 行在那时仍是可读内容，不是被裁掉的尾巴）。
      */
     @media (max-height: 820px) {
@@ -4165,10 +4157,6 @@ html {
     background: var(--color-surface-raised);
   }
 
-  /* 右栏改抽屉后，互动条不能再沿用 <1024 的隐藏规则：抽屉打开时要完整。 */
-  .article-aside-drawer .article-actions-card {
-    display: block;
-  }
 
   .article-aside.is-aside-open {
     visibility: visible;
@@ -4327,12 +4315,3 @@ html {
     transform: none;
   }
 }
-
-
-
-
-
-
-
-
-

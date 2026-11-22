@@ -18,9 +18,9 @@ import { formatCount } from "~/utils/format";
  *
  * 五个动作固定顺序：**点赞 / 收藏 / 评论 / 分享 / 底部**。
  * 两种形态只差容器样式，状态一律由页面注入：
- *   - `aside`：≥1024 的右栏那一份；
- *   - `hero`：<1024 时挂在 hero 下方的那一份（原来的"底部固定条"已删除，
- *     任何宽度下都只出现一份可见）。
+ *   - `aside`：右栏（≤1100 时右栏是抽屉，互动条跟着进抽屉）那一份；
+ *   - `hero`：hero 下方的那一份（只在 ≥1101 的桌面右栏接管时隐藏；
+ *     原来的"底部固定条"已删除，任何宽度下都只出现一份可见）。
  *
  * 为什么组件必须保持"哑"：点赞态的真相在 `useArticleDigg`（幂等目标态 + 写响应回填），
  * 收藏态在正文的 `is_favor`，两者都已有单一来源。这里再持有一份本地状态，就会出现
@@ -45,7 +45,7 @@ const props = withDefaults(
     likePending?: boolean;
     /** 点赞连点防抖窗口内。 */
     likeDebouncing?: boolean;
-    /** aside = ≥1024 的右栏互动条；hero = <1024 挂在 hero 下方的那一份。 */
+    /** aside = 右栏 / 右栏抽屉里的互动条；hero = hero 下方那一份（与 aside 互斥）。 */
     variant?: "aside" | "hero";
   }>(),
   {

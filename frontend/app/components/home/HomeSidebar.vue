@@ -80,6 +80,7 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
     v-if="hasCards"
     :class="sidebarClasses"
     :style="sidebarStyle"
+    data-drawer-label="首页侧栏"
     data-home-sidebar
   >
     <label class="sidebar-drawer-close" for="home-sidebar-toggle" aria-label="收起首页右栏" role="button" tabindex="0" @keydown="activateClickable">
@@ -304,4 +305,5 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
   color: var(--color-ink);
 }
 </style>
+
 

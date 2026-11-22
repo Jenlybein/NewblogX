@@ -635,7 +635,7 @@ useSeoMeta({
       </label>
       <label class="sidebar-drawer-scrim" for="profile-sidebar-toggle" aria-label="关闭个人资料"></label>
 
-      <aside class="profile-sidebar sidebar-drawer">
+      <aside class="profile-sidebar sidebar-drawer" data-drawer-label="个人资料">
         <label class="sidebar-drawer-close" for="profile-sidebar-toggle" aria-label="收起个人资料" role="button" tabindex="0" @keydown="activateClickable">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6l-12 12M6 6l12 12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
         </label>
@@ -709,4 +709,5 @@ useSeoMeta({
     </div>
   </div>
 </template>
+
 

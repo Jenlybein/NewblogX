@@ -192,7 +192,7 @@ describe("ArticleTocAnchor：轨道叠在 naive 锚点之上", () => {
     expect(wrapper.text()).toContain("42%");
   });
 
-  it("<1024px 整块目录不渲染（沿用既有 tocVisible 判定）", async () => {
+  it("<1024px 目录仍渲染（右栏已收成抽屉），只是不自动跟随滚动", async () => {
     const originalWidth = window.innerWidth;
     window.innerWidth = 800;
 
@@ -201,8 +201,8 @@ describe("ArticleTocAnchor：轨道叠在 naive 锚点之上", () => {
       // 目录可见性是挂载后按视口重算的，等一次渲染。
       await flushPromises();
 
-      expect(wrapper.find("[data-toc-rail]").exists()).toBe(false);
-      expect(wrapper.find("nav[aria-label='文章目录']").exists()).toBe(false);
+      expect(wrapper.find("[data-toc-rail]").exists()).toBe(true);
+      expect(wrapper.find("nav[aria-label='文章目录']").exists()).toBe(true);
     } finally {
       window.innerWidth = originalWidth;
     }
@@ -378,3 +378,4 @@ describe("ArticleTocAnchor：左侧那一列只留给轨道", () => {
     }
   });
 });
+

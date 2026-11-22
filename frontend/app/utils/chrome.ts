@@ -57,6 +57,21 @@ export function headerNavItems(pathname: string): HeaderNavItem[] {
   return HEADER_NAV.map((item) => ({ ...item, active: isActive(item.key, pathname) }));
 }
 
+
+/** 「跳转」下拉的数据：窄屏导航统一从这里取，模板不再手写文案或路由。 */
+export interface HeaderJumpItem {
+  label: string;
+  to: string;
+}
+
+export function headerJumpItems(options: { includeWrite?: boolean; includeHistory?: boolean } = {}): HeaderJumpItem[] {
+  const items: HeaderJumpItem[] = HEADER_NAV
+    .filter((item) => item.key !== "search" && item.key !== "write")
+    .map((item) => ({ label: item.label, to: item.to }));
+  if (options.includeWrite) items.push({ label: "创作", to: "/studio/write" });
+  if (options.includeHistory) items.push({ label: "历史", to: "/history" });
+  return items;
+}
 export interface FooterNavItem {
   label: string;
   to: string;

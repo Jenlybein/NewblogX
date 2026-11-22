@@ -1712,3 +1712,95 @@
 .admin-login-captcha:hover {
   border-color: var(--color-line-strong);
 }
+
+/* 后台侧栏：≤1023 收成左侧贴边抽屉；桌面仍是常驻栏。开关沿用写作台的
+   checkbox 模式，不引入额外运行时状态。 */
+.admin-sider-toggle,
+.admin-sider-tab,
+.admin-sider-scrim,
+.admin-sider-close {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .admin-sider-toggle {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .admin-sider-tab {
+    position: fixed;
+    top: 43%;
+    left: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5.5rem;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    font-size: 0.8125rem;
+    letter-spacing: 0.2em;
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+  }
+
+  .admin-sider-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    display: none;
+    background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+    cursor: pointer;
+  }
+
+  #admin-sider-toggle:checked ~ .admin-sider-scrim {
+    display: block;
+  }
+
+  .admin-sider {
+    position: fixed !important;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 70;
+    width: 276px !important;
+    max-width: 86vw;
+    overflow-y: auto;
+    visibility: hidden;
+    translate: -100% 0;
+    transition: translate var(--motion-fast) var(--motion-ease);
+    box-shadow: var(--shadow-lg);
+  }
+
+  #admin-sider-toggle:checked ~ .admin-shell .admin-sider {
+    visibility: visible;
+    translate: 0 0;
+    transition: translate var(--motion-fast) var(--motion-ease);
+  }
+
+  .admin-sider-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    font-size: 1.125rem;
+    cursor: pointer;
+  }
+}

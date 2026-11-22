@@ -3771,14 +3771,15 @@ html {
   opacity: 0.6;
 }
 
-/* 条目卡：始终横向长条；标题单行，摘要两行；窄屏隐藏封面并缩小字号。 */
-.feed-entry {
+/* 首页列表条目：始终横向长条；标题单行，摘要两行；窄屏隐藏封面并缩小字号。
+ * 只作用于 `--list`，搜索/收藏架沿用各自的 120px 封面与多行标题。 */
+.feed-entry--list {
   grid-template-columns: 92px minmax(0, 1fr);
   align-items: start;
   gap: 0.75rem;
 }
 
-.feed-entry__title {
+.feed-entry--list .feed-entry__title {
   display: block;
   overflow: hidden;
   padding-top: 1px;
@@ -3786,64 +3787,72 @@ html {
   white-space: nowrap;
 }
 
-.feed-entry__footline,
-.feed-entry__tags,
-.feed-entry__stats,
-.feed-entry__meta {
+.feed-entry--list .feed-entry__footline,
+.feed-entry--list .feed-entry__tags,
+.feed-entry--list .feed-entry__stats,
+.feed-entry--list .feed-entry__meta {
+  flex-direction: row;
   flex-wrap: nowrap;
 }
 
-.feed-entry__tags {
+.feed-entry--list .feed-entry__tags {
   overflow: hidden;
 }
 
+.feed-entry--list .feed-entry__stats {
+  margin-left: auto;
+}
+
 @media (min-width: 768px) {
-  .feed-entry {
+  .feed-entry--list {
     grid-template-columns: minmax(0, 168px) minmax(0, 1fr);
+  }
+
+  .feed-entry--no-cover {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 480px) {
-  .feed-entry {
+  .feed-entry--list {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .feed-entry__cover {
+  .feed-entry--list .feed-entry__cover {
     display: none;
   }
 
-  .feed-entry__title {
+  .feed-entry--list .feed-entry__title {
     font-size: 17px;
     line-height: 1.5;
   }
 
-  .feed-entry__abstract {
+  .feed-entry--list .feed-entry__abstract {
     font-size: 13px;
     line-height: 1.55;
   }
 
-  .feed-entry__meta {
+  .feed-entry--list .feed-entry__meta {
     gap: 0 0.5rem;
     font-size: 12px;
   }
 
-  .feed-entry__dot,
-  .feed-entry__status {
+  .feed-entry--list .feed-entry__dot,
+  .feed-entry--list .feed-entry__status {
     display: none;
   }
 
-  .feed-entry__tag:nth-of-type(3),
-  .feed-entry__tag--more {
+  .feed-entry--list .feed-entry__tag:nth-of-type(3),
+  .feed-entry--list .feed-entry__tag--more {
     display: none;
   }
 }
 
 @media (max-width: 340px) {
-  .feed-entry__stat[data-stat="comment"] {
+  .feed-entry--list .feed-entry__stat[data-stat="comment"] {
     display: none;
   }
 }
-
 /* 无封面：保留 16:9 封面位，卡片宽高与有封面项一致。 */
 .article-grid-card__cover--empty {
   background: var(--color-bg-subtle);
@@ -3874,7 +3883,7 @@ html {
   letter-spacing: 0.2em;
   writing-mode: vertical-rl;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
 .sidebar-edge-tab::before {
@@ -3914,15 +3923,6 @@ html {
 }
 
 @media (max-width: 1023px) {
-  .message-center__layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .message-center__subnav {
-    flex-direction: row;
-    overflow-x: auto;
-  }
-
   .home-sidebar,
   .profile-sidebar,
   .studio-sidebar {
@@ -3934,24 +3934,31 @@ html {
     padding: 1.25rem;
     overflow-y: auto;
     background: var(--color-bg-page);
-    box-shadow: -20px 0 60px -30px var(--color-shadow);
+    visibility: hidden;
+    transition: translate var(--motion-fast) var(--motion-ease);
   }
 
   .home-sidebar,
   .profile-sidebar {
     right: 0;
-    transform: translateX(100%);
+    translate: 100% 0;
   }
 
   .studio-sidebar {
     left: 0;
-    transform: translateX(-100%);
+    translate: -100% 0;
+  }
+
+  .sidebar-drawer {
+    box-shadow: var(--shadow-lg);
   }
 
   .sidebar-drawer-toggle:checked ~ .home-sidebar,
   .sidebar-drawer-toggle:checked ~ .profile-sidebar,
   .sidebar-drawer-toggle:checked ~ .studio-sidebar {
-    transform: none;
+    translate: 0 0;
+    visibility: visible;
+    transition: translate var(--motion-fast) var(--motion-ease);
   }
 
   .sidebar-drawer-toggle:checked ~ .sidebar-drawer-scrim {
@@ -3962,13 +3969,93 @@ html {
     background: color-mix(in srgb, var(--color-ink) 38%, transparent);
   }
 
-  .sidebar-edge-tab,
-  .sidebar-drawer-close {
+  .sidebar-edge-tab {
     display: flex;
   }
 
   .sidebar-drawer-close {
     display: grid;
+  }
+}
+/* 私信会话：≤767 列表收成左边缘「会话」抽屉；≥768 仍是双栏。 */
+.studio-chat-sessions-tab {
+  display: none;
+}
+
+.studio-chat-sessions-close {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .studio-chat-sessions-tab {
+    position: fixed;
+    top: 43%;
+    left: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5.5rem;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    font-size: 0.8125rem;
+    letter-spacing: 0.2em;
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+  }
+
+  .studio-chat-sessions-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-ink-muted);
+    cursor: pointer;
+  }
+
+  .studio-chat-sessions-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    border: 0;
+    background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+    cursor: pointer;
+  }
+
+  .studio-inbox-grid__aside {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 70;
+    display: block !important;
+    width: min(86vw, 20rem);
+    overflow-y: auto;
+    background: var(--color-surface-raised);
+    translate: -100% 0;
+    visibility: hidden;
+    transition: translate var(--motion-fast) var(--motion-ease);
+  }
+
+  .studio-chat-sessions-drawer {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .studio-inbox-card.is-sessions-drawer-open .studio-inbox-grid__aside {
+    translate: 0 0;
+    visibility: visible;
+    transition: translate var(--motion-fast) var(--motion-ease);
   }
 }
 /* ============================================================================
@@ -4036,6 +4123,10 @@ html {
   .studio-article-row,
   .profile-folder-card,
   .profile-category-card,
+  .sidebar-edge-tab,
+  .sidebar-drawer-close,
+  .studio-chat-sessions-tab,
+  .studio-chat-sessions-close,
   .favorite-chooser-row,
   .studio-chat-session
 ) {

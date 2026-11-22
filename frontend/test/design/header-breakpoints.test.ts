@@ -3,7 +3,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { MOBILE_PANEL_QUERY, TABLET_BREAKPOINT_PX } from "~/utils/breakpoints";
+import {
+  HEADER_JUMP_BREAKPOINT_PX,
+  HEADER_WORDMARK_BREAKPOINT_PX,
+  MOBILE_PANEL_QUERY,
+  TABLET_BREAKPOINT_PX,
+} from "~/utils/breakpoints";
 
 /**
  * 手机断点的单一来源（票 437 评审）。
@@ -18,7 +23,7 @@ const HEADER = readFileSync(
   "utf8",
 );
 
-describe("页头手机断点：CSS 与 JS 同源", () => {
+describe("页头断点：CSS 与 JS 同源", () => {
   it("查询串由 TABLET_BREAKPOINT_PX 派生（min-width 640 = max-width 639）", () => {
     expect(TABLET_BREAKPOINT_PX).toBe(640);
     expect(MOBILE_PANEL_QUERY).toBe("(max-width: 639px)");
@@ -30,5 +35,14 @@ describe("页头手机断点：CSS 与 JS 同源", () => {
     expect(HEADER).toContain(`@media (max-width: ${TABLET_BREAKPOINT_PX - 1}px)`);
     // 注释里点名了常量的出处：后来者改断点先看这里，而不是再抄一份数字。
     expect(HEADER).toContain("breakpoints.ts");
+  });
+
+  it("导航收进「跳转」的断点与常量为同一个数（767 及更窄收，768 起展开）", () => {
+    expect(HEADER).toContain(`@media (max-width: ${HEADER_JUMP_BREAKPOINT_PX - 1}px)`);
+    expect(HEADER).toContain(`@media (min-width: ${HEADER_JUMP_BREAKPOINT_PX}px)`);
+  });
+
+  it("隐去字标的断点与常量为同一个数（899 及更窄隐，900 起显示）", () => {
+    expect(HEADER).toContain(`@media (max-width: ${HEADER_WORDMARK_BREAKPOINT_PX - 1}px)`);
   });
 });

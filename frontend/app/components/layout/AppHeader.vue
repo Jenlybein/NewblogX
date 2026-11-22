@@ -27,6 +27,7 @@ import { useUiStore } from "~/stores/ui";
 import { BRAND } from "~/utils/brand";
 import {
   buildSearchLocation,
+  headerJumpItems,
   headerNavItems,
   mobileMenuLabel,
   searchKeywordFromQuery,
@@ -74,14 +75,12 @@ const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
 
 // <768：导航条收进「跳转」下拉，页头始终只占一行。
-const jumpOptions = computed(() => {
-  const items = headerNavItems(route.path)
-    .filter((item) => item.key !== "search" && item.key !== "write")
-    .map((item) => ({ label: item.label, key: item.to }));
-  if (entryVisible.value) items.splice(1, 0, { label: "创作", key: "/studio/write" });
-  if (authStore.isLoggedIn) items.push({ label: "浏览历史", key: "/history" });
-  return items;
-});
+const jumpOptions = computed(() =>
+  headerJumpItems({
+    includeWrite: entryVisible.value,
+    includeHistory: authStore.isLoggedIn,
+  }).map((item) => ({ label: item.label, key: item.to })),
+);
 
 function handleJumpSelect(key: string) {
   void router.push(key);
@@ -925,6 +924,17 @@ async function submitSearch() {
 
 .site-header__jump {
   display: inline-flex;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.site-header__jump:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header__jump:active {
+    transform: none;
+  }
 }
 
 .site-header__menu {
@@ -990,13 +1000,13 @@ async function submitSearch() {
   .site-search {
     flex: 1 1 auto;
   }
-}
 
-@media (max-width: 639px) {
   .site-header__write {
     display: none;
   }
+}
 
+@media (max-width: 639px) {
   .site-messages {
     display: inline-flex;
   }
@@ -1009,14 +1019,9 @@ async function submitSearch() {
 }
 
 @media (max-width: 359px) {
-  .site-header__jump,
-  [data-chrome="theme"] {
+  .site-header__jump {
     display: none;
   }
 }
 </style>
-
-
-
-
 

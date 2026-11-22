@@ -41,6 +41,13 @@ useHead({ title: computed(() => routeMeta.value.label) })
 
 // 展开态：深链接到子项时含激活项的分组默认展开；同一路由下用户手动收起后保持收起。
 const expandedKeys = ref<string[]>(activeGroupKeys(route.path))
+
+function activateAdminToggle(event: KeyboardEvent) {
+  if (event.key !== "Enter" && event.key !== " ") return
+  event.preventDefault()
+  const target = event.currentTarget as HTMLElement | null
+  target?.click()
+}
 watch(
   () => route.path,
   (to, from) => {
@@ -85,8 +92,15 @@ async function handleUserCommand(key: string) {
 </script>
 
 <template>
+  <input id="admin-sider-toggle" class="admin-sider-toggle" type="checkbox" aria-label="打开后台菜单">
+  <label class="admin-sider-tab" for="admin-sider-toggle" role="button" tabindex="0" @keydown="activateAdminToggle">
+    菜单
+  </label>
+  <label class="admin-sider-scrim" for="admin-sider-toggle" aria-label="关闭后台菜单" />
+
   <NLayout has-sider class="admin-shell">
     <NLayoutSider :width="276" bordered collapse-mode="width" :native-scrollbar="false" class="admin-sider">
+      <label class="admin-sider-close" for="admin-sider-toggle" aria-label="收起后台菜单" role="button" tabindex="0" @keydown="activateAdminToggle">×</label>
       <div class="admin-brand">
         <AdminBrandLogo :size="44" />
         <div class="min-w-0">

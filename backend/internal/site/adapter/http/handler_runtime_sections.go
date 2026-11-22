@@ -424,10 +424,18 @@ func contentFilterSectionResponse(section conf.ContentFilter) SiteSectionContent
 		missing = append(missing, string(category))
 	}
 
+	counts := contentfilter.CountWhitelist(section.Whitelist, section.WhitelistPhrases)
+
 	return SiteSectionContentFilterResponse{
 		ContentFilter:             section,
 		RequiredCategories:        required,
 		MissingRequiredCategories: missing,
+		WhitelistStats: WhitelistStatsResponse{
+			Total:      counts.Total,
+			Words:      counts.Words,
+			Phrases:    counts.Phrases,
+			Duplicates: counts.Duplicates,
+		},
 	}
 }
 

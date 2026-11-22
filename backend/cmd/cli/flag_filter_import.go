@@ -189,10 +189,14 @@ func importContentFilter(store filterWordStore, entries []conf.ContentFilterWord
 	if !apply || report.Added == 0 {
 		return report, nil
 	}
-	if err := store.UpdateContentFilter(conf.ContentFilter{
-		Words:     merged,
-		Whitelist: current.Whitelist,
-	}); err != nil {
+	// 只替换词表，其余字段原样带回：这一条命令的职责是"补词"，不是"重置这一段配置"。
+	//
+	// 上一版手写了 {Words, Whitelist} 两个字面量，于是每跑一次导入就把
+	// WhitelistPhrases 与 RetainDays 清空 —— 而体检与清洗的报错文案正是让人去跑
+	// 这条命令，等于提示运维"用这个动作把短语白名单删掉"。新增字段时必须走整段回写。
+	updated := current
+	updated.Words = merged
+	if err := store.UpdateContentFilter(updated); err != nil {
 		return report, fmt.Errorf("写入词表失败: %w", err)
 	}
 	return report, nil

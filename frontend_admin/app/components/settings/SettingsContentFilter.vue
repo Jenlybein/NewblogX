@@ -86,6 +86,9 @@ const missingRequiredCategories = computed<string[]>(
 )
 const whitelist = computed<string[]>(() => config.value.whitelist ?? [])
 const whitelistPhrases = computed<string[]>(() => config.value.whitelist_phrases ?? [])
+// 计数用后端算好的口径（去重后才对得上 `-filter-coverage` 打印的数）；
+// 前端自己把两个数组相加会得到"页面 50、体检 49"。
+const whitelistTotal = computed(() => config.value.whitelist_stats?.total ?? 0)
 
 /** 窗口内命中处数（来自 word-stats；没有命中记录时为 0）。 */
 function hitCountOf(word: string): number {
@@ -377,19 +380,24 @@ onMounted(load)
         </NCard>
       </NTabPane>
 
-      <NTabPane name="whitelist" :tab="`白名单（${whitelist.length + whitelistPhrases.length}）`">
+      <NTabPane name="whitelist" :tab="`白名单（${whitelistTotal}）`">
         <NCard class="admin-card mb-4" size="small" title="短语白名单">
           <NAlert type="warning" :bordered="false" class="mb-4">
             <strong>只放过这一种说法，词本身照旧拦。</strong>
-            用来对付「正常词里恰好含敏感词」：加「安全套接层」，正文里的安全套接层不打星，
-            而真写「安全套」仍然打星；加「fork 炸弹」，只见于术语的那一处放过，
-            「制作炸弹」照旧打星。命中仍会记一条记录（用于统计误伤）。
+            被短语<strong>完整包住</strong>的那次命中不替换，但仍会记一条命中（用于统计误伤）：
+            加「安全套接层」，正文里的安全套接层不打星，而真写「安全套」仍然打星；
+            加「fork 炸弹」，「制作炸弹」照旧打星。
           </NAlert>
-          <NFormItem label="短语（回车添加，越长越安全）">
+          <NAlert type="default" :bordered="false" class="mb-4">
+            两点边界：① 只覆盖<strong>已知的连续写法</strong> —— 出现新变体（如「安全套接字层」）要另加一条；
+            ② 短语越长豁免范围越大，会连带放过其中出现的其它敏感词，所以别拿整句话当短语。
+          </NAlert>
+          <NFormItem label="短语（回车添加）">
             <NDynamicTags
               v-model:value="config.whitelist_phrases"
               data-role="content-filter-whitelist-phrases" />
           </NFormItem>
+          <NButton type="primary" :loading="saving" @click="save">保存短语白名单</NButton>
         </NCard>
 
         <NCard class="admin-card mb-4" size="small" title="词级白名单">
@@ -521,6 +529,7 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
 
 
 

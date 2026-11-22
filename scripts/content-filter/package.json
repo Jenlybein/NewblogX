@@ -6,9 +6,11 @@
   "description": "初始词表构建脚本（#395）：把 Apache-2.0 的上游词库映射成本站 content_filter 段能导入的 TSV/NDJSON。词表数据本身不进仓库。",
   "scripts": {
     "build": "node build-wordlist.mjs",
-    "test": "node --test test/wordlist.test.mjs"
+    "stems": "node covering-stems.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20.12.0"
   }
 }
+

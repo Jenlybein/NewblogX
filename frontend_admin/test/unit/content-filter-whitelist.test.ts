@@ -45,3 +45,30 @@ describe("白名单两层（ADR-0032 补丁四）", () => {
     expect(source).not.toContain("越长越安全");
   });
 });
+
+/**
+ * 6 万条词表撑破后台页（2026-11-22 线上事故）：段响应 ~3.8MB JSON 未压缩，
+ * 默认 15s 超时 → 页面报「配置加载失败」；即便取回来，6 万个 <button> 也会把
+ * 浏览器卡住。这两条断言钉住修法：放宽超时 + 只渲染一窗。
+ */
+describe("内容过滤页的规模防护", () => {
+  it("取/存这一段都用放宽后的超时（不是默认 15s）", () => {
+    const service = readFileSync(join(process.cwd(), "app", "services", "admin.ts"), "utf8");
+
+    expect(service).toContain("CONTENT_FILTER_TIMEOUT_MS");
+    expect(service).toContain("getRuntimeSectionWithTimeout");
+    expect(service).toContain("updateRuntimeSectionWithTimeout");
+  });
+
+  it("词云只渲染一窗，并给出「还有 N 个」的出口", () => {
+    const source = readContentFilter();
+
+    expect(source).toContain("RENDER_WINDOW");
+    expect(source).toContain("visibleWords");
+    expect(source).toContain("hiddenWordCount");
+    expect(source).toContain("content-filter-show-more");
+    // 模板不能还按全量渲染：那正是卡死浏览器的原因。
+    expect(source).toContain("v-for=\"entry in visibleWords\"");
+    expect(source).not.toContain("v-for=\"entry in filteredWords\"");
+  });
+});

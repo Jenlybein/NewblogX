@@ -611,8 +611,24 @@ export function getRuntimeSection<T>(name: RuntimeSectionName) {
   return api().request<T>(`/site/admin/${name}`)
 }
 
+/**
+ * 同 `getRuntimeSection`，但可指定超时。
+ *
+ * 只有内容过滤段需要：它把整张词表随响应下发，6 万条时是 ~3.8MB JSON（gzip 后 ~1.2MB）。
+ * 默认 15s 在慢链路上不够，调用方会收到一个"超时"而不是数据 —— 于是后台显示
+ * 「配置加载失败」，看起来像配置坏了，其实只是在下载。
+ */
+export function getRuntimeSectionWithTimeout<T>(name: RuntimeSectionName, timeoutMs: number) {
+  return api().request<T>(`/site/admin/${name}`, { timeoutMs })
+}
+
 export function updateRuntimeSection<T>(name: RuntimeSectionName, payload: T) {
   return api().request<unknown, T>(`/site/${name}`, { method: 'PUT', body: payload })
+}
+
+/** 同 `updateRuntimeSection`，但可指定超时（上行也是整张词表，同样要放宽）。 */
+export function updateRuntimeSectionWithTimeout<T>(name: RuntimeSectionName, payload: T, timeoutMs: number) {
+  return api().request<unknown, T>(`/site/${name}`, { method: 'PUT', body: payload, timeoutMs })
 }
 
 export function getMailRuntimeConfig() {
@@ -670,12 +686,15 @@ export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
  * 只有后台这一个出入口：读者站与匿名端点都不返回它。保存即生效 —— 后端把整段写进
  * 运行时配置并刷新缓存，过滤引擎按新词表重建，不需要重启。
  */
+// 6 万条词表整包下发，默认 15s 超时不够（见 getRuntimeSectionWithTimeout 的注释）。
+const CONTENT_FILTER_TIMEOUT_MS = 120_000
+
 export function getContentFilterRuntimeConfig() {
-  return getRuntimeSection<ContentFilterRuntimeConfig>('content_filter')
+  return getRuntimeSectionWithTimeout<ContentFilterRuntimeConfig>('content_filter', CONTENT_FILTER_TIMEOUT_MS)
 }
 
 export function updateContentFilterRuntimeConfig(payload: ContentFilterRuntimeConfigPayload) {
-  return updateRuntimeSection('content_filter', payload)
+  return updateRuntimeSectionWithTimeout('content_filter', payload, CONTENT_FILTER_TIMEOUT_MS)
 }
 
 /**
@@ -828,6 +847,7 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+
 
 
 

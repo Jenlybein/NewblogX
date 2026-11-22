@@ -405,6 +405,8 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
   # 词表生成 / 主干推导脚本的用例。同一处置：不进 gates.json，在这里与
   # ci.yml 的 frontend-lint 各自直接调用（否则新写的用例永远不会失败）。
   run "词表脚本单测（content-filter）" bash -c "cd '$ROOT/scripts/content-filter' && node --test"
+  # 部署配置的源码级断言（nginx gzip 覆盖 JSON 等）。同一处置：不进 gates.json。
+  run "部署配置断言（deploy-config）" bash -c "cd '$ROOT/scripts/deploy-config' && node --test"
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi
 

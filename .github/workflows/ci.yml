@@ -531,6 +531,14 @@ jobs:
         working-directory: scripts/content-filter
         run: node --test
 
+      # 部署配置的源码级断言（当前只有 nginx 的 gzip 覆盖）：6 万条词表的段响应
+      # 是 ~3.8MB JSON，JSON 不在 gzip_types 里就会在慢链路上超时，
+      # 后台「内容过滤」页直接打不开（2026-11-22 线上踩过）。
+      - name: 部署配置断言（deploy-config）
+        if: matrix.app == 'frontend'
+        working-directory: scripts/deploy-config
+        run: node --test
+
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)

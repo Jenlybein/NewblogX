@@ -26,8 +26,19 @@ http {
   gzip_buffers     4 16k;
   gzip_http_version 1.0;
   gzip_comp_level 7;
-  gzip_types       text/plain application/javascript text/css application/xml text/javascript application/x-httpd-php image/jpeg image/gif image/png;
+  # application/json 必须在列表里：所有 API 响应都是 JSON，而本栈的每个响应都要
+  # 经 nginx 转发（proxy_pass），不压的话大响应就是原样几 MB 走公网。
+  # 2026-11-22 实测：后台「内容过滤」段响应 6 万条词表 ≈ 3.8MB JSON 未压缩，
+  # 页面 15s 超时、报「配置加载失败」；把 application/json 加进来后同一响应 ~1.2MB。
+  # （JS/CSS 之前就已经压过：_nuxt 的 348KB chunk 压到 109KB，说明 gzip 本身是通的，
+  #   缺的只是 JSON 这个类型。）
+  gzip_types       text/plain application/javascript text/css application/xml text/javascript
+                   application/json application/manifest+json image/svg+xml
+                   application/x-httpd-php image/jpeg image/gif image/png;
   gzip_vary on;
+  # 反向代理的响应默认不压缩（nginx 的 gzip_proxied 缺省是 off），而这里**全部**是
+  # 反代响应 —— 只加 gzip_types 不放开这一条，等于白加。
+  gzip_proxied     any;
 
   include       mime.types;
   default_type  application/octet-stream;

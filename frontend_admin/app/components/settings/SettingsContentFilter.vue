@@ -116,6 +116,27 @@ const filteredWords = computed(() => {
   })
 })
 
+/**
+ * 词云只渲染前 `renderLimit` 个。
+ *
+ * 词表已经有 6 万条：一次性把 6 万个 <button> 塞进 DOM，浏览器会卡死好几秒，
+ * 而运营真正要看的是"搜索 + 按类目收窄后的那几十个"。所以默认只渲染一窗，
+ * 底部给出"还有 N 个"并允许逐窗展开；搜索/类目变化时窗口回到第一页。
+ */
+const RENDER_WINDOW = 600
+const renderLimit = ref(RENDER_WINDOW)
+const visibleWords = computed(() => filteredWords.value.slice(0, renderLimit.value))
+const hiddenWordCount = computed(() => Math.max(0, filteredWords.value.length - visibleWords.value.length))
+
+function showMoreWords() {
+  renderLimit.value += RENDER_WINDOW
+}
+
+// 收窄条件变了就把窗口收回第一页，否则"搜到 3 个但窗口还停在 6000"会让人以为没搜到。
+watch([keyword, categoryFilter], () => {
+  renderLimit.value = RENDER_WINDOW
+})
+
 const blockCount = computed(() => words.value.filter(entry => entry.tier === 'block').length)
 const watchCount = computed(() => words.value.filter(entry => entry.tier === 'watch').length)
 
@@ -358,12 +379,13 @@ onMounted(load)
 
           <NAlert type="info" :bordered="false" class="mb-4">
             字号 = 最近 {{ hitWindowDays }} 天的命中处数（来自后端统计），颜色 = 档位；没有命中记录的词统一小字号。
+            词表已有 {{ words.length }} 条，页面一次只渲染一窗，用搜索 / 类目收窄最省事。
             点任意一个词可以改档位、改类目或删除，改动先落在本页，点「保存词表」才写进后端。
           </NAlert>
 
-          <div v-if="filteredWords.length > 0" class="cf-cloud" data-role="content-filter-cloud">
+          <div v-if="visibleWords.length > 0" class="cf-cloud" data-role="content-filter-cloud">
             <button
-              v-for="entry in filteredWords"
+              v-for="entry in visibleWords"
               :key="entry.word"
               type="button"
               class="cf-word"
@@ -376,6 +398,12 @@ onMounted(load)
           </div>
           <div v-else class="admin-empty">
             {{ words.length === 0 ? '词表还是空的：先点「批量导入」贴入词条' : '没有匹配的词条' }}
+          </div>
+          <div v-if="hiddenWordCount > 0" class="admin-empty mt-4">
+            只显示前 {{ visibleWords.length }} 个（共 {{ filteredWords.length }} 个匹配）；用搜索或类目收窄能更快找到。
+            <NButton size="small" class="ml-2" data-role="content-filter-show-more" @click="showMoreWords">
+              再显示 {{ Math.min(hiddenWordCount, RENDER_WINDOW) }} 个
+            </NButton>
           </div>
         </NCard>
       </NTabPane>
@@ -529,6 +557,7 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
 
 
 

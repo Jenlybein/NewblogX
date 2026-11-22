@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconMessageCirclePlus, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
@@ -93,6 +93,26 @@ const {
   pending: articleOutlinePending,
   active: outlineColumnVisible,
 } = useArticleOutlineContext({ articleId, from: outlineFrom });
+
+// 右栏：≥1101 常驻；≤1100 收成右侧「文章栏」抽屉，避免把正文压成窄列。
+const articleAsideOpen = ref(false);
+const articleAsideTabRef = ref<HTMLButtonElement | null>(null);
+const articleAsideCloseRef = ref<HTMLButtonElement | null>(null);
+
+function openArticleAside() {
+  articleAsideOpen.value = true;
+  void nextTick(() => articleAsideCloseRef.value?.focus());
+}
+
+function closeArticleAside(returnFocus: boolean) {
+  articleAsideOpen.value = false;
+  if (returnFocus) void nextTick(() => articleAsideTabRef.value?.focus());
+}
+
+function handleArticleAsideKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape" || !articleAsideOpen.value) return;
+  closeArticleAside(true);
+}
 
 const articleLoadError = computed(() => {
   const error = articleError.value;
@@ -417,6 +437,7 @@ async function handleNextCommentPage() {
 }
 
 onMounted(() => {
+  window.addEventListener("keydown", handleArticleAsideKeydown);
   markArticleViewed(articleId.value).catch(() => undefined);
   // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0016 约束 2）。
   // 登录初始化完成后必须补一次用户态请求（ADR-0016 决策 2/6），否则硬刷新后
@@ -426,6 +447,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", handleArticleAsideKeydown);
   // 定时器归 composable 管，页面只负责通知它该收尾了。
   disposeArticleDigg();
 });
@@ -599,6 +621,24 @@ useHead(() => {
 
       <!-- 目录不再占文章布局的一列（验收反馈：不要挤正文）：它是贴在窗口左边缘的
            可收起抽屉，见页面末尾的 ArticleOutlineAside。正文布局恒定两列。 -->
+      <button
+        ref="articleAsideTabRef"
+        type="button"
+        class="article-aside-tab"
+        aria-controls="article-aside-panel"
+        :aria-expanded="articleAsideOpen"
+        @click="openArticleAside"
+      >
+        文章栏
+      </button>
+      <button
+        v-if="articleAsideOpen"
+        type="button"
+        class="article-aside-scrim"
+        aria-label="关闭文章侧栏"
+        @click="closeArticleAside(true)"
+      ></button>
+
       <div class="article-layout">
         <div class="article-main">
           <section v-if="article?.cover" class="article-paper article-paper--cover">
@@ -682,7 +722,20 @@ useHead(() => {
           </section>
         </div>
 
-        <aside class="article-aside">
+        <aside
+          id="article-aside-panel"
+          class="article-aside article-aside-drawer"
+          :class="{ 'is-aside-open': articleAsideOpen }"
+        >
+          <button
+            ref="articleAsideCloseRef"
+            type="button"
+            class="article-aside__close"
+            aria-label="收起文章侧栏"
+            @click="closeArticleAside(true)"
+          >
+            ×
+          </button>
           <section class="article-paper article-author">
             <p class="article-eyebrow">
               <span class="article-eyebrow__mark" aria-hidden="true" />

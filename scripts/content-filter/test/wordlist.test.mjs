@@ -259,7 +259,7 @@ test("summarize：分别统计档位与类目", () => {
 test("parseArgs：默认值", () => {
   const opts = parseArgs([]);
   assert.equal(opts.format, "tsv");
-  assert.equal(opts.limit, 30000);
+  assert.equal(opts.limit, 0, "默认不截断：早年默认 30000，实测截断会砍主干留变体");
   assert.equal(opts.minCjk, 2);
   assert.equal(opts.includeUntagged, false);
   assert.equal(opts.includePolitics, false);
@@ -283,5 +283,6 @@ test("parseArgs：非法参数给出中文错误而不是静默忽略", () => {
   assert.throws(() => parseArgs(["--nope"]), /不认识的参数/);
   assert.throws(() => parseArgs(["--source"]), /需要一个值/);
 });
+
 
 

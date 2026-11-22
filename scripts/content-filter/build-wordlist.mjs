@@ -49,7 +49,15 @@ const LOCAL_SUBDIRS = ["", "src/main/resources"];
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_OUT = join(REPO_ROOT, ".gotmp", "content-filter-words.tsv");
-const DEFAULT_LIMIT = 30000;
+// DEFAULT_LIMIT 是词条上限的默认值：**0 表示不截断**。
+//
+// 早年的默认是 30000，理由是"ADR 估算 6 万词常驻 30–50MB，先保守"。2026-11-22 实测
+// 把这个理由推翻了：60985 条时引擎构建耗时 697ms、进程 RSS 134.8MB（3.6 万条时 105.6MB），
+// 而截断本身有确定的代价 —— 它按类目比例、类目内按 Unicode 排序砍，不看重要性，
+// 会砍掉主干却留下"主干+渠道词"的变体，于是出现"写变体才命中、写主干不命中"的漏洞。
+//
+// 所以现在默认全收（不再截断）；`--limit` 仍保留，用于"我就想要一份小词表"的场景。
+const DEFAULT_LIMIT = 0;
 
 /** 打印用法。 */
 function usage() {
@@ -60,7 +68,7 @@ function usage() {
                         不给则从 raw.githubusercontent.com 下载到临时目录
   --out <file>          输出路径，默认 .gotmp/content-filter-words.tsv
   --format <tsv|ndjson> 输出格式，默认 tsv（词<TAB>档位<TAB>类目）
-  --limit <n>           词条上限，默认 ${DEFAULT_LIMIT}（按类目比例截断）
+  --limit <n>           词条上限，默认 0 = 不截断（给正数才按类目比例截断）
   --min-cjk <n>         一个词至少几个汉字，默认 2（单字词不入表）
   --max-runes <n>       词条最大字符数，默认 24（去掉平台拼接的长噪音词）
   --include-untagged    把上游黑名单里没有标签的词也纳入（按"违法→兜底诈骗"处理），默认丢弃
@@ -257,10 +265,12 @@ export async function buildWordlist(opts, logger = console.log) {
   logger("");
   logger(`── 统计 ──`);
   logger(`丢弃: CJK<${opts.minCjk} ${dropped.cjkShort} 条，双字通用词 ${dropped.shortGeneric} 条，超过 ${opts.maxRunes} 字 ${dropped.tooLong} 条，` +
-    `含非法字符 ${dropped.dirty} 条，无标签 ${dropped.untagged} 条，无类目 ${dropped.noCategory} 条`);
+    `含非法字符 ${dropped.dirty} 条，无标签且无类目证据 ${dropped.untagged} 条，无类目 ${dropped.noCategory} 条`);
   logger(`排除类目(${excluded.join(",") || "无"}): ${excludedCount} 条`);
   if (kept.length > selected.length) {
     logger(`按类目比例截断: ${kept.length} → ${selected.length} 条（上限 ${opts.limit}）`);
+  } else if (opts.limit <= 0) {
+    logger(`不截断: ${selected.length} 条全部保留（--limit 0 是默认；给正数才按类目比例截断）`);
   }
   logger(`输出 ${stats.total} 条 → ${opts.out}`);
   logger(`档位: block ${stats.tiers.block}，watch ${stats.tiers.watch}`);
@@ -300,5 +310,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.exitCode = 1;
   }
 }
+
+
 
 

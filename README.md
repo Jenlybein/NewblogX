@@ -1590,10 +1590,12 @@ docker compose exec blogx_server /app/server -f config/settings.yaml -t imagegc 
 mkdir -p .gotmp && $EDITOR .gotmp/violence-hints.txt
 
 # 1) 生成词表：--include-all 才会带上涉政与暴恐两类。
-#    默认 30000 是**按类目比例截断**，加了两类会把别的类目挤小，所以抬到 40000。
+#    默认**不截断**（limit 0）：实测 6 万条时引擎构建 0.7s、进程 RSS 135MB，
+#    而截断会按 Unicode 排序砍词、砍掉主干留下变体，制造"写变体才命中"的漏洞。
+#    需要小词表时才显式给 --limit <n>（按类目比例截断）。
 #    产物落 .gotmp/（gitignored）：绝不提交、绝不贴进 issue / 日志。
 BLOGX_VIOLENCE_HINTS=.gotmp/violence-hints.txt \
-  node scripts/content-filter/build-wordlist.mjs --include-all --limit 40000 --out .gotmp/words.tsv
+  node scripts/content-filter/build-wordlist.mjs --include-all --out .gotmp/words.tsv
 
 # 2) 只把缺的两类传上去（其余五类线上已经有了；整份传会把总量顶到 4 万+ 而覆盖不增反降）
 awk -F'\t' '$3=="politics" || $3=="violence"' .gotmp/words.tsv > .gotmp/words-politics-violence.tsv

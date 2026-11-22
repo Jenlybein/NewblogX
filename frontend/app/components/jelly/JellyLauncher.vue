@@ -443,8 +443,8 @@ onBeforeUnmount(() => {
  * `transform`，混在一起会互相覆盖。 */
 .jelly-launcher__handle {
   position: fixed;
-  top: 45%;
-  right: max(var(--jelly-margin), env(safe-area-inset-right));
+  right: 0;
+  bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom));
   z-index: 50;
   display: block;
   width: var(--jelly-handle-hit);
@@ -454,7 +454,6 @@ onBeforeUnmount(() => {
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
-  translate: 0 -50%;
   transform-origin: 100% 50%;
   transition: transform var(--motion-fast) var(--motion-ease);
 }
@@ -695,3 +694,5 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+

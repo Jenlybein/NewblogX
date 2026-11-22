@@ -67,9 +67,25 @@ const { handlePointerMove } = usePointerSpecular();
 
 // 「创作」仍在导航数据里（活动判定与路由契约依赖它），但渲染点已移到右侧动作区
 // （第 198 票）：导航条只渲染纯链接，模板里不再有条件分支。
-const navItems = computed(() => headerNavItems(route.path).filter((item) => item.key !== "write"));
+const navItems = computed(() =>
+  headerNavItems(route.path).filter((item) => item.key !== "write" && item.key !== "search"),
+);
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
+
+// <768：导航条收进「跳转」下拉，页头始终只占一行。
+const jumpOptions = computed(() => {
+  const items = headerNavItems(route.path)
+    .filter((item) => item.key !== "search" && item.key !== "write")
+    .map((item) => ({ label: item.label, key: item.to }));
+  if (entryVisible.value) items.splice(1, 0, { label: "创作", key: "/studio/write" });
+  if (authStore.isLoggedIn) items.push({ label: "浏览历史", key: "/history" });
+  return items;
+});
+
+function handleJumpSelect(key: string) {
+  void router.push(key);
+}
 
 watch(
   () => route.query.key,
@@ -156,21 +172,6 @@ async function submitSearch() {
               </NuxtLink>
             </nav>
 
-            <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
-              <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
-              <input
-                id="site-search-input"
-                v-model="searchKeyword"
-                class="site-search__input"
-                type="search"
-                name="site-search"
-                autocomplete="off"
-                placeholder="搜索文章、标签、作者…"
-              />
-              <button type="submit" class="site-search__submit" aria-label="提交搜索">
-                <IconSearch :size="18" />
-              </button>
-            </form>
 
             <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
                  ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
@@ -198,7 +199,35 @@ async function submitSearch() {
         </div>
       </div>
 
+      <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
+        <label class="sr-only" for="site-search-input">搜索文章、标签、作者</label>
+        <input
+          id="site-search-input"
+          v-model="searchKeyword"
+          class="site-search__input"
+          type="search"
+          name="site-search"
+          autocomplete="off"
+          placeholder="搜索文章、标签、作者…"
+        />
+        <button type="submit" class="site-search__submit" aria-label="提交搜索">
+          <IconSearch :size="18" />
+        </button>
+      </form>
+
       <div class="site-header__actions">
+        <NDropdown :options="jumpOptions" @select="handleJumpSelect">
+          <button
+            type="button"
+            class="site-action site-header__jump"
+            data-chrome="jump"
+            aria-label="跳转到其他页面"
+          >
+            <IconMenu2 :size="18" aria-hidden="true" />
+            <span>跳转</span>
+          </button>
+        </NDropdown>
+
         <button
           type="button"
           class="site-action"
@@ -875,5 +904,119 @@ async function submitSearch() {
     font-size: 0.8125rem;
   }
 }
+
+/* ── 始终单行页头（2026-11-22 视觉对齐）──────────────────────────────
+ * 品牌 / 导航 / 搜索 / 动作永远在同一行；窄屏收搜索、隐字标、把导航折进
+ * 「跳转」下拉，而不是让导航掉到第二行。 */
+.site-header__inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.site-header__brand {
+  flex: none;
+}
+
+.site-header__panel {
+  display: none;
+}
+
+.site-header__jump {
+  display: inline-flex;
+}
+
+.site-header__menu {
+  display: none;
+}
+
+.site-search {
+  flex: 1 1 6rem;
+  min-width: 0;
+  max-width: none;
+  grid-area: search;
+}
+
+.site-header__actions {
+  flex: none;
+  margin-left: auto;
+}
+
+@media (min-width: 768px) {
+  .site-header__inner {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "brand panel search actions";
+    gap: 1rem;
+  }
+
+  .site-header__panel {
+    display: flex;
+    grid-area: panel;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+  }
+
+  .site-header__jump {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .site-header__inner {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .site-search {
+    flex-basis: 10rem;
+  }
+
+  .site-header__actions {
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 899px) {
+  .site-header__brand .brand-wordmark {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .site-search {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 639px) {
+  .site-header__write {
+    display: none;
+  }
+
+  .site-messages {
+    display: inline-flex;
+  }
+
+
+  .site-header__jump {
+    min-width: 3.75rem;
+    padding: 0 0.5rem;
+  }
+}
+
+@media (max-width: 359px) {
+  .site-header__jump,
+  [data-chrome="theme"] {
+    display: none;
+  }
+}
 </style>
+
+
+
+
 

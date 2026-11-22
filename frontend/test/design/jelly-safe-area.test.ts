@@ -46,10 +46,10 @@ describe("捏捏安全区 · 固定定位与 JS 坐标语义的边界", () => {
     const handleBlock = blockAfter(launcherSource, ".jelly-launcher__handle {");
 
     expect(handleBlock).toContain("position: fixed");
-    expect(handleBlock).toContain("top: 45%");
-    expect(handleBlock).toMatch(/translate:\s*0\s+-50%/u);
-    expect(handleBlock).toContain("env(safe-area-inset-right)");
-    expect(handleBlock).not.toMatch(/\bbottom:/u);
+    expect(handleBlock).toContain("bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom))");
+    expect(handleBlock).not.toMatch(/translate:\s*0\s+-50%/u);
+    expect(handleBlock).toMatch(/right:\s*0;/u);
+    expect(handleBlock).toContain("bottom: calc(var(--jelly-margin) + env(safe-area-inset-bottom))");
     // 不另开第二套底部让位变量。
     expect(handleBlock).not.toContain("dvh");
   });
@@ -75,3 +75,5 @@ describe("捏捏安全区 · 固定定位与 JS 坐标语义的边界", () => {
     expect(block).toMatch(/translate:\s*0\s+-50%/u);
   });
 });
+
+

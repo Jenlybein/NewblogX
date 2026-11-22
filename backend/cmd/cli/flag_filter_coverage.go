@@ -57,10 +57,12 @@ func coverageReportLines(contentFilter conf.ContentFilter) []string {
 	words := toFilterWords(contentFilter.Words)
 	counts := contentfilter.CategoryCounts(words)
 	lines := []string{
-		fmt.Sprintf("词表覆盖：总词条 %d 条；类目分布 %s；白名单 %d 条",
+		fmt.Sprintf("词表覆盖：总词条 %d 条；类目分布 %s；白名单 %d 条（词 %d + 短语 %d）",
 			len(words),
 			contentfilter.FormatCategoryCounts(counts),
+			len(contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases)),
 			len(contentFilter.Whitelist),
+			len(contentFilter.WhitelistPhrases),
 		),
 	}
 

@@ -359,9 +359,10 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 	}
 
 	out := conf.ContentFilter{
-		Words:      make([]conf.ContentFilterWord, 0, len(normalized)),
-		Whitelist:  contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
-		RetainDays: normalizeRetainDays(contentFilter.RetainDays),
+		Words:            make([]conf.ContentFilterWord, 0, len(normalized)),
+		Whitelist:        contentfilter.NormalizeWhitelist(contentFilter.Whitelist),
+		WhitelistPhrases: contentfilter.NormalizeWhitelist(contentFilter.WhitelistPhrases),
+		RetainDays:       normalizeRetainDays(contentFilter.RetainDays),
 	}
 	for _, entry := range normalized {
 		out.Words = append(out.Words, conf.ContentFilterWord{

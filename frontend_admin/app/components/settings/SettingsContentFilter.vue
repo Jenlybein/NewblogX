@@ -85,6 +85,7 @@ const missingRequiredCategories = computed<string[]>(
   () => config.value.missing_required_categories ?? [],
 )
 const whitelist = computed<string[]>(() => config.value.whitelist ?? [])
+const whitelistPhrases = computed<string[]>(() => config.value.whitelist_phrases ?? [])
 
 /** 窗口内命中处数（来自 word-stats；没有命中记录时为 0）。 */
 function hitCountOf(word: string): number {
@@ -126,6 +127,7 @@ function applyConfig(current: ContentFilterRuntimeConfig) {
     ...current,
     words: current.words ?? [],
     whitelist: current.whitelist ?? [],
+    whitelist_phrases: current.whitelist_phrases ?? [],
     retain_days: current.retain_days ?? 90,
   }
 }
@@ -161,6 +163,7 @@ async function save() {
     await updateContentFilterRuntimeConfig({
       words: words.value,
       whitelist: whitelist.value,
+      whitelist_phrases: whitelistPhrases.value,
       retain_days: config.value.retain_days,
     })
     // 保存后重新拉一次：缺口清单是后端算的，改完词表要按新词表重新判，
@@ -374,14 +377,28 @@ onMounted(load)
         </NCard>
       </NTabPane>
 
-      <NTabPane name="whitelist" :tab="`白名单（${whitelist.length}）`">
-        <NCard class="admin-card mb-4" size="small" title="白名单">
-          <NAlert type="info" :bordered="false" class="mb-4">
-            白名单是<strong>词或短语</strong>：被白名单短语完整包住的那次命中<strong>不替换</strong>，
-            但仍会记一条命中（用于统计误伤）。例如把「冰毒科普」加进来，正文里的
-            「冰毒科普」不会被替换，别处的「冰毒」照常替换。
+      <NTabPane name="whitelist" :tab="`白名单（${whitelist.length + whitelistPhrases.length}）`">
+        <NCard class="admin-card mb-4" size="small" title="短语白名单">
+          <NAlert type="warning" :bordered="false" class="mb-4">
+            <strong>只放过这一种说法，词本身照旧拦。</strong>
+            用来对付「正常词里恰好含敏感词」：加「安全套接层」，正文里的安全套接层不打星，
+            而真写「安全套」仍然打星；加「fork 炸弹」，只见于术语的那一处放过，
+            「制作炸弹」照旧打星。命中仍会记一条记录（用于统计误伤）。
           </NAlert>
-          <NFormItem label="白名单词条（回车添加）">
+          <NFormItem label="短语（回车添加，越长越安全）">
+            <NDynamicTags
+              v-model:value="config.whitelist_phrases"
+              data-role="content-filter-whitelist-phrases" />
+          </NFormItem>
+        </NCard>
+
+        <NCard class="admin-card mb-4" size="small" title="词级白名单">
+          <NAlert type="info" :bordered="false" class="mb-4">
+            <strong>整个词都不再打星</strong>（命中仍记录）。只给「正常用法远多于违规用法」的词用，
+            例如「独立」「证书」「验证码」—— 加进来等于<strong>放弃这个词的拦截力</strong>，
+            想保留拦截力请用上面的短语白名单。
+          </NAlert>
+          <NFormItem label="词条（回车添加）">
             <NDynamicTags v-model:value="config.whitelist" data-role="content-filter-whitelist" />
           </NFormItem>
           <NButton type="primary" :loading="saving" @click="save">保存白名单</NButton>
@@ -504,6 +521,7 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
 
 
 

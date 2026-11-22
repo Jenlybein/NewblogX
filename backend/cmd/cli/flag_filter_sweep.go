@@ -248,7 +248,10 @@ func FlagFilterSweep(deps Options, configFile string, apply, reindex bool) error
 				"旧的两份词表不会自动迁移，请先跑 -filter-import 导入词表，再执行清洗",
 		)
 	}
-	engine, err := contentfilter.NewEngine(toFilterWords(contentFilter.Words), contentFilter.Whitelist)
+	engine, err := contentfilter.NewEngine(
+		toFilterWords(contentFilter.Words),
+		contentfilter.MergeWhitelist(contentFilter.Whitelist, contentFilter.WhitelistPhrases),
+	)
 	if err != nil {
 		return fmt.Errorf("存量清洗失败: 词表不合法，无法构建过滤引擎: %w", err)
 	}

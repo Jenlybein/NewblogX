@@ -30,6 +30,27 @@ var AllCategories = []Category{
 	CategoryViolence,
 }
 
+// MergeWhitelist 把几组白名单合成引擎要的那一张表（去空白、按小写去重，保留先出现的写法）。
+//
+// 为什么合成一张：引擎的白名单是**区间覆盖**语义（见 match.go），一个短语条目只豁免
+// 它自己那一段，一个整词条目会豁免该词的所有出现。两者的差别全靠条目本身的具体程度，
+// 引擎不需要知道"这条是词还是短语"。
+//
+// 所以在配置里分两份（conf.ContentFilter 的 Whitelist / WhitelistPhrases）纯粹是给
+// 人看的意图区分：整词豁免＝放弃这个词的拦截力，短语豁免＝只放过某一种说法。
+// 合并发生在这里，构建与体检都调它，避免某处只传了一份、另一处传了两份。
+func MergeWhitelist(groups ...[]string) []string {
+	total := 0
+	for _, group := range groups {
+		total += len(group)
+	}
+	all := make([]string, 0, total)
+	for _, group := range groups {
+		all = append(all, group...)
+	}
+	return NormalizeWhitelist(all)
+}
+
 // CategoryCounts 统计每个类目的词条数（未出现的类目不补 0）。
 func CategoryCounts(words []Word) map[Category]int {
 	counts := make(map[Category]int, len(AllCategories))

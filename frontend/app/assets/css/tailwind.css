@@ -1622,8 +1622,8 @@
    * 视口高低于 ~938px 时下半截直接被裁掉（不是滚动，是看不见）。限到
    * `100dvh - 吸顶偏移` 以后，超出部分由整列内部滚动兜底。
    *
-   * 吸顶偏移直接取页头高度 token（+1rem 呼吸）：页头是 sticky、高度就是
-   * `--site-header-height`，写死 88px 会随 token 改动静默错位。
+   * 吸顶偏移**就是**页头高度：页头是 sticky 且高度就是 `--site-header-height`，
+   * 右栏紧贴页头下沿吸住，中间不留缝；写死 88px 或再加一档呼吸都会错位。
    *
    * 为什么 overflow-x 也要写：只给 overflow-y 时，规范会把另一轴的 visible 算成 auto，
    * 焦点环 / hover 面底在右栏边缘会多出一条横向滚动条。
@@ -1634,12 +1634,21 @@
   @media (min-width: 1101px) {
     .article-aside {
       position: sticky;
-      top: calc(var(--site-header-height) + 1rem);
-      max-height: calc(100dvh - var(--site-header-height) - 1rem);
+      top: var(--site-header-height);
+      max-height: calc(100dvh - var(--site-header-height));
       overflow-y: auto;
       overflow-x: hidden;
       /* 滚到右栏底不再把整页一起带着滚（两层滚动条里外联动最招人烦）。 */
       overscroll-behavior: contain;
+    }
+
+    /* 页头下滚时会整条上移隐藏（`useScrollChrome` → `data-header-hidden="true"`）。
+     * 它一走，原来的位置就是一片空白：右栏必须跟着吸到视口最顶上，
+     * 否则顶部会留一条与页头等高的空带（用户看到的就是“没吸到最顶上”）。
+     * 上滚页头回来时右栏自动退回它下沿，两者不会互相压。 */
+    body:has([data-header-hidden="true"]) .article-aside {
+      top: 0;
+      max-height: 100dvh;
     }
 
     /* 限高之后右栏成了滚动容器：三张卡不许被 flex 压扁。压扁 + overflow:visible

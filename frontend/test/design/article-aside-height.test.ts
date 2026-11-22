@@ -81,8 +81,10 @@ describe("吸顶右栏：按视口高度收敛，不再把底部裁掉", () => {
 
     // 原先的两条（吸顶位置）保持不动，本票只是加高度约束。
     expect(aside).toContain("position: sticky");
-    expect(aside).toMatch(/top:\s*calc\(var\(--site-header-height\)\s*\+\s*1rem\)/u);
-    expect(aside).toMatch(/max-height:\s*calc\(100dvh\s*-\s*var\(--site-header-height\)\s*-\s*1rem\)/u);
+    expect(aside).toMatch(/top:\s*var\(--site-header-height\)/u);
+    expect(aside).toMatch(/max-height:\s*calc\(100dvh\s*-\s*var\(--site-header-height\)\)/u);
+    // 不许再加“呼吸”间距：右栏要贴住页头下沿（多一档就是一条看得见的缝）。
+    expect(aside).not.toMatch(/top:\s*calc\([^)]*\+\s*1rem/u);
     expect(aside).toMatch(/overflow-y:\s*auto/u);
     // 只给 overflow-y 会让 overflow-x 自动变 auto：焦点环 / hover 面底会在
     // 右栏边缘多出一条横向滚动条。显式关掉横向。
@@ -95,6 +97,15 @@ describe("吸顶右栏：按视口高度收敛，不再把底部裁掉", () => {
     const narrow = blockAfter(narrowAsideBlock(css()), ".article-aside {");
     expect(narrow).toContain("position: fixed");
     expect(narrow).not.toContain("max-height");
+  });
+
+it("页头隐藏时右栏吸到视口最顶上（不留下与页头等高的空带）", () => {
+    const sticky = stickyAsideBlock(css());
+
+    // 页头下滚隐藏（translateY(-100%)）后，右栏的吸顶偏移必须归零，
+    // 否则顶部会留一条 60px 的空带 —— 用户看到的就是“没吸到最顶上”。
+    expect(sticky).toMatch(/body:has\(\[data-header-hidden="true"\]\)\s*\.article-aside\s*\{\s*top:\s*0;/u);
+    expect(sticky).toMatch(/body:has\(\[data-header-hidden="true"\]\)[\s\S]*?max-height:\s*100dvh/u);
   });
 
   it("整列滚动是兜底：滚到底不把页面一起带走（不滚链到整页）", () => {

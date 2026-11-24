@@ -92,17 +92,18 @@ func WireUser(infra *Infra) {
 		infra.Logger,
 		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisOptions)),
 		userapp.WithIntegrations(userapp.Integrations{
-			Relation:  &relationBridge{},
-			HomeView:  &homeViewBridge{db: infra.DB, redis: redisOptions, logger: infra.Logger},
-			Sessions:  sessionRevoker,
-			LastLogin: &lastLoginBridge{opts: analyticsLogOptions(infra)},
-			Tags:      &tagBridge{db: infra.DB},
+			Relation:    &relationBridge{},
+			HomeView:    &homeViewBridge{db: infra.DB, redis: redisOptions, logger: infra.Logger},
+			Sessions:    sessionRevoker,
+			LastLogin:   &lastLoginBridge{opts: analyticsLogOptions(infra)},
+			Tags:        &tagBridge{db: infra.DB},
 			AuthorStats: &authorStatsBridge{db: infra.DB},
 		}),
 		// 内容过滤（票 397 / ADR-0032）：昵称与简介两个面各一个 bridge，
 		// 面枚举钉死在装配层 —— 用户模块只认识"这是我的昵称 / 简介"。
 		userapp.WithContentFilter(
 			nicknameTextFilterBridge{svc: infra.Filter},
+			usernameTextFilterBridge{svc: infra.Filter},
 			abstractTextFilterBridge{svc: infra.Filter},
 		),
 	)
@@ -750,3 +751,27 @@ func (b abstractTextFilterBridge) FilterAbstractText(ctx context.Context, in use
 	return userapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
 }
 
+// usernameTextFilterBridge 把内容过滤服务接成用户模块的**用户名**面端口（票 398）。
+//
+// 用户名能改（`ProfileUpdate.Username`），但改造前一条过滤都没接 —— 改名通道
+// 因此是绕过内容过滤的捷径。面枚举在这里钉死，用户模块只认识"这是我的用户名"。
+type usernameTextFilterBridge struct {
+	svc *filterapp.Service
+}
+
+// FilterUsernameText 过滤用户名里的命中词并记一条关键词风险（调用方据此拒绝改名）。
+func (b usernameTextFilterBridge) FilterUsernameText(ctx context.Context, in userapp.FilterText) (userapp.FilteredText, error) {
+	if b.svc == nil {
+		return userapp.FilteredText{Masked: in.Text}, nil
+	}
+	got, err := b.svc.Filter(ctx, filterapp.FilterInput{
+		Surface:   filterdomain.SurfaceUsername,
+		UserID:    in.UserID,
+		ContentID: in.ContentID,
+		Text:      in.Text,
+	})
+	if err != nil {
+		return userapp.FilteredText{}, err
+	}
+	return userapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
+}

@@ -214,6 +214,8 @@ type Service struct {
 	tags        TagValidator
 	authorStats AuthorStatsReader
 
+	// usernameFilter 是**用户名**面的过滤端口（票 398）：命中即拒绝改名。
+	usernameFilter UsernameTextFilterer
 	// nicknameFilter / abstractFilter 是内容过滤端口（票 397）。
 	// 为 nil 表示未接入：昵称与简介按原文保存（与改造前一致）。
 	nicknameFilter NicknameTextFilterer
@@ -235,9 +237,10 @@ func WithUsernameAllocator(a UsernameAllocator) Option {
 //
 // 昵称与简介两个面必须分别给：面枚举在装配层的 bridge 里钉死（见 app/user_wiring.go），
 // 一个函数带两个实现，接错面就是编译错误。
-func WithContentFilter(nickname NicknameTextFilterer, abstract AbstractTextFilterer) Option {
+func WithContentFilter(nickname NicknameTextFilterer, username UsernameTextFilterer, abstract AbstractTextFilterer) Option {
 	return func(s *Service) {
 		s.nicknameFilter = nickname
+		s.usernameFilter = username
 		s.abstractFilter = abstract
 	}
 }

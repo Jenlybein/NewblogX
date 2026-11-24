@@ -14,6 +14,7 @@ export const CONTENT_FILTER_SURFACE_OPTIONS = [
   { label: '文章', value: 'article' },
   { label: '评论', value: 'comment' },
   { label: '昵称', value: 'nickname' },
+  { label: '用户名', value: 'username' },
   { label: '简介', value: 'abstract' },
   { label: '私信', value: 'chat' },
   { label: '合集', value: 'collection' },
@@ -160,3 +161,4 @@ export const CONTENT_FILTER_SURFACE_ACTIONS: Record<string, { deleteLabel: strin
   // 私信没有软删语义，也没有后台删除入口：delete 会被后端拒绝。
   chat: { deleteLabel: '删除消息', deletable: false },
 }
+

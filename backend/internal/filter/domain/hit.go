@@ -22,9 +22,13 @@ type Surface string
 
 // 六个文本面。
 const (
-	SurfaceArticle    Surface = "article"
-	SurfaceComment    Surface = "comment"
-	SurfaceNickname   Surface = "nickname"
+	SurfaceArticle  Surface = "article"
+	SurfaceComment  Surface = "comment"
+	SurfaceNickname Surface = "nickname"
+	// SurfaceUsername 是**用户名**面：用户名能改（ProfileUpdate.Username），
+	// 但改造前它一条过滤都没接 —— 等于改名通道可以绕过内容过滤。
+	// 单独成面而不是并进 nickname，是因为事后要看得出"他在哪个字段上试探"。
+	SurfaceUsername   Surface = "username"
 	SurfaceAbstract   Surface = "abstract"
 	SurfaceChat       Surface = "chat"
 	SurfaceCollection Surface = "collection"
@@ -42,6 +46,8 @@ func ParseSurface(raw string) (Surface, bool) {
 		return SurfaceComment, true
 	case SurfaceNickname:
 		return SurfaceNickname, true
+	case SurfaceUsername:
+		return SurfaceUsername, true
 	case SurfaceAbstract:
 		return SurfaceAbstract, true
 	case SurfaceChat:

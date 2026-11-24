@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/domain"
 )
@@ -37,6 +38,14 @@ type FilteredText struct {
 	FilteredCount int
 }
 
+// UsernameTextFilterer 在全站唯一的内容过滤层里过滤**用户名**并记一条关键词风险。
+//
+// 用户名单独一个端口而不是复用昵称那个：面枚举在 bridge 里钉死，复用会让后台
+// 把用户名的命中统计进昵称，事后分不清他在哪个字段上试探。
+type UsernameTextFilterer interface {
+	FilterUsernameText(ctx context.Context, in FilterText) (FilteredText, error)
+}
+
 // NicknameTextFilterer 在全站唯一的内容过滤层里替换**昵称**并记一条关键词风险。
 type NicknameTextFilterer interface {
 	FilterNicknameText(ctx context.Context, in FilterText) (FilteredText, error)
@@ -55,15 +64,22 @@ type AbstractTextFilterer interface {
 // 只处理**非 nil** 的字段：nil 表示"这次不改"，替换成空串会把"不改"写成"清空"。
 // 失败方向是 fail-open（ADR-0032 决策 11）：过滤器报错或没装配时保留原文，
 // 用户照常保存资料 —— 审计层出问题不该演变成"改不了昵称"。
+// 昵称与用户名是**硬拒绝**：命中就返回错误、这次改名不落库（票 398）。
+//
+// 与简介不同：简介可以"替换后照存"（它是长文本，星号只损失一句话），而名字是
+// 身份标识 —— 存成 `**` 既难看又没告诉用户"你违规了"，他下次换个词继续试。
+// 拒绝才把成本压回给尝试者。
+//
+// 过滤服务本身报错时仍然 fail-open（放行 + 记日志）：审计层坏了不该演变成
+// "谁都不能改名"（ADR-0032 决策 11 的同一取向）。
 func (s *Service) filterProfile(
 	ctx context.Context, userID domain.UserID, update domain.ProfileUpdate,
-) domain.ProfileUpdate {
-	if update.Nickname != nil {
-		if masked, ok := s.filterOneProfileText(
-			ctx, userID, *update.Nickname, s.filterNickname,
-		); ok {
-			update.Nickname = &masked
-		}
+) (domain.ProfileUpdate, error) {
+	if err := s.rejectNameOnHit(ctx, userID, update.Username, "用户名", s.filterUsername); err != nil {
+		return update, err
+	}
+	if err := s.rejectNameOnHit(ctx, userID, update.Nickname, "昵称", s.filterNickname); err != nil {
+		return update, err
 	}
 	if update.Abstract != nil {
 		if masked, ok := s.filterOneProfileText(
@@ -72,7 +88,49 @@ func (s *Service) filterProfile(
 			update.Abstract = &masked
 		}
 	}
-	return update
+	return update, nil
+}
+
+// rejectNameOnHit 过滤一个"名字"字段：命中任何词就返回业务错误。
+//
+// 命中记录由过滤服务自己写（它拿到的是被打码的文本与命中词），所以后台仍然
+// 看得到"谁在什么时候试图改成什么"——拒绝不等于不记录。
+func (s *Service) rejectNameOnHit(
+	ctx context.Context,
+	userID domain.UserID,
+	text *string,
+	label string,
+	apply func(context.Context, FilterText) (FilteredText, bool, error),
+) error {
+	if text == nil || strings.TrimSpace(*text) == "" || apply == nil {
+		return nil
+	}
+	got, wired, err := apply(ctx, FilterText{
+		UserID:    userID,
+		ContentID: ctype.NewID(userID.Uint64()),
+		Text:      *text,
+	})
+	if !wired {
+		return nil
+	}
+	if err != nil {
+		s.logError("过滤用户资料失败，按原文保存: user=%s field=%s err=%v", userID.String(), label, err)
+		return nil
+	}
+	if got.FilteredCount > 0 {
+		return apperr.NewWithMessage(apperr.CodeProfileNameBlocked,
+			label+"里包含不允许的内容，请换一个")
+	}
+	return nil
+}
+
+// filterUsername 是用户名面的过滤调用；未装配时返回 false（调用方放行）。
+func (s *Service) filterUsername(ctx context.Context, in FilterText) (FilteredText, bool, error) {
+	if s.usernameFilter == nil {
+		return FilteredText{}, false, nil
+	}
+	got, err := s.usernameFilter.FilterUsernameText(ctx, in)
+	return got, err == nil, err
 }
 
 // filterNickname 是昵称面的过滤调用；未装配时返回 false（调用方保留原文）。

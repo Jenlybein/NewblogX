@@ -7,6 +7,7 @@ package qiniu
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"myblogx/internal/apperr"
 	"net/http"
@@ -141,8 +142,35 @@ func (s *Storage) Stat(bucket, key string) (ObjectInfo, error) {
 }
 
 // Delete 删除对象。
+// Delete 删除对象。
+//
+// 语义是**幂等**的：目标状态是"对象不存在"，所以"本来就不存在"也算成功。
+//
+// 不吞掉 612（no such file）会留下一条永远删不掉的记录：图片被判违规时
+// `audit_auto_delete_block` 已经删过一次对象，运营再点「删除」就每次都失败 ——
+// 2026-11-25 生产上的表现是后台点删除"没反应"（前端吞了 code 非 0 的响应），
+// 而 DB 里那条 block 行再也清不掉，CDN 上其实早就没有这个文件了。
 func (s *Storage) Delete(bucket, key string) error {
-	return getRuntime(s.cfg).bucketMgr.Delete(bucket, key)
+	err := getRuntime(s.cfg).bucketMgr.Delete(bucket, key)
+	if isNoSuchFile(err) {
+		return nil
+	}
+	return err
+}
+
+// isNoSuchFile 判断七牛错误是不是"东西已经不存在了"。
+//
+// 612 = no such file or directory；631 = no such bucket（桶都没了，对象自然也没了）。
+// 两个都按"目标状态已达成"处理。SDK 有些路径只回字符串，所以留一条文案兜底。
+func isNoSuchFile(err error) bool {
+	if err == nil {
+		return false
+	}
+	var info *storage.ErrorInfo
+	if errors.As(err, &info) {
+		return info.Code == 612 || info.Code == 631
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "no such file")
 }
 
 // mediaBase 返回规范化后的资源访问域名：始终带 https:// 协议头。

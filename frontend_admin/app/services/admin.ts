@@ -779,6 +779,11 @@ export function getContentFilterHits(query: {
   surface?: string
   status?: string
   user_id?: string
+  /** 命中词（子串）。 */
+  word?: string
+  /** 命中时间范围（YYYY-MM-DD，右边界含当天）。 */
+  start_at?: string
+  end_at?: string
 }) {
   return api().request<ContentFilterHitListData>('/content-filter/hits', { query })
 }
@@ -860,6 +865,7 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+
 
 
 

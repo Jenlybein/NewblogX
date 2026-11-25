@@ -2980,11 +2980,17 @@ export interface paths {
                     /** @description 每页条数 */
                     limit?: number;
                     /** @description 文本面 */
-                    surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+                    surface?: "article" | "comment" | "nickname" | "username" | "abstract" | "chat" | "collection";
                     /** @description 处理状态 */
                     status?: "pending" | "ignored" | "deleted" | "account";
                     /** @description 用户 ID */
                     user_id?: string;
+                    /** @description 命中词（子串） */
+                    word?: string;
+                    /** @description 命中时间起（YYYY-MM-DD 或 RFC3339） */
+                    start_at?: string;
+                    /** @description 命中时间止（YYYY-MM-DD，含当天） */
+                    end_at?: string;
                 };
                 header?: never;
                 path?: never;
@@ -9185,7 +9191,7 @@ export interface components {
             /** @enum {string} */
             status?: "pending" | "ignored" | "deleted" | "account";
             /** @enum {string} */
-            surface?: "article" | "comment" | "nickname" | "abstract" | "chat" | "collection";
+            surface?: "article" | "comment" | "nickname" | "username" | "abstract" | "chat" | "collection";
             user_id?: string;
             /** @description UserNickname 是读面现查的展示名，不落库（昵称会变）。 */
             user_nickname?: string;

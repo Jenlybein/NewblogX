@@ -9319,7 +9319,13 @@ export interface components {
             width?: number;
         };
         "internal_media_adapter_http.RemoveRequest": {
-            id_list: number[];
+            /**
+             * @description IDList 用 ctype.ID 而不是 uint64：图片 ID 是雪花 ID（3.8e17 量级），
+             *     超过 JS 的 2^53，前端只能按字符串传；写成 []uint64 会让 JSON 绑定直接失败，
+             *     而这条错误被前端吞成"参数错误"——2026-11-25 的"删除没反应"就是这么来的。
+             *     ADR-0007：ID 在协议上一律是字符串。
+             */
+            id_list: string[];
         };
         "internal_media_adapter_http.StyleProbeItem": {
             error?: string;

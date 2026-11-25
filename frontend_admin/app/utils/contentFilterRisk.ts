@@ -33,6 +33,7 @@ const SURFACE_LABELS: Record<string, string> = {
   article: '文章',
   comment: '评论',
   nickname: '昵称',
+  username: '用户名',
   abstract: '简介',
   chat: '私信',
   collection: '合集',
@@ -161,4 +162,6 @@ export const CONTENT_FILTER_SURFACE_ACTIONS: Record<string, { deleteLabel: strin
   // 私信没有软删语义，也没有后台删除入口：delete 会被后端拒绝。
   chat: { deleteLabel: '删除消息', deletable: false },
 }
+
+
 

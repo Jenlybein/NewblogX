@@ -483,6 +483,21 @@ function mapAvatarUploadStage(stage: "hashing" | "creating_task" | "uploading_to
  * 相差 ≤1% → 自动居中定形成 256×256 PNG 并上传；相差 >1% → 只打开裁剪窗，
  * 不产出文件、不上传；取消即保留原头像。
  */
+/** 给一段异步流程加兜底超时：超时就抛错，避免界面被一个不回调的 Promise 锁死。 */
+async function withTimeout<T>(task: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function handleAvatarFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -500,7 +515,10 @@ async function handleAvatarFileChange(event: Event) {
   avatarUploading.pending = true;
   avatarUploading.stage = "正在检查图片比例…";
   try {
-    await avatarCropFlow.select(file);
+    // 量尺寸 / 定形 / 上传整条链走一次兜底超时：图片解码在个别文件上会永远不回调
+    // （2026-11-25 线上复现：选第二张图后界面停在"正在检查图片比例…"，按钮永久禁用，
+    //  再选也不会重新触发）。宁可报"超时请重试"，也不要把界面锁死。
+    await withTimeout(avatarCropFlow.select(file), 60_000, "头像处理超时，请换一张图重试");
   } catch (error) {
     avatarUploading.stage = "";
     message.error(errorMessage(error, "头像上传失败"));
@@ -1149,4 +1167,5 @@ useNoIndexPage();
       @cancel="cancelAvatarCrop" />
   </div>
 </template>
+
 

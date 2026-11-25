@@ -274,6 +274,18 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
 
   if (task.skip_upload) {
     if (!task.url) {
+      // 秒传命中的是"同一张图上次传过"，而它可能还在审核中（未过审不给地址）。
+      // 这与"秒传坏了"是两件事，提示必须分清，否则用户会以为上传功能出错。
+      const auditStatus = String(
+        (task as { audit_status?: string }).audit_status ?? "",
+      );
+      if (auditStatus === "pending" || auditStatus === "review") {
+        throw new UploadPendingAuditError(
+          auditStatus === "review"
+            ? "这张图之前已上传，正在人工审核（通过后才会生效）"
+            : "这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）",
+        );
+      }
       throw new Error("上传任务命中秒传，但未返回图片 URL");
     }
 
@@ -327,4 +339,5 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   };
 }
+
 

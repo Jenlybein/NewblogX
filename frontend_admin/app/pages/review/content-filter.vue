@@ -576,17 +576,20 @@ onMounted(refresh)
           <span class="text-xs muted">{{ hitWord.tier === 'block' ? '拦截词' : '观察词' }} · {{ hitWord.category }}</span>
         </NSpace>
         <div v-for="(snippet, i) in hitWord.snippets || []" :key="i" class="mt-1 text-xs muted">
-          …{{ snippet }}…
+          …{{ (snippet.text || '').slice(0, snippet.start ?? 0) }}<mark class="risk-hit">{{ (snippet.text || '').slice(snippet.start ?? 0, snippet.end ?? 0) }}</mark>{{ (snippet.text || '').slice(snippet.end ?? 0) }}…
         </div>
       </div>
     </NDrawerContent>
   </NDrawer>
 </template>
 
-
-
-
-
-
+<style scoped>
+/* 命中词在上下文里高亮：一眼看到打的是哪几个字，而不是自己数位置。 */
+.risk-hit {
+  background: var(--color-danger-soft);
+  color: inherit;
+  padding: 0 1px;
+}
+</style>
 
 

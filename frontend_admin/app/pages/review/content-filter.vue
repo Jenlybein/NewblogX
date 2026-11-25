@@ -586,9 +586,10 @@ onMounted(refresh)
 <style scoped>
 /* 命中词在上下文里高亮：一眼看到打的是哪几个字，而不是自己数位置。 */
 .risk-hit {
-  background: rgba(220, 38, 38, 0.22);
+  background: var(--color-danger-soft);
   color: inherit;
   padding: 0 1px;
   border-radius: 2px;
 }
 </style>
+

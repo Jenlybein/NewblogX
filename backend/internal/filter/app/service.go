@@ -130,6 +130,10 @@ func (s *Service) recordViolation(ctx context.Context, hit domain.Hit) {
 
 // ListInput 是风险页列表的输入。Surface / Status 为空表示不按该项筛。
 type ListInput struct {
+	// Word 按命中词筛选；StartAt / EndAt 是命中时间范围（nil 表示不限）。
+	Word    string
+	StartAt *time.Time
+	EndAt   *time.Time
 	Surface domain.Surface
 	Status  domain.Status
 	UserID  ctype.ID
@@ -158,6 +162,9 @@ func (s *Service) List(ctx context.Context, in ListInput) (ListResult, error) {
 		Surface: in.Surface,
 		Status:  in.Status,
 		UserID:  in.UserID,
+		Word:    in.Word,
+		StartAt: in.StartAt,
+		EndAt:   in.EndAt,
 		Page:    page,
 	})
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -355,6 +356,15 @@ func applyFilters(tx *gorm.DB, q domain.Query) *gorm.DB {
 	if !q.UserID.IsZero() {
 		tx = tx.Where("user_id = ?", q.UserID)
 	}
+	if word := strings.TrimSpace(q.Word); word != "" {
+		tx = tx.Where("word LIKE ?", "%"+word+"%")
+	}
+	if q.StartAt != nil {
+		tx = tx.Where("created_at >= ?", *q.StartAt)
+	}
+	if q.EndAt != nil {
+		tx = tx.Where("created_at < ?", *q.EndAt)
+	}
 	return tx
 }
 
@@ -454,4 +464,3 @@ func decodeWords(payload string) ([]domain.Word, error) {
 	}
 	return words, nil
 }
-

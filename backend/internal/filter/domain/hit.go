@@ -177,6 +177,11 @@ type Query struct {
 	Surface Surface
 	Status  Status
 	UserID  ctype.ID
+	// Word 按命中词筛选（子串匹配）。运营排查"某个词到底打到谁"时用。
+	Word string
+	// StartAt / EndAt 是命中时间范围（nil 表示不限）。
+	StartAt *time.Time
+	EndAt   *time.Time
 	Page    Page
 }
 

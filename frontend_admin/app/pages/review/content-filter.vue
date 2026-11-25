@@ -10,7 +10,7 @@
  * 账号动作不删内容：内容早已被替换成 `*` 并发布，处罚对象是账号（封禁 / 禁言）。
  */
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NEmpty, NInput, NInputNumber, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDatePicker, NEmpty, NInput, NInputNumber, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
 import { getContentFilterHits, handleContentFilterHit, handleContentFilterHits } from '~/services/admin'
 import type { ContentFilterHitItem, ContentFilterHitSnippet, ContentFilterTopUser } from '~/types/api'
 import {
@@ -41,6 +41,16 @@ const surface = ref<string | null>(null)
 // 默认只看待处理：风险页的第一用途是"把没看过的看一遍"。
 const status = ref<string | null>('pending')
 const userId = ref('')
+// 命中词（子串）与命中时间范围：排查"某个词打到了谁""那几天发生过什么"。
+const word = ref('')
+const dateRange = ref<[number, number] | null>(null)
+
+/** 毫秒时间戳 → 后端要的 `YYYY-MM-DD`（右边界含当天，由后端 +1 天处理）。 */
+function toDay(ms: number): string {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
 const rows = ref<ContentFilterHitItem[]>([])
 const topUsers = ref<ContentFilterTopUser[]>([])
 // 批量处置要的选中集合：naive-ui 的 NDataTable 用 checkedRowKeys 回传。
@@ -126,6 +136,26 @@ const columns = [
       }),
   },
   { title: '命中处数', key: 'hit_count', width: 95 },
+  {
+    // 处置结果：昵称与用户名是**命中即拒绝**（补丁六），写都没写进去，所以这里
+    // 显示"已拒绝"；其余面是"打星后照存"，显示"已替换"。两句话的差别正是运营
+    // 判断"要不要找这个人"的依据 —— 拒绝说明他在试探，替换说明内容已经在库里了。
+    title: '处置结果',
+    key: 'disposal',
+    width: 130,
+    render: (row: ContentFilterHitItem) =>
+      h(
+        NTag,
+        {
+          size: 'small',
+          bordered: false,
+          type: row.surface === 'nickname' || row.surface === 'username' ? 'error' : 'default',
+        },
+        {
+          default: () => (row.surface === 'nickname' || row.surface === 'username' ? '已拒绝写入' : '已替换'),
+        },
+      ),
+  },
   {
     // 处置动作（票 398 / 399）：待处理的行才给按钮；已处置的行显示处理痕迹。
     // 二次确认放在按钮里（NPopconfirm）—— 删除不可逆、封禁/禁言是账号级处罚。
@@ -282,6 +312,9 @@ async function refresh() {
       surface: surface.value || undefined,
       status: status.value || undefined,
       user_id: userId.value.trim() || undefined,
+      word: word.value.trim() || undefined,
+      start_at: dateRange.value ? toDay(dateRange.value[0]) : undefined,
+      end_at: dateRange.value ? toDay(dateRange.value[1]) : undefined,
     })
     rows.value = data.list
     topUsers.value = data.top_users
@@ -302,12 +335,14 @@ function resetFilters() {
   surface.value = null
   status.value = 'pending'
   userId.value = ''
+  word.value = ''
+  dateRange.value = null
   page.value = 1
 }
 
 // 翻页只重取；改筛选回到第一页（否则会停在一个空页上）。
 watch([page, limit], refresh)
-watch([surface, status, userId], () => {
+watch([surface, status, userId, word, dateRange], () => {
   if (page.value !== 1) {
     page.value = 1
     return
@@ -351,6 +386,8 @@ onMounted(refresh)
           placeholder="全部状态"
           class="w-full md:w-48" />
         <NInput v-model:value="userId" placeholder="按用户 ID 筛选" class="w-full md:w-44" />
+        <NInput v-model:value="word" placeholder="按命中词筛选" clearable class="w-full md:w-40" data-role="risk-word" />
+        <NDatePicker v-model:value="dateRange" type="daterange" clearable data-role="risk-date-range" />
         <NButton secondary @click="resetFilters">重置筛选</NButton>
         <NButton secondary :loading="loading" @click="refresh">刷新</NButton>
       </div>
@@ -433,6 +470,7 @@ onMounted(refresh)
     </p>
   </NSpace>
 </template>
+
 
 
 

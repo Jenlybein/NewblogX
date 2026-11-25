@@ -58,6 +58,7 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
+  { label: '图片审核', path: '/review/images', icon: 'shield' },
   { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
   { label: '文章列表', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
@@ -660,6 +661,7 @@ describe('pageFileCandidates', () => {
     expect(pageFileCandidates('logs/dead-letter')).toEqual(['logs/dead-letter', 'logs/dead-letter/index'])
   })
 })
+
 
 
 

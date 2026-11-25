@@ -78,6 +78,10 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     icon: 'shield',
     children: [
       { label: '文章审核', path: '/review', icon: 'shield' },
+      // 图片审核（ADR-0034）：待审队列与图片资源库是两件事 —— 资源库只列已过审的
+      // 成品图，审核要处理的是 pending / review。混在一页会让运营分不清"该处理的"
+      // 和"已经能用的"。
+      { label: '图片审核', path: '/review/images', icon: 'shield' },
       { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
     ],
   },
@@ -133,6 +137,7 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     icon: 'photo',
     children: [
       { label: '轮播运营', path: '/media/banners', icon: 'photo' },
+      // 图片资源库只列**已过审**的图（未过审的去「审核 → 图片审核」处理）。
       { label: '图片资源库', path: '/media/images', icon: 'photo' },
     ],
   },
@@ -535,4 +540,5 @@ export function pageFileCandidates(path: string): string[] {
   }
   return [trimmed, `${trimmed}/index`]
 }
+
 

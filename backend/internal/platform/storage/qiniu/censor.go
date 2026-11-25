@@ -22,7 +22,16 @@ const censorEndpoint = "https://ai.qiniuapi.com/v3/image/censor"
 //
 // 六类全开是站长的决定：涉黄、暴恐、敏感人物、广告、不良场景、异常检测。
 // 少开一类就意味着那一类的违规只能靠人眼发现。
-var censorScenes = []string{"porn", "terror", "politician", "ad", "behaviour", "abnormal"}
+// 场景名必须用七牛**文档里的 code**，不是中文名的直译：
+//
+//	pulp 鉴黄 / terror 鉴暴恐 / politician 敏感人物 / ads 广告 /
+//	behavior 不良场景 / abnormal 异常检测
+//
+// 这里踩过两次：`porn` 应为 `pulp`，`ad` 应为 `ads`，`behaviour` 是英式拼写、
+// 七牛用美式 `behavior`。名字写错时接口回的是 **400 invalid scenes: xxx**，
+// 而不是"忽略这一类"——整次审核作废、图停在待审核，看起来跟"审核坏了"没区别。
+// 参考：https://developer.qiniu.com/censor/7299/censor-params
+var censorScenes = []string{"pulp", "terror", "politician", "ads", "behavior", "abnormal"}
 
 // CensorResult 是一次内容审核的结论。
 type CensorResult struct {

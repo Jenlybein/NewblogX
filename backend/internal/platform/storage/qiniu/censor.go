@@ -25,13 +25,15 @@ const censorEndpoint = "https://ai.qiniuapi.com/v3/image/censor"
 // 场景名必须用七牛**文档里的 code**，不是中文名的直译：
 //
 //	pulp 鉴黄 / terror 鉴暴恐 / politician 敏感人物 / ads 广告 /
-//	behavior 不良场景 / abnormal 异常检测
+//	behavior 不良场景
 //
-// 这里踩过两次：`porn` 应为 `pulp`，`ad` 应为 `ads`，`behaviour` 是英式拼写、
+// 踩过三次，每次都只报第一个非法值：`porn`→`pulp`、`ad`→`ads`、`behaviour`→`behavior`
+// （英式拼写不认）。最后一个是**根本不存在**：控制台的"异常检测"是控制台能力，
+// API 只有这五类，写 `abnormal` 直接 `400 invalid scenes: abnormal`。
 // 七牛用美式 `behavior`。名字写错时接口回的是 **400 invalid scenes: xxx**，
 // 而不是"忽略这一类"——整次审核作废、图停在待审核，看起来跟"审核坏了"没区别。
 // 参考：https://developer.qiniu.com/censor/7299/censor-params
-var censorScenes = []string{"pulp", "terror", "politician", "ads", "behavior", "abnormal"}
+var censorScenes = []string{"pulp", "terror", "politician", "ads", "behavior"}
 
 // CensorResult 是一次内容审核的结论。
 type CensorResult struct {

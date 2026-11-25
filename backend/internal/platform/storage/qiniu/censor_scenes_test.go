@@ -14,7 +14,7 @@ import (
 func TestCensorScenesUseQiniuCodes(t *testing.T) {
 	t.Parallel()
 
-	want := []string{"pulp", "terror", "politician", "ads", "behavior", "abnormal"}
+	want := []string{"pulp", "terror", "politician", "ads", "behavior"}
 	if !reflect.DeepEqual(censorScenes, want) {
 		t.Fatalf("审核场景 code 不对：\n want=%v\n  got=%v", want, censorScenes)
 	}

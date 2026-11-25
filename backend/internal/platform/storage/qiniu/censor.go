@@ -73,15 +73,27 @@ func (s *Storage) CensorImage(ctx context.Context, bucket, objectKey string) (Ce
 		return CensorResult{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, censorEndpoint, bytes.NewReader(body))
+	endpoint := censorEndpoint
+	if s.censorEndpoint != "" {
+		endpoint = s.censorEndpoint
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return CensorResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	// 用同一套 AK/SK 签请求：七牛的签名算法与上传/管理接口一致。
-	if _, err := getRuntime(s.cfg).mac.SignRequest(req); err != nil {
+	// 签名必须用 **Qiniu** 前缀的令牌，不能用 QBox。
+	//
+	// 七牛有两套管理令牌：`QBox <ak:sign>`（老管理 API）与 `Qiniu <ak:sign>`（新版，
+	// 内容审核、AI 服务只认这个）。SDK 的 `SignRequest` 生成的是 QBox 那套，
+	// 打到 ai.qiniuapi.com 会一路回 `status=401 code=401 msg=bad token` ——
+	// 而失败又被"保持待审核"吞掉，表现就是"图永远卡在待审核"（2026-11-25 线上）。
+	// 这里改用 `SignRequestV2`（= Qiniu 前缀）并把前缀显式写出来。
+	token, err := getRuntime(s.cfg).mac.SignRequestV2(req)
+	if err != nil {
 		return CensorResult{}, err
 	}
+	req.Header.Set("Authorization", "Qiniu "+token)
 
 	resp, err := getRuntime(s.cfg).httpClient.Do(req)
 	if err != nil {

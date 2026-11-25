@@ -217,6 +217,19 @@ async function uploadToQiniu(params: {
   }
 }
 
+/**
+ * 上传成功但图片还在审核中的专用错误。
+ *
+ * 调用方据此给"审核中"的提示，而不是"上传失败" —— 图确实传上去了，
+ * 只是未过审的图拿不到地址（ADR-0034）。审核通过后重新上传同一张图会命中秒传。
+ */
+export class UploadPendingAuditError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadPendingAuditError";
+  }
+}
+
 async function waitUploadReady(
   uploadId: string,
   options: Pick<UploadImageByTaskOptions, "pollIntervalMs" | "pollTimeoutMs" | "signal">,
@@ -288,7 +301,20 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
 
   options.onStage?.("polling_status");
   const status = await waitUploadReady(task.upload_id, options);
+  // 审核中的图**没有地址**是设计如此：未过审的图不给 URL（ADR-0034 的
+  // "不给地址"）。但把它当失败报出来是错的 —— 图已经传上去了、也进了审核队列，
+  // 只是还没结论。所以这里抛一个能被调用方识别的错误，文案说清"在审核"。
   if (!status.url) {
+    const auditStatus = String(
+      (status as { audit_status?: string }).audit_status ?? "",
+    );
+    if (auditStatus === "pending" || auditStatus === "review") {
+      throw new UploadPendingAuditError(
+        auditStatus === "review"
+          ? "图片已上传，正在人工审核（通过后才会生效）"
+          : "图片已上传，正在机器审核（通常几秒，通过后自动生效）",
+      );
+    }
     throw new Error("上传任务已就绪，但未返回图片 URL");
   }
 
@@ -301,3 +327,4 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   };
 }
+

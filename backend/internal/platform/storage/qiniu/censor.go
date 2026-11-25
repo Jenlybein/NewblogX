@@ -76,7 +76,10 @@ func (s *Storage) CensorImage(ctx context.Context, bucket, objectKey string) (Ce
 	}
 
 	payload := censorRequest{
-		Data:   censorData{URI: bucket + ":" + objectKey},
+		// uri 用七牛的 qiniu 协议：`qiniu:///<bucket>/<key>`。
+		// 写成 `bucket:key`（旧控制台风格）会被拒成 `400 not support`。
+		// 参考：https://developer.qiniu.com/censor/7299/censor-params
+		Data:   censorData{URI: "qiniu:///" + bucket + "/" + objectKey},
 		Params: censorParams{Scenes: censorScenes},
 	}
 	body, err := json.Marshal(payload)

@@ -26,10 +26,11 @@ import {
  */
 
 describe('文本面与状态的中文映射', () => {
-  it('六个文本面都有中文；未知值原样返回（宁可露 code 也不猜）', () => {
+  it('七个文本面都有中文；未知值原样返回（宁可露 code 也不猜）', () => {
     expect(contentFilterSurfaceLabel('article')).toBe('文章')
     expect(contentFilterSurfaceLabel('comment')).toBe('评论')
     expect(contentFilterSurfaceLabel('nickname')).toBe('昵称')
+    expect(contentFilterSurfaceLabel('username')).toBe('用户名')
     expect(contentFilterSurfaceLabel('abstract')).toBe('简介')
     expect(contentFilterSurfaceLabel('chat')).toBe('私信')
     expect(contentFilterSurfaceLabel('collection')).toBe('合集')
@@ -147,9 +148,9 @@ describe('处置动作（票 398 / 399）', () => {
 })
 
 describe('筛选项清单', () => {
-  it('文本面筛选项覆盖六个面，且与映射表同源', () => {
+  it('文本面筛选项覆盖七个面，且与映射表同源', () => {
     expect(CONTENT_FILTER_SURFACE_OPTIONS.map(option => option.value))
-      .toEqual(['article', 'comment', 'nickname', 'abstract', 'chat', 'collection'])
+      .toEqual(['article', 'comment', 'nickname', 'username', 'abstract', 'chat', 'collection'])
     for (const option of CONTENT_FILTER_SURFACE_OPTIONS) {
       expect(option.label).toBe(contentFilterSurfaceLabel(option.value))
     }
@@ -163,5 +164,6 @@ describe('筛选项清单', () => {
     }
   })
 })
+
 
 

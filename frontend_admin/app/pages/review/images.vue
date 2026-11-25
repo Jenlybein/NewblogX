@@ -8,7 +8,7 @@
 // 放行 = 通过并在存储侧解禁；驳回 = 判定违规并删除存储对象（**不可逆**）。
 // 业务失败在协议里是 HTTP 200 + code 非 0，所以每条动作都必须 catch 并给红色提示，
 // 否则确认框既不关闭也不提示，看起来就是"点了没反应"（2026-11-25 踩过）。
-import { NButton, NCard, NDataTable, NInput, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NInput, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 
 import { auditImage, deleteImages, getImages } from '~/services/admin'
 import type { ImageListItem } from '~/types/api'
@@ -25,6 +25,14 @@ const hasMore = ref(false)
 const total = ref(0)
 const images = ref<ImageListItem[]>([])
 const keyword = ref('')
+// 队列范围：待处理（pending + review）是默认；「已驳回」是为了能回看、也能删掉那条
+// block 行 —— 判违规时对象已经被删了，行却还留在库里，不给入口就永远清不掉
+// （2026-11-25 那句"删除没反应"，点的就是这种状态下的行）。
+const queue = ref<'open' | 'blocked'>('open')
+const queueOptions = [
+  { label: '待处理（待审核 + 疑似）', value: 'open' },
+  { label: '已驳回（违规）', value: 'blocked' },
+]
 
 /** 状态配色：待审黄、疑似红（不可展示的图要一眼看到）。 */
 function statusTagType(status: string) {
@@ -93,7 +101,7 @@ async function refresh() {
       page: page.value,
       limit: PAGE_SIZE,
       // 待审队列 = 还没结论 + 超时转人工。一条查询拿两种状态（后端支持逗号分隔）。
-      status: 'pending,review',
+      status: queue.value === 'open' ? 'pending,review' : 'block',
       key: keyword.value.trim() || undefined,
     })
     images.value = data.list || []
@@ -150,7 +158,7 @@ function removeImage(row: ImageListItem) {
   })
 }
 
-watch(keyword, () => {
+watch([keyword, queue], () => {
   page.value = 1
   void refresh()
 })
@@ -163,13 +171,14 @@ onMounted(() => {
 <template>
   <NCard class="admin-card" title="图片审核">
     <NSpace class="mb-4" align="center">
+      <NSelect v-model:value="queue" :options="queueOptions" class="w-56" data-role="image-audit-queue" />
       <NInput
         v-model:value="keyword"
         placeholder="搜文件名或对象 key"
         clearable
         class="admin-field--select"
         data-role="image-audit-search" />
-      <span class="text-sm opacity-70">待处理 {{ total }} 张（待审核 + 疑似违规）</span>
+      <span class="text-sm opacity-70">{{ queue === 'open' ? '待处理' : '已驳回' }} {{ total }} 张</span>
     </NSpace>
     <NDataTable :columns="columns" :data="images" :loading="loading" :bordered="false" />
     <div class="mt-4 flex justify-end gap-2">
@@ -182,3 +191,5 @@ onMounted(() => {
     </div>
   </NCard>
 </template>
+
+

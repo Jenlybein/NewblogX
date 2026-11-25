@@ -247,6 +247,20 @@ async function waitUploadReady(
   throw new Error('图片上传确认超时，请稍后重试')
 }
 
+/**
+ * 上传成功、但图片还在审核中。
+ *
+ * 后台也有上传入口（轮播封面、合集封面），审核链与读者站是同一条：
+ * 未过审的图**拿不到地址**（ADR-0034），所以这里必须区分"审核中"和"真失败"，
+ * 否则管理员看到的是"上传任务已就绪，但未返回图片 URL"，以为功能坏了。
+ */
+export class UploadPendingAuditError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UploadPendingAuditError'
+  }
+}
+
 export async function uploadImageByTask(file: File, options: UploadImageByTaskOptions = {}): Promise<UploadImageByTaskResult> {
   options.onStage?.('hashing')
   const hash = await computeQetag(file)
@@ -263,6 +277,16 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
 
   if (task.skip_upload) {
     if (!task.url) {
+      // 秒传命中的是"同一张图上次传过"，它可能还在审核中（未过审不给地址，ADR-0034）。
+      // 这不是故障，提示要说清是哪一种，否则管理员会以为上传坏了。
+      const skipAuditStatus = String((task as { audit_status?: string }).audit_status ?? '')
+      if (skipAuditStatus === 'pending' || skipAuditStatus === 'review') {
+        throw new UploadPendingAuditError(
+          skipAuditStatus === 'review'
+            ? '这张图之前已上传，正在人工审核（通过后才会生效）'
+            : '这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）',
+        )
+      }
       throw new Error('上传任务命中秒传，但未返回图片 URL')
     }
 
@@ -291,6 +315,15 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
   options.onStage?.('polling_status')
   const status = await waitUploadReady(task.upload_id, options)
   if (!status.url) {
+    // 未过审的图没有地址是设计如此（未过审不给 URL），但把它当失败报是错的。
+    const auditStatus = String((status as { audit_status?: string }).audit_status ?? '')
+    if (auditStatus === 'pending' || auditStatus === 'review') {
+      throw new UploadPendingAuditError(
+        auditStatus === 'review'
+          ? '图片已上传，正在人工审核（通过后才会生效）'
+          : '图片已上传，正在机器审核（通常几秒，通过后自动生效）',
+      )
+    }
     throw new Error('上传任务已就绪，但未返回图片 URL')
   }
 
@@ -303,3 +336,4 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   }
 }
+

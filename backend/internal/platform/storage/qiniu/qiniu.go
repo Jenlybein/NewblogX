@@ -56,6 +56,9 @@ type ImageInfo struct {
 // Storage 是七牛客户端。
 type Storage struct {
 	cfg conf.QiNiu
+	// censorEndpoint 留空时用 censorEndpoint 常量；测试里指向本地服务器，
+	// 这样能只验证签名而不碰真七牛。
+	censorEndpoint string
 }
 
 // New 构造七牛客户端。

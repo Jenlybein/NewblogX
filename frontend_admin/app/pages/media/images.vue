@@ -147,13 +147,20 @@ async function refreshImages() {
  * 人工审核一张图：放行（→ 通过并在存储侧解禁）或驳回（→ 违规并删对象）。
  *
  * 驳回是不可逆的，所以走二次确认；放行只改状态，直接执行。
+ *
+ * 两条路径都必须 catch：业务失败在协议里是 **HTTP 200 + code 非 0**，不 catch 的话
+ * naive-ui 的确认框会一直停在那里、也不弹任何提示，看起来就是"点了没反应"。
  */
 function handleAudit(row: ImageListItem, action: 'approve' | 'reject') {
   if (!row.id) return
   const run = async () => {
-    await auditImage(String(row.id), action)
-    message.success(action === 'approve' ? '已放行' : '已驳回')
-    await refreshImages()
+    try {
+      await auditImage(String(row.id), action)
+      message.success(action === 'approve' ? '已放行' : '已驳回')
+      await refreshImages()
+    } catch (error) {
+      message.error(`${action === 'approve' ? '放行' : '驳回'}失败：${(error as Error).message}`)
+    }
   }
   if (action === 'approve') {
     void run()
@@ -161,22 +168,34 @@ function handleAudit(row: ImageListItem, action: 'approve' | 'reject') {
   }
   dialog.warning({
     title: '驳回图片',
-    content: '驳回后该图会被判定违规并删除存储里的文件，无法恢复。确定吗？',
+    content: `驳回后「${row.file_name || row.id}」会被判定违规并删除存储里的文件，无法恢复。确定吗？`,
     positiveText: '驳回',
     negativeText: '取消',
     onPositiveClick: run,
   })
 }
 
-function removeImage(row: ImageListItem) {  if (!row.id) return
+/**
+ * 删除一张图。
+ *
+ * 后端按"先删对象、再清记账本与行"的顺序执行；对象已经不存在时按成功处理
+ * （审核判违规时对象已被删过一次）。这里仍然要 catch：其它失败（权限、网络、
+ * 存储异常）必须以红色提示落地，不能让确认框静默卡住。
+ */
+function removeImage(row: ImageListItem) {
+  if (!row.id) return
   dialog.warning({
     title: '删除图片',
-    content: String(row.id),
+    content: `将从存储与图片库中删除「${row.file_name || row.object_key || row.id}」。若它被文章当封面或正文引用，文章里会显示为破图。确定吗？`,
     positiveText: '删除',
     negativeText: '取消',
     async onPositiveClick() {
-      await deleteImages([String(row.id)])
-      message.success('图片已删除')
+      try {
+        await deleteImages([String(row.id)])
+        message.success('图片已删除')
+      } catch (error) {
+        message.error(`删除失败：${(error as Error).message}`)
+      }
       await refreshImages()
     },
   })

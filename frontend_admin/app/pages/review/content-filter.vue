@@ -10,7 +10,7 @@
  * 账号动作不删内容：内容早已被替换成 `*` 并发布，处罚对象是账号（封禁 / 禁言）。
  */
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NDatePicker, NEmpty, NInput, NInputNumber, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDatePicker, NDescriptions, NDescriptionsItem, NDrawer, NDrawerContent, NEmpty, NInput, NInputNumber, NPopconfirm, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
 import { getContentFilterHits, handleContentFilterHit, handleContentFilterHits } from '~/services/admin'
 import type { ContentFilterHitItem, ContentFilterHitSnippet, ContentFilterTopUser } from '~/types/api'
 import {
@@ -52,6 +52,38 @@ function toDay(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 const rows = ref<ContentFilterHitItem[]>([])
+// 详情抽屉：一行命中的全部信息（命中词明细、上下文、处置痕迹、关联内容入口）。
+// 列表里只放得下摘要，处置时最需要的是"这条到底打在哪、上下文长什么样"。
+const detailRow = ref<ContentFilterHitItem | null>(null)
+const detailOpen = ref(false)
+
+function openDetail(row: ContentFilterHitItem) {
+  detailRow.value = row
+  detailOpen.value = true
+}
+
+/**
+ * 关联内容入口：按文本面拼到读者站的具体页面。
+ *
+ * 只给**确有其页**的面：文章 / 合集 / 用户名下的用户主页。评论与私信没有独立
+ * 页面，硬拼一个只会 404，所以返回 null（抽屉里仍然显示内容 ID）。
+ */
+function contentLink(row: ContentFilterHitItem): { label: string, href: string } | null {
+  const id = String(row.content_id || '')
+  if (!id) return null
+  switch (row.surface) {
+    case 'article':
+      return { label: '打开文章', href: `/article/${id}` }
+    case 'collection':
+      return { label: '打开合集', href: `/collections/${id}` }
+    case 'nickname':
+    case 'username':
+    case 'abstract':
+      return { label: '打开用户主页', href: `/users/${String(row.user_id || '')}` }
+    default:
+      return null
+  }
+}
 const topUsers = ref<ContentFilterTopUser[]>([])
 // 批量处置要的选中集合：naive-ui 的 NDataTable 用 checkedRowKeys 回传。
 const checkedKeys = ref<string[]>([])
@@ -221,6 +253,18 @@ const columns = [
         ],
       })
     },
+  },
+  {
+    // 详情独立成列而不是"点行打开"：这一页有勾选框（批量处置），点行会与勾选冲突。
+    title: '详情',
+    key: 'detail',
+    width: 90,
+    render: (row: ContentFilterHitItem) =>
+      h(
+        NButton,
+        { size: 'tiny', quaternary: true, onClick: () => openDetail(row) },
+        { default: () => '查看' },
+      ),
   },
 ]
 
@@ -469,7 +513,77 @@ onMounted(refresh)
       不会自动恢复）；禁言只拦发布类动作，到期自动恢复，也可在账号管理页提前解除。命中词与上下文不外泄到任何公开端点。
     </p>
   </NSpace>
+
+  <!-- 详情抽屉：把"这条命中到底打在什么上下文、后来怎么处置的"一次说清。 -->
+  <NDrawer v-model:show="detailOpen" placement="right" :width="520">
+    <NDrawerContent v-if="detailRow" title="命中详情" closable>
+      <NDescriptions :column="1" label-placement="left" bordered size="small">
+        <NDescriptionsItem label="时间">
+          {{ formatDateTime(String(detailRow.created_at || '')) }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="文本面">
+          {{ contentFilterSurfaceLabel(detailRow.surface) }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="用户">
+          {{ detailRow.user_nickname || '（无昵称）' }} · {{ detailRow.user_id }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="内容 ID">
+          {{ detailRow.content_id || '-' }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="命中处数">
+          {{ detailRow.hit_count }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="状态">
+          {{ contentFilterStatusLabel(detailRow.status) }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="处置结果">
+          {{ detailRow.surface === 'nickname' || detailRow.surface === 'username' ? '改名被拒（未写入）' : '文本已打星入库' }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="处置痕迹">
+          <template v-if="detailRow.handled_at">
+            {{ detailRow.handler_id ? `管理员 ${shortId(detailRow.handler_id)}` : '已处置' }}
+            · {{ formatDateTime(String(detailRow.handled_at)) }}
+            <template v-if="detailRow.note">
+              ：{{ detailRow.note }}
+            </template>
+          </template>
+          <template v-else>
+            未处置
+          </template>
+        </NDescriptionsItem>
+      </NDescriptions>
+
+      <NSpace class="mt-4" :size="8" align="center">
+        <a
+          v-if="contentLink(detailRow)"
+          :href="contentLink(detailRow)!.href"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-sm">
+          {{ contentLink(detailRow)!.label }} ↗
+        </a>
+        <span v-else class="text-xs muted">该文本面没有独立页面（评论 / 私信）</span>
+      </NSpace>
+
+      <h4 class="mt-4 mb-2">
+        命中词（{{ (detailRow.words || []).length }}）
+      </h4>
+      <div v-for="hitWord in detailRow.words || []" :key="hitWord.word" class="mb-3">
+        <NSpace :size="6" align="center">
+          <NTag size="small" :type="hitWord.tier === 'block' ? 'error' : 'warning'">
+            {{ hitWord.word }}
+          </NTag>
+          <span class="text-xs muted">{{ hitWord.tier === 'block' ? '拦截词' : '观察词' }} · {{ hitWord.category }}</span>
+        </NSpace>
+        <div v-for="(snippet, i) in hitWord.snippets || []" :key="i" class="mt-1 text-xs muted">
+          …{{ snippet }}…
+        </div>
+      </div>
+    </NDrawerContent>
+  </NDrawer>
 </template>
+
+
 
 
 

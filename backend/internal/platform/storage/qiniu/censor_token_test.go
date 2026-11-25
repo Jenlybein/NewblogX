@@ -1,6 +1,7 @@
 package qiniu
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,9 +22,11 @@ import (
 func TestCensorImageSignsWithQiniuToken(t *testing.T) {
 	t.Parallel()
 
-	var gotAuth string
+	var gotAuth, gotBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
+		raw, _ := io.ReadAll(r.Body)
+		gotBody = string(raw)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"code":200,"result":{"suggestion":"pass"}}`))
 	}))
@@ -45,5 +48,9 @@ func TestCensorImageSignsWithQiniuToken(t *testing.T) {
 	}
 	if !strings.HasPrefix(gotAuth, "Qiniu ") {
 		t.Fatalf("审核令牌前缀必须是 Qiniu（QBox 会被七牛拒成 bad token），实际: %q", gotAuth)
+	}
+	// uri 必须是 qiniu 协议：写成 `bucket:key` 会被拒成 400 not support。
+	if want := `"uri":"qiniu:///demo/images/a.png"`; !strings.Contains(gotBody, want) {
+		t.Fatalf("审核请求体里的 uri 形状不对，期望包含 %s，实际: %s", want, gotBody)
 	}
 }

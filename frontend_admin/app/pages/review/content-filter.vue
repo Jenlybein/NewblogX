@@ -589,7 +589,7 @@ onMounted(refresh)
   background: var(--color-danger-soft);
   color: inherit;
   padding: 0 1px;
-  border-radius: 2px;
 }
 </style>
+
 

@@ -152,8 +152,20 @@ func (r *Repo) List(ctx context.Context, q domain.Query) ([]domain.Image, int64,
 			like := "%" + key + "%"
 			tx = tx.Where("file_name LIKE ? OR object_key LIKE ?", like, like)
 		}
-		if q.Status != nil {
+		if len(q.Statuses) > 0 {
+			values := make([]uint, 0, len(q.Statuses))
+			for _, status := range q.Statuses {
+				values = append(values, uint(status))
+			}
+			tx = tx.Where("status IN ?", values)
+		} else if q.Status != nil {
 			tx = tx.Where("status = ?", uint(*q.Status))
+		}
+		if q.StartAt != nil {
+			tx = tx.Where("created_at >= ?", *q.StartAt)
+		}
+		if q.EndAt != nil {
+			tx = tx.Where("created_at < ?", *q.EndAt)
 		}
 		return tx
 	}

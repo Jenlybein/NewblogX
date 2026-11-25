@@ -499,7 +499,20 @@ export function deleteBanners(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/banners', { method: 'DELETE', body: { id_list } })
 }
 
-export function getImages(query: { page?: number; limit?: number; status?: string }) {
+/**
+ * 图片分页查询。
+ *
+ * `status` 支持**逗号分隔的多值**（待审队列一次拿 `pending,review`）；
+ * `start_at` / `end_at` 是创建时间范围（`YYYY-MM-DD`，右边界含当天）。
+ */
+export function getImages(query: {
+  page?: number
+  limit?: number
+  status?: string
+  key?: string
+  start_at?: string
+  end_at?: string
+}) {
   return api().request<ImageListResponseData>('/images', { query })
 }
 
@@ -847,6 +860,7 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+
 
 
 

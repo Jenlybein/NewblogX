@@ -161,8 +161,11 @@ type ListRequest struct {
 	Limit int    `form:"limit"`
 	Key   string `form:"key"`
 	// Status 按审核状态筛选：pending / review / pass / block / deleted / orphaned。
-	// 空串表示不筛。后台的「待审队列」用的就是 pending 与 review。
+	// 空串表示不筛；**支持逗号分隔多值**（待审队列要一次拿 pending,review）。
 	Status string `form:"status"`
+	// StartAt / EndAt 是创建时间范围（RFC3339 或 YYYY-MM-DD；EndAt 按"当天结束"算）。
+	StartAt string `form:"start_at"`
+	EndAt   string `form:"end_at"`
 }
 
 // StyleProbeRequest 样式探活请求。
@@ -508,14 +511,25 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	query := domain.Query{Page: req.Page, Limit: req.Limit, Key: req.Key}
-	if trimmed := strings.TrimSpace(req.Status); trimmed != "" {
+	for _, raw := range strings.Split(req.Status, ",") {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
 		status := domain.StatusFromSuggestion(trimmed)
 		if status == domain.StatusUnknown {
 			res.FailWithMsg("状态筛选值不存在（可选：pending / review / pass / block / deleted / orphaned）", c)
 			return
 		}
-		query.Status = &status
+		query.Statuses = append(query.Statuses, status)
 	}
+	if start, ok := parseDayBoundary(req.StartAt, false); ok {
+		query.StartAt = &start
+	}
+	if end, ok := parseDayBoundary(req.EndAt, true); ok {
+		query.EndAt = &end
+	}
+
 	images, total, err := h.svc.List(c.Request.Context(), query)
 	if err != nil {
 		res.FailWithError(err, c)
@@ -570,4 +584,26 @@ func (h *Handler) Remove(c *gin.Context) {
 		return
 	}
 	res.OkWithData(sprintfDelete(count), c)
+}
+
+// parseDayBoundary 把后台传的日期解析成时间边界。
+//
+// 接受两种写法：`YYYY-MM-DD`（按天）与 RFC3339（按时刻）。`end=true` 表示这是
+// 右边界，按**次日零点**算 —— 否则选"11-25"会漏掉 11-25 当天的图，运营会以为
+// 那天的图丢了。解析失败返回 false（当作没传，不报错：日期是可选筛选项）。
+func parseDayBoundary(raw string, end bool) (time.Time, bool) {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return time.Time{}, false
+	}
+	if day, err := time.ParseInLocation("2006-01-02", text, time.Local); err == nil {
+		if end {
+			return day.AddDate(0, 0, 1), true
+		}
+		return day, true
+	}
+	if at, err := time.Parse(time.RFC3339, text); err == nil {
+		return at, true
+	}
+	return time.Time{}, false
 }

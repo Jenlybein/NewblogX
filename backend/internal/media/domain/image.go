@@ -244,6 +244,12 @@ type Query struct {
 	Page  int
 	Limit int
 	Key   string
+	// Statuses 是**多状态**筛选（待审队列要同时看 pending 与 review）。
+	// 非空时优先于 Status。
+	Statuses []Status
+	// StartAt / EndAt 是创建时间范围（nil 表示不限）。后台按日期翻旧图用。
+	StartAt *time.Time
+	EndAt   *time.Time
 	// Status 按审核状态筛选（nil 表示不筛）。
 	//
 	// 后台最常用的两个筛法是"待审核 + 疑似"（待审队列）与"违规"（复核），

@@ -75,16 +75,22 @@ const columns = [
     key: 'actions',
     width: 220,
     render: (row: ImageListItem) => h('div', { class: 'flex gap-2' }, [
-      h(
-        NButton,
-        { size: 'small', tertiary: true, type: 'primary', disabled: !row.id, onClick: () => handleAudit(row, 'approve') },
-        { default: () => '放行' },
-      ),
-      h(
-        NButton,
-        { size: 'small', tertiary: true, type: 'warning', disabled: !row.id, onClick: () => handleAudit(row, 'reject') },
-        { default: () => '驳回' },
-      ),
+      // 已驳回（block）是终局状态：放行/驳回都会被后端拒绝，摆在这里只会又演一次
+      // "点了没反应"，所以这一档只留删除。
+      ...(queue.value === 'open'
+        ? [
+            h(
+              NButton,
+              { size: 'small', tertiary: true, type: 'primary', disabled: !row.id, onClick: () => handleAudit(row, 'approve') },
+              { default: () => '放行' },
+            ),
+            h(
+              NButton,
+              { size: 'small', tertiary: true, type: 'warning', disabled: !row.id, onClick: () => handleAudit(row, 'reject') },
+              { default: () => '驳回' },
+            ),
+          ]
+        : []),
       h(
         NButton,
         { size: 'small', tertiary: true, type: 'error', disabled: !row.id, onClick: () => removeImage(row) },
@@ -191,5 +197,6 @@ onMounted(() => {
     </div>
   </NCard>
 </template>
+
 
 

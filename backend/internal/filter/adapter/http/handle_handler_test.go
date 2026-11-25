@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	filterhttp "myblogx/internal/filter/adapter/http"
 	"myblogx/internal/apperr"
+	filterhttp "myblogx/internal/filter/adapter/http"
 	"myblogx/internal/filter/app"
 	"myblogx/internal/filter/domain"
 	"myblogx/internal/kernel/ctype"
@@ -52,7 +52,7 @@ func (d *handleDisposer) DeleteArticle(_ context.Context, _, id ctype.ID) error 
 	d.deleted = append(d.deleted, id)
 	return nil
 }
-func (d *handleDisposer) DeleteComment(_ context.Context, _, _ ctype.ID) error   { return nil }
+func (d *handleDisposer) DeleteComment(_ context.Context, _, _ ctype.ID) error    { return nil }
 func (d *handleDisposer) DeleteCollection(_ context.Context, _, _ ctype.ID) error { return nil }
 func (d *handleDisposer) ResetProfile(_ context.Context, _, _ ctype.ID, _ string) error {
 	return nil
@@ -209,8 +209,6 @@ func TestHandleBatchReturnsPerItemResults(t *testing.T) {
 		t.Fatalf("应返回逐条结果: %v", data)
 	}
 }
-
-
 
 // TestHandleHitMutePassesDaysAndMarksAccount 禁言动作：天数透传给账号端口，
 // 记录状态是「账号已处置」（票 399）。

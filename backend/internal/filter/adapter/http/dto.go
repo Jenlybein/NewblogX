@@ -14,9 +14,13 @@ import "myblogx/internal/kernel/ctype"
 type HitListRequest struct {
 	Page    int      `form:"page"`
 	Limit   int      `form:"limit"`
-	Surface string   `form:"surface" enums:"article,comment,nickname,abstract,chat,collection"`
+	Surface string   `form:"surface" enums:"article,comment,nickname,username,abstract,chat,collection"`
 	Status  string   `form:"status" enums:"pending,ignored,deleted,account"`
 	UserID  ctype.ID `form:"user_id"`
+	// Word 按命中词筛选；StartAt / EndAt 是命中时间范围（YYYY-MM-DD 或 RFC3339）。
+	Word    string `form:"word"`
+	StartAt string `form:"start_at"`
+	EndAt   string `form:"end_at"`
 }
 
 // HitSnippet 是一条命中的上下文片段。
@@ -41,7 +45,7 @@ type HitWord struct {
 type HitItem struct {
 	ID        ctype.ID `json:"id"`
 	CreatedAt string   `json:"created_at"`
-	Surface   string   `json:"surface" enums:"article,comment,nickname,abstract,chat,collection"`
+	Surface   string   `json:"surface" enums:"article,comment,nickname,username,abstract,chat,collection"`
 	ContentID ctype.ID `json:"content_id"`
 	UserID    ctype.ID `json:"user_id"`
 	// UserNickname 是读面现查的展示名，不落库（昵称会变）。
@@ -149,3 +153,4 @@ type WordStatsResponse struct {
 	Days  int            `json:"days"`
 	Items []WordStatItem `json:"items"`
 }
+

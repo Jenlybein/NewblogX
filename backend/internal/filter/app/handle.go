@@ -119,10 +119,10 @@ type BatchHandleInput struct {
 
 // BatchHandleItem 是批量处置里的一条结果。
 type BatchHandleItem struct {
-	ID            ctype.ID
-	Hit           domain.Hit
+	ID             ctype.ID
+	Hit            domain.Hit
 	AlreadyHandled bool
-	Err           error
+	Err            error
 }
 
 // BatchHandleResult 是批量处置的结果：**逐条结果**而不是"全成功 / 全失败"。
@@ -239,4 +239,3 @@ func normalizeAction(raw domain.Action) (domain.Action, error) {
 	}
 	return raw, nil
 }
-

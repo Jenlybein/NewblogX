@@ -3131,6 +3131,7 @@
                             "article",
                             "comment",
                             "nickname",
+                            "username",
                             "abstract",
                             "chat",
                             "collection"
@@ -12003,6 +12004,7 @@
                                 "article",
                                 "comment",
                                 "nickname",
+                                "username",
                                 "abstract",
                                 "chat",
                                 "collection"
@@ -12028,6 +12030,30 @@
                         "description": "用户 ID",
                         "in": "query",
                         "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "命中词（子串）",
+                        "in": "query",
+                        "name": "word",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "命中时间起（YYYY-MM-DD 或 RFC3339）",
+                        "in": "query",
+                        "name": "start_at",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "命中时间止（YYYY-MM-DD，含当天）",
+                        "in": "query",
+                        "name": "end_at",
                         "schema": {
                             "type": "string"
                         }

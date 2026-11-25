@@ -6,6 +6,8 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"strings"
+	"time"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/filter/app"
@@ -40,9 +42,12 @@ func NewHandler(svc *app.Service) *Handler {
 // @Security BearerAuth
 // @Param page query int false "页码"
 // @Param limit query int false "每页条数"
-// @Param surface query string false "文本面" Enums(article,comment,nickname,abstract,chat,collection)
+// @Param surface query string false "文本面" Enums(article,comment,nickname,username,abstract,chat,collection)
 // @Param status query string false "处理状态" Enums(pending,ignored,deleted,account)
 // @Param user_id query string false "用户 ID"
+// @Param word query string false "命中词（子串）"
+// @Param start_at query string false "命中时间起（YYYY-MM-DD 或 RFC3339）"
+// @Param end_at query string false "命中时间止（YYYY-MM-DD，含当天）"
 // @Success 200 {object} kernel.Envelope[HitListResponse]
 // @Router /content-filter/hits [get]
 func (h *Handler) ListHits(c *gin.Context) {
@@ -220,8 +225,15 @@ func bindListRequest(c *gin.Context) (app.ListInput, error) {
 	}
 	out := app.ListInput{
 		UserID: raw.UserID,
+		Word:   strings.TrimSpace(raw.Word),
 		Page:   raw.Page,
 		Limit:  raw.Limit,
+	}
+	if start, ok := parseDayBoundary(raw.StartAt, false); ok {
+		out.StartAt = &start
+	}
+	if end, ok := parseDayBoundary(raw.EndAt, true); ok {
+		out.EndAt = &end
 	}
 	if raw.Surface != "" {
 		surface, ok := domain.ParseSurface(raw.Surface)
@@ -300,3 +312,23 @@ func toHitItem(row domain.Hit) HitItem {
 // timeLayout 是后台列表统一的时间格式（与评论管理列表一致）。
 const timeLayout = "2006-01-02 15:04:05"
 
+// parseDayBoundary 把后台传的日期解析成时间边界（`YYYY-MM-DD` 或 RFC3339）。
+//
+// `end=true` 表示右边界，按**次日零点**算：否则选"11-25"会漏掉当天，看起来像丢数据。
+// 解析失败当作没传 —— 日期是可选筛选项，不该把整页挡在参数错误上。
+func parseDayBoundary(raw string, end bool) (time.Time, bool) {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return time.Time{}, false
+	}
+	if day, err := time.ParseInLocation("2006-01-02", text, time.Local); err == nil {
+		if end {
+			return day.AddDate(0, 0, 1), true
+		}
+		return day, true
+	}
+	if at, err := time.Parse(time.RFC3339, text); err == nil {
+		return at, true
+	}
+	return time.Time{}, false
+}

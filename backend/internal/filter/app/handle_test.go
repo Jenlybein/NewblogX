@@ -259,7 +259,6 @@ func TestHandleBatchRejectsEmptySelection(t *testing.T) {
 	}
 }
 
-
 // 六个文本面 → 处置方法 的分派（票 398）。
 //
 // 这张表是"面 → 删什么"的唯一事实：接错面会让管理员删掉另一种内容。

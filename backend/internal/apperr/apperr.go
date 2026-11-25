@@ -304,14 +304,16 @@ const (
 
 // 图片与对象存储。
 const (
-	CodeImageUnavailable      Code = "image.unavailable"
-	CodeImageUploadDisabled   Code = "image.upload_disabled"
-	CodeImageTaskNotFound     Code = "image.task_not_found"
-	CodeImageTaskFailed       Code = "image.task_failed"
-	CodeImageTaskProcessing   Code = "image.task_processing"
-	CodeImageInvalid          Code = "image.invalid"
-	CodeImageTooLarge         Code = "image.too_large"
-	CodeImageMismatch         Code = "image.mismatch"
+	CodeImageUnavailable    Code = "image.unavailable"
+	CodeImageUploadDisabled Code = "image.upload_disabled"
+	CodeImageTaskNotFound   Code = "image.task_not_found"
+	CodeImageTaskFailed     Code = "image.task_failed"
+	CodeImageTaskProcessing Code = "image.task_processing"
+	CodeImageInvalid        Code = "image.invalid"
+	CodeImageTooLarge       Code = "image.too_large"
+	CodeImageMismatch       Code = "image.mismatch"
+	// CodeProfileNameBlocked 表示昵称/用户名命中内容过滤，改名被拒绝（不是"已打星"）。
+	CodeProfileNameBlocked    Code = "user.name_blocked"
 	CodeImageAuditInvalid     Code = "image.audit_invalid"
 	CodeImageDeleteFailed     Code = "image.delete_failed"
 	CodeImageObjectKeyMissing Code = "image.object_key_missing"
@@ -798,7 +800,8 @@ var messages = map[Code]string{
 	CodeSiteStorageInvalid:             "对象存储配置不合法：样式名、分隔符、签名有效期或审核开关超出允许范围",
 	CodeModerationEventNotFound:        "违规事件不存在",
 	CodeModerationAppealInvalid:        "申诉不合法：只能对 7 天内的违规事件申诉，且必须填写理由",
-	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / abstract / chat / collection）",
+	CodeProfileNameBlocked:             "名称里包含不允许的内容，请换一个",
+	CodeFilterSurfaceInvalid:           "文本面不存在（可选：article / comment / nickname / username / abstract / chat / collection）",
 	CodeFilterStatusInvalid:            "命中记录状态不存在（可选：pending / ignored / deleted / account）",
 	CodeFilterHitNotFound:              "关键词风险记录不存在（可能已被清理）",
 	CodeFilterActionInvalid:            "处置动作不存在（可选：delete / ignore）",

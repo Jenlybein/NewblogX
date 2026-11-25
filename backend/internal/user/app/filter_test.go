@@ -44,7 +44,18 @@ func (f *fakeProfileFilter) filter(_ context.Context, in app.FilterText) (app.Fi
 	if f.broken {
 		return app.FilteredText{}, errors.New("filter broken")
 	}
-	return app.FilteredText{Masked: f.mask(in.Text)}, nil
+	masked := f.mask(in.Text)
+	count := 0
+	if masked != in.Text {
+		count = 1
+	}
+	return app.FilteredText{Masked: masked, FilteredCount: count}, nil
+}
+
+type fakeUsernameFilter struct{ inner *fakeProfileFilter }
+
+func (f fakeUsernameFilter) FilterUsernameText(ctx context.Context, in app.FilterText) (app.FilteredText, error) {
+	return f.inner.filter(ctx, in)
 }
 
 type fakeNicknameFilter struct{ inner *fakeProfileFilter }
@@ -59,20 +70,57 @@ func (f fakeAbstractFilter) FilterAbstractText(ctx context.Context, in app.Filte
 	return f.inner.filter(ctx, in)
 }
 
-// TestUpdateProfileMasksNicknameAndAbstract 昵称与简介命中词应替换后保存。
-func TestUpdateProfileMasksNicknameAndAbstract(t *testing.T) {
+// TestUpdateProfileRejectsNicknameHit 昵称命中词应**拒绝改名**（票 398）。
+//
+// 与简介不同：名字是身份标识，存成 `**` 既不告诉用户"你违规了"，他下次换个词继续试。
+func TestUpdateProfileRejectsNicknameHit(t *testing.T) {
+	t.Parallel()
+
+	filter := &fakeProfileFilter{words: []string{"冰毒"}}
+	r := apptest.NewRepos(baseTime)
+	seed(t, r)
+	svc := r.ServiceWith(app.WithContentFilter(
+		fakeNicknameFilter{inner: filter}, fakeUsernameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
+
+	nickname := "卖冰毒的"
+	_, err := svc.Update(testCtx(), alice, aliceID, domain.ProfileUpdate{Nickname: &nickname})
+	if err == nil {
+		t.Fatal("昵称命中关键词必须拒绝改名")
+	}
+	got, _ := r.Users().FindByID(testCtx(), aliceID)
+	if got.Nickname == "卖冰毒的" {
+		t.Fatal("被拒绝的昵称不该落库")
+	}
+}
+
+// TestUpdateProfileRejectsUsernameHit 用户名命中词同样拒绝（票 398）。
+func TestUpdateProfileRejectsUsernameHit(t *testing.T) {
+	t.Parallel()
+
+	filter := &fakeProfileFilter{words: []string{"冰毒"}}
+	r := apptest.NewRepos(baseTime)
+	seed(t, r)
+	svc := r.ServiceWith(app.WithContentFilter(
+		fakeNicknameFilter{inner: filter}, fakeUsernameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
+
+	username := "bingdu冰毒"
+	if _, err := svc.Update(testCtx(), alice, aliceID, domain.ProfileUpdate{Username: &username}); err == nil {
+		t.Fatal("用户名命中关键词必须拒绝改名")
+	}
+}
+
+// TestUpdateProfileMasksAbstract 简介命中词仍替换后保存（长文本，星号只损失一句话）。
+func TestUpdateProfileMasksAbstract(t *testing.T) {
 	t.Parallel()
 
 	filter := &fakeProfileFilter{words: []string{"冰毒"}}
 	r := apptest.NewRepos(baseTime)
 	u := seed(t, r)
 	svc := r.ServiceWith(app.WithContentFilter(
-		fakeNicknameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
+		fakeNicknameFilter{inner: filter}, fakeUsernameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
 
-	nickname := "卖冰毒的"
 	abstract := "聊聊冰毒"
 	if _, err := svc.Update(testCtx(), alice, aliceID, domain.ProfileUpdate{
-		Nickname: &nickname,
 		Abstract: &abstract,
 	}); err != nil {
 		t.Fatalf("更新资料应成功: %v", err)
@@ -82,9 +130,7 @@ func TestUpdateProfileMasksNicknameAndAbstract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读回用户失败: %v", err)
 	}
-	if got.Nickname != "卖**的" {
-		t.Fatalf("昵称应为替换后文本，实际 %q", got.Nickname)
-	}
+
 	if got.Abstract != "聊聊**" {
 		t.Fatalf("简介应为替换后文本，实际 %q", got.Abstract)
 	}
@@ -99,7 +145,7 @@ func TestUpdateProfileFailOpenWhenFilterBroken(t *testing.T) {
 	r := apptest.NewRepos(baseTime)
 	seed(t, r)
 	svc := r.ServiceWith(app.WithContentFilter(
-		fakeNicknameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
+		fakeNicknameFilter{inner: filter}, fakeUsernameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
 
 	nickname := "冰毒"
 	if _, err := svc.Update(testCtx(), alice, aliceID, domain.ProfileUpdate{
@@ -121,7 +167,7 @@ func TestUpdateProfileSkipsEmptyAbstract(t *testing.T) {
 	r := apptest.NewRepos(baseTime)
 	seed(t, r)
 	svc := r.ServiceWith(app.WithContentFilter(
-		fakeNicknameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
+		fakeNicknameFilter{inner: filter}, fakeUsernameFilter{inner: filter}, fakeAbstractFilter{inner: filter}))
 
 	nickname := "新昵称"
 	if _, err := svc.Update(testCtx(), alice, aliceID, domain.ProfileUpdate{

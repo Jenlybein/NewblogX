@@ -182,7 +182,12 @@ func (s *Service) Update(ctx context.Context, viewer domain.Viewer, target domai
 	// 落库写的是星号版 —— 两处口径不一致。空更新（IsEmpty）不走过滤：没有文本
 	// 就没有命中，也没有要写的记录。
 	if !update.IsEmpty() {
-		update = s.filterProfile(ctx, target, update)
+		// 昵称与用户名命中即拒绝：这时不能继续走 Validate/写库，直接把错误抛给调用方。
+		filtered, err := s.filterProfile(ctx, target, update)
+		if err != nil {
+			return nil, err
+		}
+		update = filtered
 	}
 
 	if err := update.Validate(); err != nil {

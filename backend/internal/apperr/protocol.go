@@ -98,7 +98,10 @@ var protocols = map[Code]ProtocolKind{
 	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
 	// 换个值就能过，同属调用方能修正的失败。
 	CodeFilterSurfaceInvalid: ProtocolValidation,
-	CodeFilterStatusInvalid:  ProtocolValidation,
+	// 昵称/用户名命中关键词（user.name_blocked）：调用方换个名字就能过，
+	// 与上面几条同属"改一个值即可修复"，所以是参数类而不是服务异常。
+	CodeProfileNameBlocked:  ProtocolValidation,
+	CodeFilterStatusInvalid: ProtocolValidation,
 
 	// 关键词风险的处置动作（ADR-0032 决策 7 / 票 398）：记录不存在、动作写错、
 	// 备注超长、批量没选、私信面没内容 —— 都是后台换一下操作就能过的失败，归 1001。

@@ -221,7 +221,9 @@ func (s *Service) dispose(ctx context.Context, hit domain.Hit, actor ctype.ID) e
 		return s.disposer.DeleteComment(ctx, actor, hit.ContentID)
 	case domain.SurfaceCollection:
 		return s.disposer.DeleteCollection(ctx, actor, hit.ContentID)
-	case domain.SurfaceNickname, domain.SurfaceAbstract:
+	case domain.SurfaceNickname, domain.SurfaceUsername, domain.SurfaceAbstract:
+		// 用户名与昵称、简介共享同一份"资料重置"：改名的通道被拒之后，历史留下的
+		// 违规名仍要能一键清掉，所以处置动作不按面拆开。
 		return s.disposer.ResetProfile(ctx, actor, hit.UserID, domain.ProblemNickname(hit.UserID))
 	case domain.SurfaceChat:
 		return apperr.New(apperr.CodeFilterSurfaceNoContent)
@@ -237,3 +239,4 @@ func normalizeAction(raw domain.Action) (domain.Action, error) {
 	}
 	return raw, nil
 }
+

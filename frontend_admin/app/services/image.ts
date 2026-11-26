@@ -248,6 +248,47 @@ async function waitUploadReady(
 }
 
 /**
+ * 图片被审核判定违规（或已删除），因此拿不到地址。
+ *
+ * 后台也会遇到：管理员传了一张违规图，系统判违规、删对象、不记分（管理员豁免），
+ * 但前端以前只会显示"未返回图片 URL"，看起来像上传坏了。
+ */
+export class UploadRejectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UploadRejectedError'
+  }
+}
+
+/**
+ * 没拿到图片地址时，按审核状态给出可读原因；返回 null 表示"该按真异常处理"。
+ *
+ * `skip` 区分秒传命中（"之前传过"）与本次刚传完，两种文案不一样。
+ */
+function explainMissingUrl(auditStatus: string, skip: boolean): Error | null {
+  switch (auditStatus) {
+    case 'pending':
+      return new UploadPendingAuditError(
+        skip
+          ? '这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）'
+          : '图片已上传，正在机器审核（通常几秒，通过后自动生效）',
+      )
+    case 'review':
+      return new UploadPendingAuditError(
+        skip
+          ? '这张图之前已上传，正在人工审核（通过后才会生效）'
+          : '图片已上传，正在人工审核（通过后才会生效）',
+      )
+    case 'block':
+      return new UploadRejectedError('图片包含违规内容，已被拒绝并删除，请换一张')
+    case 'deleted':
+      return new UploadRejectedError('这张图已被删除，请重新选择')
+    default:
+      return null
+  }
+}
+
+/**
  * 上传成功、但图片还在审核中。
  *
  * 后台也有上传入口（轮播封面、合集封面），审核链与读者站是同一条：
@@ -280,14 +321,7 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
       // 秒传命中的是"同一张图上次传过"，它可能还在审核中（未过审不给地址，ADR-0034）。
       // 这不是故障，提示要说清是哪一种，否则管理员会以为上传坏了。
       const skipAuditStatus = String((task as { audit_status?: string }).audit_status ?? '')
-      if (skipAuditStatus === 'pending' || skipAuditStatus === 'review') {
-        throw new UploadPendingAuditError(
-          skipAuditStatus === 'review'
-            ? '这张图之前已上传，正在人工审核（通过后才会生效）'
-            : '这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）',
-        )
-      }
-      throw new Error('上传任务命中秒传，但未返回图片 URL')
+      throw explainMissingUrl(skipAuditStatus, true) ?? new Error('上传任务命中秒传，但未返回图片 URL')
     }
 
     return {
@@ -317,14 +351,7 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
   if (!status.url) {
     // 未过审的图没有地址是设计如此（未过审不给 URL），但把它当失败报是错的。
     const auditStatus = String((status as { audit_status?: string }).audit_status ?? '')
-    if (auditStatus === 'pending' || auditStatus === 'review') {
-      throw new UploadPendingAuditError(
-        auditStatus === 'review'
-          ? '图片已上传，正在人工审核（通过后才会生效）'
-          : '图片已上传，正在机器审核（通常几秒，通过后自动生效）',
-      )
-    }
-    throw new Error('上传任务已就绪，但未返回图片 URL')
+    throw explainMissingUrl(auditStatus, false) ?? new Error('上传任务已就绪，但未返回图片 URL')
   }
 
   return {
@@ -336,4 +363,5 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   }
 }
+
 

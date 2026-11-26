@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { blockAfter } from "../helpers/designFiles";
+import { blockAfter, stripComments } from "../helpers/designFiles";
 
 /**
  * 首屏轮播换图的静态动效契约（#432）。
@@ -78,16 +78,9 @@ describe("换图交叉淡入：160ms、只动 opacity、可被打断", () => {
     expect(transitions[0]).toContain("var(--motion-ease)");
     expect(leaving).not.toContain("transform");
 
-    // 交叉淡入本身必须是 transition（可中途反向）；keyframes 只允许出现在
-    // 「一次性内容交换」上（标题换字、播放/暂停图标），它们不需要可中断。
-    const photoSection = carousel.slice(0, carousel.indexOf(".banner-title"));
-    expect(photoSection, "图片帧不能改用 keyframes").not.toContain("@keyframes");
-    for (const keyframe of carousel.matchAll(/@keyframes\s+([a-z-]+)/gu)) {
-      expect(
-        ["banner-caption-in", "banner-icon-in"],
-        `新增的 ${keyframe[1]} 是一次性内容交换才允许用 keyframes（可反向的动效必须用 transition）`,
-      ).toContain(keyframe[1]);
-    }
+    // 整块轮播里没有任何 keyframes：交叉淡入、图标状态切换都必须走 transition
+    // （可中途反向、连点不重播）。标题换字是硬切 —— 单侧淡入只会先空一帧。
+    expect(stripComments(carousel), "轮播里不该再有 keyframes").not.toContain("@keyframes");
   });
 
   it("当前帧不挂过渡：入场是直接可见的，过渡只属于出场帧", () => {

@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
+import { useMotionPreference } from "~/composables/useMotionPreference";
 import type { SearchArticleItem } from "~/types/api";
 import { homeSearchLocation, resolveHomeSectionState } from "~/utils/home";
 import { MOTION_DURATIONS_MS, MOTION_EASE, motionSeconds } from "~/utils/motion";
@@ -21,20 +21,21 @@ const props = withDefaults(
 
 const emit = defineEmits<{ retry: [] }>();
 
-// 列表入场：只动 opacity/translateY，错峰 40ms；减少动态时归零（静态出现）。
-// SSR 的 initial 会内联成 opacity:0，app.vue 的 <noscript> 兜底样式保证无 JS 仍可读。
-const { entranceProps: staggerEntranceProps, prefersReducedMotion } = useStaggerEntrance();
+const { prefersReducedMotion } = useMotionPreference();
 
 /**
- * 「已入场」标记（票 433）：只活在本组件内，不落 session 存储。
+ * 列表的动效规则（票 443）：
  *
- * 首次进入该区块的那一批照常逐条错峰；翻页之后批次换了，新一批**直接出现** ——
- * 读者不用在每次点"下一页"后等半秒。空批次（加载中 / 空态）不消耗入场。
- * 用批次 id 的序列当身份，是为了区分"翻页换了内容"与"同一批数据的原地刷新"
- * （后者不该改变入场判定，Motion 也不会因为同 key 重播）。
+ *   1. **首屏那一批零入场** —— 不错峰、不淡入，直接可见。信息流是页面正文，而任何
+ *      「SSR 内联 opacity: 0、等水合再入场」的写法都会让正文在弱网下空白，等于把
+ *      站点能不能看押在 JS 上（上一版同屏第十条约 0.56s 才完全可见）。
+ *   2. **翻页后的新批次只做一次短淡入** —— 那是「用户操作之后才出现」的内容，
+ *      120ms、从 0.35 起步：文字始终可读，不留空白帧，也不排队拖慢。
+ *
+ * 用批次 id 的序列当身份，区分「翻页换了内容」与「同一批数据的原地刷新」。
  */
 const firstBatchKey = ref<string | null>(null);
-const hasEntered = ref(false);
+const isFirstBatch = ref(true);
 
 watch(
   () => JSON.stringify(props.articles.map((article) => article.id)),
@@ -47,28 +48,30 @@ watch(
       return;
     }
     if (batchKey !== firstBatchKey.value) {
-      hasEntered.value = true;
+      isFirstBatch.value = false;
     }
   },
   { immediate: true },
 );
 
 /**
- * 条目的入场 props：首批逐条错峰；已入场后返回"立即可见"（不隐藏、不延迟、时长 0），
- * 新一批因此直接出现，而不是又播一遍错峰的隐藏初态。
+ * 条目的入场 props。
+ *
+ * 首批：`initial` 就是可见状态、时长 0 —— 等价于「没有动画」，但保持 Motion 的
+ * 结构统一（SSR 与客户端 markup 一致，不产生属性差异）。后续批次：短淡入。
  */
-function entranceProps(index: number) {
-  if (!hasEntered.value) {
-    return staggerEntranceProps(index);
+function entranceProps() {
+  if (isFirstBatch.value) {
+    return {
+      initial: { opacity: 1, y: 0 },
+      animate: { opacity: 1, y: 0 },
+      transition: { duration: 0, delay: 0, ease: MOTION_EASE },
+    };
   }
 
-  /*
-   * 翻页后的新一批（票 441 加法）：不再"瞬间换掉整屏文字"。
-   * 一次 120ms 的淡入 + 4px 落位，既不隐藏内容也不排队（delay 恒为 0，不动高度），
-   * 只是让"这一批换完了"有个发生的瞬间。减少动态下时长归零（由 motion 预算给出）。
-   */
   return {
-    initial: { opacity: 0, y: 4 },
+    // 从 0.35 起步而不是 0：文字始终可读，不会先出现一帧空列表。
+    initial: { opacity: 0.35, y: 0 },
     animate: { opacity: 1, y: 0 },
     transition: {
       duration: prefersReducedMotion.value ? 0 : motionSeconds(MOTION_DURATIONS_MS.fast),
@@ -106,13 +109,13 @@ const searchTo = homeSearchLocation();
       v-if="articles.length"
       class="flex flex-col gap-4"
       data-role="feed-list"
-      :data-entrance="hasEntered ? 'instant' : 'stagger'"
+      :data-entrance="isFirstBatch ? 'visible' : 'swap'"
     >
       <Motion
-        v-for="(article, index) in articles"
+        v-for="article in articles"
         :key="article.id"
-        v-bind="entranceProps(index)"
-        class="motion-stagger-item"
+        v-bind="entranceProps()"
+        class="feed-motion-item"
       >
         <ArticleFeedItem :article="article" variant="list" />
       </Motion>

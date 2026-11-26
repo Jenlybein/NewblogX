@@ -43,8 +43,11 @@ const BASE_TRAVEL_Z2 = 40;
 const BASE_ROTATE_Z1 = 5;
 const BASE_ROTATE_Z2 = 15;
 
-/** 静止时的呼吸抖动幅度（px）与相位差。 */
-const IDLE_WOBBLE_PX = 3;
+/*
+ * 静止时的「呼吸」不再由 JS 每帧写 transform（见 loop()）：九块碎片的 3px 慢漂移
+ * 交给 CSS keyframes（`.glass-title.is-idle .glass-title__shard-inner`），跑在合成
+ * 线程上。JS 只在交互/炸开/回弹期间跑 rAF，停手 1.5s 后彻底停帧。
+ */
 /** 按下时整体幅度收敛比例（0.8 = 只剩 20%）。 */
 const PRESS_DAMPING = 0.8;
 /** 浮层碎片在悬停时放大到 1.05。 */
@@ -301,8 +304,7 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
   let lastFrameAt = 0;
   /** 最后一次交互（指针移动/按下/离开）的时间，用于空闲限频。 */
   let lastInteractionAt = 0;
-  /** 上一次真正写帧的时间（空闲时用于把 rAF 降到约 30Hz）。 */
-  let lastWriteAt = 0;
+
 
   /**
    * 把"每帧接近 base"换算成按真实 dt 接近 base。
@@ -321,27 +323,18 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     const pointerAlpha = smoothingAlpha(POINTER_LERP, time);
     const springAlpha = smoothingAlpha(SPRING_LERP, time);
     lastFrameAt = time;
-    lastWriteAt = time;
 
     pressAmount += ((pressTarget === 1 ? 1 : 0) - pressAmount) * springAlpha;
     smoothedX += (pointerX - smoothedX) * pointerAlpha;
     smoothedY += (pointerY - smoothedY) * pointerAlpha;
 
-    const seconds = time * 0.001;
-    // 「减少动态」下只画一帧：呼吸抖动与悬停放大一起归零，否则静帧会停在一个歪的相位上。
-    const idleMotion = prefersReducedMotion.value ? 0 : 1;
-
     for (const shard of shards) {
       const { def } = shard;
       const layered = def.z === 1;
       const travel = (layered ? BASE_TRAVEL_Z1 : BASE_TRAVEL_Z2) * (1 - pressAmount * PRESS_DAMPING);
-      const wobbleX =
-        Math.sin(seconds + def.id) * IDLE_WOBBLE_PX * idleMotion * unitScale * (1 - pressAmount * 0.5);
-      const wobbleY =
-        Math.cos(seconds + def.id * 1.5) * IDLE_WOBBLE_PX * idleMotion * unitScale * (1 - pressAmount * 0.5);
 
-      const parallaxX = smoothedX * travel * unitScale * def.speed * 20 + wobbleX;
-      const parallaxY = smoothedY * travel * unitScale * def.speed * 20 + wobbleY;
+      const parallaxX = smoothedX * travel * unitScale * def.speed * 20;
+      const parallaxY = smoothedY * travel * unitScale * def.speed * 20;
       const parallaxRy = smoothedX * (layered ? BASE_ROTATE_Z1 : BASE_ROTATE_Z2) * unitScale;
       const parallaxRx = -smoothedY * (layered ? BASE_ROTATE_Z1 : BASE_ROTATE_Z2) * unitScale;
 
@@ -370,29 +363,56 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     }
   }
 
-  /** 空闲判定的落点：超过 IDLE_AFTER_MS 没有交互就把 rAF 降到约 30Hz 并摘掉 will-change。 */
-  function isIdle(time: number): boolean {
-    return time - lastInteractionAt > IDLE_AFTER_MS;
+  /**
+   * 这一帧真的还需要跑吗。
+   *
+   * 只保留「有东西正在动」的四种情形：指针还在靠拢目标、按住/回弹没停稳、碎片还在
+   * 炸开或归位、以及交互后的收尾窗口。静止时一次都不写 —— 上一版是把 60Hz 的 rAF
+   * 用「每 32ms 才写一次」去跳帧，得到的是 33.4ms / 50.1ms / 66.8ms 这种
+   * 不均匀的帧距：慢速漂移最怕帧距不齐，比稳定 30fps 更容易看出抖。
+   * 现在静止的漂移交给 CSS keyframes（合成线程，帧率稳定），JS 完全不参与。
+   */
+  function isSettled(time: number): boolean {
+    if (burstPhase === 1) return false;
+    if (pressTarget === 1 || pressAmount > 0.001) return false;
+    if (hovering) return false;
+    if (time - lastInteractionAt < IDLE_AFTER_MS) return false;
+    if (Math.abs(smoothedX - pointerX) > 0.001 || Math.abs(smoothedY - pointerY) > 0.001) return false;
+    return shards.every(
+      (shard) =>
+        Math.abs(shard.px) < 0.05 &&
+        Math.abs(shard.py) < 0.05 &&
+        Math.abs(shard.pz) < 0.05 &&
+        Math.abs(shard.prx) < 0.05 &&
+        Math.abs(shard.pry) < 0.05,
+    );
+  }
+
+  /** 空闲态：`is-idle` 交给 CSS 呼吸，`is-live`（will-change）交还给浏览器。 */
+  function enterIdle() {
+    root.value?.classList.add("is-idle");
+    root.value?.classList.remove("is-live");
+  }
+
+  function leaveIdle() {
+    root.value?.classList.remove("is-idle");
+    root.value?.classList.add("is-live");
   }
 
   function loop(time: number) {
-    /*
-     * 空闲呼吸是纯预定正弦：没必要每秒写 60 次九块碎片的 transform。
-     * 交互期间保持满帧（指针视差要跟手），停手 1.5s 后掉到 ~30Hz —— 3px 的
-     * 慢呼吸在 30Hz 下看不出差别，CPU 与合成开销直接减半。
-     */
-    const idle = isIdle(time);
-    if (!idle || lastWriteAt === 0 || time - lastWriteAt >= 32) {
+    if (isSettled(time)) {
       renderFrame(time);
+      stopLoop();
+      enterIdle();
+      return;
     }
-    if (idle) {
-      root.value?.classList.remove("is-live");
-    }
+    renderFrame(time);
     rafId = window.requestAnimationFrame(loop);
   }
 
   function startLoop() {
     if (rafId || prefersReducedMotion.value) return;
+    leaveIdle();
     rafId = window.requestAnimationFrame(loop);
   }
 
@@ -407,6 +427,8 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     if (prefersReducedMotion.value || !inView || document.hidden) {
       stopLoop();
       renderFrame(performance.now());
+      // 离屏/隐藏时同样把 will-change 交还浏览器（否则这块合成层会一直挂着）。
+      root.value?.classList.remove("is-live");
       return;
     }
     startLoop();
@@ -437,7 +459,7 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
   /** 交互探针：记录时间并确保 will-change 只在真正要动的时候挂着。 */
   function markInteraction() {
     lastInteractionAt = performance.now();
-    root.value?.classList.add("is-live");
+    startLoop();
   }
 
   function handlePointerDown() {

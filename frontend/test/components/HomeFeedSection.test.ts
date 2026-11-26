@@ -71,18 +71,21 @@ afterEach(() => {
 });
 
 describe("HomeFeedSection：最新文章 + 分级淡入", () => {
-  it("有数据时渲染文章条目，条目带 motion-stagger-item 与递进 delay", () => {
+  it("有数据时渲染文章条目，且首批**零入场**（不隐藏、不延迟）", () => {
     const wrapper = mountFeed({ articles: [makeArticle(), makeArticle({ id: "a2", title: "第二篇" })] });
 
-    const items = wrapper.findAll(".motion-stagger-item");
+    const items = wrapper.findAll(".feed-motion-item");
     expect(items).toHaveLength(2);
     expect(wrapper.get('[data-role="feed-list"]').text()).toContain("文章标题");
+    // 票 443：初态就是可见的，时长为 0 —— 正文不该等水合才出现。
+    expect(items[0]?.attributes("data-motion-duration")).toBe("0");
+    expect(items[1]?.attributes("data-motion-duration")).toBe("0");
     expect(items[0]?.attributes("data-motion-delay")).toBe("0");
-    expect(items[1]?.attributes("data-motion-delay")).toBe("0.04");
+    expect(items[1]?.attributes("data-motion-delay")).toBe("0");
     expect(wrapper.find(".empty-state").exists()).toBe(false);
   });
 
-  it("减少动态时：stagger 时长/延迟归零（静态出现，不是慢慢动）", () => {
+  it("减少动态时：翻页淡入同样归零（静态出现，不是慢慢动）", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("prefers-reduced-motion"),
       media: query,
@@ -95,10 +98,9 @@ describe("HomeFeedSection：最新文章 + 分级淡入", () => {
     }));
 
     const wrapper = mountFeed({ articles: [makeArticle(), makeArticle({ id: "a2" })] });
-    const items = wrapper.findAll(".motion-stagger-item");
-    expect(items[0]?.attributes("data-motion-duration")).toBe("0");
-    expect(items[1]?.attributes("data-motion-duration")).toBe("0");
-    expect(items[1]?.attributes("data-motion-delay")).toBe("0");
+    await wrapper.setProps({ articles: [makeArticle({ id: "a9", title: "第二页" })] });
+
+    expect(wrapper.findAll(".feed-motion-item")[0]?.attributes("data-motion-duration")).toBe("0");
   });
 
   it("空数据：渲染统一空态，不塌成一行字，并给出「去搜索文章」入口", () => {
@@ -145,11 +147,11 @@ describe("HomeFeedSection：翻页不重播", () => {
     return wrapper.get('[data-role="feed-list"]').attributes("data-entrance");
   }
 
-  it("首批逐条错峰入场，翻页后新一批只做一次整体淡入（不再排队、不再停半秒）", async () => {
+  it("首批直接可见；翻页后新一批只做一次整体淡入（不排队、不留空白帧）", async () => {
     const wrapper = mountFeed({ articles: [makeArticle(), makeArticle({ id: "a2" })] });
 
-    expect(entrance(wrapper)).toBe("stagger");
-    expect(wrapper.findAll(".motion-stagger-item")[1]?.attributes("data-motion-delay")).toBe("0.04");
+    expect(entrance(wrapper)).toBe("visible");
+    expect(wrapper.findAll(".feed-motion-item")[1]?.attributes("data-motion-delay")).toBe("0");
 
     await wrapper.setProps({
       articles: [
@@ -158,26 +160,25 @@ describe("HomeFeedSection：翻页不重播", () => {
       ],
     });
 
-    expect(entrance(wrapper)).toBe("instant");
+    expect(entrance(wrapper)).toBe("swap");
     expect(wrapper.get('[data-role="feed-list"]').text()).toContain("第二页第一篇");
-    // 票 441 加法：新一批不再"瞬间换掉整屏文字"，但也不能逐条排队等 ——
     // 一次 120ms 的淡入（0.12s），延迟恒为 0（所有条目同时进）。
-    expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-duration"))).toEqual([
+    expect(wrapper.findAll(".feed-motion-item").map((item) => item.attributes("data-motion-duration"))).toEqual([
       "0.12",
       "0.12",
     ]);
-    expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-delay"))).toEqual([
+    expect(wrapper.findAll(".feed-motion-item").map((item) => item.attributes("data-motion-delay"))).toEqual([
       "0",
       "0",
     ]);
   });
 
-  it("空批次（加载中）不消耗入场：数据首次到达仍播一次 stagger", async () => {
+  it("空批次（加载中）不消耗批次身份：数据首次到达仍算首批、直接可见", async () => {
     const wrapper = mountFeed({ articles: [], pending: true });
 
     await wrapper.setProps({ articles: [makeArticle()], pending: false });
 
-    expect(entrance(wrapper)).toBe("stagger");
-    expect(wrapper.get(".motion-stagger-item").attributes("data-motion-delay")).toBe("0");
+    expect(entrance(wrapper)).toBe("visible");
+    expect(wrapper.get(".feed-motion-item").attributes("data-motion-duration")).toBe("0");
   });
 });

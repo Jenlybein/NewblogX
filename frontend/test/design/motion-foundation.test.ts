@@ -181,9 +181,11 @@ describe("motion-v 接线", () => {
     expect(appVue).toContain("reduced-motion");
   });
 
-  it("首个真实用例：首页热门标签用 entranceProps 做 stagger 入场", () => {
-    expect(homeSidebar).toContain("entranceProps(");
-    expect(homeSidebar).toContain("<Motion");
+  it("首页右栏不再用错峰入场：正文/侧栏都以可见状态起步（票 443）", () => {
+    // 上一版这里断言的是「右栏标签云用 entranceProps 做 stagger」，那套写法的初态是
+    // SSR 内联 opacity: 0 —— 桌面端右栏与正文同屏，弱网下会先空一拍。
+    expect(homeSidebar).not.toContain("entranceProps(");
+    expect(homeSidebar).not.toContain("<Motion");
   });
 
   it("后台包体不新增动效库依赖", () => {

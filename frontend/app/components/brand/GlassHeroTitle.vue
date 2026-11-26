@@ -38,6 +38,21 @@ const root = ref<HTMLElement | null>(null);
 
 const shards = computed(() => GLASS_SHARDS.slice(0, Math.max(1, Math.min(props.maxShards, GLASS_SHARDS.length))));
 
+/**
+ * 空闲呼吸的相位与周期（交给 CSS keyframes，见样式里的 `glass-shard-breathe`）。
+ *
+ * 负延迟把九块碎片的相位错开：原组件用 `sin(t + def.id)` 做相位差，这里用同一份
+ * `def.id` 换算成时间偏移，观感一致但不需要每帧算三角函数。周期也略作区分，
+ * 免得九块整齐划一地一起呼吸（那样像整块字在抖，而不是玻璃在浮动）。
+ */
+function breathDelay(id: number): string {
+  return `-${(id * 0.37).toFixed(2)}s`;
+}
+
+function breathDuration(id: number): string {
+  return `${(5.4 + (id % 3) * 0.7).toFixed(1)}s`;
+}
+
 useGlassShardTitle(root, {
   text: () => props.text,
   sound: props.sound,
@@ -55,13 +70,18 @@ useGlassShardTitle(root, {
         :key="shard.id"
         class="glass-title__shard"
         :class="{ 'glass-title__shard--overlay': shard.z > 1 }"
-        :style="{ clipPath: shard.path, zIndex: shard.z }"
+        :style="{
+          clipPath: shard.path,
+          zIndex: shard.z,
+          '--shard-breath-delay': breathDelay(shard.id),
+          '--shard-breath-duration': breathDuration(shard.id),
+        }"
         data-glass-shard
       >
         <span class="glass-title__shard-inner">
           <span class="glass-title__shard-text" data-glass-text>{{ text }}</span>
+          <span class="glass-title__shard-edge" aria-hidden="true" :style="{ clipPath: shard.path }" />
         </span>
-        <span class="glass-title__shard-edge" aria-hidden="true" :style="{ clipPath: shard.path }" />
       </span>
     </span>
   </span>
@@ -173,6 +193,40 @@ useGlassShardTitle(root, {
   will-change: transform;
 }
 
+/*
+ * 静止时的「呼吸」：由 CSS 承担，跑在合成线程上。
+ *
+ * 上一版是 JS 每帧算 sin/cos 写 transform，静止时再用「每 32ms 才写一次」跳帧 ——
+ * 帧距变成 33/50/67ms 这种不均匀的节奏，慢速漂移最怕的就是帧距不齐；而且 rAF 仍在
+ * 60Hz 空转。现在 JS 停手后把 `is-idle` 交给 CSS：九块碎片各自一个相位（负延迟错开），
+ * 3px（0.02em，随字号缩放，与原组件 unitScale 同一口径）慢漂移。
+ *
+ * 只在 `is-idle` 期间跑：交互时位移由 JS 的指针视差接管，两套不叠加。
+ */
+@keyframes glass-shard-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  25% {
+    transform: translate3d(0.02em, -0.012em, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -0.02em, 0);
+  }
+
+  75% {
+    transform: translate3d(-0.02em, 0.012em, 0);
+  }
+}
+
+.glass-title.is-idle .glass-title__shard-inner {
+  animation: glass-shard-breathe var(--shard-breath-duration, 6s) ease-in-out
+    var(--shard-breath-delay, 0s) infinite;
+}
+
 /* 浮层碎片：毛玻璃 + 淡反白底 + 1px 内边缘光（截图里那几片"斜的玻璃"）。 */
 .glass-title__shard--overlay {
   background: color-mix(in srgb, var(--color-on-inverse) 3%, transparent);
@@ -219,6 +273,11 @@ useGlassShardTitle(root, {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 空闲呼吸是持续位移：reduce 下整段关掉（不是放慢）。 */
+  .glass-title.is-idle .glass-title__shard-inner {
+    animation: none;
+  }
+
   /* 减少动态：不做缩放，但**保留一次淡光**（只动 opacity）——
    * 字标是首屏唯一可点的元素，此前点击在 reduce 下完全没有反馈。 */
   .glass-title__halo {

@@ -729,10 +729,16 @@ async function submitSearch() {
     transform var(--motion-fast) var(--motion-ease);
 }
 
+/* 从铃铛那一角长出来：`transform-origin` 落在触发器一侧，配 0.96 的起手缩放。
+ * 只平移不缩放会读成"整块面板淡入"，位置对但重量不对。 */
+.site-messages__panel {
+  transform-origin: top right;
+}
+
 .site-pop-enter-from,
 .site-pop-leave-to {
   opacity: 0;
-  transform: translateY(-0.25rem);
+  transform: translateY(-0.25rem) scale(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -800,6 +800,30 @@ _Avoid_: 把它当「拉黑」（拉黑还禁止再次关注、双向隐藏，�
 
 ---
 
+## 十四、图片与审核
+
+**图片审核状态（image audit status）**：
+一张图能不能给人看的机读状态，七个取值：`unknown`（历史行，没有结论）/ `pass`（通过，可展示）/ `deleted`（已删除）/ `orphaned`（记录在但对象没了）/ `review`（机审疑似，等人工）/ `block`（违规，终局）/ `pending`（还没有任何结论）。**未过审不给地址**：非 `pass` 时对外响应里的 `url` 一律是空串，前端画「审核中」占位。`block` 不可逆，任何通道都不能把它改回 `pass`。
+位置：`backend/internal/media/domain/image.go`（`Status` 与 `String()`）；契约里叫 `audit_status`（与任务状态 `status` 是两件事，见下一词条）；后台队列 `/admin/review/images`。
+_Avoid_: 把 `pending` 与 `review` 当成一回事（前者"没结论"、后者"等人工"；超时扫描只盯 `pending`）；把 `audit_status` 和 `status` 互相顶替；说"审核通过"却只看了任务状态 `ready`。
+
+**上传任务状态（upload task status）**：
+文件传完了没有：`pending` / `ready` / `failed`。它和**图片审核状态**是两回事——任务 `ready` 只说明"七牛上有这个对象、库里已经落了行"，不代表这张图能给人看。秒传命中时任务即刻 `ready`，审核状态另给。
+位置：`backend/internal/media/domain/image.go`（`TaskStatus`）；契约字段 `status`（秒传、确认、轮询三个响应都有），审核状态在同响应的 `audit_status` 里。
+_Avoid_: 用 `status=ready` 判断"能展示"（要看 `audit_status=pass` 且 `url` 非空）；把两者的取值混写进同一个 switch。
+
+**图片样式派发（image style dispatch）**：
+同一张图按尺寸档位给出不同 CDN 地址（列表 / 详情 / 头像 / 封面四档），档位对应可配置的七牛样式名，**不改文件、只改地址**。样式名填错时七牛返回 404 而不是回退原图，所以有 `POST /images/style-probe` 用同一张图逐档探活。
+位置：`backend/internal/platform/imagedisplay/`（`Dispatch`、`StyleNames`）；`backend/internal/platform/storage/qiniu`（`Style` / `PrivateURL`，私有空间下样式后缀必须在签名**之后**追加，否则令牌失效、图片全 401）。
+_Avoid_: 把样式当成"生成新文件"（它只是 URL 后缀）；上传时按档位各存一份（同一对象只存一份）。
+
+**图片定形（image framing）**：
+上传前在浏览器里把图裁成目标比例并降采样（头像 1:1 → 256×256，封面 16:9），**只上传定形后的新文件**，原图不入库；比例不合规时弹裁剪窗由作者自选露出区域，不存任何取景参数。
+位置：`frontend/app/composables/useImageCropFlow.ts`（以及两端同一份拷贝）；决策见 [ADR-0013](./docs/adr/0013-banner-framing-as-parameters.md)。
+_Avoid_: 说"裁剪参数存库里"（不存；读侧固定居中）；把原图也传上去事后裁。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。
@@ -808,3 +832,4 @@ _Avoid_: 把它当「拉黑」（拉黑还禁止再次关注、双向隐藏，�
 4. **与 ADR 的分工**：**词条 = 概念是什么**（不含取舍）；**ADR = 为什么这么选、否决了什么、代价是什么**。ADR 在 `docs/adr/`（一条决策一个文件，编号连续；前后冲突只保留最新一条，旧策略删除、历史查 git）。词条正文引用 ADR 编号即可，不要把决策论证抄进来。
 5. **不收什么**：一般编程概念（超时、错误类型、通用设计模式）、纯 UI 文案、会过期的数量指标（当前 CI job 数、覆盖率的即时数值）——数字写进文档或代码注释，本文只记录稳定概念。
 6. **同步义务**：README 与 `docs/architecture/*` 不复制词条正文；首次出现处链回本文即可，避免两处定义漂移。
+

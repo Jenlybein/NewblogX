@@ -96,7 +96,7 @@ type CreateTaskResponse struct {
 	// 秒传分支必须带上：命中的是"这张图以前传过"，它可能早已被封禁或待审核，
 	// 而那时 URL 是空的。只有任务状态的话，客户端拿不到"为什么没有地址"，
 	// 只能报一句"未返回 URL"（2026-11-27 线上就是这样漏的）。
-	AuditStatus string `json:"audit_status"`
+	AuditStatus string `json:"audit_status" enums:"pending,pass,review,block,deleted,orphaned,unknown"`
 }
 
 // CompleteTaskRequest 手动完成上传。
@@ -115,7 +115,7 @@ type CompleteTaskResponse struct {
 	URL string `json:"url"`
 	// AuditStatus 是**图片审核**状态（pending / pass / review / block …），
 	// 与 Status 是两件事：任务是"文件传完了没"，审核是"这张图能不能给人看"。
-	AuditStatus string `json:"audit_status"`
+	AuditStatus string `json:"audit_status" enums:"pending,pass,review,block,deleted,orphaned,unknown"`
 	ErrorMsg    string `json:"error_msg,omitempty"`
 }
 
@@ -127,7 +127,7 @@ type TaskStatusResponse struct {
 	// URL 同 CompleteTaskResponse：只有审核通过才有值。
 	URL string `json:"url"`
 	// AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。
-	AuditStatus string `json:"audit_status"`
+	AuditStatus string `json:"audit_status" enums:"pending,pass,review,block,deleted,orphaned,unknown"`
 	ErrorMsg    string `json:"error_msg,omitempty"`
 	Hash        string `json:"hash"`
 }
@@ -157,7 +157,7 @@ type ImageItem struct {
 	Hash      string    `json:"hash"`
 	Status    uint      `json:"status"`
 	// AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。
-	AuditStatus string `json:"audit_status"`
+	AuditStatus string `json:"audit_status" enums:"pending,pass,review,block,deleted,orphaned,unknown"`
 	// AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。
 	AuditLabel string `json:"audit_label"`
 }

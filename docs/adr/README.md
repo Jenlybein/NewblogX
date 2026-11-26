@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-本目录是决策入口，**一条决策一个文件，编号连续 0001–0033**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
+本目录是决策入口，**一条决策一个文件，编号连续 0001–0034**。每条回答「为什么这样定、否决了什么、代价是什么、当前生效约束」。改某条规则或某个取舍前，先读对应的 ADR；后端架构的硬约束总表是 [`../architecture/overview.md`](../architecture/overview.md) §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
 
 > **整理口径（2026-11-13）**：同一主题前后冲突只保留最新一条。被取代的决策与修订型 ADR 已整体并入保留下来的条目，旧文件物理删除；正文一律直接写现行结论，不留「后续修订」「实施记录」「差异表」尾段，也不留 `已取代` 状态。编号因此压缩重排为 0001–0029（此后新增正常续号），**旧编号与本次之前的引用一律失效**；历史版本查 git。整理时笔记与归档目录一并删除，过程记录、实测数字与 v1 归档只存在于 git 历史。
 
@@ -41,6 +41,7 @@
 | [0031](./0031-home-trail-pixel-smoke-switch.md) | 首屏指针尾迹可切换 | 默认像素尾迹（自实现、canvas 网格盖章 + 淡出，颜色取 `--jelly-yellow`），`deco.home_trail=smoke` 可切回指针墨流；后台装饰页单选，未知值回落 pixel；两套共用 `.home-cover__ink` 图层位 | [ADR-0011](./0011-neutral-glass-visual-system.md) · [ADR-0014](./0014-deco-segment-and-cursor-charm.md) · [GLOSSARY · 首屏装饰](../../GLOSSARY.md) |
 | [0032](./0032-content-filter.md) | 全局内容过滤：命中替换为星号 + 关键词风险交后台处置 | 删除两处词表机审与整套评论审核；第 11 段运行期配置 `content_filter`（匿名不可读）；六个文本面**落库前**按 rune 等长替换成 `*`，不保留原文；命中记 `content_filter_hit`（±20 字上下文、90 天），后台风险页四个处置动作（删除 / 忽略 / 封禁 / 禁言）；引擎 AC + 影子串归一化；上线顺序 `-filter-import` → `-filter-sweep` → 重建 ES | [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0025](./0025-risk-gated-publish.md) · [GLOSSARY · 内容过滤](../../GLOSSARY.md) |
 | [0033](./0033-captcha-configurable-and-redis-store.md) | 图形验证码参数后台可配置、按入口闸门、存储换 Redis | 第 12 段运行期配置 `captcha`（仅后台、无公开读）管驱动 / 尺寸 / 字符集 / 有效期 / 噪点 / 干扰线 / 失败文案；`site.login` 在总开关之外有四个入口闸门（登录 / 邮箱发码 / 短信发码 / 注册，均公开可读）；归一化「0/空串回落默认、越界即报错」，不适用字段按驱动清零（`max_skew` / `dot_count` 保留原值）；存储换 Redis（前缀 `blogx:captcha:`、TTL 现读、`GETDEL` 原子取删、装配期无 Redis 才降级 `TtlMemoryStore`）；四条入口各挂 `CaptchaGate(scope)`，注册闸门只挂专门注册路由；`/imagecaptcha` 回显 `expire_seconds`，前端据此定时换图 | [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0032](./0032-content-filter.md) · [GLOSSARY · 图形验证码](../../GLOSSARY.md) · [配置分层](../architecture/configuration.md) |
+| [0034](./0034-image-display-styles-and-audit-gate.md) | 图片展示样式与审核闸门 | 六个上传入口汇到唯一入库点；七态审核状态机（`unknown/pass/deleted/orphaned/review/block/pending`）与`block` 终局；未过审不给地址（`uploadVisibleURL`）；三条结论通道取最严（同步机审 / 七牛回调 / 超时转人工）；违规即删对象并按管理员豁免记分；后台「图片审核」队列与「图片资源库」分栏；`?imageInfo` 必须首位且进签名，探测另有文件头兜底；审核状态是契约枚举，端点映射表按 `Record` 列全 | [ADR-0013](./0013-banner-framing-as-parameters.md) · [GLOSSARY · 图片与审核](../../GLOSSARY.md) |
 
 ## 来源与拆分说明
 
@@ -63,6 +64,7 @@
    7. `## 当前生效约束`（不得为空）
    8. `## 相关代码与文档`（链接到对应的 `../architecture/` 文档与具体代码路径）
 5. **登记**：新增后在本索引表补一行，并在「关联文档」列写清它落在 `docs/architecture/` 的哪一篇。呈现层等没有 `architecture/` 专篇的决策，链接到根 `GLOSSARY.md`，**不要**为它另造一篇 architecture 文档——概念只在 GLOSSARY 定义一次。
+
 
 
 

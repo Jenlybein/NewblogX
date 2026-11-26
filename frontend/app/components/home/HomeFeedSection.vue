@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { useSectionReveal } from "~/composables/useSectionReveal";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import type { SearchArticleItem } from "~/types/api";
 import { homeSearchLocation, resolveHomeSectionState } from "~/utils/home";
@@ -70,8 +69,11 @@ function entranceProps(index: number) {
   };
 }
 
-// 区块级滚动进场：只给布局容器（段落/条目不动），位移 ≤12px、只进一次。
-const { target: revealTarget, revealStyle } = useSectionReveal();
+/*
+ * 区块不再做"滚动进场"（票 441）：列表是页面正文，进入站点时可能刚好落在首屏下沿，
+ * 而 reveal 的初态是 opacity: 0 —— 看起来就是"最新文章被隐藏了"。内容该常显：
+ * 只有首屏的装饰色带还走进场，正文区块一律直接可见。
+ */
 const state = computed(() =>
   resolveHomeSectionState({ pending: props.pending, failed: props.failed, itemCount: props.articles.length }),
 );
@@ -79,12 +81,7 @@ const searchTo = homeSearchLocation();
 </script>
 
 <template>
-  <section
-    ref="revealTarget"
-    class="blueprint-panel motion-reveal"
-    :style="revealStyle"
-    data-home-section="feed"
-  >
+  <section class="blueprint-panel" data-home-section="feed">
     <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="eyebrow">{{ eyebrow }}</div>

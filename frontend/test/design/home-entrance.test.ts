@@ -12,11 +12,14 @@ import { staggerItemMotion } from "~/utils/motion";
  * `useSectionReveal`（区块滚动进场）与 `useParallax`（视差 ≤10px）。#24 的首屏封面
  * 是这两者的第一个"分层"消费者：装饰层走 reveal、文字层走 stagger、记号走视差，
  * 所以这里锁定四件事：
- *   1. 首页首屏、最新列表与右栏真的接了对应 composable（而不是各写一套动画）；
- *   2. 每个入场元素都带 `.motion-stagger-item` / `.motion-reveal`（SSR initial 与
- *      noscript 兜底依赖这些类）；
+ *   1. 首页首屏的装饰层真的接了对应 composable（而不是各写一套动画）；
+ *   2. 入场元素都带 `.motion-stagger-item`（SSR initial 与 noscript 兜底依赖这些类）；
  *   3. reduce 下时长/延迟为 0，initial/animate 不变（不因 reduce 改 markup 而抖动 hydration）；
  *   4. 首屏封面没有自建关键帧动画（视差与进场都归口到 #3/#23 的预算）。
+ *
+ * 票 441 补一条边界：**首页正文区块（列表 / 置顶 / 右栏）不走进场**。它们原来也挂
+ * `.motion-reveal`，初态 `opacity: 0`，进入站点时正好落在首屏下沿 —— 看起来就是
+ * "列表和右栏被隐藏了"。正文常显，装饰才进场。
  */
 const projectDir = process.cwd();
 const read = (path: string) => readFileSync(join(projectDir, path), "utf8");
@@ -46,6 +49,14 @@ describe("首页分级淡入：首屏与列表", () => {
 
   it("无 JS 兜底：app.vue 的 noscript 样式把 stagger 条目直接置为可见", () => {
     expect(appSource).toContain("motion-stagger-item{opacity:1!important;transform:none!important}");
+  });
+
+  it("正文区块不挂 reveal：列表 / 置顶 / 右栏进入站点时就可见（票 441）", () => {
+    for (const source of [feedSource, sidebarSource, read("app/components/home/HomePinnedSection.vue")]) {
+      expect(source).not.toContain("useSectionReveal");
+      expect(source).not.toContain("motion-reveal");
+      expect(source).not.toContain("revealStyle");
+    }
   });
 });
 

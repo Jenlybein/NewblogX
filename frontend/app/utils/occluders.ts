@@ -151,6 +151,19 @@ export interface CollectOccludersOptions {
    * 声明了 `data-ink-pass` 就不再是墙 —— 墨直接穿过去。
    */
   skipSelector?: string;
+  /**
+   * 命中选择器的元素是**显式墙**：跳过下面所有启发式（面积上限、压字让位、零透明度），
+   * 只要它真的看得见、盒子没退化，就一定进墙。
+   *
+   * 为什么需要：启发式是给"自动判定"用的兜底，而首屏轮播面板这类元素是**设计上**
+   * 就必须挡住墨的（它是版面里的一张实心卡片）。靠启发式判它会出事：面板面积会随
+   * 视口比例变化、面板里又压着标题，任何一条命中都会让它从墙里掉出去，于是墨从
+   * 面板里穿过去 —— 观感是"轮播图挡不住墨"，且只在某些窗口尺寸下复现。
+   * 所以这类元素用 `data-ink-wall` 显式声明，不再交给猜测。
+   *
+   * `skipSelector`（`data-ink-pass`）优先：同一个元素既有 pass 又有 wall 时，墨穿过去。
+   */
+  wallSelector?: string;
 }
 
 /**
@@ -167,6 +180,7 @@ export function collectOccluders(
   const minSize = options.minSize ?? 4;
   const maxAreaRatio = options.maxAreaRatio ?? 0.6;
   const skipSelector = options.skipSelector ?? "";
+  const wallSelector = options.wallSelector ?? "";
   const base = host.getBoundingClientRect();
   const hostArea = Math.max(1, base.width * base.height);
   const candidates: Array<{
@@ -179,6 +193,8 @@ export function collectOccluders(
     isGlyphs: boolean;
     /** 元素的整块外框（判定"装饰压着字"时用）。 */
     rect: OccluderBox;
+    /** 显式墙（`data-ink-wall`）：跳过所有启发式，必进墙。 */
+    forced: boolean;
   }> = [];
 
   for (const el of host.querySelectorAll<HTMLElement>("*")) {
@@ -187,15 +203,17 @@ export function collectOccluders(
     const rect = el.getBoundingClientRect();
     if (rect.width < minSize || rect.height < minSize) continue;
     const style = getComputedStyle(el);
-    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
-      continue;
-    }
+    // 看得见才是墙：`display: none` / `visibility: hidden` 一律跳过；
+    // 零透明度只对自动判定的元素生效 —— 显式墙不受它影响（它可能正在进场，但位置是真的）。
+    if (style.display === "none" || style.visibility === "hidden") continue;
+    const forced = wallSelector !== "" && el.matches(wallSelector);
+    if (!forced && Number(style.opacity) === 0) continue;
     // 布局盒 → 可见盒：被裁剪祖先（如带圆角 + `overflow: clip` 的卡片）切掉的部分
     // 不该算成墙，否则装饰会在卡片四周空出一圈。
     const visible = visibleOccluderRect(el, host);
     if (!visible || visible.w < minSize || visible.h < minSize) continue;
     // 面积上限按**可见面积**判：整屏级的版式容器依然是墙，但它被裁到卡片大小的子块不会。
-    if (visible.w * visible.h > hostArea * maxAreaRatio) continue;
+    if (!forced && visible.w * visible.h > hostArea * maxAreaRatio) continue;
     const box: OccluderBox = {
       x: visible.x - base.left,
       y: visible.y - base.top,
@@ -215,6 +233,7 @@ export function collectOccluders(
       isGlyphs: glyphs !== null,
       rect: box,
       boxes: glyphs ?? [box],
+      forced,
     });
   }
 
@@ -243,6 +262,10 @@ export function collectOccluders(
   // 叶子块留下；有墨（描边 / 底色 / 阴影）的父块也留下 —— 它自己就是一条看得见的版式。
   return candidates
     .filter((candidate) => {
+      // 显式墙（`data-ink-wall`）不受任何启发式影响：它一定是墙。
+      if (candidate.forced) {
+        return true;
+      }
       // 压着字的装饰（雾光、玻璃碎片、渐变压片）让位给字：它自己不该是墙。
       if (!candidate.el.hasAttribute("data-glass-text") && isTextBackdrop(candidate.rect)) {
         return false;

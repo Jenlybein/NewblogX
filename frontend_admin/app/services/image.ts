@@ -320,7 +320,13 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     if (!task.url) {
       // 秒传命中的是"同一张图上次传过"，它可能还在审核中（未过审不给地址，ADR-0034）。
       // 这不是故障，提示要说清是哪一种，否则管理员会以为上传坏了。
-      const skipAuditStatus = String((task as { audit_status?: string }).audit_status ?? '')
+      // 秒传响应里只有 `status`（与 `audit_status` 同一套机读短名），没有 `audit_status`；
+      // 只看后者会把"已封禁"错当成"没给 URL"。
+      const skipAuditStatus = String(
+        (task as { audit_status?: string; status?: string }).audit_status
+          ?? (task as { status?: string }).status
+          ?? '',
+      )
       throw explainMissingUrl(skipAuditStatus, true) ?? new Error('上传任务命中秒传，但未返回图片 URL')
     }
 
@@ -363,5 +369,6 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   }
 }
+
 
 

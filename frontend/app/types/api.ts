@@ -413,3 +413,12 @@ export type ModerationSummary = RequiredSchema<"internal_moderation_adapter_http
 export type ModerationEventItem = RequiredSchema<"internal_moderation_adapter_http.EventItem">;
 export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_http.AppealItem">;
 
+/**
+ * 图片审核状态（机读短名）。
+ *
+ * 从契约派生而不是手写字符串联合：后端加一种状态时这里自动跟上，
+ * 客户端 switch 的分支也就不会悄悄漏掉一种（2026-11-27 漏过 orphaned / unknown）。
+ */
+export type ImageAuditStatus =
+  | CreateImageUploadTaskResponseData["audit_status"]
+  | UploadTaskStatusResponseData["audit_status"];

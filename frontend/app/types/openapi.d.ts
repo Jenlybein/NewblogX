@@ -9258,8 +9258,9 @@ export interface components {
             /**
              * @description AuditStatus 是**图片审核**状态（pending / pass / review / block …），
              *     与 Status 是两件事：任务是"文件传完了没"，审核是"这张图能不能给人看"。
+             * @enum {string}
              */
-            audit_status?: string;
+            audit_status?: "pending" | "pass" | "review" | "block" | "deleted" | "orphaned" | "unknown";
             error_msg?: string;
             image_id?: string;
             /** @description Status 是**任务**状态（pending / ready / failed）。 */
@@ -9290,8 +9291,9 @@ export interface components {
              *     秒传分支必须带上：命中的是"这张图以前传过"，它可能早已被封禁或待审核，
              *     而那时 URL 是空的。只有任务状态的话，客户端拿不到"为什么没有地址"，
              *     只能报一句"未返回 URL"（2026-11-27 线上就是这样漏的）。
+             * @enum {string}
              */
-            audit_status?: string;
+            audit_status?: "pending" | "pass" | "review" | "block" | "deleted" | "orphaned" | "unknown";
             bucket?: string;
             expire_at?: string;
             hash?: string;
@@ -9310,8 +9312,11 @@ export interface components {
         "internal_media_adapter_http.ImageItem": {
             /** @description AuditLabel 是给人看的中文短名（待审核 / 已通过 / 违规 …），后台表格直接显示。 */
             audit_label?: string;
-            /** @description AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。 */
-            audit_status?: string;
+            /**
+             * @description AuditStatus 是机读短名（pending / pass / review / block …），前端据此分支。
+             * @enum {string}
+             */
+            audit_status?: "pending" | "pass" | "review" | "block" | "deleted" | "orphaned" | "unknown";
             bucket?: string;
             created_at?: string;
             file_name?: string;
@@ -9354,8 +9359,11 @@ export interface components {
             object_key?: string;
         };
         "internal_media_adapter_http.TaskStatusResponse": {
-            /** @description AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。 */
-            audit_status?: string;
+            /**
+             * @description AuditStatus 是图片审核状态，前端据此显示「审核中 / 已通过 / 已屏蔽」。
+             * @enum {string}
+             */
+            audit_status?: "pending" | "pass" | "review" | "block" | "deleted" | "orphaned" | "unknown";
             error_msg?: string;
             hash?: string;
             image_id?: string;

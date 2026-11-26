@@ -453,4 +453,11 @@ export type ContentFilterHandleBatchResult = RequiredSchema<"internal_filter_ada
 
 export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_http.AppealItem">;
 
-
+/**
+ * 图片审核状态（机读短名），从契约派生。
+ *
+ * 手写字符串联合会在后端加状态时静默过期，客户端 switch 就漏分支。
+ */
+export type ImageAuditStatus =
+  | CreateImageUploadTaskResponseData['audit_status']
+  | UploadTaskStatusResponseData['audit_status'];

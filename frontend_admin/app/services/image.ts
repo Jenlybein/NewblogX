@@ -1,6 +1,7 @@
 import type {
   CreateImageUploadTaskRequest,
   CreateImageUploadTaskResponseData,
+  ImageAuditStatus,
   UploadTaskStatusResponseData,
 } from '~/types/api'
 
@@ -265,33 +266,32 @@ export class UploadRejectedError extends Error {
  *
  * `skip` 区分秒传命中（"之前传过"）与本次刚传完，两种文案不一样。
  */
-function explainMissingUrl(auditStatus: string, skip: boolean): Error | null {
-  switch (auditStatus) {
-    case 'pending':
-      return new UploadPendingAuditError(
-        skip
+function explainMissingUrl(auditStatus: ImageAuditStatus, skip: boolean): Error | null {
+  // 表按契约枚举列全：后端新增一种审核状态时，重新生成 openapi.d.ts 后这里会
+  // **编译报错**（Record 缺键），而不是像 switch 的 default 那样静默漏掉。
+  const explain: Record<ImageAuditStatus, (isSkip: boolean) => Error | null> = {
+    pending: (isSkip) =>
+      new UploadPendingAuditError(
+        isSkip
           ? '这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）'
           : '图片已上传，正在机器审核（通常几秒，通过后自动生效）',
-      )
-    case 'review':
-      return new UploadPendingAuditError(
-        skip
+      ),
+    review: (isSkip) =>
+      new UploadPendingAuditError(
+        isSkip
           ? '这张图之前已上传，正在人工审核（通过后才会生效）'
           : '图片已上传，正在人工审核（通过后才会生效）',
-      )
-    case 'block':
-      return new UploadRejectedError('图片包含违规内容，已被拒绝并删除，请换一张')
+      ),
+    block: () => new UploadRejectedError('图片包含违规内容，已被拒绝并删除，请换一张'),
     // 已删除 / 失效 / 状态未知的图同样拿不到地址，而且重选同一个文件会因哈希
     // 命中又回到同一条记录（秒传），所以文案只说"换一张"。
-    case 'deleted':
-      return new UploadRejectedError('这张图已被删除，请换一张')
-    case 'orphaned':
-      return new UploadRejectedError('这张图已失效，请换一张')
-    case 'unknown':
-      return new UploadRejectedError('这张图状态异常，请换一张后重试')
-    default:
-      return null
-  }
+    deleted: () => new UploadRejectedError('这张图已被删除，请换一张'),
+    orphaned: () => new UploadRejectedError('这张图已失效，请换一张'),
+    unknown: () => new UploadRejectedError('这张图状态异常，请换一张后重试'),
+    pass: () => null,
+  };
+  const handler = explain[auditStatus] as ((isSkip: boolean) => Error | null) | undefined;
+  return handler ? handler(skip) : null;
 }
 
 /**
@@ -329,7 +329,7 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
       // 秒传命中的是"这张图以前传过"，它可能还在审核中、已被封禁或已删除，
       // 每种情况都不给地址，但给运营的话必须不同。
       // 秒传响应里 `status` 是**任务**状态（ready），审核结论只在 `audit_status` 里。
-      throw explainMissingUrl(String(task.audit_status), true) ?? new Error('上传任务命中秒传，但未返回图片 URL')
+      throw explainMissingUrl(task.audit_status, true) ?? new Error('上传任务命中秒传，但未返回图片 URL')
     }
 
     return {
@@ -358,7 +358,7 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
   const status = await waitUploadReady(task.upload_id, options)
   if (!status.url) {
     // 未过审的图没有地址是设计如此（未过审不给 URL），但把它当失败报是错的。
-    throw explainMissingUrl(String(status.audit_status), false) ?? new Error('上传任务已就绪，但未返回图片 URL')
+    throw explainMissingUrl(status.audit_status, false) ?? new Error('上传任务已就绪，但未返回图片 URL')
   }
 
   return {
@@ -370,3 +370,5 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   }
 }
+
+

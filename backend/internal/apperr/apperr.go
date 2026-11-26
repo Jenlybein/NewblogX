@@ -860,7 +860,7 @@ var messages = map[Code]string{
 	CodeStorageObjectKeyRequired: "qiniu: object key 不能为空",
 	CodeStorageSizeInvalid:       "qiniu: size limit 必须大于 0",
 	CodeStorageDomainMissing:     "qiniu: 下载域名未配置",
-	CodeStorageImageInfoInvalid:  "qiniu: imageInfo 不完整",
+	CodeStorageImageInfoInvalid:  "读取图片信息失败，请换一张图或稍后重试",
 
 	CodeAuthTokenExpired:    "登录已失效，请重新登录",
 	CodeAuthSendTooFrequent: "请求过于频繁，请稍后再试",

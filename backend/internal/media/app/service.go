@@ -227,12 +227,16 @@ func (s *Service) GetStatus(ctx context.Context, taskID, userID uint64) (*Confir
 	}
 	result := &ConfirmResult{Task: task}
 	if task.ImageID != nil {
-		if task.ImageURL != "" {
-			result.Image = &domain.Image{ID: ctype.NewID((*task.ImageID).Uint64()), URL: task.ImageURL}
-			return result, nil
-		}
-		if image, err := s.repo.FindByID(ctx, ctype.NewID((*task.ImageID).Uint64())); err == nil {
+		// 必须以图行里的**当前**审核状态为准。任务上的 ImageURL 只是入库那一刻的
+		// 快照，而审核（同步 CensorNow / 七牛回调 / 超时扫描）都在任务落盘之后才
+		// 有结论；照快照拼一个 Image 出来，状态会一直是 0（unknown），于是客户端
+		// 拿 "unknown" 当结论 —— 2026-11-27 上传违规图时弹出「这张图状态异常」。
+		image, err := s.repo.FindByID(ctx, ctype.NewID((*task.ImageID).Uint64()))
+		if err == nil {
 			result.Image = &image
+		} else if task.ImageURL != "" {
+			// 图行已经不在了（运营物理清理等）：只能回快照，状态如实按未知处理。
+			result.Image = &domain.Image{ID: ctype.NewID((*task.ImageID).Uint64()), URL: task.ImageURL}
 		}
 	}
 	return result, nil

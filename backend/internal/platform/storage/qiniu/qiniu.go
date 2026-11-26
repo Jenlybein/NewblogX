@@ -55,9 +55,7 @@ type ImageInfo struct {
 // Storage 是七牛客户端。
 type Storage struct {
 	cfg conf.QiNiu
-	// imageInfoBase 留空时用配置里的资源域名；测试里指向本地假服务，
-	// 这样能只验"fop 失败 → 字节兜底"这条路径，不碰真七牛。
-	imageInfoBase string
+
 	// censorEndpoint 留空时用 censorEndpoint 常量；测试里指向本地服务器，
 	// 这样能只验证签名而不碰真七牛。
 	censorEndpoint string

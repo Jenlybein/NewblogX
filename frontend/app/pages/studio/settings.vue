@@ -5,7 +5,7 @@ import { NAlert, NButton, NCard, NInput, NModal, NSwitch, useMessage } from "nai
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import { bindPhone, sendEmailCode, sendSmsCode, setAccountPassword } from "~/services/auth";
-import { uploadImageByTask } from "~/services/image";
+import { UploadRejectedError, uploadImageByTask } from "~/services/image";
 import { getTagOptions } from "~/services/search";
 import {
   bindUserEmail,
@@ -521,7 +521,13 @@ async function handleAvatarFileChange(event: Event) {
     await withTimeout(avatarCropFlow.select(file), 60_000, "头像处理超时，请换一张图重试");
   } catch (error) {
     avatarUploading.stage = "";
-    message.error(errorMessage(error, "头像上传失败"));
+    // 图片被审核判违规（或被删除 / 失效）不算"上传出故障"：换个警告样式，
+    // 并且文案已经在错误里说清了该怎么做，不要再套一句泛化的"上传失败"。
+    if (error instanceof UploadRejectedError) {
+      message.warning(error.message);
+    } else {
+      message.error(errorMessage(error, "头像上传失败"));
+    }
   } finally {
     avatarUploading.pending = false;
     input.value = "";
@@ -541,7 +547,13 @@ async function confirmAvatarCrop(framing: ShapeFramingState) {
     await avatarCropFlow.confirm(request, framing);
   } catch (error) {
     avatarUploading.stage = "";
-    message.error(errorMessage(error, "头像上传失败"));
+    // 图片被审核判违规（或被删除 / 失效）不算"上传出故障"：换个警告样式，
+    // 并且文案已经在错误里说清了该怎么做，不要再套一句泛化的"上传失败"。
+    if (error instanceof UploadRejectedError) {
+      message.warning(error.message);
+    } else {
+      message.error(errorMessage(error, "头像上传失败"));
+    }
   } finally {
     avatarUploading.pending = false;
     if (avatarFileInputRef.value) {
@@ -1167,5 +1179,3 @@ useNoIndexPage();
       @cancel="cancelAvatarCrop" />
   </div>
 </template>
-
-

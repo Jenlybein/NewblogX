@@ -189,17 +189,82 @@ describe("image service", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("throws when a skip-upload task does not provide a final image url", async () => {
+  // 秒传响应里的 `status` 是**任务**状态（ready），审核结论在 `audit_status`。
+  // 旧用例用 status:"ready" 冒充审核状态，于是新加的分支全部"空过"——
+  // 2026-11-27 线上漏报就是被这种假绿掩盖的。下面是真实取值下的四种结局。
+  it.each([
+    ["block", "图片包含违规内容，已被拒绝并删除，请换一张"],
+    ["deleted", "这张图已被删除，请换一张"],
+    ["orphaned", "这张图已失效，请换一张"],
+    ["unknown", "这张图状态异常，请换一张后重试"],
+  ])("秒传命中已不可用的图（audit_status=%s）给出可操作提示", async (auditStatus, expected) => {
     requestMock.mockResolvedValue({
       skip_upload: true,
       hash: "etag-3",
       image_id: "img-3",
       status: "ready",
+      audit_status: auditStatus,
+    });
+
+    await expect(
+      uploadImageByTask(new File(["avatar"], "avatar.png", { type: "image/png" })),
+    ).rejects.toThrow(expected);
+  });
+
+  it.each([
+    ["pending", "这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）"],
+    ["review", "这张图之前已上传，正在人工审核（通过后才会生效）"],
+  ])("秒传命中审核中的图（audit_status=%s）报「审核中」而不是失败", async (auditStatus, expected) => {
+    requestMock.mockResolvedValue({
+      skip_upload: true,
+      hash: "etag-3",
+      image_id: "img-3",
+      status: "ready",
+      audit_status: auditStatus,
+    });
+
+    await expect(
+      uploadImageByTask(new File(["avatar"], "avatar.png", { type: "image/png" })),
+    ).rejects.toThrow(expected);
+  });
+
+  it("秒传命中但审核通过、却仍无地址时按真异常报出", async () => {
+    requestMock.mockResolvedValue({
+      skip_upload: true,
+      hash: "etag-3",
+      image_id: "img-3",
+      status: "ready",
+      audit_status: "pass",
     });
 
     await expect(
       uploadImageByTask(new File(["avatar"], "avatar.png", { type: "image/png" })),
     ).rejects.toThrow("上传任务命中秒传，但未返回图片 URL");
+  });
+
+  it("轮询拿到违规结论时给出「被拒」提示（与「审核中」区分）", async () => {
+    requestMock
+      .mockResolvedValueOnce({
+        skip_upload: false,
+        upload_id: "upload-4",
+        upload_token: "token-4",
+        object_key: "avatars/u4.png",
+      })
+      .mockResolvedValueOnce({
+        status: "ready",
+        url: "",
+        audit_status: "block",
+        error_msg: "",
+      });
+
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+    await expect(
+      uploadImageByTask(new File(["avatar"], "avatar.png", { type: "image/png" }), {
+        pollIntervalMs: 0,
+        pollTimeoutMs: 100,
+      }),
+    ).rejects.toThrow("图片包含违规内容，已被拒绝并删除，请换一张");
   });
 
   it("surfaces backend polling failures before returning a broken ready state", async () => {
@@ -235,3 +300,5 @@ describe("image service", () => {
     );
   });
 });
+
+

@@ -253,8 +253,14 @@ function explainMissingUrl(auditStatus: string, skip: boolean): Error | null {
       );
     case "block":
       return new UploadRejectedError("图片包含违规内容，已被拒绝并删除，请换一张");
+    // 已删除 / 失效 / 状态未知的图同样拿不到地址，而且重选同一个文件会因
+    // 哈希命中又回到同一条记录（秒传），所以文案只说"换一张"，别说"重新选择"。
     case "deleted":
-      return new UploadRejectedError("这张图已被删除，请重新选择");
+      return new UploadRejectedError("这张图已被删除，请换一张");
+    case "orphaned":
+      return new UploadRejectedError("这张图已失效，请换一张");
+    case "unknown":
+      return new UploadRejectedError("这张图状态异常，请换一张后重试");
     default:
       return null;
   }
@@ -317,16 +323,10 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
 
   if (task.skip_upload) {
     if (!task.url) {
-      // 秒传命中的是"同一张图上次传过"，而它可能还在审核中（未过审不给地址）。
-      // 这与"秒传坏了"是两件事，提示必须分清，否则用户会以为上传功能出错。
-      // 秒传响应里只有 `status`（与 `audit_status` 同一套机读短名），
-      // 没有 `audit_status` 字段；只看后者会把"已封禁"错当成"没给 URL"。
-      const skipAuditStatus = String(
-        (task as { audit_status?: string; status?: string }).audit_status
-          ?? (task as { status?: string }).status
-          ?? "",
-      );
-      throw explainMissingUrl(skipAuditStatus, true)
+      // 秒传命中的是"这张图以前传过"，它可能还在审核中、已被封禁或已删除，
+      // 每种情况都不给地址（ADR-0034），但给用户的话必须不同。
+      // 秒传响应里 `status` 是**任务**状态（ready），审核结论只在 `audit_status` 里。
+      throw explainMissingUrl(String(task.audit_status), true)
         ?? new Error("上传任务命中秒传，但未返回图片 URL");
     }
 
@@ -358,10 +358,7 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
   // "不给地址"）。但把它当失败报出来是错的 —— 图已经传上去了、也进了审核队列，
   // 只是还没结论。所以这里抛一个能被调用方识别的错误，文案说清"在审核"。
   if (!status.url) {
-    const auditStatus = String(
-      (status as { audit_status?: string }).audit_status ?? "",
-    );
-    throw explainMissingUrl(auditStatus, false)
+    throw explainMissingUrl(String(status.audit_status), false)
       ?? new Error("上传任务已就绪，但未返回图片 URL");
   }
 
@@ -374,7 +371,3 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
     skip_upload: false,
   };
 }
-
-
-
-

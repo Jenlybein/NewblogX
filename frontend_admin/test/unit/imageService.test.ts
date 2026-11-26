@@ -21,6 +21,7 @@ describe('admin image service purpose', () => {
       hash: 'etag-1',
       image_id: 'img-1',
       status: 'ready',
+      audit_status: 'pass',
     })
     return uploadImageByTask(new File(['cover'], 'cover.png', { type: 'image/png' }), { purpose: 'cover' })
   }
@@ -53,3 +54,69 @@ describe('admin image service purpose', () => {
     expect(requestMock.mock.calls[0]?.[1]?.body).not.toHaveProperty('purpose')
   })
 })
+ /**
+  * 秒传命中"已不可用"的图（ADR-0034：未过审不给地址）时的提示。
+  *
+  * 后台这份客户端以前只看 `audit_status`，而秒传响应里根本没这个字段
+  * （只有任务状态 `status: ready`），于是封禁 / 已删除的图都报成
+  * "上传任务命中秒传，但未返回图片 URL"，看起来像上传坏了。
+  */
+ describe('admin image service audit outcome', () => {
+   beforeEach(() => {
+     vi.stubGlobal('useNuxtApp', () => ({ $api: { request: requestMock } }))
+     requestMock.mockReset()
+   })
+
+   it.each([
+     ['block', '图片包含违规内容，已被拒绝并删除，请换一张'],
+     ['deleted', '这张图已被删除，请换一张'],
+     ['orphaned', '这张图已失效，请换一张'],
+     ['unknown', '这张图状态异常，请换一张后重试'],
+   ])('秒传命中 audit_status=%s 时给出可操作提示', async (auditStatus, expected) => {
+     requestMock.mockResolvedValue({
+       skip_upload: true,
+       url: '',
+       hash: 'etag-2',
+       image_id: 'img-2',
+       status: 'ready',
+       audit_status: auditStatus,
+     })
+
+     await expect(
+       uploadImageByTask(new File(['cover'], 'cover.png', { type: 'image/png' }), { purpose: 'cover' }),
+     ).rejects.toThrow(expected)
+   })
+
+   it.each([
+     ['pending', '这张图之前已上传，正在机器审核（通常几秒，通过后自动生效）'],
+     ['review', '这张图之前已上传，正在人工审核（通过后才会生效）'],
+   ])('秒传命中 audit_status=%s 时报「审核中」', async (auditStatus, expected) => {
+     requestMock.mockResolvedValue({
+       skip_upload: true,
+       url: '',
+       hash: 'etag-2',
+       image_id: 'img-2',
+       status: 'ready',
+       audit_status: auditStatus,
+     })
+
+     await expect(
+       uploadImageByTask(new File(['cover'], 'cover.png', { type: 'image/png' }), { purpose: 'cover' }),
+     ).rejects.toThrow(expected)
+   })
+
+   it('秒传命中审核通过却仍无地址时按真异常报出', async () => {
+     requestMock.mockResolvedValue({
+       skip_upload: true,
+       url: '',
+       hash: 'etag-2',
+       image_id: 'img-2',
+       status: 'ready',
+       audit_status: 'pass',
+     })
+
+     await expect(
+       uploadImageByTask(new File(['cover'], 'cover.png', { type: 'image/png' }), { purpose: 'cover' }),
+     ).rejects.toThrow('上传任务命中秒传，但未返回图片 URL')
+   })
+ })

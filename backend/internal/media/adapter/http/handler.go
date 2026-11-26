@@ -87,9 +87,16 @@ type CreateTaskResponse struct {
 	ExpireAt    string   `json:"expire_at"`
 	MaxSize     int64    `json:"max_size"`
 	ImageID     ctype.ID `json:"image_id"`
-	Status      string   `json:"status"`
-	URL         string   `json:"url"`
-	Hash        string   `json:"hash"`
+	// Status 是**任务**状态（pending / ready / failed）；秒传命中时任务即刻 ready。
+	Status string `json:"status"`
+	URL    string `json:"url"`
+	Hash   string `json:"hash"`
+	// AuditStatus 是**图片审核**状态（pending / pass / review / block …）。
+	//
+	// 秒传分支必须带上：命中的是"这张图以前传过"，它可能早已被封禁或待审核，
+	// 而那时 URL 是空的。只有任务状态的话，客户端拿不到"为什么没有地址"，
+	// 只能报一句"未返回 URL"（2026-11-27 线上就是这样漏的）。
+	AuditStatus string `json:"audit_status"`
 }
 
 // CompleteTaskRequest 手动完成上传。
@@ -243,9 +250,12 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 		res.OkWithData(CreateTaskResponse{
 			SkipUpload: true,
 			ImageID:    result.Image.ID,
-			Status:     result.Image.Status.String(),
-			URL:        uploadVisibleURL(result.Image.Status, result.Image.URL),
-			Hash:       result.Image.Hash,
+			// 秒传没有真正建任务：库里那张图已经是终态，任务等价于 ready。
+			// Status 固定是任务状态，审核状态走 AuditStatus —— 两者不可互相顶替。
+			Status:      string(domain.TaskReady),
+			AuditStatus: result.Image.Status.String(),
+			URL:         uploadVisibleURL(result.Image.Status, result.Image.URL),
+			Hash:        result.Image.Hash,
 		}, c)
 		return
 	}

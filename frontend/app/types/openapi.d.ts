@@ -9284,6 +9284,14 @@ export interface components {
             size: number;
         };
         "internal_media_adapter_http.CreateTaskResponse": {
+            /**
+             * @description AuditStatus 是**图片审核**状态（pending / pass / review / block …）。
+             *
+             *     秒传分支必须带上：命中的是"这张图以前传过"，它可能早已被封禁或待审核，
+             *     而那时 URL 是空的。只有任务状态的话，客户端拿不到"为什么没有地址"，
+             *     只能报一句"未返回 URL"（2026-11-27 线上就是这样漏的）。
+             */
+            audit_status?: string;
             bucket?: string;
             expire_at?: string;
             hash?: string;
@@ -9293,6 +9301,7 @@ export interface components {
             provider?: string;
             region?: string;
             skip_upload?: boolean;
+            /** @description Status 是**任务**状态（pending / ready / failed）；秒传命中时任务即刻 ready。 */
             status?: string;
             upload_id?: string;
             upload_token?: string;

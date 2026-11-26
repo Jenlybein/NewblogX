@@ -85,15 +85,40 @@ describe("usePointerSpecular：启用条件", () => {
 });
 
 describe("usePointerSpecular：写入 --mx / --my", () => {
-  it("按元素矩形换算成百分比并写 CSS 变量（不改布局，不读 scroll）", () => {
+  /** 把挂起的那一帧跑掉（写入已改为按 rAF 合并：输入事件只记坐标）。 */
+  async function flushSpecularFrame() {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  it("按元素矩形换算成百分比并写 CSS 变量（不改布局，不读 scroll）", async () => {
     const media = fakeMedia({});
     const { element, properties } = fakeElement();
     const specular = usePointerSpecular({ matchMedia: media.matchMedia });
 
     specular.handlePointerMove({ clientX: 100, clientY: 50, currentTarget: element as never });
+    await flushSpecularFrame();
 
     expect(properties.get("--mx")).toBe("50%");
     expect(properties.get("--my")).toBe("50%");
+  });
+
+  it("同一帧内多次 pointermove 只写一次变量（按 rAF 合并，不逐事件重算样式）", async () => {
+    const media = fakeMedia({});
+    const { element, properties } = fakeElement();
+    const specular = usePointerSpecular({ matchMedia: media.matchMedia });
+
+    for (let index = 0; index < 12; index += 1) {
+      specular.handlePointerMove({
+        clientX: 10 + index,
+        clientY: 10,
+        currentTarget: element as never,
+      });
+    }
+    await flushSpecularFrame();
+
+    // 12 次输入 → 1 次写入（两个变量，最后一次的坐标生效：21/200 = 10.5%）。
+    expect(element.style.setProperty).toHaveBeenCalledTimes(2);
+    expect(properties.get("--mx")).toBe("10.5%");
   });
 
   it("关闭时不写任何变量（移动端 / 减少动态）", () => {

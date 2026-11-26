@@ -65,23 +65,50 @@ export function usePointerSpecular(options: UsePointerSpecularOptions = {}): Poi
   const hasMediaQuery = Boolean(reducedQuery || mobileQuery);
   const enabled = computed(() => hasMediaQuery && !reducedMotion.value && !mobile.value);
 
+  /**
+   * 指针镜面高光：按 rAF 合并，每帧最多写一次。
+   *
+   * 原来每个 pointermove 都读一次 rect 并写两个自定义属性：`pointermove` 在
+   * 120Hz 触控板/高刷鼠标上可以远超帧率，而这两次写入会让整棵 header 子树
+   * 重新计算样式（变量是继承的）。合并到每帧后，输入事件只记录坐标。
+   */
+  let pendingFrame = 0;
+  let pendingElement: PointerSpecularElement | null = null;
+  let pendingX = 0;
+  let pendingY = 0;
+
+  function flush() {
+    pendingFrame = 0;
+    const element = pendingElement;
+    if (!element) return;
+    pendingElement = null;
+
+    const rect = element.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+    const { mx, my } = specularPercentage(pendingX, pendingY, rect);
+    element.style.setProperty("--mx", `${mx}%`);
+    element.style.setProperty("--my", `${my}%`);
+  }
+
   function handlePointerMove(event: PointerSpecularEvent) {
     if (!enabled.value) return;
 
     const element = event.currentTarget as PointerSpecularElement | null;
     if (!element || typeof element.getBoundingClientRect !== "function") return;
 
-    const rect = element.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0) return;
-
-    const { mx, my } = specularPercentage(event.clientX, event.clientY, rect);
-    element.style.setProperty("--mx", `${mx}%`);
-    element.style.setProperty("--my", `${my}%`);
+    pendingElement = element;
+    pendingX = event.clientX;
+    pendingY = event.clientY;
+    if (!pendingFrame) pendingFrame = requestAnimationFrame(flush);
   }
 
   function dispose() {
     reducedQuery?.removeEventListener?.("change", handleReducedChange);
     mobileQuery?.removeEventListener?.("change", handleMobileChange);
+    if (pendingFrame) cancelAnimationFrame(pendingFrame);
+    pendingFrame = 0;
+    pendingElement = null;
   }
 
   if (getCurrentScope()) onScopeDispose(dispose);

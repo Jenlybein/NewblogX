@@ -90,7 +90,7 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
 
 <template>
   <article
-    class="feed-entry"
+    class="feed-entry press-sink"
     :class="[`feed-entry--${effectiveVariant}`, hasData ? '' : 'feed-entry--empty', hasCover ? '' : 'feed-entry--no-cover']"
     :data-variant="effectiveVariant"
     :data-empty="hasData ? undefined : 'true'"

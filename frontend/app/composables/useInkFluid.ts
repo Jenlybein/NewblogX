@@ -142,6 +142,8 @@ function createInkFluid(
   let maskH = 0;
   let maskScanAt = 0;
   let maskHost: Element | null = null;
+  /** 上一次烘遮罩时的宿主尺寸（`宽×高`）：几何没变就不必再走一遍 DOM 扫描。 */
+  let maskSizeKey = "";
 
   const ensureMaskTexture = (): WebGLTexture | null => {
     if (maskTex) return maskTex;
@@ -166,6 +168,7 @@ function createInkFluid(
     const rect = (maskHost ?? root).getBoundingClientRect();
     // 512 宽：模拟网格只有 128 格，遮罩太粗的话一个"字"就占一格，字间缝隙会糊成整块。
     maskW = 512;
+    maskSizeKey = `${Math.round(rect.width)}×${Math.round(rect.height)}`;
     maskH = Math.max(1, Math.round(512 * (rect.height / Math.max(1, rect.width))));
     const data = new Uint8Array(maskW * maskH);
     // minSize 取 6：标题是"一字一框"，框本身就不大，门槛太粗会把字全筛掉。
@@ -206,6 +209,14 @@ function createInkFluid(
     }
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, maskW, maskH, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+  };
+
+  /** 宿主尺寸变了才重烘（一次 rect 读，不做 DOM 走查）。 */
+  const refreshMaskIfGeometryChanged = () => {
+    const host = (root.parentElement ?? root) as Element | null;
+    const rect = (host ?? root).getBoundingClientRect();
+    const key = `${Math.round(rect.width)}×${Math.round(rect.height)}`;
+    if (key !== maskSizeKey) refreshMask();
   };
 
   const resize = () => {
@@ -516,11 +527,14 @@ function createInkFluid(
       running = true;
       clock = performance.now();
       /*
-       * 停过再启动时先重烘一次遮罩：这一段空闲里可能发生过的任何布局变化
-       * （窗口缩放、字体到位、移动端地址栏收放、轮播换图）都不该让第一笔墨
-       * 画在一张过期的墙上。重扫是「一次 DOM 走查」，放在启动这一帧可以接受。
+       * 停过再启动：只有在**几何真的变了**时才重烘遮罩。
+       *
+       * 这一段空闲里可能发生过的布局变化（窗口缩放、字体到位、移动端地址栏收放）
+       * 都不该让第一笔墨画在一张过期的墙上；但每次 pointermove 启动都做一遍
+       * `querySelectorAll("*")` + 逐元素 getComputedStyle 是拿输入帧去做强制布局。
+       * 读一次宿主 rect 做签名比对就够（真正的重扫交给 resize 与节流那一份）。
        */
-      refreshMask();
+      refreshMaskIfGeometryChanged();
       frame = requestAnimationFrame(tick);
     } else if (!live && running) {
       running = false;
@@ -529,14 +543,36 @@ function createInkFluid(
     }
   };
 
-  /** 减少动态：固定种子跑一帧静帧，之后不再动。 */
+  /**
+   * 减少动态：固定种子烘一张静帧，之后不再动。
+   *
+   * 140 步 × 每步约 27 个全屏 pass ≈ 3700 次 draw —— 一次性同步跑完会把主线程冻住
+   * 几百毫秒（进页面一次、每次 resize 还会再来一次）。这里分帧烘焙（每帧 10 步），
+   * 完成时才画到屏幕上：减少动态的用户看不到中间过程，只看到最后那张静帧。
+   *
+   * 重入保护：resize 连续触发时取消上一轮，只烘最后一次的几何。
+   */
+  let stillToken = 0;
   const still = () => {
+    stillToken += 1;
+    const token = stillToken;
     seed = 3.2;
-    for (let i = 0; i < 140; i += 1) {
-      plume(16.7 * i * 2.4, 1 / 60);
-      step(1 / 60);
-    }
-    show();
+    let stepIndex = 0;
+    const bake = () => {
+      if (token !== stillToken) return;
+      if (document.hidden) return;
+      const end = Math.min(140, stepIndex + 10);
+      for (; stepIndex < end; stepIndex += 1) {
+        plume(16.7 * stepIndex * 2.4, 1 / 60);
+        step(1 / 60);
+      }
+      if (stepIndex < 140) {
+        requestAnimationFrame(bake);
+        return;
+      }
+      show();
+    };
+    requestAnimationFrame(bake);
   };
 
   try {

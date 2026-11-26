@@ -21,30 +21,32 @@ const count = computed(() => views.value.length);
     无置顶 / 加载中 / 请求失败一律走「整块不渲染」——连 eyebrow、标题、徽标都不出现，
     所以这里刻意没有空态分支（也就没有可显示的空态文案与重试入口）。
   -->
-  <section v-if="count > 0" class="blueprint-panel" data-home-section="pinned">
-    <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <div class="eyebrow">Pinned</div>
-        <h2 class="section-title mt-2">热门置顶</h2>
-      </div>
-      <span class="blueprint-chip" data-role="pinned-badge">{{ count }} 篇</span>
-    </header>
+  <Transition name="pinned-in">
+    <section v-if="count > 0" class="blueprint-panel" data-home-section="pinned">
+      <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="eyebrow">Pinned</div>
+          <h2 class="section-title mt-2">热门置顶</h2>
+        </div>
+        <span class="blueprint-chip" data-role="pinned-badge">{{ count }} 篇</span>
+      </header>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-role="pinned-grid">
-      <article v-for="(view, index) in views" :key="view.id" class="home-pinned-card">
-        <div class="flex items-center justify-between gap-2">
-          <span class="home-pinned-card__index" aria-hidden="true">{{ String(index + 1).padStart(2, "0") }}</span>
-          <span v-if="view.categoryLabel" class="blueprint-chip">{{ view.categoryLabel }}</span>
-        </div>
-        <NuxtLink :to="view.href" class="home-pinned-card__title">{{ view.title }}</NuxtLink>
-        <p class="home-pinned-card__abstract">{{ view.abstract }}</p>
-        <div class="home-pinned-card__footer">
-          <span v-if="view.authorName" class="text-xs text-ink-muted">{{ view.authorName }}</span>
-          <span class="text-xs text-ink-muted">{{ formatCount(view.viewCount) }} 阅读</span>
-        </div>
-      </article>
-    </div>
-  </section>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-role="pinned-grid">
+        <article v-for="(view, index) in views" :key="view.id" class="home-pinned-card">
+          <div class="flex items-center justify-between gap-2">
+            <span class="home-pinned-card__index" aria-hidden="true">{{ String(index + 1).padStart(2, "0") }}</span>
+            <span v-if="view.categoryLabel" class="blueprint-chip">{{ view.categoryLabel }}</span>
+          </div>
+          <NuxtLink :to="view.href" class="home-pinned-card__title">{{ view.title }}</NuxtLink>
+          <p class="home-pinned-card__abstract">{{ view.abstract }}</p>
+          <div class="home-pinned-card__footer">
+            <span v-if="view.authorName" class="text-xs text-ink-muted">{{ view.authorName }}</span>
+            <span class="text-xs text-ink-muted">{{ formatCount(view.viewCount) }} 阅读</span>
+          </div>
+        </article>
+      </div>
+    </section>
+  </Transition>
 </template>
 
 <style scoped>
@@ -60,6 +62,15 @@ const count = computed(() => views.value.length);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   padding: 1rem;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+/* 悬停：与信息流卡一致的"纸面被指到"（底色 + 描边，不加阴影、不改层级）。 */
+.home-pinned-card:hover {
+  border-color: var(--color-line-strong);
+  background-color: var(--color-hover-surface);
 }
 
 .home-pinned-card__index {
@@ -83,6 +94,29 @@ const count = computed(() => views.value.length);
 .home-pinned-card__title:hover {
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+/*
+ * 置顶区块晚到时的进场：客户端导航时置顶数据比信息流晚一步到，区块会插在
+ * 已经渲染的列表上方、把正文直接推下去。这里只做 200ms 的淡入 + 4px 落下，
+ * 让"内容被推"读成一次有序插入，而不是画面跳一下。
+ * （它不隐藏内容：数据没到就不渲染，到了才出现一次。）
+ */
+.pinned-in-enter-active {
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
+}
+
+.pinned-in-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinned-in-enter-active {
+    transition: none;
+  }
 }
 
 .home-pinned-card__abstract {

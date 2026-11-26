@@ -310,6 +310,10 @@ export function usePixelTrail(
   /** 首屏里"会挡字"的元素外框（已外拓、带圆角）：尾迹到这附近就隐身，给元素留白。 */
   let occluders: Array<{ x: number; y: number; w: number; h: number; radius: number }> = [];
   let occluderScanAt = 0;
+/** 上一帧用过的字号：同帧内几百颗方块字号常常相同，不必每颗都重设 `ctx.font`。 */
+let lastFontPx = -1;
+/** ResizeObserver 去抖：拖动窗口时每次回调都重建画布/渐变/遮挡外框，代价太高。 */
+let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   let listening = false;
   let observer: IntersectionObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -421,6 +425,7 @@ export function usePixelTrail(
     const ctx = el.getContext("2d");
     if (ctx) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lastFontPx = -1;
       color = getComputedStyle(element).getPropertyValue(config().colorVar).trim() || "currentColor";
       haze = buildHaze(color, el);
     }
@@ -455,8 +460,12 @@ export function usePixelTrail(
     const dt = Math.min(48, Math.max(0, timestamp - lastTs || 16)) / 1000;
     lastTs = timestamp;
     const cfg = config();
-    // 元素位置会随视差 / 轮播切换移动：每 700ms 重新扫一遍外框，开销可忽略。
-    if (timestamp - occluderScanAt > 700) refreshOccluders();
+    /*
+     * 遮挡外框不再在绘制帧里扫（曾每 700ms 一次整页 `collectOccluders`：
+     * `querySelectorAll("*")` + 每元素 getBoundingClientRect/getComputedStyle +
+     * 逐字 Range —— 全落在 60fps 的盖章循环里，悬停时掉帧）。
+     * 现在只在"几何真的可能变"的时机扫：进入视口、指针按下、尺寸变化（去抖）。
+     */
 
     if (nodes.length === 0) {
       nodes = Array.from({ length: cfg.trailLength }, () => ({ x: pointer.x, y: pointer.y, vx: 0, vy: 0, hist: [] }));
@@ -588,7 +597,11 @@ export function usePixelTrail(
           ctx.globalCompositeOperation = "source-over";
         }
         ctx.globalAlpha = alpha;
-        ctx.font = `700 ${fontPx}px "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace`;
+        // 同一帧里 500+ 颗方块的字号往往相同：只在字号变化时重设 font（设置会重建字体度量对象）。
+        if (fontPx !== lastFontPx) {
+          ctx.font = `700 ${fontPx}px "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace`;
+          lastFontPx = fontPx;
+        }
         ctx.fillText(cell.glyph, cx, cy);
       }
       ctx.globalAlpha = 1;
@@ -601,8 +614,14 @@ export function usePixelTrail(
     }
   }
 
+  /** 几何可能变了才重扫（去抖 400ms）：指针/尺寸/可见性事件是刷新时机，帧内不扫。 */
+  function refreshOccludersIfStale(): void {
+    if (performance.now() - occluderScanAt > 400) refreshOccluders();
+  }
+
   function kick(): void {
     if (raf !== 0 || !visible || prefersReducedMotion.value) return;
+    refreshOccludersIfStale();
     lastTs = performance.now();
     raf = requestAnimationFrame(draw);
   }
@@ -678,13 +697,22 @@ export function usePixelTrail(
     document.addEventListener("visibilitychange", onVisibility);
 
     if (root.value && "ResizeObserver" in globalThis) {
-      resizeObserver = new ResizeObserver(() => resize());
+      resizeObserver = new ResizeObserver(() => {
+        if (resizeTimer) globalThis.clearTimeout(resizeTimer);
+        resizeTimer = globalThis.setTimeout(() => {
+          resizeTimer = null;
+          resize();
+        }, 120);
+      });
       resizeObserver.observe(root.value);
     }
     if (root.value && "IntersectionObserver" in globalThis) {
       observer = new IntersectionObserver((entries) => {
         visible = entries.some((entry) => entry.isIntersecting);
-        if (visible) kick();
+        if (visible) {
+          refreshOccludersIfStale();
+          kick();
+        }
         else cancelLoop();
       });
       observer.observe(root.value);
@@ -699,6 +727,10 @@ export function usePixelTrail(
     document.removeEventListener("visibilitychange", onVisibility);
     resizeObserver?.disconnect();
     resizeObserver = null;
+    if (resizeTimer) {
+      globalThis.clearTimeout(resizeTimer);
+      resizeTimer = null;
+    }
     observer?.disconnect();
     observer = null;
     listening = false;

@@ -280,20 +280,22 @@ async function submitSearch() {
             <span v-if="totalUnread" class="site-header__dot" aria-hidden="true"></span>
           </NuxtLink>
 
-          <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息子项">
-            <NuxtLink
-              v-for="(item, index) in messageNavItems"
-              :key="item.key"
-              :to="item.to"
-              class="site-messages__item"
-              role="menuitem"
-              @click="panel.closeMessages()"
-              @keydown="panel.moveMessageFocus($event, index, messageNavItems.length)"
-            >
-              <span>{{ item.label }}</span>
-              <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
-            </NuxtLink>
-          </div>
+          <Transition name="site-pop">
+            <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息子项">
+              <NuxtLink
+                v-for="(item, index) in messageNavItems"
+                :key="item.key"
+                :to="item.to"
+                class="site-messages__item"
+                role="menuitem"
+                @click="panel.closeMessages()"
+                @keydown="panel.moveMessageFocus($event, index, messageNavItems.length)"
+              >
+                <span>{{ item.label }}</span>
+                <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
+              </NuxtLink>
+            </div>
+          </Transition>
         </div>
 
         <!-- 历史（第 241 票）：普通链接，hover / 聚焦都不展开面板。
@@ -611,8 +613,24 @@ async function submitSearch() {
   font-size: 0.8125rem;
   cursor: pointer;
   transition:
+    transform var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) var(--motion-ease),
     color var(--motion-fast) var(--motion-ease);
+}
+
+/* 按下态：与全站自绘面同一档（1px/0.97）。这排按钮此前只有 hover 变色，
+ * pointer-down 那一刻什么都不发生 —— 同一行里只有「首页」会回弹。 */
+.site-action:active {
+  transform: scale(0.97);
+}
+
+/* 减少动态：位移归零，改走底色/描边（反馈不整段失效，与全站词表口径一致）。 */
+@media (prefers-reduced-motion: reduce) {
+  .site-action:active {
+    transform: none;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-line-strong);
+  }
 }
 
 /* 三枚动作按钮等宽：同一个 class、同一个宽度基准，不再各自覆写 padding。
@@ -696,23 +714,31 @@ async function submitSearch() {
   background: var(--color-surface-raised);
   /* 消息面板是浮层（离开页头的那一层），用浮层专用的 --shadow-lg。 */
   box-shadow: var(--shadow-lg);
-  animation: site-messages-reveal var(--motion-fast) var(--motion-ease) both;
 }
 
-@keyframes site-messages-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(-0.25rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/*
+ * 消息面板进出场（票 441 评审后改法）：原来是 `@keyframes` 进场 + `v-if` 卸载，
+ * 意味着**只有进场、没有出场**，而且每次重新打开都从零重播 —— 指针快速进出铃铛
+ * 时看得见"重来一遍"。现在交给 `<Transition>`：进场/出场都是同一条 transition，
+ * 中途反向由新值接管，出场也有 120ms 收束。
+ */
+.site-pop-enter-active,
+.site-pop-leave-active {
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.site-pop-enter-from,
+.site-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-0.25rem);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .site-messages__panel {
-    animation-duration: 0ms;
+  .site-pop-enter-active,
+  .site-pop-leave-active {
+    transition: none;
   }
 }
 
@@ -933,8 +959,12 @@ async function submitSearch() {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 减少动态：位移归零，但这一枚按钮此前因此**什么反馈都不剩** ——
+   * 补上底色与描边，和全站自绘面的 reduce 口径一致。 */
   .site-header__jump:active {
     transform: none;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-line-strong);
   }
 }
 

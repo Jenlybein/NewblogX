@@ -6,7 +6,7 @@ import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import type { SearchArticleItem } from "~/types/api";
 import { homeSearchLocation, resolveHomeSectionState } from "~/utils/home";
-import { MOTION_EASE } from "~/utils/motion";
+import { MOTION_DURATIONS_MS, MOTION_EASE, motionSeconds } from "~/utils/motion";
 
 const props = withDefaults(
   defineProps<{
@@ -23,7 +23,7 @@ const emit = defineEmits<{ retry: [] }>();
 
 // 列表入场：只动 opacity/translateY，错峰 40ms；减少动态时归零（静态出现）。
 // SSR 的 initial 会内联成 opacity:0，app.vue 的 <noscript> 兜底样式保证无 JS 仍可读。
-const { entranceProps: staggerEntranceProps } = useStaggerEntrance();
+const { entranceProps: staggerEntranceProps, prefersReducedMotion } = useStaggerEntrance();
 
 /**
  * 「已入场」标记（票 433）：只活在本组件内，不落 session 存储。
@@ -62,10 +62,19 @@ function entranceProps(index: number) {
     return staggerEntranceProps(index);
   }
 
+  /*
+   * 翻页后的新一批（票 441 加法）：不再"瞬间换掉整屏文字"。
+   * 一次 120ms 的淡入 + 4px 落位，既不隐藏内容也不排队（delay 恒为 0，不动高度），
+   * 只是让"这一批换完了"有个发生的瞬间。减少动态下时长归零（由 motion 预算给出）。
+   */
   return {
-    initial: { opacity: 1, y: 0 },
+    initial: { opacity: 0, y: 4 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0, delay: 0, ease: MOTION_EASE },
+    transition: {
+      duration: prefersReducedMotion.value ? 0 : motionSeconds(MOTION_DURATIONS_MS.fast),
+      delay: 0,
+      ease: MOTION_EASE,
+    },
   };
 }
 

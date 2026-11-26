@@ -146,7 +146,7 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
         >
           <NuxtLink
             :to="{ path: '/search', query: { tag_ids: tag.id } }"
-            class="blueprint-chip"
+            class="blueprint-chip blueprint-chip--interactive"
             :style="{ fontSize: tagCloudFontSize(tag.weight) }"
           >
             {{ tag.title }}
@@ -264,7 +264,13 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
   justify-content: space-between;
   gap: 0.75rem;
   border-top: 1px solid var(--color-line-faint);
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.375rem;
+  border-radius: var(--radius-sm);
+  /* 悬停反馈作用在**这一行自己**（底色）：子元素各自带 text-ink / text-ink-muted，
+   * 之前在行上写 `color` 根本不可能生效 —— 右栏的四类卡片里只有它是"指上去没反应"。 */
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .sidebar-card-row--stacked {
@@ -302,7 +308,7 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
 }
 
 .sidebar-card-row:hover {
-  color: var(--color-ink);
+  background-color: var(--color-hover-surface);
 }
 </style>
 

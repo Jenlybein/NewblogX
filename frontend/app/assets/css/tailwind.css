@@ -780,6 +780,21 @@
     @apply inline-flex min-h-[28px] items-center rounded-pill border border-line-faint px-2 text-xs text-ink-muted;
   }
 
+  /* 可点的 chip（标签云链接）：同一枚 chip 既做静态徽标又做链接，静态的那份不该有
+   * hover —— 所以交互反馈只加在 `--interactive` 变体上，颜色/描边走 token 过渡。 */
+  .blueprint-chip--interactive {
+    transition:
+      border-color var(--motion-fast) var(--motion-ease),
+      background-color var(--motion-fast) var(--motion-ease),
+      color var(--motion-fast) var(--motion-ease);
+
+    &:hover {
+      border-color: var(--color-line-strong);
+      background-color: var(--color-bg-subtle);
+      color: var(--color-ink);
+    }
+  }
+
   .blueprint-link {
     @apply inline-flex min-h-[44px] items-center text-sm font-medium text-ink underline underline-offset-4;
     text-decoration-color: var(--color-line-strong);
@@ -3932,8 +3947,12 @@ html {
     padding: 1.25rem;
     overflow-y: auto;
     background: var(--color-bg-page);
+    /* 收起方向：位移走 base 档，visibility 延迟到位移结束才生效 ——
+     * 否则 hidden 会在同一帧生效，关闭那 200ms 的滑出根本看不见（开有动画、关是硬切）。 */
     visibility: hidden;
-    transition: translate var(--motion-fast) var(--motion-ease);
+    transition:
+      translate var(--motion-base) var(--motion-ease),
+      visibility 0s linear var(--motion-base);
   }
 
   .home-sidebar,
@@ -3956,15 +3975,28 @@ html {
   .sidebar-drawer-toggle:checked ~ .studio-sidebar {
     translate: 0 0;
     visibility: visible;
-    transition: translate var(--motion-fast) var(--motion-ease);
+    /* 展开方向：立刻可见（不等 200ms），位移同样走 base 档。 */
+    transition:
+      translate var(--motion-base) var(--motion-ease),
+      visibility 0s linear 0s;
   }
 
-  .sidebar-drawer-toggle:checked ~ .sidebar-drawer-scrim {
-    display: block;
+  /* 遮罩：`display` 一秒内切不出过渡，所以改成常驻 + opacity 过渡；
+   * 只在展开时吃指针，收起时立刻让出点击（否则会挡住页面右下角的果冻与页脚链接）。 */
+  .sidebar-drawer-scrim {
     position: fixed;
     inset: 0;
     z-index: 65;
+    display: block;
     background: color-mix(in srgb, var(--color-ink) 38%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-base) var(--motion-ease);
+  }
+
+  .sidebar-drawer-toggle:checked ~ .sidebar-drawer-scrim {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .sidebar-edge-tab {
@@ -4077,8 +4109,12 @@ html {
     overflow-y: auto;
     background: var(--color-surface-raised);
     translate: -100% 0;
+    /* 收起方向：位移走 base 档，visibility 延迟到位移结束才生效 ——
+     * 否则 hidden 会在同一帧生效，关闭那 200ms 的滑出根本看不见（开有动画、关是硬切）。 */
     visibility: hidden;
-    transition: translate var(--motion-fast) var(--motion-ease);
+    transition:
+      translate var(--motion-base) var(--motion-ease),
+      visibility 0s linear var(--motion-base);
   }
 
   .studio-chat-sessions-drawer {
@@ -4088,7 +4124,10 @@ html {
   .studio-inbox-card.is-sessions-drawer-open .studio-inbox-grid__aside {
     translate: 0 0;
     visibility: visible;
-    transition: translate var(--motion-fast) var(--motion-ease);
+    /* 展开方向：立刻可见（不等 200ms），位移同样走 base 档。 */
+    transition:
+      translate var(--motion-base) var(--motion-ease),
+      visibility 0s linear 0s;
   }
 }
 
@@ -4285,10 +4324,18 @@ html {
     transform: scale(0.97);
   }
 
+  /* 大面积可点（信息流条目卡这类上千像素宽的卡）：按钮级的 3% 缩放会把整块文字
+   * 一起放大缩小，边缘缩进几十像素，读起来像"整页抖了一下"。这类面只下沉 1px ——
+   * 手感仍是"被按进纸里"，但不缩放内容。标记 `press-sink` 由消费方写在卡片根节点。 */
+  &.press-sink:active {
+    transform: translateY(1px);
+  }
+
   /* 减少动态：位移归零（不是"慢慢缩"），但按下反馈不能整段失效 ——
    * 自绘面改走底色 + 描边；Naive 按钮保留组件库自己的 pressed 颜色反馈。 */
   @media (prefers-reduced-motion: reduce) {
-    &:active {
+    &:active,
+    &.press-sink:active {
       transform: none;
       background-color: var(--color-bg-subtle);
       border-color: var(--color-line-strong);

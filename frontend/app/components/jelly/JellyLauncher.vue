@@ -323,6 +323,11 @@ onBeforeUnmount(() => {
       </Transition>
 
       <!-- 收起 chip：紧跟在捏捏之后（Tab 序列相邻），命中区 28×28 内是一颗 20×20 的纸面 -->
+      <!--
+        收起 chip 刻意**不加进出场过渡**：它是键盘可达的焦点目标（Esc 收起后焦点
+        要立刻交回角色本体），而过渡的离场阶段会让节点在 DOM 里多留一帧，
+        焦点与读屏顺序都会跟着漂。这一点比"动画完整"更重要。
+      -->
       <button
         v-if="showCollapseChip"
         type="button"
@@ -336,19 +341,23 @@ onBeforeUnmount(() => {
         </span>
       </button>
 
-      <button
-        v-if="!isCollapsed && bubbleText"
-        type="button"
-        class="jelly-bubble glass-thin"
-        @click.stop="dismissBubble"
-        @pointermove="handlePointerMove"
-      >
-        {{ bubbleText }}
-      </button>
+      <Transition name="jelly-soft">
+        <button
+          v-if="!isCollapsed && bubbleText"
+          type="button"
+          class="jelly-bubble glass-thin"
+          @click.stop="dismissBubble"
+          @pointermove="handlePointerMove"
+        >
+          {{ bubbleText }}
+        </button>
+      </Transition>
 
-      <p v-if="hintText" class="jelly-hint" role="status">
-        {{ hintText }}
-      </p>
+      <Transition name="jelly-soft">
+        <p v-if="hintText" class="jelly-hint" role="status">
+          {{ hintText }}
+        </p>
+      </Transition>
     </div>
   </div>
 </template>
@@ -479,13 +488,22 @@ onBeforeUnmount(() => {
 
 /* 把手三态：hover 用 `scaleX(1.25)`（= 可见 16px → 20px，不补间 width）+ 箭头左移 2px；
  * 按下 scale(.96)；焦点用内嵌环。宽度本身仍是 `--jelly-handle-width`，命中区不变。 */
-.jelly-launcher__handle:hover .jelly-launcher__handle-capsule {
-  transform: scaleX(1.25);
-  color: var(--color-ink);
+@media (hover: hover) and (pointer: fine) {
+  .jelly-launcher__handle:hover .jelly-launcher__handle-capsule {
+    transform: scaleX(1.25);
+    color: var(--color-ink);
+  }
+
+  .jelly-launcher__handle:hover .jelly-launcher__handle-arrow {
+    transform: translateX(-2px);
+  }
 }
 
-.jelly-launcher__handle:hover .jelly-launcher__handle-arrow {
-  transform: translateX(-2px);
+@media (prefers-reduced-motion: reduce) {
+  .jelly-launcher__handle:hover .jelly-launcher__handle-capsule,
+  .jelly-launcher__handle:hover .jelly-launcher__handle-arrow {
+    transform: none;
+  }
 }
 
 .jelly-launcher__handle:active {
@@ -560,13 +578,32 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 
-/* 六态：悬停挤压、按压先捏、打开压成把手、收起只剩边缘把手、禁用低饱和。 */
-.jelly-launcher--hover .jelly-launcher__button {
-  transform: scale(1.08, 0.94);
+/* 六态：悬停挤压、按压先捏、打开压成把手、收起只剩边缘把手、禁用低饱和。
+ *
+ * 悬停与按压是**形变**，所以两条纪律：① 悬停只在真有 hover 的设备上生效
+ * （触屏点一下会留下"挤着"的假 hover）；② 减少动态下形变归零、只留颜色反馈 ——
+ * 全局 token 已把时长归零，形变若留着就变成一次瞬时形状跳变（比不做还差）。 */
+@media (hover: hover) and (pointer: fine) {
+  .jelly-launcher--hover .jelly-launcher__button {
+    transform: scale(1.08, 0.94);
+  }
 }
 
 .jelly-launcher--press .jelly-launcher__button {
   transform: scale(0.92, 1.08);
+}
+
+/* reduce 覆盖必须排在六态之后（同特异性靠后者生效）。 */
+@media (prefers-reduced-motion: reduce) {
+  .jelly-launcher--hover .jelly-launcher__button,
+  .jelly-launcher--press .jelly-launcher__button {
+    transform: none;
+  }
+
+  /* reduce 下的按下反馈改走透明度（不是"什么都不发生"）。 */
+  .jelly-launcher--press .jelly-launcher__glyph {
+    opacity: 0.72;
+  }
 }
 
 .jelly-launcher--open .jelly-launcher__button {
@@ -637,7 +674,8 @@ onBeforeUnmount(() => {
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
-  animation: jelly-bubble-in var(--motion-base) var(--motion-ease);
+  /* 进场/出场交给 <Transition name="jelly-soft">：进出同一条 transition，
+   * 可中途反向；淡入从角色右下角（100% 100%）长出来，origin 不再是个死属性。 */
   transform-origin: 100% 100%;
 }
 
@@ -669,21 +707,29 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-@keyframes jelly-bubble-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
+/*
+ * 角色周围的三块瞬时 UI（收起 chip / 气泡 / 提示）统一一套进出场。
+ * 此前它们只有进场甚至没有进场（`v-if` 直接卸载），点击是"东西凭空消失"，
+ * 旁边却是一个专门负责"活着"的角色。统一成 transition 之后出场也有收束，
+ * 而且快速来来去去时由新值接管，不会每次都从零重播。
+ */
+.jelly-soft-enter-active,
+.jelly-soft-leave-active {
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
 
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.jelly-soft-enter-from,
+.jelly-soft-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jelly-bubble {
-    animation: none;
+  .jelly-soft-enter-active,
+  .jelly-soft-leave-active {
+    transition: none;
   }
 }
 

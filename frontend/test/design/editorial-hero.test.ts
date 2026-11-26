@@ -351,7 +351,8 @@ describe("例外边界：色带 / 刻度 / 记号类名只在首屏封面内", (
     const controls = blockAfter(bannerVue, ".banner-controls {");
 
     expect(controls).not.toContain("position: absolute");
-    expect(blockAfter(bannerVue, ".banner-dot span {")).toContain("var(--radius-pill)");
+    expect(blockAfter(bannerVue, ".banner-dot__ring {")).toContain("var(--radius-pill)");
+    expect(blockAfter(bannerVue, ".banner-dot__pill {")).toContain("var(--radius-pill)");
   });
 });
 

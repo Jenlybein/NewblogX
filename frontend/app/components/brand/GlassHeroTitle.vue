@@ -132,10 +132,12 @@ useGlassShardTitle(root, {
     color-mix(in srgb, var(--color-on-inverse) 5%, transparent) 40%,
     transparent 70%
   );
-  filter: blur(20px);
+  /* 18px（不是 20px）：过渡期的 blur ≥20px 在 Safari 上很贵，而 18px 与 20px 的
+   * 观感差别看不出来。缓动走全站唯一曲线，时长落回 UI 预算（--motion-base）。 */
+  filter: blur(18px);
   transition:
-    scale var(--motion-slow) ease-out,
-    opacity var(--motion-slow) ease-out;
+    scale var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
 }
 
 .glass-title__halo.is-active {
@@ -161,6 +163,13 @@ useGlassShardTitle(root, {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
+}
+
+/*
+ * `will-change` 只在交互期间挂（见 useGlassShardTitle 的 idle 判定）：
+ * 九块碎片长期挂着 = 九个常驻合成层，而首屏只是静态呼吸。静态时交还给浏览器。
+ */
+.glass-title.is-live .glass-title__shard {
   will-change: transform;
 }
 
@@ -210,8 +219,15 @@ useGlassShardTitle(root, {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 减少动态：不做缩放，但**保留一次淡光**（只动 opacity）——
+   * 字标是首屏唯一可点的元素，此前点击在 reduce 下完全没有反馈。 */
   .glass-title__halo {
-    transition: none;
+    scale: 1;
+    transition: opacity var(--motion-base) var(--motion-ease);
+  }
+
+  .glass-title__halo.is-active {
+    transition-duration: var(--motion-base);
   }
 }
 </style>

@@ -394,7 +394,8 @@ export function usePixelTrail(
   function refreshOccluders(): void {
     const cover = (root.value?.closest("[data-home-hero], .home-cover") as HTMLElement | null) ?? null;
     occluderScanAt = performance.now();
-    occluders = collectOccluders(cover, root.value);
+    // 与墨流同一份判据：`data-ink-pass` 让位、`data-ink-wall` 必挡（轮播面板）。
+    occluders = collectOccluders(cover, root.value, { wallSelector: "[data-ink-wall]" });
   }
 
 

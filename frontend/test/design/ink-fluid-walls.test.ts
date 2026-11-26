@@ -51,4 +51,31 @@ describe("墨流的元素遮罩", () => {
     expect(composable).toMatch(/now - maskScanAt > 600/);
     expect(composable).toMatch(/gl\.deleteTexture\(maskTex\)/);
   });
+
+  /**
+   * 「轮播图挡不住墨」的两个真实成因（票 441）。
+   *
+   * ① 墙被启发式踢掉：面板面积随视口比例变化、面板里压着标题、进场瞬间零透明度，
+   *    任何一条命中都会让面板从墙里消失。所以首屏轮播面板显式声明 `data-ink-wall`，
+   *    收集器看到标记就不再走启发式。
+   * ② 墙过期：遮罩按宿主当时的宽高烘成 512×N，尺寸变化（窗口缩放、字体加载、
+   *    移动端地址栏收放）之后旧遮罩被拉伸，墙的位置就偏了。所以 resize 与
+   *    「停过再启动」都要立刻重烘，而不是只等 600ms 的节流。
+   */
+  it("轮播面板是显式墙：页面声明 data-ink-wall，收集器按标记放行", () => {
+    const page = readFileSync(resolve(root, "app/pages/index.vue"), "utf8");
+    const occluders = readFileSync(resolve(root, "app/utils/occluders.ts"), "utf8");
+
+    expect(page).toMatch(/class="home-cover__panel"[\s\S]{0,120}data-ink-wall/u);
+    expect(occluders).toContain("wallSelector");
+    expect(composable).toContain('wallSelector: "[data-ink-wall]"');
+  });
+
+  it("遮罩跟着几何重烘：resize 之后与每次「停过再启动」都立刻重建", () => {
+    const resize = composable.slice(composable.indexOf("const resize = ()"), composable.indexOf("const draw ="));
+    const start = composable.slice(composable.indexOf("const start = ()"), composable.indexOf("/** 减少动态"));
+
+    expect(resize, "resize 必须重烘遮罩，否则墙会被拉伸到错位").toContain("refreshMask()");
+    expect(start, "从空闲重新启动时必须先重烘遮罩").toContain("refreshMask()");
+  });
 });

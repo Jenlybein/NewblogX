@@ -150,7 +150,11 @@ async function handleRetryLatest() {
              纯装饰、aria-hidden、不吃点击，属于 2026-11-03 的编辑部网格语言。 -->
         <span class="home-cover__rule" aria-hidden="true" />
 
-        <div class="home-cover__panel" :class="{ 'home-cover__panel--empty': !banners.length }">
+        <div
+          class="home-cover__panel"
+          :class="{ 'home-cover__panel--empty': !banners.length }"
+          data-ink-wall
+        >
           <!-- 0 底图 + 1 底部渐黑 + 控件：轮播作为大字下方的面板（≥2 张才出现控件） -->
           <BannerCarousel
             class="home-cover__media"

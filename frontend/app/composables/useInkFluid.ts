@@ -170,7 +170,12 @@ function createInkFluid(
     const data = new Uint8Array(maskW * maskH);
     // minSize 取 6：标题是"一字一框"，框本身就不大，门槛太粗会把字全筛掉。
     // data-ink-pass：字标、刻度标尺、指针这类装饰声明"墨可以直接穿过去"。
-    const boxes = collectOccluders(maskHost, root, { minSize: 6, skipSelector: "[data-ink-pass]" });
+    // data-ink-wall：轮播面板这类**设计上必须挡墨**的实心面，显式声明，不交给启发式猜。
+    const boxes = collectOccluders(maskHost, root, {
+      minSize: 6,
+      skipSelector: "[data-ink-pass]",
+      wallSelector: "[data-ink-wall]",
+    });
     for (const box of boxes) {
       const x0 = Math.max(0, Math.round((box.x / Math.max(1, rect.width)) * maskW));
       const x1 = Math.min(maskW, Math.round(((box.x + box.w) / Math.max(1, rect.width)) * maskW));
@@ -236,6 +241,16 @@ function createInkFluid(
     divergence = makeInkTarget(gl, gridW, gridH, gl.R16F, gl.RED);
     curl = makeInkTarget(gl, gridW, gridH, gl.R16F, gl.RED);
     built = true;
+
+    /*
+     * 尺寸一变就立刻重烘遮罩。
+     *
+     * 这是"轮播图挡不住墨"的第二个真实成因：遮罩是按宿主当时的宽高烘成 512×N 的，
+     * 而烘完到下一次节流重扫之间（最多 600ms，且 RAF 停着时会更久），窗口尺寸、
+     * 字体加载、移动端地址栏收起/展开都会让宿主变形 —— 旧的遮罩被拉伸，墙就偏了，
+     * 墨恰好从卡片上穿过去。跟着 resize 一起重烘，墙和几何始终同一份。
+     */
+    refreshMask();
   };
 
   const draw = (target: InkTarget | null) => {
@@ -500,6 +515,12 @@ function createInkFluid(
     if (live && !running) {
       running = true;
       clock = performance.now();
+      /*
+       * 停过再启动时先重烘一次遮罩：这一段空闲里可能发生过的任何布局变化
+       * （窗口缩放、字体到位、移动端地址栏收放、轮播换图）都不该让第一笔墨
+       * 画在一张过期的墙上。重扫是「一次 DOM 走查」，放在启动这一帧可以接受。
+       */
+      refreshMask();
       frame = requestAnimationFrame(tick);
     } else if (!live && running) {
       running = false;

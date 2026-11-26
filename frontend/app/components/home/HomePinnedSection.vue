@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useSectionReveal } from "~/composables/useSectionReveal";
 import type { ArticleHotTopItem } from "~/types/api";
 import { formatCount } from "~/utils/format";
 import { pinnedArticleView, type PinnedArticleView } from "~/utils/home";
 
 const props = defineProps<{ articles: ArticleHotTopItem[] }>();
 
-// 区块级滚动进场：只动容器的 transform/opacity，卡片内容本身不进场。
-const { target: revealTarget, revealStyle } = useSectionReveal();
+/*
+ * 不做"滚动进场"（票 441）：置顶是正文区块，进入站点时可能落在首屏下沿，
+ * reveal 的 opacity: 0 初态会让它看起来是"被隐藏了"。内容直接可见。
+ */
 // 顺序就是运营位接口下发的顺序（后端按管理员手动排序返回），这里不重排、不排序。
 const views = computed<PinnedArticleView[]>(() => props.articles.map((article) => pinnedArticleView(article)));
 const count = computed(() => views.value.length);
@@ -20,13 +21,7 @@ const count = computed(() => views.value.length);
     无置顶 / 加载中 / 请求失败一律走「整块不渲染」——连 eyebrow、标题、徽标都不出现，
     所以这里刻意没有空态分支（也就没有可显示的空态文案与重试入口）。
   -->
-  <section
-    v-if="count > 0"
-    ref="revealTarget"
-    class="blueprint-panel motion-reveal"
-    :style="revealStyle"
-    data-home-section="pinned"
-  >
+  <section v-if="count > 0" class="blueprint-panel" data-home-section="pinned">
     <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="eyebrow">Pinned</div>

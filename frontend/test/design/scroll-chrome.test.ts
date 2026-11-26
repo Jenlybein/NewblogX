@@ -108,18 +108,33 @@ describe("创作页顶栏贴顶吸附（这一页没有站点页头）", () => {
 });
 
 describe("动效档位 C：区块滚动进场", () => {
-  const revealConsumers = [
-    "app/components/home/HomeFeedSection.vue",
-    "app/components/home/HomePinnedSection.vue",
-    "app/components/home/HomeSidebar.vue",
-    "app/pages/article/[id].vue",
-  ];
+  /**
+   * 只有**装饰层**与文章页头部还走进场。
+   *
+   * 首页正文区块（最新文章 / 热门置顶 / 右栏）从这份名单里退场（票 441）：
+   * reveal 的初态是 `opacity: 0` + 位移，而首页正文常常正好落在首屏下沿，
+   * 进入站点时看到的就是"列表和右栏被隐藏了"。正文必须常显。
+   */
+  const revealConsumers = ["app/pages/article/[id].vue", "app/pages/index.vue"];
 
-  it("布局级区块接 useSectionReveal（motion-v 的 useInView）", () => {
+  it("装饰层与文章页头部接 useSectionReveal（motion-v 的 useInView）", () => {
     for (const file of revealConsumers) {
       const source = read(file);
       expect(source, file).toContain("useSectionReveal");
       expect(source, file).toContain("motion-reveal");
+    }
+  });
+
+  it("首页正文区块不走进场：标题/列表/置顶/右栏一律常显", () => {
+    for (const file of [
+      "app/components/home/HomeFeedSection.vue",
+      "app/components/home/HomePinnedSection.vue",
+      "app/components/home/HomeSidebar.vue",
+    ]) {
+      const source = read(file);
+      expect(source, file).not.toContain("useSectionReveal");
+      expect(source, file).not.toContain("motion-reveal");
+      expect(source, file).not.toContain("revealStyle");
     }
   });
 

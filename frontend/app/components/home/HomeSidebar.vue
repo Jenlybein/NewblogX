@@ -4,7 +4,6 @@ import type { StyleValue } from "vue";
 import { NSkeleton } from "naive-ui";
 import type { SiteSidebarCardItem } from "~/types/api";
 import { activateClickable } from "~/utils/activateClickable";
-import { useSectionReveal } from "~/composables/useSectionReveal";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { SIDEBAR_CARD_EYEBROWS, sidebarCardViews, tagCloudFontSize } from "~/utils/sidebarCards";
 
@@ -37,16 +36,17 @@ const props = withDefaults(defineProps<{
 
 // 右栏只有标签是"非关键内容"：给它错峰入场（40ms 一档，只动 opacity/translateY）。
 const { entranceProps } = useStaggerEntrance();
-const { target: revealTarget, revealStyle } = useSectionReveal();
-// 右栏整体作为一个区块进场（内部条目用 stagger，正文段落不动）。
+/*
+ * 右栏不做"滚动进场"（票 441）：它不是遮罩层而要常显的正文。reveal 的 opacity: 0
+ * 初态在进入站点时会让整栏看起来"没加载出来"。内部标签仍用 stagger，那只是位移/淡入。
+ */
 
 const sidebarClasses = computed(() => ({
   "profile-sidebar": true,
   "home-sidebar": true,
   "sidebar-drawer": true,
   "page-sidebar--sticky": props.sticky,
-  // 区块进场的静态类：给 noscript / 减少动态下的 CSS 覆盖用（见 app.vue 与 tailwind.css）。
-  "motion-reveal": true,
+
 }));
 
 const sidebarStyle = computed<StyleValue>(() => {
@@ -86,7 +86,7 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
     <label class="sidebar-drawer-close" for="home-sidebar-toggle" aria-label="收起首页右栏" role="button" tabindex="0" @keydown="activateClickable">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6l-12 12M6 6l12 12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
     </label>
-    <div ref="revealTarget" class="home-sidebar__reveal" :style="revealStyle">
+    <div class="home-sidebar__content">
       <section v-if="pending" class="blueprint-panel" data-home-section="sidebar-skeleton">
       <NSkeleton text width="96px" />
       <NSkeleton text class="mt-3" :repeat="2" />

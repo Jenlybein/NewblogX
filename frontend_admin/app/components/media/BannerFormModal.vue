@@ -24,7 +24,7 @@ import { NButton, NForm, NFormItem, NInput, NModal, NSwitch, useMessage } from "
 import ImageCropDialog from "~/components/media/ImageCropDialog.vue";
 import { useImageCropUpload, type ImageFramingRequest } from "~/composables/useImageCropUpload";
 import { createBanner, updateBanner } from "~/services/admin";
-import { uploadImageByTask } from "~/services/image";
+import { UploadRejectedError, uploadImageByTask } from "~/services/image";
 import type { BannerModel } from "~/types/api";
 import { buildBannerCreatePayload, uploadBannerCover, type ImageSize } from "~/utils/bannerCover";
 import { bannerTitleText } from "~/utils/bannerTitle";
@@ -179,7 +179,13 @@ async function uploadPending(pending: PendingCover): Promise<{ imageId: string; 
     return cover;
   } catch (error) {
     stage.value = "";
-    message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    // 审核判违规 / 图已被删不算"上传出故障"：警告样式 + 直接用错误自带的可操作文案，
+    // 不要在前面再糊一句"封面上传失败："把它盖掉。
+    if (error instanceof UploadRejectedError) {
+      message.warning(error.message);
+    } else {
+      message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    }
     return null;
   } finally {
     uploading.value = false;

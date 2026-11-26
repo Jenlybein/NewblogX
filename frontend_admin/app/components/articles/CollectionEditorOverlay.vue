@@ -23,7 +23,7 @@ import {
   setCollectionDisplay,
   setProjectDisplay,
 } from "~/services/admin";
-import { uploadImageByTask } from "~/services/image";
+import { UploadRejectedError, uploadImageByTask } from "~/services/image";
 import { uploadBannerCover } from "~/utils/bannerCover";
 import type { ShapeFramingState, ShapeImageTarget } from "~/utils/imageShaping";
 import {
@@ -173,7 +173,11 @@ async function onCoverFileChange(event: Event) {
     await coverCropFlow.select(file);
   } catch (error) {
     coverStage.value = "封面上传失败，可重新选择图片";
-    message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    if (error instanceof UploadRejectedError) {
+      message.warning(error.message);
+    } else {
+      message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    }
   } finally {
     coverUploading.value = false;
   }
@@ -189,7 +193,11 @@ async function confirmCoverCrop(framing: ShapeFramingState) {
     await coverCropFlow.confirm(request, framing);
   } catch (error) {
     coverStage.value = "封面上传失败，可重新选择图片";
-    message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    if (error instanceof UploadRejectedError) {
+      message.warning(error.message);
+    } else {
+      message.error(error instanceof Error ? `封面上传失败：${error.message}` : "封面上传失败，请稍后重试");
+    }
   } finally {
     coverUploading.value = false;
   }

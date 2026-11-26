@@ -324,6 +324,12 @@ func (s *Service) verify(ctx context.Context, task *domain.Task, meta *uploadedM
 
 	imageInfo, err := s.storage.ImageInfo(task.ObjectKey)
 	if err != nil {
+		// 对外只回 apperr 的中文文案（"读取图片信息失败…"），排查需要的原因
+		// （fop 与字节两条通道各自为什么失败）只能落在这里 —— 任务上的
+		// ErrorMsg 存的是文案，不存 cause，2026-11-26 那次事故就靠这条日志定位。
+		if s.logger != nil {
+			s.logger.Warnf("读取图片信息失败: task=%d key=%s err=%v", task.ID, task.ObjectKey, err)
+		}
 		return nil, err
 	}
 	format := strings.ToLower(strings.TrimSpace(imageInfo.Format))

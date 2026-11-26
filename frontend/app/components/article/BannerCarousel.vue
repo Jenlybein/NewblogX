@@ -432,7 +432,7 @@ function resumeAutoPlay() {
             标题是纯文本：用插值输出（Vue 自动转义），不接 v-html。
             空标题直接不渲染，避免在渐黑区里留一条空标题带。
           -->
-          <p v-if="titleText" :key="`caption-${currentIndex}`" class="banner-title">{{ titleText }}</p>
+          <p v-if="titleText" class="banner-title">{{ titleText }}</p>
           <div v-if="banners.length > 1" class="banner-controls" role="group" aria-label="轮播控件">
             <!-- 左半边：显式的播放/暂停 + 圆点；箭头仍在右端。整行还是渐黑区里的内容。 -->
             <div class="banner-left">
@@ -445,10 +445,10 @@ function resumeAutoPlay() {
                 :disabled="playbackDisabled"
                 @click="toggleAutoPlay"
               >
-                <span :key="userPaused ? 'play' : 'pause'" class="banner-playback__icon">
+                <Transition name="banner-icon">
                   <IconPlayerPause v-if="!userPaused" :size="18" aria-hidden="true" />
                   <IconPlayerPlay v-else :size="18" aria-hidden="true" />
-                </span>
+                </Transition>
               </button>
 
               <div class="banner-dots">
@@ -780,38 +780,28 @@ function resumeAutoPlay() {
   opacity: 1;
 }
 
-/* 标题随图切换淡入（票 441 加法）：图片是 160ms 交叉淡入，标题若硬切，一次换图
- * 只完成了一半。key 跟着 currentIndex 重挂，动画从 0 起跑；减少动态下直接切。 */
-.banner-title {
-  animation: banner-caption-in var(--banner-crossfade) var(--motion-ease);
+/*
+ * 标题换字**直接切**，不做淡入。
+ *
+ * 试过的写法是给标题挂 key + `@keyframes` 从 opacity: 0 淡入，但它是单侧的：
+ * 旧标题在同一帧被移除、新标题从 0 起跑，于是每次换图都先出现一帧"没有标题"的
+ * 空隙，再浮上来 —— 照片在做交叉淡入，标题却在闪。真正的交叉淡入需要新旧两层
+ * 同时存在（叠放），对一个最多两行的纯文本标题来说代价不值。
+ * 图片的 160ms 交叉淡入已经承担了"换了一张"这件事，标题与其硬切反而更利落。
+ */
+
+/* 播放/暂停图标：进出都走同一条 transition（连点可中途反向，不重播）。 */
+.banner-icon-enter-active,
+.banner-icon-leave-active {
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
-@keyframes banner-caption-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-/* 播放/暂停图标：状态切换时重挂，120ms 淡入 + 轻微放大，让"停了"有回应。 */
-.banner-playback__icon {
-  display: inline-flex;
-  animation: banner-icon-in var(--motion-fast) var(--motion-ease);
-}
-
-@keyframes banner-icon-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.banner-icon-enter-from,
+.banner-icon-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
 }
 
 /* 按下态：与箭头 / 圆点同一档（这个键此前完全没有按下反馈）。 */
@@ -853,10 +843,10 @@ function resumeAutoPlay() {
     transition: none;
   }
 
-  /* 标题与图标是"内容交换"的桥，reduce 下直接切（不做淡入）。 */
-  .banner-title,
-  .banner-playback__icon {
-    animation: none;
+  /* 图标的状态切换在 reduce 下直接切（不做缩放/淡入）。 */
+  .banner-icon-enter-active,
+  .banner-icon-leave-active {
+    transition: none;
   }
 
   /* 减少动态：换图直接切，出场帧不再淡出（JS 侧也不再安排出场帧）。 */

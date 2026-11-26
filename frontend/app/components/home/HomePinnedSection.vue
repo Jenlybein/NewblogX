@@ -67,10 +67,13 @@ const count = computed(() => views.value.length);
     border-color var(--motion-fast) var(--motion-ease);
 }
 
-/* 悬停：与信息流卡一致的"纸面被指到"（底色 + 描边，不加阴影、不改层级）。 */
-.home-pinned-card:hover {
-  border-color: var(--color-line-strong);
-  background-color: var(--color-hover-surface);
+/* 悬停：与信息流卡一致的"纸面被指到"（底色 + 描边，不加阴影、不改层级）。
+ * 只在真有 hover 的设备上生效 —— 触屏点一下会留下"亮着"的假 hover。 */
+@media (hover: hover) and (pointer: fine) {
+  .home-pinned-card:hover {
+    border-color: var(--color-line-strong);
+    background-color: var(--color-hover-surface);
+  }
 }
 
 .home-pinned-card__index {
@@ -98,19 +101,20 @@ const count = computed(() => views.value.length);
 
 /*
  * 置顶区块晚到时的进场：客户端导航时置顶数据比信息流晚一步到，区块会插在
- * 已经渲染的列表上方、把正文直接推下去。这里只做 200ms 的淡入 + 4px 落下，
- * 让"内容被推"读成一次有序插入，而不是画面跳一下。
+ * 已经渲染的列表上方、把正文直接推下去。
+ *
+ * 这里**只做淡入，不做位移**：`transform` 不参与布局，区块插入那一刻下方信息流
+ * 已经被推走了；再叠一个 4px 的下落并不能减轻那次跳变，只会在推挤之上多一次
+ * "踮脚"。位移留给真正能解释空间关系的做法（预留占位 / FLIP），淡入先把
+ * "新内容出现了"这一件事说清楚。
  * （它不隐藏内容：数据没到就不渲染，到了才出现一次。）
  */
 .pinned-in-enter-active {
-  transition:
-    opacity var(--motion-base) var(--motion-ease),
-    transform var(--motion-base) var(--motion-ease);
+  transition: opacity var(--motion-base) var(--motion-ease);
 }
 
 .pinned-in-enter-from {
   opacity: 0;
-  transform: translateY(-4px);
 }
 
 @media (prefers-reduced-motion: reduce) {

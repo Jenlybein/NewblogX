@@ -74,10 +74,12 @@ describe("移动端右栏抽屉：开与关都要看得见", () => {
 describe("大面积可点面：下沉而不是缩放", () => {
   const tailwind = stripComments(read("app/assets/css/tailwind.css"));
 
-  it("`.press-sink` 按下只落 1px，字体不跟着缩放", () => {
+  it("`.press-sink` 按下落 2px 并压深底色，字体不跟着缩放", () => {
     const sink = blockAfter(tailwind, "&.press-sink:active {");
 
-    expect(sink).toContain("transform: translateY(1px)");
+    // 1px 在千像素宽的卡上低于可感知阈值：位移 + 底色两个信号一起给。
+    expect(sink).toContain("transform: translateY(2px)");
+    expect(sink).toContain("background-color: var(--color-bg-subtle)");
     expect(sink).not.toMatch(/scale\(/u);
   });
 
@@ -230,17 +232,28 @@ describe("像素尾迹：几何扫描不在绘制帧里", () => {
   it("draw() 里不再有按时间触发的整页遮挡扫描", () => {
     const draw = trail.slice(
       trail.indexOf("function draw("),
-      trail.indexOf("function refreshOccludersIfStale("),
+      trail.indexOf("function scheduleOccluderScan("),
     );
 
     expect(draw).not.toMatch(/occluderScanAt/u);
     expect(draw).not.toContain("refreshOccluders()");
   });
 
-  it("改为在指针/可见性时机按去抖判断", () => {
-    expect(trail).toContain("function refreshOccludersIfStale()");
+  it("改为按去抖判断，且扫描落在下一帧而不是输入事件里", () => {
+    expect(trail).toContain("function scheduleOccluderScan()");
     const kick = trail.slice(trail.indexOf("function kick("));
-    expect(kick.slice(0, 400)).toContain("refreshOccludersIfStale()");
+    expect(kick.slice(0, 400)).toContain("scheduleOccluderScan()");
+
+    // 关键：`pointermove` → `kick()` 只登记待办，扫描在 rAF 回调里才执行。
+    const schedule = trail.slice(
+      trail.indexOf("function scheduleOccluderScan("),
+      trail.indexOf("function kick("),
+    );
+    expect(schedule).toContain("requestAnimationFrame(");
+    expect(
+      schedule.indexOf("refreshOccluders()"),
+      "扫描必须在 rAF 回调里（事件栈里同步扫 = 卡住用户开始动的那一帧）",
+    ).toBeGreaterThan(schedule.indexOf("requestAnimationFrame("));
   });
 
   it("ctx.font 按字号缓存，不逐粒子重设", () => {
@@ -276,5 +289,86 @@ describe("墨流静帧：分帧烘焙，不冻住主线程", () => {
   it("启动时先比几何签名再决定要不要重烘遮罩", () => {
     expect(ink).toContain("const refreshMaskIfGeometryChanged = ()");
     expect(ink).toMatch(/if \(key !== maskSizeKey\) refreshMask\(\)/u);
+  });
+});
+
+describe("浮层从触发器长出来（origin + scale，不是整块淡入）", () => {
+  const header = scopedStyle(read("app/components/layout/AppHeader.vue"));
+
+  it("消息面板锚在触发器一侧，并用 0.96 起手缩放", () => {
+    expect(header).toMatch(/\.site-messages__panel \{[\s\S]{0,120}transform-origin: top right/u);
+    const enter = blockAfter(header, ".site-pop-enter-from,");
+    expect(enter).toContain("scale(0.96)");
+    expect(enter, "不能从 scale(0) 起步：没有东西是从无出现的").not.toContain("scale(0)");
+  });
+});
+
+describe("首屏碎片的空闲呼吸交给 CSS（JS 停帧）", () => {
+  const hero = scopedStyle(read("app/components/brand/GlassHeroTitle.vue"));
+  const composable = read("app/composables/useGlassShardTitle.ts");
+
+  it("JS 里不再有每帧计算的 sin/cos 抖动", () => {
+    expect(composable).not.toContain("IDLE_WOBBLE_PX");
+    expect(composable).not.toContain("idleMotion");
+  });
+
+  it("静止时直接停帧（不是按 32ms 跳着写）", () => {
+    expect(composable).toContain("function isSettled(");
+    const loop = composable.slice(composable.indexOf("function loop("), composable.indexOf("function startLoop("));
+    expect(loop).toContain("stopLoop()");
+    // 跳帧写法产生的帧距是 33/50/67ms 这种不均匀节奏，慢漂移最怕这个。
+    expect(loop).not.toMatch(/lastWriteAt|>= 32/u);
+  });
+
+  it("呼吸 keyframes 只在 is-idle 期间跑，reduce 下关掉", () => {
+    expect(hero).toContain("@keyframes glass-shard-breathe");
+    expect(hero).toMatch(/\.glass-title\.is-idle \.glass-title__shard-inner \{[\s\S]{0,160}animation:/u);
+    const reduce = hero.slice(hero.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduce).toMatch(/\.glass-title\.is-idle \.glass-title__shard-inner \{\s*animation: none;/u);
+  });
+
+  it("九块碎片的相位由内联变量错开（不是一个节奏一起抖）", () => {
+    expect(hero).toContain("--shard-breath-delay");
+    expect(hero).toContain("--shard-breath-duration");
+  });
+});
+
+describe("减少动态的墨流静帧：切后台不丢", () => {
+  const ink = read("app/composables/useInkFluid.ts");
+
+  it("标签页隐藏时挂一次性监听把烘焙续上，而不是直接 return", () => {
+    const bake = ink.slice(ink.indexOf("const bake = ()"), ink.indexOf("requestAnimationFrame(bake);"));
+    expect(bake).toMatch(/if \(document\.hidden\) \{[\s\S]{0,400}visibilitychange/u);
+  });
+});
+
+describe("悬停一律门控（触屏不留 sticky hover）", () => {
+  const tailwind = stripComments(read("app/assets/css/tailwind.css"));
+  const sidebar = scopedStyle(read("app/components/home/HomeSidebar.vue"));
+  const pinned = scopedStyle(read("app/components/home/HomePinnedSection.vue"));
+
+  it("可点 chip 的悬停包在 (hover: hover) and (pointer: fine) 里", () => {
+    expect(tailwind).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\) \{\s*&:hover \{/u,
+    );
+  });
+
+  it("右栏行与置顶卡的悬停同样门控", () => {
+    expect(sidebar).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.sidebar-card-row:hover/u);
+    expect(pinned).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.home-pinned-card:hover/u);
+    // 顶层（不缩进）的裸悬停规则不允许存在：只准出现在上面的门控里。
+    expect(sidebar).not.toMatch(/^\.sidebar-card-row:hover \{/mu);
+    expect(pinned).not.toMatch(/^\.home-pinned-card:hover \{/mu);
+  });
+});
+
+describe("镜面高光变量不继承（避免整棵子树重算样式）", () => {
+  const tailwind = stripComments(read("app/assets/css/tailwind.css"));
+
+  it("--mx / --my 用 @property 声明 inherits: false", () => {
+    for (const name of ["--mx", "--my"]) {
+      const block = blockAfter(tailwind, `@property ${name} {`);
+      expect(block).toContain("inherits: false");
+    }
   });
 });

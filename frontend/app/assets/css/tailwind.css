@@ -788,9 +788,18 @@
       background-color var(--motion-fast) var(--motion-ease),
       color var(--motion-fast) var(--motion-ease);
 
-    &:hover {
+    /* 悬停只在真有 hover 的设备上：触屏点一下会留下"亮着"的假 hover。
+     * 键盘聚焦由 `.blueprint-chip--interactive:focus-visible` 单独给描边。 */
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        border-color: var(--color-line-strong);
+        background-color: var(--color-bg-subtle);
+        color: var(--color-ink);
+      }
+    }
+
+    &:focus-visible {
       border-color: var(--color-line-strong);
-      background-color: var(--color-bg-subtle);
       color: var(--color-ink);
     }
   }
@@ -2471,6 +2480,28 @@ html {
 }
 
 /* 1px �����Ե�������� border box �ڲ��һȦ��mask ���м��ڿա� */
+/*
+ * 指针镜面高光的两个坐标变量：**不继承**。
+ *
+ * 它们由 `usePointerSpecular` 每帧写在玻璃元素的根节点上，消费方是同一个元素的
+ * `::before`。自定义属性默认向整棵子树继承 —— 每帧改一次等于每帧让这一小块 DOM
+ * 全部重算样式（子树越大越贵）。声明 `inherits: false` 之后，写入只让元素自身的
+ * 样式失效，伪元素照旧读到新值，子树不受影响。
+ *
+ * 初值与 CSS 里的 `var(--mx, 50%)` / `var(--my, 0%)` 兜底一致：没被写入过的玻璃面
+ * 行为完全不变。
+ */
+@property --mx {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+
+@property --my {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
 .glass-thin::before,
 .glass-thick::before {
   content: "";
@@ -4325,10 +4356,13 @@ html {
   }
 
   /* 大面积可点（信息流条目卡这类上千像素宽的卡）：按钮级的 3% 缩放会把整块文字
-   * 一起放大缩小，边缘缩进几十像素，读起来像"整页抖了一下"。这类面只下沉 1px ——
-   * 手感仍是"被按进纸里"，但不缩放内容。标记 `press-sink` 由消费方写在卡片根节点。 */
+   * 一起放大缩小，边缘缩进几十像素，读起来像"整页抖了一下"。这类面改成**下沉 2px
+   * + 压深底色** —— 1px 在这么大一块面上低于可感知阈值（按下去和没按一样），
+   * 2px 加底色才读得出"被按进纸里"，而文字不缩放。
+   * 标记 `press-sink` 由消费方写在卡片根节点。 */
   &.press-sink:active {
-    transform: translateY(1px);
+    transform: translateY(2px);
+    background-color: var(--color-bg-subtle);
   }
 
   /* 减少动态：位移归零（不是"慢慢缩"），但按下反馈不能整段失效 ——

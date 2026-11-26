@@ -4,7 +4,6 @@ import type { StyleValue } from "vue";
 import { NSkeleton } from "naive-ui";
 import type { SiteSidebarCardItem } from "~/types/api";
 import { activateClickable } from "~/utils/activateClickable";
-import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { SIDEBAR_CARD_EYEBROWS, sidebarCardViews, tagCloudFontSize } from "~/utils/sidebarCards";
 
 const props = withDefaults(defineProps<{
@@ -35,7 +34,6 @@ const props = withDefaults(defineProps<{
 });
 
 // 右栏只有标签是"非关键内容"：给它错峰入场（40ms 一档，只动 opacity/translateY）。
-const { entranceProps } = useStaggerEntrance();
 /*
  * 右栏不做"滚动进场"（票 441）：它不是遮罩层而要常显的正文。reveal 的 opacity: 0
  * 初态在进入站点时会让整栏看起来"没加载出来"。内部标签仍用 stagger，那只是位移/淡入。
@@ -136,22 +134,21 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
         </NuxtLink>
       </div>
 
-      <!-- 标签云：字号按本卡内的权重决定，不是热门标签那种等字号 chip 列表。 -->
+      <!--
+        标签云：字号按本卡内的权重决定，不是热门标签那种等字号 chip 列表。
+        这里**不做错峰入场**（票 443）：右栏在桌面端与信息流同屏，任何「SSR opacity: 0、
+        等水合再淡入」的写法都会让这一列在弱网下先空一拍 —— 和正文同一条规矩。
+      -->
       <div v-else-if="card.kind === 'tag_cloud'" class="mt-3 flex flex-wrap gap-2">
-        <Motion
-          v-for="(tag, index) in card.tags"
+        <NuxtLink
+          v-for="tag in card.tags"
           :key="tag.id"
-          v-bind="entranceProps(index)"
-          class="motion-stagger-item inline-flex"
+          :to="{ path: '/search', query: { tag_ids: tag.id } }"
+          class="blueprint-chip blueprint-chip--interactive"
+          :style="{ fontSize: tagCloudFontSize(tag.weight) }"
         >
-          <NuxtLink
-            :to="{ path: '/search', query: { tag_ids: tag.id } }"
-            class="blueprint-chip blueprint-chip--interactive"
-            :style="{ fontSize: tagCloudFontSize(tag.weight) }"
-          >
-            {{ tag.title }}
-          </NuxtLink>
-        </Motion>
+          {{ tag.title }}
+        </NuxtLink>
       </div>
 
       <!--
@@ -307,8 +304,11 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
   border-bottom: 1px solid var(--color-line-faint);
 }
 
-.sidebar-card-row:hover {
-  background-color: var(--color-hover-surface);
+/* 只在真有 hover 的设备上：触屏点一下会留下"亮着"的假 hover。 */
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-card-row:hover {
+    background-color: var(--color-hover-surface);
+  }
 }
 </style>
 

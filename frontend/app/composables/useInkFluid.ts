@@ -560,7 +560,19 @@ function createInkFluid(
     let stepIndex = 0;
     const bake = () => {
       if (token !== stillToken) return;
-      if (document.hidden) return;
+      /*
+       * 标签页在后台时不能就这么返回：那一轮烘焙会被永久丢弃，而且没有别的地方会
+       * 再叫它 —— 用户切回来看到的是一块空的墨面。挂一次性的 visibilitychange，
+       * 回到前台把这一轮续上（token 仍是同一个才续，避免和新的 resize 抢）。
+       */
+      if (document.hidden) {
+        const resume = () => {
+          document.removeEventListener("visibilitychange", resume);
+          bake();
+        };
+        document.addEventListener("visibilitychange", resume);
+        return;
+      }
       const end = Math.min(140, stepIndex + 10);
       for (; stepIndex < end; stepIndex += 1) {
         plume(16.7 * stepIndex * 2.4, 1 / 60);

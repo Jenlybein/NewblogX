@@ -9,8 +9,7 @@ import {
   motionTransition,
   prefersReducedMotionFrom,
   staggerDelayMs,
-  staggerItemMotion,
-  staggerTransition,
+
 } from "~/utils/motion";
 
 /**
@@ -78,33 +77,6 @@ describe("motion-v 需要秒为单位的过渡描述", () => {
     expect(motionTransition("slow", true)).toEqual({ duration: 0, delay: 0, ease: MOTION_EASE });
   });
 
-  it("列表条目过渡：时长 + delay（index × 40ms）+ 唯一缓动", () => {
-    expect(staggerTransition(0, false)).toEqual({ duration: 0.2, delay: 0, ease: MOTION_EASE });
-    expect(staggerTransition(2, false)).toEqual({ duration: 0.2, delay: 0.08, ease: MOTION_EASE });
-    expect(staggerTransition(2, true)).toEqual({ duration: 0, delay: 0, ease: MOTION_EASE });
-  });
-});
-
-describe("staggerItemMotion：列表入场的 initial/animate", () => {
-  it("只动 opacity 与 y（即 transform），不碰布局属性", () => {
-    const motion = staggerItemMotion(0, false);
-
-    expect(Object.keys(motion.initial).sort()).toEqual(["opacity", "y"]);
-    expect(Object.keys(motion.animate).sort()).toEqual(["opacity", "y"]);
-    expect(motion.initial).toEqual({ opacity: 0, y: 8 });
-    expect(motion.animate).toEqual({ opacity: 1, y: 0 });
-  });
-
-  it("把索引带进过渡 delay，方便列表错峰", () => {
-    expect(staggerItemMotion(3, false).transition).toEqual({ duration: 0.2, delay: 0.12, ease: MOTION_EASE });
-  });
-
-  it("减少动态时同一份 initial/animate 但过渡为 0——SSR 与客户端标记一致，不会 hydration 抖动", () => {
-    const reduced = staggerItemMotion(1, true);
-
-    expect(reduced.initial).toEqual({ opacity: 0, y: 8 });
-    expect(reduced.transition).toEqual({ duration: 0, delay: 0, ease: MOTION_EASE });
-  });
 });
 
 describe("prefersReducedMotionFrom：没有 matchMedia 时（SSR / 老浏览器）安全兜底", () => {

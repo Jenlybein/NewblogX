@@ -100,35 +100,16 @@ export function motionTransition(
   };
 }
 
-/** 列表条目的过渡描述：时长取 base 档，delay = index × 40ms。 */
-export function staggerTransition(
-  index: number,
-  prefersReducedMotion: boolean,
-): { duration: number; delay: number; ease: [number, number, number, number] } {
-  return {
-    duration: motionSeconds(motionDurationMs("base", prefersReducedMotion)),
-    delay: motionSeconds(staggerDelayMs(index, prefersReducedMotion)),
-    ease: MOTION_EASE,
-  };
-}
-
-export interface StaggerItemMotion {
-  initial: { opacity: number; y: number };
-  animate: { opacity: number; y: number };
-  transition: { duration: number; delay: number; ease: [number, number, number, number] };
-}
-
-/**
- * 列表入场的 initial/animate。**只动 opacity 与 y（transform）**，不碰布局属性。
- * reduce 时 initial/animate 保持不变（SSR 与客户端 markup 一致），只把过渡归零。
+/*
+ * 这里原本还有 `staggerItemMotion` / `staggerTransition`：列表条目的「SSR opacity: 0
+ * + 逐条错峰淡入」入场。它被删掉了，原因是那套写法把**正文内容**的初态设成不可见 ——
+ * 首页信息流要等水合完成才开始出现（同屏第十条约 0.56s 才完全可见），弱网或 JS 失败
+ * 时整块正文是空的。`<noscript>` 兜底只覆盖无 JS 场景，覆盖不到「JS 还在下载」。
+ *
+ * 现在列表的规则是：首屏直接可见、零入场；只有**用户操作之后才出现**的内容
+ * （翻页新批次）做一次短淡入，且从 0.35 起步（不留空白帧）。
+ * 评论楼层那种「点了才展开」的入场仍可用 `MOTION_ENTRANCE_OFFSET_PX` + `staggerDelayMs`。
  */
-export function staggerItemMotion(index: number, prefersReducedMotion: boolean): StaggerItemMotion {
-  return {
-    initial: { opacity: 0, y: MOTION_ENTRANCE_OFFSET_PX },
-    animate: { opacity: 1, y: 0 },
-    transition: staggerTransition(index, prefersReducedMotion),
-  };
-}
 
 /** 从 matchMedia 结果解析「是否减少动态」；SSR / 无 matchMedia 时按 false（不减少）兜底。 */
 export function prefersReducedMotionFrom(

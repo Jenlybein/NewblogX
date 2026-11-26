@@ -614,14 +614,29 @@ let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     }
   }
 
-  /** 几何可能变了才重扫（去抖 400ms）：指针/尺寸/可见性事件是刷新时机，帧内不扫。 */
-  function refreshOccludersIfStale(): void {
-    if (performance.now() - occluderScanAt > 400) refreshOccluders();
+  /**
+   * 几何可能变了才重扫（400ms 去抖），而且**不在输入事件里扫**。
+   *
+   * `collectOccluders` 会做 `querySelectorAll("*")` + 逐元素 getBoundingClientRect /
+   * getComputedStyle，是一次强制布局。之前它挂在 `kick()` 里、`kick()` 又由
+   * `pointermove` 调用 —— 指针静止 400ms 后第一次移动，这次扫描就跑在输入事件栈上，
+   * 正好卡住用户"开始动"的那一帧。现在只登记一个待办，真正的扫描落到下一帧开头
+   * （事件已经派发完、浏览器本来就要布局），最多每 400ms 一次。
+   */
+  let occluderScanFrame = 0;
+
+  function scheduleOccluderScan(): void {
+    if (occluderScanFrame) return;
+    if (performance.now() - occluderScanAt <= 400) return;
+    occluderScanFrame = requestAnimationFrame(() => {
+      occluderScanFrame = 0;
+      refreshOccluders();
+    });
   }
 
   function kick(): void {
     if (raf !== 0 || !visible || prefersReducedMotion.value) return;
-    refreshOccludersIfStale();
+    scheduleOccluderScan();
     lastTs = performance.now();
     raf = requestAnimationFrame(draw);
   }
@@ -710,7 +725,7 @@ let resizeTimer: ReturnType<typeof setTimeout> | null = null;
       observer = new IntersectionObserver((entries) => {
         visible = entries.some((entry) => entry.isIntersecting);
         if (visible) {
-          refreshOccludersIfStale();
+          scheduleOccluderScan();
           kick();
         }
         else cancelLoop();
@@ -730,6 +745,10 @@ let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     if (resizeTimer) {
       globalThis.clearTimeout(resizeTimer);
       resizeTimer = null;
+    }
+    if (occluderScanFrame) {
+      cancelAnimationFrame(occluderScanFrame);
+      occluderScanFrame = 0;
     }
     observer?.disconnect();
     observer = null;

@@ -31,7 +31,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ses v1.3.136
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/crypto v0.46.0
-	golang.org/x/image v0.34.0 // indirect
+	golang.org/x/image v0.34.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0

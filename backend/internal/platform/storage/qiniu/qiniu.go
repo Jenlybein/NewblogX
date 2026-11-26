@@ -6,7 +6,6 @@ package qiniu
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"myblogx/internal/apperr"
@@ -56,6 +55,9 @@ type ImageInfo struct {
 // Storage 是七牛客户端。
 type Storage struct {
 	cfg conf.QiNiu
+	// imageInfoBase 留空时用配置里的资源域名；测试里指向本地假服务，
+	// 这样能只验"fop 失败 → 字节兜底"这条路径，不碰真七牛。
+	imageInfoBase string
 	// censorEndpoint 留空时用 censorEndpoint 常量；测试里指向本地服务器，
 	// 这样能只验证签名而不碰真七牛。
 	censorEndpoint string
@@ -192,40 +194,6 @@ func (s *Storage) mediaBase() string {
 	domain = strings.TrimPrefix(domain, "http://")
 	domain = strings.TrimPrefix(domain, "//")
 	return "https://" + domain
-}
-
-// ImageInfo 读取图片尺寸（走七牛 imageInfo 接口）。
-func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
-	domain := s.mediaBase()
-	if domain == "" {
-		return ImageInfo{}, apperr.New(apperr.CodeStorageDomainMissing)
-	}
-
-	deadline := time.Now().Add(3 * time.Minute).Unix()
-	downloadURL := storage.MakePrivateURLv2(getRuntime(s.cfg).mac, domain, key, deadline)
-	if strings.Contains(downloadURL, "?") {
-		downloadURL += "&imageInfo"
-	} else {
-		downloadURL += "?imageInfo"
-	}
-
-	resp, err := getRuntime(s.cfg).httpClient.Get(downloadURL)
-	if err != nil {
-		return ImageInfo{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return ImageInfo{}, apperr.Wrap(apperr.CodeStorageImageInfoInvalid, fmt.Errorf("qiniu: imageInfo status=%d", resp.StatusCode))
-	}
-
-	var result ImageInfo
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return ImageInfo{}, err
-	}
-	if result.Format == "" || result.Width <= 0 || result.Height <= 0 {
-		return ImageInfo{}, apperr.New(apperr.CodeStorageImageInfoInvalid)
-	}
-	return result, nil
 }
 
 // ObjectURL 拼接公开访问地址。

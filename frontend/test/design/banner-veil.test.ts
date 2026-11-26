@@ -190,9 +190,11 @@ describe("控件并入渐黑区：不再单独一颗黑色胶囊", () => {
 
   it("控件的字色与图形走反白 token，不在深墨区上用纸面墨色", () => {
     expect(blockAfter(bannerVue, ".banner-arrow {")).toContain("color: var(--color-on-inverse)");
-    expect(blockAfter(bannerVue, ".banner-dot span {")).toContain("var(--color-on-inverse-muted)");
-    expect(blockAfter(bannerVue, ".banner-dot.is-active span {")).toContain(
-      "var(--color-on-inverse)",
+    // 圆点分两层：未选中是空心圈（muted 描边），选中是实心 pill（反白底）。
+    expect(blockAfter(bannerVue, ".banner-dot__ring {")).toContain("var(--color-on-inverse-muted)");
+    expect(blockAfter(bannerVue, ".banner-dot__pill {")).toContain("var(--color-on-inverse)");
+    expect(blockAfter(bannerVue, ".banner-dot.is-active .banner-dot__pill {")).toContain(
+      "opacity: 1",
     );
   });
 

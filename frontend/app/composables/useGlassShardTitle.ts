@@ -27,6 +27,10 @@ const DECODE_STEPS = 20;
 const DECODE_INTERVAL_MS = 20;
 /** 碎裂状态持续时间（毫秒）。到点后碎片归位并开始解码。 */
 const BURST_DURATION_MS = 1000;
+/** reduce 下的淡光时长（进 200ms、停留一点、出交给过渡）。 */
+const REDUCED_FLASH_MS = 260;
+/** 空闲判定：指针停下多久之后把 rAF 限到 30Hz 并摘掉 will-change。 */
+const IDLE_AFTER_MS = 1500;
 
 /** 视差阻尼：指针值 → 渲染值，每帧靠拢 10%。 */
 const POINTER_LERP = 0.1;
@@ -270,7 +274,17 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
 
   /** 点击彩蛋：碎片炸开 1 秒 → 归位 + 解码。 */
   function burst() {
-    if (prefersReducedMotion.value) return;
+    if (prefersReducedMotion.value) {
+      /*
+       * 减少动态：不做位移、不跑乱码，但保留一次**纯淡光**。
+       * 字标是首屏唯一可点的元素，此前在 reduce 下点击完全没有任何反馈
+       * （只剩 crosshair 光标在承诺一个不会发生的交互）。
+       */
+      toggleHalo(true);
+      window.clearTimeout(burstTimer);
+      burstTimer = window.setTimeout(() => toggleHalo(false), REDUCED_FLASH_MS);
+      return;
+    }
     burstPhase = 1;
     toggleHalo(true);
     scramble();
@@ -283,10 +297,35 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     }, BURST_DURATION_MS);
   }
 
+  /** 上一帧的 rAF 时间戳，用来把"每帧接近 base"归一化成按真实 dt。 */
+  let lastFrameAt = 0;
+  /** 最后一次交互（指针移动/按下/离开）的时间，用于空闲限频。 */
+  let lastInteractionAt = 0;
+  /** 上一次真正写帧的时间（空闲时用于把 rAF 降到约 30Hz）。 */
+  let lastWriteAt = 0;
+
+  /**
+   * 把"每帧接近 base"换算成按真实 dt 接近 base。
+   *
+   * 原来的 `value += (target - value) * 0.1` 是每**帧**一次：60Hz 上约 0.3s 落位，
+   * 120Hz 上只要 0.15s —— 同一个手势在高刷屏上快一倍、且松手不带速度。按 dt 归一化
+   * 之后落位速度与刷新率无关（系数仍取原组件的 0.1 / 0.15，视觉强度不变）。
+   */
+  function smoothingAlpha(base: number, nowMs: number): number {
+    if (!lastFrameAt) return base;
+    const frames = Math.min(4, Math.max(0.25, (nowMs - lastFrameAt) / 16.6667));
+    return 1 - Math.pow(1 - base, frames);
+  }
+
   function renderFrame(time: number) {
-    pressAmount += ((pressTarget === 1 ? 1 : 0) - pressAmount) * SPRING_LERP;
-    smoothedX += (pointerX - smoothedX) * POINTER_LERP;
-    smoothedY += (pointerY - smoothedY) * POINTER_LERP;
+    const pointerAlpha = smoothingAlpha(POINTER_LERP, time);
+    const springAlpha = smoothingAlpha(SPRING_LERP, time);
+    lastFrameAt = time;
+    lastWriteAt = time;
+
+    pressAmount += ((pressTarget === 1 ? 1 : 0) - pressAmount) * springAlpha;
+    smoothedX += (pointerX - smoothedX) * pointerAlpha;
+    smoothedY += (pointerY - smoothedY) * pointerAlpha;
 
     const seconds = time * 0.001;
     // 「减少动态」下只画一帧：呼吸抖动与悬停放大一起归零，否则静帧会停在一个歪的相位上。
@@ -309,11 +348,11 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
       const exploded = burstPhase === 1;
       const burstTravel = BURST_TRAVEL_PX * unitScale;
       const burstRotate = BURST_ROTATE_DEG * unitScale;
-      shard.px += ((exploded ? def.bx * burstTravel : 0) - shard.px) * SPRING_LERP;
-      shard.py += ((exploded ? def.by * burstTravel : 0) - shard.py) * SPRING_LERP;
-      shard.pz += ((exploded ? def.z * BURST_DEPTH_PX : 0) - shard.pz) * SPRING_LERP;
-      shard.prx += ((exploded ? def.by * burstRotate : 0) - shard.prx) * SPRING_LERP;
-      shard.pry += ((exploded ? def.bx * burstRotate : 0) - shard.pry) * SPRING_LERP;
+      shard.px += ((exploded ? def.bx * burstTravel : 0) - shard.px) * springAlpha;
+      shard.py += ((exploded ? def.by * burstTravel : 0) - shard.py) * springAlpha;
+      shard.pz += ((exploded ? def.z * BURST_DEPTH_PX : 0) - shard.pz) * springAlpha;
+      shard.prx += ((exploded ? def.by * burstRotate : 0) - shard.prx) * springAlpha;
+      shard.pry += ((exploded ? def.bx * burstRotate : 0) - shard.pry) * springAlpha;
 
       shard.tx = parallaxX + shard.px;
       shard.ty = parallaxY + shard.py;
@@ -323,7 +362,7 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
       const scaleTarget = prefersReducedMotion.value
         ? 1
         : (hovering && !layered ? OVERLAY_HOVER_SCALE : 1) - pressAmount * PRESS_SCALE;
-      shard.scale += (scaleTarget - shard.scale) * SPRING_LERP;
+      shard.scale += (scaleTarget - shard.scale) * springAlpha;
 
       shard.node.style.transform =
         `translate3d(${shard.tx.toFixed(2)}px, ${shard.ty.toFixed(2)}px, ${(def.z * 10 + shard.pz).toFixed(2)}px) ` +
@@ -331,8 +370,24 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     }
   }
 
+  /** 空闲判定的落点：超过 IDLE_AFTER_MS 没有交互就把 rAF 降到约 30Hz 并摘掉 will-change。 */
+  function isIdle(time: number): boolean {
+    return time - lastInteractionAt > IDLE_AFTER_MS;
+  }
+
   function loop(time: number) {
-    renderFrame(time);
+    /*
+     * 空闲呼吸是纯预定正弦：没必要每秒写 60 次九块碎片的 transform。
+     * 交互期间保持满帧（指针视差要跟手），停手 1.5s 后掉到 ~30Hz —— 3px 的
+     * 慢呼吸在 30Hz 下看不出差别，CPU 与合成开销直接减半。
+     */
+    const idle = isIdle(time);
+    if (!idle || lastWriteAt === 0 || time - lastWriteAt >= 32) {
+      renderFrame(time);
+    }
+    if (idle) {
+      root.value?.classList.remove("is-live");
+    }
     rafId = window.requestAnimationFrame(loop);
   }
 
@@ -369,6 +424,7 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     pointerX = Math.max(-1, Math.min(1, nx));
     pointerY = Math.max(-1, Math.min(1, ny));
     hovering = true;
+    markInteraction();
   }
 
   function handlePointerLeave() {
@@ -378,12 +434,20 @@ export function useGlassShardTitle(root: Ref<HTMLElement | null>, options: UseGl
     pressTarget = 0;
   }
 
+  /** 交互探针：记录时间并确保 will-change 只在真正要动的时候挂着。 */
+  function markInteraction() {
+    lastInteractionAt = performance.now();
+    root.value?.classList.add("is-live");
+  }
+
   function handlePointerDown() {
     pressTarget = 1;
+    markInteraction();
   }
 
   function handlePointerUp() {
     pressTarget = 0;
+    markInteraction();
     burst();
   }
 

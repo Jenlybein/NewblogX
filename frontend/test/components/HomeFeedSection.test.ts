@@ -145,7 +145,7 @@ describe("HomeFeedSection：翻页不重播", () => {
     return wrapper.get('[data-role="feed-list"]').attributes("data-entrance");
   }
 
-  it("首批仍逐条错峰入场，翻页后新一批直接出现（入场标记只播一次）", async () => {
+  it("首批逐条错峰入场，翻页后新一批只做一次整体淡入（不再排队、不再停半秒）", async () => {
     const wrapper = mountFeed({ articles: [makeArticle(), makeArticle({ id: "a2" })] });
 
     expect(entrance(wrapper)).toBe("stagger");
@@ -160,9 +160,11 @@ describe("HomeFeedSection：翻页不重播", () => {
 
     expect(entrance(wrapper)).toBe("instant");
     expect(wrapper.get('[data-role="feed-list"]').text()).toContain("第二页第一篇");
+    // 票 441 加法：新一批不再"瞬间换掉整屏文字"，但也不能逐条排队等 ——
+    // 一次 120ms 的淡入（0.12s），延迟恒为 0（所有条目同时进）。
     expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-duration"))).toEqual([
-      "0",
-      "0",
+      "0.12",
+      "0.12",
     ]);
     expect(wrapper.findAll(".motion-stagger-item").map((item) => item.attributes("data-motion-delay"))).toEqual([
       "0",

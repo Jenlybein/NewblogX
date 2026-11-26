@@ -432,7 +432,7 @@ function resumeAutoPlay() {
             标题是纯文本：用插值输出（Vue 自动转义），不接 v-html。
             空标题直接不渲染，避免在渐黑区里留一条空标题带。
           -->
-          <p v-if="titleText" class="banner-title">{{ titleText }}</p>
+          <p v-if="titleText" :key="`caption-${currentIndex}`" class="banner-title">{{ titleText }}</p>
           <div v-if="banners.length > 1" class="banner-controls" role="group" aria-label="轮播控件">
             <!-- 左半边：显式的播放/暂停 + 圆点；箭头仍在右端。整行还是渐黑区里的内容。 -->
             <div class="banner-left">
@@ -445,8 +445,10 @@ function resumeAutoPlay() {
                 :disabled="playbackDisabled"
                 @click="toggleAutoPlay"
               >
-                <IconPlayerPause v-if="!userPaused" :size="18" aria-hidden="true" />
-                <IconPlayerPlay v-else :size="18" aria-hidden="true" />
+                <span :key="userPaused ? 'play' : 'pause'" class="banner-playback__icon">
+                  <IconPlayerPause v-if="!userPaused" :size="18" aria-hidden="true" />
+                  <IconPlayerPlay v-else :size="18" aria-hidden="true" />
+                </span>
               </button>
 
               <div class="banner-dots">
@@ -460,7 +462,8 @@ function resumeAutoPlay() {
                   :aria-current="index === currentIndex ? 'true' : undefined"
                   @click="goToBanner(index)"
                 >
-                  <span aria-hidden="true" />
+                  <span class="banner-dot__ring" aria-hidden="true" />
+                  <span class="banner-dot__pill" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -730,21 +733,94 @@ function resumeAutoPlay() {
   touch-action: manipulation;
 }
 
-.banner-dot span {
+/*
+ * 圆点用**两层**表示两种状态，而不是让同一个点把 width 从 8px 补间到 28px：
+ * width 是布局属性（ADR 只登记了两处布局例外），每换一张图都会让控件行重排一次。
+ * 现在两层都只动 opacity / transform：未选中是一枚 8px 空心圈，选中的是 28px 实心
+ * pill（`scaleX` 从 0.3 长到 1，合成属性，不触发布局）。
+ */
+.banner-dot {
+  position: relative;
+}
+
+.banner-dot__ring {
   display: block;
   height: 8px;
   width: 8px;
   border: 1px solid var(--color-on-inverse-muted);
   border-radius: var(--radius-pill);
   background: transparent;
-  transition: width var(--motion-fast) var(--motion-ease);
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
-/* 当前项：实心反白 + 拉长的 pill，与未选中的空心点一眼可分。 */
-.banner-dot.is-active span {
+.banner-dot__pill {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  height: 8px;
   width: 28px;
-  border-color: var(--color-on-inverse);
+  translate: -50% -50%;
+  transform: scaleX(0.3);
+  border-radius: var(--radius-pill);
   background: var(--color-on-inverse);
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+/* 当前项：圈隐去、pill 长开 —— 与未选中的空心点一眼可分。 */
+.banner-dot.is-active .banner-dot__ring {
+  opacity: 0;
+}
+
+.banner-dot.is-active .banner-dot__pill {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* 标题随图切换淡入（票 441 加法）：图片是 160ms 交叉淡入，标题若硬切，一次换图
+ * 只完成了一半。key 跟着 currentIndex 重挂，动画从 0 起跑；减少动态下直接切。 */
+.banner-title {
+  animation: banner-caption-in var(--banner-crossfade) var(--motion-ease);
+}
+
+@keyframes banner-caption-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 播放/暂停图标：状态切换时重挂，120ms 淡入 + 轻微放大，让"停了"有回应。 */
+.banner-playback__icon {
+  display: inline-flex;
+  animation: banner-icon-in var(--motion-fast) var(--motion-ease);
+}
+
+@keyframes banner-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 按下态：与箭头 / 圆点同一档（这个键此前完全没有按下反馈）。 */
+.banner-playback {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.banner-playback:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /*
@@ -772,8 +848,15 @@ function resumeAutoPlay() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .banner-dot span {
+  .banner-dot__ring,
+  .banner-dot__pill {
     transition: none;
+  }
+
+  /* 标题与图标是"内容交换"的桥，reduce 下直接切（不做淡入）。 */
+  .banner-title,
+  .banner-playback__icon {
+    animation: none;
   }
 
   /* 减少动态：换图直接切，出场帧不再淡出（JS 侧也不再安排出场帧）。 */
@@ -788,13 +871,19 @@ function resumeAutoPlay() {
     background-color: var(--color-on-inverse-line-strong);
   }
 
-  .banner-dot:active {
+  .banner-dot:active,
+  .banner-playback:active:not(:disabled) {
     transform: none;
   }
 
-  .banner-dot:active span {
-    background-color: var(--color-on-inverse-muted);
+  .banner-dot:active .banner-dot__ring {
     border-color: var(--color-on-inverse);
+    background-color: var(--color-on-inverse-muted);
+  }
+
+  /* 播放键在 reduce 下不可用（自动轮播已按系统偏好关闭），但仍保留底色反馈。 */
+  .banner-playback:active:not(:disabled) {
+    background-color: var(--color-on-inverse-line-strong);
   }
 }
 </style>

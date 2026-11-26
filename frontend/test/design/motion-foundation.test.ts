@@ -143,7 +143,10 @@ describe("路由切换过渡", () => {
   });
 
   it("过渡时长/缓动取自 token（单一来源，不写死毫秒）", () => {
-    const block = tailwindCss.slice(tailwindCss.indexOf(".page-enter-active"));
+    // 只切出这条规则本身（到下一个空行/规则结束），不要一路切到文件尾 ——
+    // 文件后面还有别的区块，用 `indexOf` 到尾会把它们的 token 也算进来。
+    const start = tailwindCss.indexOf(".page-enter-active,\n.page-leave-active {");
+    const block = tailwindCss.slice(start, tailwindCss.indexOf("}", start) + 1);
 
     // #87 收尾：out-in 的离场是切页可见的固定开销。实测把过渡关掉后切页可见从
     // ~300ms 降到 ~125ms，其中 ~170ms 是这段过渡；按 ADR-0011 的三档预算从 base 档

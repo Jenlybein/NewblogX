@@ -76,6 +76,9 @@ describe("墨流的元素遮罩", () => {
     const start = composable.slice(composable.indexOf("const start = ()"), composable.indexOf("/** 减少动态"));
 
     expect(resize, "resize 必须重烘遮罩，否则墙会被拉伸到错位").toContain("refreshMask()");
-    expect(start, "从空闲重新启动时必须先重烘遮罩").toContain("refreshMask()");
+    // 从空闲重新启动时先比几何签名：变了才重烘（每此启动都做整页 DOM 走查
+    // 等于拿输入帧去做强制布局），未变则跳过。
+    expect(start, "从空闲重新启动时必须重烘遮罩").toContain("refreshMaskIfGeometryChanged()");
+    expect(composable).toMatch(/const refreshMaskIfGeometryChanged[\s\S]{0,400}refreshMask\(\)/u);
   });
 });

@@ -561,3 +561,48 @@ func (a *Article) DemoteForQuality(now time.Time) error {
 	a.updatedAt = now
 	return nil
 }
+
+// ForceDemote 管理员把文章**强制退回草稿**（运营纠错）。
+//
+// 为什么需要一条不受"待可见"限制的转移（与 DemoteForQuality 的区别）：
+//
+//   - DemoteForQuality 是**质量闸门的内部出口**，只认「已发布待可见」
+//     （Published + pending_review）这一档。它处理的是判定链路的正常落点，
+//     越界调用意味着链路出了 bug，所以起点收得极窄，越界即 ErrInvalidTransition。
+//   - ForceDemote 是**人**的纠错动作。2026-11-27 线上有一篇 6 分文章被错误放行成
+//     对读者可见（闸门与合规判定并发时的漏放），那时文章已经是 Published +
+//     visible —— 任何"只能从待可见出发"的转移都救不了它，而运营要的恰恰是
+//     "不管它现在对读者可见、还是被谁藏起来了，立刻退回草稿重走一遍"。
+//     如果沿用 DemoteForQuality 的起点，这个工具在最需要它的那一刻必然失败。
+//
+// 允许的起点：
+//
+//   - 已发布（visibility 为 visible / pending_review / user_hidden / admin_hidden
+//     都算）：已经对读者有露出，正是要撤下来的对象；
+//   - 审核中：还没放行但已在发布链路上，管理员判定不该继续往前走时同样撤回；
+//   - 已拒绝：拒绝可能是误判（模型把正常稿判成违规、管理员选错了原因），
+//     此时文章不该继续挂在"已拒绝"这个结论上。这里只做**状态复位**，不放宽
+//     重投权限：系统直接拒（同步风险命中 / 合规自动拒）留下的待处理任务仍然
+//     拦着作者重投（见 app.rejectSystemRejectedResubmit），那道闸门不归本方法管。
+//   - 已是草稿：返回 ErrInvalidTransition，由调用方按"目的已达成"处理（幂等）。
+//
+// 落点固定为 草稿 + visible，并清空全部审核痕迹：下一次提交必须重新走质量闸门
+// 与人工/合规判定，留着旧的 submittedAt / reviewedAt / reviewedBy 只会让后台
+// 显示"这篇文章刚被人审过"，把一次撤回伪装成一次审核。
+func (a *Article) ForceDemote(now time.Time) error {
+	if a.deleted {
+		return ErrArticleNotFound
+	}
+	switch a.status {
+	case StatusPublished, StatusExamining, StatusRejected:
+	default:
+		return ErrInvalidTransition
+	}
+	a.status = StatusDraft
+	a.visibility = VisibilityVisible
+	a.submittedAt = nil
+	a.reviewedAt = nil
+	a.reviewedBy = nil
+	a.updatedAt = now
+	return nil
+}

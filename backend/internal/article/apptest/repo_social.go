@@ -388,22 +388,22 @@ func cloneItem(i *favorite.Item) *favorite.Item {
 	// 读模型字段一起复制：`ListItems` 在生产里 join article_models 取四个计数，
 	// 漏掉它们会让 fake 永远返回 0，从而"证明得了没人读、证明不了读得对"。
 	return favorite.RestoreItem(favorite.RestoreItemParams{
-		ArticleID:       i.ArticleID(),
-		UserID:          i.UserID(),
-		FolderID:        i.FolderID(),
-		ArticleTitle:    i.ArticleTitle(),
-		ArticleAbstract: i.ArticleAbstract(),
-		ArticleCover:    i.ArticleCover(),
-		ArticleStatus:   i.ArticleStatus(),
-		AuthorID:        i.AuthorID(),
-		AuthorNickname:  i.AuthorNickname(),
-		AuthorAvatar:    i.AuthorAvatar(),
-		FavoritedAt:     i.FavoritedAt(),
+		ArticleID:        i.ArticleID(),
+		UserID:           i.UserID(),
+		FolderID:         i.FolderID(),
+		ArticleTitle:     i.ArticleTitle(),
+		ArticleAbstract:  i.ArticleAbstract(),
+		ArticleCover:     i.ArticleCover(),
+		ArticleStatus:    i.ArticleStatus(),
+		AuthorID:         i.AuthorID(),
+		AuthorNickname:   i.AuthorNickname(),
+		AuthorAvatar:     i.AuthorAvatar(),
+		FavoritedAt:      i.FavoritedAt(),
 		ArticleUpdatedAt: i.ArticleUpdatedAt(),
-		ViewCount:       i.ViewCount(),
-		DiggCount:       i.DiggCount(),
-		CommentCount:    i.CommentCount(),
-		FavorCount:      i.FavorCount(),
+		ViewCount:        i.ViewCount(),
+		DiggCount:        i.DiggCount(),
+		CommentCount:     i.CommentCount(),
+		FavorCount:       i.FavorCount(),
 	})
 }
 
@@ -714,9 +714,11 @@ func cloneTask(t *review.Task) *review.Task {
 		Source:        t.Source(),
 		Status:        t.Status(),
 		Reason:        t.Reason(),
-		ReviewedAt:    t.ReviewedAt(),
-		ReviewedBy:    t.ReviewedBy(),
-		CreatedAt:     t.CreatedAt(),
+		// 放行留痕也要跟着克隆：漏掉它会让"内存仓储"与真仓储对同一行的看法不一致
+		// （真库写得回来、fake 丢字段），测试就会在抄写层假绿/假红。
+		ApproveNote: t.ApproveNote(),
+		ReviewedAt:  t.ReviewedAt(),
+		ReviewedBy:  t.ReviewedBy(),
+		CreatedAt:   t.CreatedAt(),
 	})
 }
-

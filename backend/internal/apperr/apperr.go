@@ -77,6 +77,12 @@ const (
 	// 这条是"命中风险词/评分派生风险"（落 REJECTED、不给改）；作者据此知道不是
 	// 改几分能解决的事。作者侧只看到固定文案，命中的词、维度与等级一律不外泄。
 	CodeArticleRiskRejected Code = "article.risk_rejected"
+	// CodeArticleForceDemoteReasonRequired 是管理员「强制退回草稿」没填原因。
+	//
+	// 原因不是可选的备注：它会被原样发给作者（作者只知道"文章被退回了"而不知道
+	// 为什么，比不退回更糟），也是这次处置唯一的审计依据，所以空串必须是一个
+	// 明确、可被前端识别的参数错误，而不是静默落一条空原因。
+	CodeArticleForceDemoteReasonRequired Code = "article.force_demote_reason_required"
 )
 
 // 分类与标签。
@@ -603,6 +609,9 @@ var messages = map[Code]string{
 	CodeArticleScoreUnavailable:      "质量评分暂时不可用（模型调用失败），本次提交未保存，请稍后重试",
 	CodeArticleQualityGateRequiresAI: "开启质量闸门需要先启用 AI 助手并配置至少一个可用模型，否则所有投稿都会被拒",
 	CodeArticleRiskRejected:          "文章未通过内容检查，已被拒绝",
+	// 与上面那条"驳回原因必须补一句说明"同一个道理：这句话会原样出现在
+	// 作者的站内信里，管理员必须写清楚"为什么退回"，而不是糊一个空格。
+	CodeArticleForceDemoteReasonRequired: "强制退回草稿必须填写原因（这句话会发给作者，也是处置记录）",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

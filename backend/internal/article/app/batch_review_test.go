@@ -21,7 +21,7 @@ func TestBatchHandleReviewTasksReportsPartialSuccess(t *testing.T) {
 	result, err := svc.BatchHandleReviewTasks(ctx, adminViewer(), []ctype.ID{
 		ctype.NewID(11),  // 存在
 		ctype.NewID(999), // 不存在
-	}, true, "", "")
+	}, true, "", "", testQualityGate())
 	if err != nil {
 		t.Fatalf("批量通过不该整批失败: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestBatchRejectRequiresReasonCode(t *testing.T) {
 	seedReviewedArticle(t, repos, 1, 11, "正文甲")
 
 	_, err := svc.BatchHandleReviewTasks(ctx, adminViewer(), []ctype.ID{ctype.NewID(11)},
-		false, "", "")
+		false, "", "", testQualityGate())
 	if err == nil {
 		t.Fatal("驳回缺原因码应报错（与单条接口同一套校验）")
 	}
@@ -60,7 +60,7 @@ func TestBatchHandleReviewTasksRequiresAdmin(t *testing.T) {
 
 	svc, _ := newModerationService(t, nil)
 	_, err := svc.BatchHandleReviewTasks(context.Background(), authorViewer(),
-		[]ctype.ID{ctype.NewID(11)}, true, "", "")
+		[]ctype.ID{ctype.NewID(11)}, true, "", "", testQualityGate())
 	if err == nil {
 		t.Fatal("非管理员不该能批量处理审核任务")
 	}

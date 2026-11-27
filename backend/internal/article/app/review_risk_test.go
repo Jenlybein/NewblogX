@@ -76,7 +76,7 @@ func TestListReviewTasksMarksRiskFromScore(t *testing.T) {
 	seedReviewedArticle(t, repos, 1, 10, "一段普通正文")
 
 	views, _, err := svc.ListReviewTasks(
-		context.Background(), adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
+		context.Background(), adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("列出审核任务失败: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestListReviewTasksWithoutScoreRecordIsNotAnError(t *testing.T) {
 	seedReviewedArticle(t, repos, 2, 20, "一段普通正文")
 
 	views, total, err := svc.ListReviewTasks(
-		context.Background(), adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
+		context.Background(), adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("没有评分记录不应让队列失败: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestListReviewTasksRecomputesAfterNewScore(t *testing.T) {
 	ctx := context.Background()
 	page := domain.Page{Limit: 10}
 
-	views, _, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, page)
+	views, _, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), page)
 	if err != nil {
 		t.Fatalf("第一次读取失败: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestListReviewTasksRecomputesAfterNewScore(t *testing.T) {
 
 	// 同一份 map 被写入新评分：服务每次现读端口，所以下一次列表就应该看到。
 	scores.Seed(ctype.NewID(3), moderation.ScoreFacts{TotalScore: 40, ContentLength: 1000})
-	views, _, err = svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, page)
+	views, _, err = svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), page)
 	if err != nil {
 		t.Fatalf("写入新评分后读取失败: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestListReviewTasksSortsByRiskLevel(t *testing.T) {
 	}
 
 	views, total, err := svc.ListReviewTasks(
-		context.Background(), adminViewer(), nil, app.ReviewSortRisk, domain.Page{Limit: 10})
+		context.Background(), adminViewer(), nil, app.ReviewSortRisk, testQualityGate(), domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("按风险排序失败: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestListReviewTasksSortsByRiskLevel(t *testing.T) {
 
 	// 分页在排序之后切：第一页取风险最高的两条。
 	views, total, err = svc.ListReviewTasks(
-		context.Background(), adminViewer(), nil, app.ReviewSortRisk, domain.Page{Offset: 0, Limit: 2})
+		context.Background(), adminViewer(), nil, app.ReviewSortRisk, testQualityGate(), domain.Page{Offset: 0, Limit: 2})
 	if err != nil {
 		t.Fatalf("按风险排序分页失败: %v", err)
 	}

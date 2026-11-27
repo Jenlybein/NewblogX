@@ -396,6 +396,40 @@ func (h *Handler) AdminVisibility(c *gin.Context) {
 	res.OkWithMsg("设置成功", c)
 }
 
+// ForceDemote 管理员把文章强制退回草稿（运营纠错）。
+//
+// 为什么需要它：文章可能已经被错误放行为对读者可见（质量闸门漏放），
+// 普通的"改可见性"只能藏起来、改不回草稿，作者也就没有可编辑的落点。
+// 这条动作把文章复位成草稿并通知作者，同时留一条审核任务档案。
+//
+// 权限：与其它管理员动作一样走 adminGroup（AuthMiddleware + AdminMiddleware），
+// 用例层再挡一次"没有操作人"的调用。
+//
+// @Summary 强制退回草稿
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "文章 ID"
+// @Param body body ArticleForceDemoteRequest true "退回原因（必填，会发给作者）"
+// @Success 200 {object} kernel.Envelope[ArticleForceDemoteResponse]
+// @Router /articles/{id}/force-demote [post]
+func (h *Handler) ForceDemote(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+	cr := middleware.GetBindJson[ArticleForceDemoteRequest](c)
+
+	viewer := h.viewerOf(c)
+	if err := h.svc.ForceDemote(c.Request.Context(), domain.ArticleID(uri.ID), viewer.UserID, cr.Reason); err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "article_force_demote", domain.ArticleID(uri.ID), true, "强制退回草稿")
+	res.OkWithData(ArticleForceDemoteResponse{
+		ID:            uri.ID,
+		PublishStatus: ArticleStatusDraft,
+	}, c)
+}
+
 // ── 浏览 ──
 
 // Visit 记录浏览。

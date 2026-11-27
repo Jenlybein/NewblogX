@@ -57,6 +57,12 @@ const (
 	// 转回人工」（ADR-0028）。正常路径下这类文章次日会自动重审，不会走到人工；
 	// 这条来源只在延迟事件丢失、被兜底扫描捞回来时出现。
 	SourceQuotaDeferred Source = "quota_deferred"
+	// SourceForceDemote 是管理员把文章强制退回草稿（运营纠错）。
+	//
+	// 与作者侧的 create / edit / resubmit 分开：复盘「这篇文章为什么又回到草稿」
+	// 时必须能一眼分出"是人做的纠错"还是"作者自己改的"，否则一次误放行的复盘
+	// 会被当成正常改稿。这条来源的任务行是**档案**（创建即已撤销），不进审核队列。
+	SourceForceDemote Source = "force_demote"
 )
 
 // ReasonCode 是驳回原因的固定枚举。

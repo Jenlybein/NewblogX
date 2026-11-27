@@ -340,6 +340,22 @@ type Service struct {
 	collectionFilter CollectionTextFilterer
 	// publishGate 是发布类动作前的账号闸门（票 399）。nil 表示未接入（系统动作）。
 	publishGate PublishGate
+	// notifier 是"管理员强制退回草稿"的站内信出口。
+	//
+	// 为 nil 表示这个进程不服务管理员处置请求（cron / worker / outbox 中继只做
+	// 系统动作），此时退回照常生效、只是不通知作者；api 角色的装配必然注入
+	// （backend/app/article_wiring.go 的 forceDemoteNotifier）。
+	notifier Notifier
+}
+
+// WithNotifier 注入站内信出口。
+//
+// 与 WithContentFilter / WithPublishGate 同一做法：可选注入而不是往 New 的
+// 参数表再加一项——New 已有七个参数、几十处调用点，为一个只在管理员纠错里
+// 用到的端口再改一遍全部调用点没有收益。
+func (s *Service) WithNotifier(n Notifier) *Service {
+	s.notifier = n
+	return s
 }
 
 // WithPublishGate 注入发布闸门（票 399）。

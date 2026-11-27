@@ -7,6 +7,7 @@ package review
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -68,9 +69,17 @@ type Task struct {
 	source        Source
 	status        Status
 	reason        string
-	reviewedAt    *time.Time
-	reviewedBy    *domain.UserID
-	createdAt     time.Time
+	// approveNote 是管理员**放行**时的留痕（见 FormatApproveNote）。
+	//
+	// 与 reason 分列而不是编进 reason：reason 的语义是"驳回原因"，通过时它必须
+	// 保持空（前端按"有没有原因"区分驳回与通过，历史行还靠它兜底显示）。
+	// 放行备注是另一件事——管理员豁免质量闸门，是**有意越级**，事后复盘要能
+	// 回答"当时多少分、放行线是多少"。两者混在一列里，前端就没法只凭数据判断
+	// "这条通过有没有被越级放行"。空串表示没有留痕（系统通过 / 历史行）。
+	approveNote string
+	reviewedAt  *time.Time
+	reviewedBy  *domain.UserID
+	createdAt   time.Time
 }
 
 // NewTaskParams 是创建审核任务的输入。
@@ -113,9 +122,11 @@ type RestoreTaskParams struct {
 	Source        Source
 	Status        Status
 	Reason        string
-	ReviewedAt    *time.Time
-	ReviewedBy    *domain.UserID
-	CreatedAt     time.Time
+	// ApproveNote 是放行留痕（见 FormatApproveNote）；历史行与系统通过为空串。
+	ApproveNote string
+	ReviewedAt  *time.Time
+	ReviewedBy  *domain.UserID
+	CreatedAt   time.Time
 }
 
 // RestoreTask 从持久化数据重建。
@@ -131,6 +142,7 @@ func RestoreTask(p RestoreTaskParams) *Task {
 		source:        p.Source,
 		status:        p.Status,
 		reason:        p.Reason,
+		approveNote:   p.ApproveNote,
 		reviewedAt:    p.ReviewedAt,
 		reviewedBy:    p.ReviewedBy,
 		createdAt:     p.CreatedAt,
@@ -161,6 +173,12 @@ func (t *Task) Stage() Stage { return t.stage }
 // 历史行与撤销原因是纯文本。要给作者看的那句话走 ReasonText，
 // 要拆分给管理后台看的走 ReasonCode / ReasonNote。
 func (t *Task) Reason() string { return t.reason }
+
+// ApproveNote 返回管理员放行时写下的留痕；空串表示没有（系统通过 / 历史行）。
+//
+// 与 Reason 分列：reason 只承载驳回原因，放行备注不能借它的位置——
+// "这条是通过的"与"这条通过时管理员越级放行了"是两个独立事实。
+func (t *Task) ApproveNote() string { return t.approveNote }
 
 // ReasonCode 返回这条任务的驳回原因枚举；没有枚举（历史行 / 撤销）时为空串。
 func (t *Task) ReasonCode() ReasonCode {
@@ -196,11 +214,19 @@ func (t *Task) ReviewedBy() *domain.UserID { return t.reviewedBy }
 func (t *Task) IsPending() bool { return t.status == StatusPending }
 
 // Approve 审核通过。
-func (t *Task) Approve(reviewer domain.UserID, now time.Time) error {
+//
+// note 是**放行留痕**（用 FormatApproveNote 拼出的那句固定中文），由用例层给：
+// 管理员通过即豁免质量闸门，但不许静默——这一列让"当时多少分、放行线多少"
+// 留在任务行上。空串表示没有可记的留痕（系统或脚本的通过路径），不是错误。
+//
+// reason 在这里仍保持空串（markReviewed 传 ""）：通过不是驳回，不能借 reason
+// 的位置记东西，否则队列里会出现"approved 却带驳回原因"的行。
+func (t *Task) Approve(reviewer domain.UserID, note string, now time.Time) error {
 	if t.status != StatusPending {
 		return ErrTaskHandled
 	}
 	t.status = StatusApproved
+	t.approveNote = strings.TrimSpace(note)
 	return t.markReviewed(reviewer, now, "")
 }
 
@@ -219,6 +245,25 @@ func (t *Task) Reject(reviewer domain.UserID, code ReasonCode, note string, now 
 
 // Cancel 撤销任务（作者改回草稿或重新提交时，旧任务作废）。
 func (t *Task) Cancel(reason string, now time.Time) error {
+	// 空 ID 表示"没有审核人"：作者自己撤的任务不该在 reviewed_by 上留一个假的名字。
+	return t.cancel("", reason, now)
+}
+
+// CancelBy 撤销任务并记下**执行人**（管理员强制退回草稿）。
+//
+// 与 Cancel 的差别只有 reviewed_by 一列：作者自己改回草稿时不存在"审核人"，
+// 而管理员的强制退回是一次人工处置，事后复盘必须能追到是谁做的、为什么做。
+// 复用撤销语义（而不是新造一种任务状态）的理由：这条任务行不会回到待处理队列，
+// 也不再需要任何人处理 —— 撤销正是这个事实的既有表达，只是把操作人补上。
+func (t *Task) CancelBy(reviewer domain.UserID, reason string, now time.Time) error {
+	if reviewer.IsZero() {
+		return ErrTaskForbidden
+	}
+	return t.cancel(reviewer, reason, now)
+}
+
+// cancel 是撤销的唯一实现：reviewer 为零表示"作者自己撤的"，不写 reviewed_by。
+func (t *Task) cancel(reviewer domain.UserID, reason string, now time.Time) error {
 	if t.status != StatusPending {
 		return ErrTaskHandled
 	}
@@ -226,6 +271,10 @@ func (t *Task) Cancel(reason string, now time.Time) error {
 	t.reason = reason
 	at := now
 	t.reviewedAt = &at
+	if !reviewer.IsZero() {
+		by := reviewer
+		t.reviewedBy = &by
+	}
 	return nil
 }
 

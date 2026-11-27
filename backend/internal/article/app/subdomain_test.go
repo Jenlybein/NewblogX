@@ -171,7 +171,7 @@ func TestHandleReviewTaskRejectRequiresEnum(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, c.code, c.note)
+			_, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, c.code, c.note, testQualityGate())
 			if got, ok := apperr.CodeOf(err); !ok || got != c.wantCode {
 				t.Fatalf("应返回错误码 %s，实际 code=%s ok=%v err=%v", c.wantCode, got, ok, err)
 			}
@@ -200,7 +200,7 @@ func TestHandleReviewTaskRejectStoresEnumAndNote(t *testing.T) {
 	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonIncomplete, "  缺少示例代码\n"); err != nil {
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonIncomplete, "  缺少示例代码\n", testQualityGate()); err != nil {
 		t.Fatalf("带原因的驳回失败: %v", err)
 	}
 
@@ -229,7 +229,7 @@ func TestHandleReviewTaskRejectOnlyEnumIsEnough(t *testing.T) {
 	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonQuality, ""); err != nil {
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonQuality, "", testQualityGate()); err != nil {
 		t.Fatalf("只选枚举的驳回应成功，实际 %v", err)
 	}
 	task, _ := repos.FakeReviews().Find(ctx, 1)
@@ -253,7 +253,7 @@ func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 
 	// 通过时即便带了原因也一律丢弃：通过的语义里没有"驳回原因"这一项，
 	// 留下它只会让队列里出现一条状态是 approved 却带 reason 的记录。
-	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), true, review.ReasonOther, "不该被记录"); err != nil {
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), true, review.ReasonOther, "不该被记录", testQualityGate()); err != nil {
 		t.Fatalf("审核通过不该要求原因，实际 %v", err)
 	}
 
@@ -342,7 +342,7 @@ func TestListReviewTasksEmptyQueueIsNotAnError(t *testing.T) {
 	svc, _, _ := newService(t)
 	ctx := context.Background()
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{})
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), domain.Page{})
 	if err != nil {
 		t.Fatalf("空队列是正常读面，不应报错: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestListReviewTasksToleratesMissingArticle(t *testing.T) {
 	// 只预置任务，不预置文章。
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, ctype.NewID(404), author, review.StatusPending))
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("文章已删不应让队列失败: %v", err)
 	}

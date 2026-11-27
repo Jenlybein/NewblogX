@@ -355,7 +355,11 @@ func TestReviewRepoLifecycle(t *testing.T) {
 		t.Fatalf("应有 1 条待审，实际 %d", len(pending))
 	}
 
-	if err := task.Approve(ctype.NewID(900), time.Now()); err != nil {
+	// 带放行留痕通过：新列必须真的落库、也真的读得回来
+	//（schema.sql 与 testkit 行结构的列比对在这里拿到真库的证）。
+	score := 47
+	approveNote := review.FormatApproveNote(&score, 52)
+	if err := task.Approve(ctype.NewID(900), approveNote, time.Now()); err != nil {
 		t.Fatalf("审核通过失败: %v", err)
 	}
 	if err := repo.Update(ctx, task); err != nil {
@@ -368,6 +372,12 @@ func TestReviewRepoLifecycle(t *testing.T) {
 	}
 	if got.Status() != review.StatusApproved {
 		t.Fatalf("状态应为 approved，实际 %s", got.Status())
+	}
+	if got.ApproveNote() != "管理员以 47 分放行（放行线 52 分）" {
+		t.Fatalf("放行留痕应落库并读回，实际 %q", got.ApproveNote())
+	}
+	if got.Reason() != "" {
+		t.Fatalf("通过不该在 reason 上留下内容，实际 %q", got.Reason())
 	}
 	if got.ReviewedBy() == nil || (*got.ReviewedBy()).Uint64() != 900 {
 		t.Fatal("应记录审核人")

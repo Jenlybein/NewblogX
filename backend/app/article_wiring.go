@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
+	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
@@ -83,7 +85,50 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		// 内容过滤（票 397 / ADR-0032）：两个面各自一个 bridge，面枚举钉死在装配层。
 		WithContentFilter(articleTextFilterBridge{svc: infra.Filter}).
 		WithCollectionContentFilter(collectionTextFilterBridge{svc: infra.Filter}).
-		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
+		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)}).
+		// 管理员强制退回草稿的站内信（运营纠错）：通知模块只有装配层认识。
+		WithNotifier(&forceDemoteNotifier{db: infra.DB})
+}
+
+// forceDemoteNotifier 把"管理员强制退回草稿"的通知接成 article 模块的端口。
+//
+// 为什么实现在装配层：article 用例层不认识 notification 模块（垂直模块口径），
+// 而这条通知是**同步**的（管理员当场要知道作者会不会收到），走不了发件箱。
+// 与 moderationNotifier 同一形状：端口由使用方定义，实现放在唯一同时认识两边的包里。
+type forceDemoteNotifier struct{ db *gorm.DB }
+
+// NotifyForceDemoted 给作者发一条系统通知，正文里带管理员填的原因。
+//
+// 去重口径与 notifyQualityDemoted 一致（同接收者 + 同链接 + 同内容）：消息表不能
+// 加去重列（零 DDL），而正文里就带着原因、链接里就带着文章 ID，所以"接收者 + 链接 +
+// 正文"这个键在这里**等价于「文章 ID + 原因」**。去重不是为了拦顺序重试（那种情况
+// 用例层已经按"已是草稿 → 目的已达成"提前返回），而是拦并发重复请求：两笔事务
+// 可能都看到"已发布"，各自都会调到这里。
+func (n *forceDemoteNotifier) NotifyForceDemoted(ctx context.Context, notice articleapp.ForceDemoteNotice) error {
+	if n == nil || n.db == nil {
+		return nil
+	}
+	content := fmt.Sprintf("您的文章《%s》已被管理员退回草稿：%s", notice.Title, notice.Reason)
+	linkHref := fmt.Sprintf("/article/%s", notice.ArticleID)
+
+	var exists int64
+	if err := n.db.WithContext(ctx).Table(noticeMessageRow{}.TableName()).
+		Where("receiver_id = ? AND link_herf = ? AND content = ?", notice.AuthorID, linkHref, content).
+		Count(&exists).Error; err != nil {
+		return err
+	}
+	if exists > 0 || notificationService == nil {
+		return nil
+	}
+	// action_user 记发起人（管理员），作者看到的是"系统通知 + 是谁做的处置"；
+	// 与"质量闸门退回"那条不同：那次是系统动作，这里是一次人工干预。
+	return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
+		Receiver:   notice.AuthorID.Uint64(),
+		ActionUser: notice.OperatorID.Uint64(),
+		Content:    content,
+		LinkTitle:  notice.Title,
+		LinkHref:   linkHref,
+	})
 }
 
 // articleTextFilterBridge 把内容过滤服务接成 article 模块的文章面端口（票 397）。

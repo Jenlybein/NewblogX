@@ -39,6 +39,7 @@ func (s *Service) BatchHandleReviewTasks(
 	approve bool,
 	code review.ReasonCode,
 	note string,
+	gate QualityGatePolicy,
 ) (BatchReviewResult, error) {
 	if !viewer.IsAdmin() {
 		return BatchReviewResult{}, domain.ErrForbidden
@@ -54,7 +55,9 @@ func (s *Service) BatchHandleReviewTasks(
 
 	result := BatchReviewResult{Failed: make([]BatchReviewItem, 0)}
 	for _, taskID := range taskIDs {
-		_, err := s.HandleReviewTask(ctx, viewer, taskID, approve, code, note)
+		// gate 原样透传：批量通过同样要留"管理员以 X 分放行"的痕，
+		// 单条与批量共用一条用例，才不会出现两套留痕口径。
+		_, err := s.HandleReviewTask(ctx, viewer, taskID, approve, code, note, gate)
 		if err != nil {
 			code, ok := apperr.CodeOf(err)
 			if !ok {

@@ -164,6 +164,10 @@ type ExamineCmd struct {
 	ReasonCode review.ReasonCode
 	// ReasonNote 驳回原因的可选补充说明（通过时忽略）。
 	ReasonNote string
+	// QualityGate 是本次请求的闸门配置快照（通过时用来写放行留痕；
+	// 驳回时忽略）。由 HTTP 层每请求现读后传进来：app 层不读配置，
+	// 也不替调用方猜"当前的放行线是多少"。
+	QualityGate QualityGatePolicy
 }
 
 // FavoriteCmd 是收藏动作的输入。
@@ -267,6 +271,18 @@ type ReviewTaskView struct {
 	// 还没跑），后者是"模型看过且没发现问题"。合并展示会让审核员把没检查过的
 	// 文章当成已检查过的放过去。
 	Compliance *risk.Record
+	// QualityScore 是文章**当前**的 AI 总分；nil 表示取不到分数
+	// （AI 关闭、还没评分、模型调用失败），**与 0 分不是一回事**：
+	// 0 分是"模型评了，结果就是 0"，nil 是"没有可用的评分结论"。
+	//
+	// 用 *int 而不是加一个 bool：指针本身就是"可能没有"的表达，
+	// 前端也只多一个 null 分支（与 Compliance 的 nil 同一套消费方式）。
+	QualityScore *int
+	// QualityPassScore 是本次请求生效配置算出的放行线（及格线 + 灰带宽度）。
+	//
+	// 闸门关闭时仍然算出值：前端只用它做展示（放行确认框里"当前 X 分
+	// （放行线 Y 分）"），不拿它做判定——判定在提交链路，这里只陈述事实。
+	QualityPassScore int
 }
 
 // ReviewListSort 是审核队列的排序口径。

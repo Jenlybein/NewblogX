@@ -45,6 +45,9 @@ var protocols = map[Code]ProtocolKind{
 	CodeArticleQualityRejected:       ProtocolValidation,
 	CodeArticleQualityGateRequiresAI: ProtocolValidation,
 	CodeArticleRiskRejected:          ProtocolValidation,
+	// 强制退回草稿没填原因（管理员纠错）：后台补一句话就能过，属于调用方
+	// 自己修正输入即可解决的失败，归 1001；归 1002 会让运营以为接口坏了。
+	CodeArticleForceDemoteReasonRequired: ProtocolValidation,
 	CodeMessageSelectionEmpty:        ProtocolValidation,
 	CodeMessageIDAndTypeEmpty:        ProtocolValidation,
 	CodeMessageNotFound:              ProtocolValidation,

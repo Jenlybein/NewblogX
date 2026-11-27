@@ -63,7 +63,11 @@ func (s *Service) Examine(ctx context.Context, cmd ExamineCmd) (*domain.Article,
 		}
 
 		now := s.clock.Now()
+		// 放行留痕先算：同一次审核里所有待处理任务共用同一篇文章，分数只有一份。
+		// 驳回不写留痕（驳回的意见进 reason，见 reviewReason）。
+		approveNote := ""
 		if cmd.Approve {
+			approveNote = s.approveNoteFor(ctx, a.ID(), cmd.QualityGate)
 			if err := a.Approve(cmd.Actor.UserID, now); err != nil {
 				return err
 			}
@@ -84,7 +88,7 @@ func (s *Service) Examine(ctx context.Context, cmd ExamineCmd) (*domain.Article,
 		}
 		for _, t := range tasks {
 			if cmd.Approve {
-				if err := t.Approve(cmd.Actor.UserID, now); err != nil {
+				if err := t.Approve(cmd.Actor.UserID, approveNote, now); err != nil {
 					return err
 				}
 			} else {

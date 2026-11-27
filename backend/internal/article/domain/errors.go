@@ -53,4 +53,10 @@ var (
 	// 与 ErrForbidden / ErrPublishDisabledBySite 分开：那两个要用户改账号或找管理员，
 	// 这个只需要等到明天（配额按自然日重置，ADR-0022）。
 	ErrSubmitQuotaExceeded = apperr.New(apperr.CodeArticleSubmitQuotaExceeded)
+	// ErrForceDemoteReasonRequired 管理员强制退回草稿时没填原因。
+	//
+	// 原因同样不是内部备注：它会原样发给作者，也是这次处置唯一的审计依据。
+	// 与 ErrReviewReasonRequired 分开成两个码：前者的下一步是"写一句话"，
+	// 后者是"从下拉里选一条"，前端提示不同。
+	ErrForceDemoteReasonRequired = apperr.New(apperr.CodeArticleForceDemoteReasonRequired)
 )

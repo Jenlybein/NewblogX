@@ -607,13 +607,13 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 // 档里仍然发生，只是它不再是这一档的定义。
 const (
 	// ContentFilterActionRelease 只把命中替换成等长星号，文本照常入库并继续后续链路。
-	ContentFilterActionRelease = "release"
+	ContentFilterActionRelease = conf.ContentFilterActionRelease
 	// ContentFilterActionDraft 命中落草稿（文章）/ 拒收（评论），配额不归还。
-	ContentFilterActionDraft = "draft"
+	ContentFilterActionDraft = conf.ContentFilterActionDraft
 	// ContentFilterActionReject 命中落已拒绝且不可改（文章）/ 拒收（评论）。
 	ContentFilterActionReject = "reject"
 	// contentFilterActionLegacyMask 是改造前的取值，读到时等价于 release。
-	contentFilterActionLegacyMask = "mask"
+	contentFilterActionLegacyMask = conf.ContentFilterActionLegacyMask
 )
 
 // normalizeAutoDispose 整理并校验按档位处置的口径。

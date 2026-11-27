@@ -52,7 +52,7 @@ type ContentFilter struct {
 // 全部短路，不再花钱）：
 //   - release：命中→替换成等长的 *→照常走后面的链路（改造前的 mask 就是它）；
 //   - draft  ：命中→落草稿 / 评论拒收，作者改完可重投；提交配额**不归还**
-//              （作者自己能改的失败不退还额度，与旧 reject 同一条理由）；
+//     （作者自己能改的失败不退还额度，与旧 reject 同一条理由）；
 //   - reject ：命中→文章落「已拒绝」且不可改 / 评论拒收；读者看不到。
 //
 // 档位差异见 app 层的落点实现；**观察词没有 reject**（watch 是误报代价低的词，
@@ -66,6 +66,25 @@ type ContentFilter struct {
 //
 // reject 是 opt-in：不配就是 mask，与改造前完全一致（命中的地方照样打星，
 // 稿件照常保存 —— 只是不会再"命中即拒"）。
+// 命中处置的三个取值（`ContentFilterAutoDispose` 的取值域）。
+//
+// 定义在 conf 包：这是**配置**的取值域，写入侧（校验）、读取侧（链路分流）、
+// 数据迁移（旧值 mask → release）与文档都要引用同一份常量。散在用例包里会让
+// "改一个值忘一处"变成静默的字符串比较失败。
+const (
+	// ContentFilterActionRelease 只把命中替换成等长星号，文本照常入库并继续后续链路。
+	ContentFilterActionRelease = "release"
+	// ContentFilterActionDraft 命中落草稿（文章）/ 拒收（评论），提交配额不归还。
+	ContentFilterActionDraft = "draft"
+	// ContentFilterActionReject 文章落「已拒绝」且不可改 / 评论拒收。
+	ContentFilterActionReject = "reject"
+)
+
+// ContentFilterActionLegacyMask 是改造前"只打星"的取值（与 release 同义）。
+//
+// 只在两处出现：读面兼容映射与数据迁移。新写入一律是 release。
+const ContentFilterActionLegacyMask = "mask"
+
 type ContentFilterAutoDispose struct {
 	// BlockAction 是 block（拦截词）命中且**真被打星**时的处置：release（默认）/ draft / reject。
 	//

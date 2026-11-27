@@ -488,12 +488,22 @@ export function removeAiProvider(id: string) {
  *
  * 两段都不传会被后端拒绝（1001）—— 一次"什么都没改"的保存不该变成一次写库。
  */
+/**
+ * 「文章审核设置」的聚合保存（2026-11-28）。
+ *
+ * 两个子页共用一个端点：审核规则页传 `article`（整段 site.article，read-modify-write），
+ * 关键词命中处理页传 `content_filter.auto_dispose`（该段的字段级补丁，词表不动）。
+ * 两段都不传会被后端拒绝（1001）—— 一次"什么都没改"的保存不该变成一次写库。
+ *
+ * 返回值是**完整 site 快照**（与 PUT /site/site 同一个形状）：保存之后直接用响应
+ * 对齐表单，不必再发一次 GET。
+ */
 export function updateArticleReviewConfig(payload: {
-  article?: SiteRuntimeConfig['article']
-  auto_dispose?: ContentFilterRuntimeConfig['auto_dispose']
+  article?: SiteRuntimeConfig["article"]
+  content_filter?: { auto_dispose?: ContentFilterRuntimeConfig["auto_dispose"] }
 }) {
-  return api().request<unknown, unknown>('/site/article-review', {
-    method: 'PUT',
+  return api().request<SiteRuntimeConfig>("/site/article-review", {
+    method: "PUT",
     body: payload,
   })
 }

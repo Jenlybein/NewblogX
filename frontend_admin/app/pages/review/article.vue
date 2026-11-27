@@ -27,6 +27,7 @@ import {
   getArticleReviewTasks,
   batchReviewArticleTasks,
   reviewArticleTask,
+  getSiteRuntimeConfig,
 } from '~/services/admin'
 import type { ArticleReviewReasonItem, ArticleReviewTaskItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
@@ -40,6 +41,33 @@ const page = ref(1)
 const limit = ref(10)
 const total = ref(0)
 const status = ref<'pending' | 'approved' | 'rejected' | 'canceled' | undefined>('pending')
+/**
+ * 两个「机器判据开关」的本地快照（2026-11-28 / ADR-0037）。
+ *
+ * 管理端没有全局 site store，这两项只影响本页两列语义，所以在页面里读一次。
+ * 读失败按"都开着"处理（与原行为一致）：拿不到配置不该让队列变成一片「未评估」。
+ */
+const scoreEnabled = ref(true)
+const aiComplianceEnabled = ref(true)
+/**
+ * AI 不可用落点是否为「直接放行」。
+ *
+ * `release` 是临时兜底：那些文章的合规列也是「未判定」，但原因不是"还没判"，
+ * 而是"判不了就放了"。审核员必须知道这件事，否则会把兜底放行的稿子当成
+ * "检查过且没问题"。
+ */
+const aiReleaseFallback = ref(false)
+
+async function loadJudgeSwitches() {
+  try {
+    const site = await getSiteRuntimeConfig()
+    scoreEnabled.value = site.article?.score_enabled !== false
+    aiComplianceEnabled.value = site.article?.ai_compliance_enabled !== false
+    aiReleaseFallback.value = site.article?.ai_failure_action === "release"
+  } catch {
+    // 配置读不到只是少了两条提示，不该阻断审核队列本身。
+  }
+}
 // 排序由服务端做：风险不落库，前端只能拿到排好序的一页（票 311）。
 const sort = ref<'created_at' | 'risk'>('created_at')
 const rows = ref<ArticleReviewTaskItem[]>([])
@@ -85,6 +113,15 @@ const columns = [
     minWidth: 230,
     // 机审前两层（词表 + 评分派生标签）的结论，每次读取现算（票 311）。
     render: (row: ArticleReviewTaskItem) => {
+      // 评分关掉时没有任何风险标签可派生：明确显示「未评估」而不是「无风险」
+      // （后者会被读成"检查过了，没问题"）。
+      if (!scoreEnabled.value) {
+        return h(
+          NTag,
+          { size: 'small', type: 'default', bordered: false },
+          { default: () => '未评估' },
+        )
+      }
       const meta = riskLevelMeta(row.risk_level)
       const labels = (row.risk_labels ?? []).map((code) =>
         h(
@@ -120,7 +157,12 @@ const columns = [
         return h(
           NTag,
           { size: 'small', type: 'default', bordered: false },
-          { default: () => '未判定' },
+          {
+            default: () =>
+              aiComplianceEnabled.value
+                ? '未判定'
+                : '未判定（未开启 AI 合规判定）',
+          },
         )
       }
       const meta = complianceVerdictMeta(compliance.verdict)
@@ -420,6 +462,7 @@ function reportBatch(succeeded: number, failed: number) {
 
 watch([page, status, sort], refresh)
 onMounted(async () => {
+  await loadJudgeSwitches()
   await refresh()
   // 原因清单由后端下发（前端不手抄中文）；拿不到时下拉为空，驳回按钮会被
   // 前置校验挡住——宁可让管理员看到"没得选"，也不发一条注定失败的请求。

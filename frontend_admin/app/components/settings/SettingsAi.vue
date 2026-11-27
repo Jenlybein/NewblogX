@@ -46,14 +46,20 @@ onMounted(load)
 <template>
   <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
-      这里有两层开关：「启用 AI 助手」是整站总闸；下方「模型配置」里<strong>启用</strong>的那一条
-      决定实际用哪家模型。总闸关掉时，即使有启用的模型配置也不可用。
+      这里管的是<strong>读者站右下角那个 AI 助手浮窗</strong>：要不要出现、叫什么、长什么样。
+      <strong>AI 总闸</strong>（服务端能不能调模型）已迁到「站点基础」页 —— 它管评分、
+      合规判定、摘要、搜索向量，与浮窗是两个独立决定：关掉浮窗不影响 AI 能力，反之亦然。
+      下方「模型配置」里<strong>启用</strong>的那一条决定实际用哪家模型。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
-      <NFormItem label="启用 AI 助手">
-        <NSwitch v-model:value="config.enable" />
+      <NFormItem label="显示右下角 AI 助手浮窗">
+        <NSwitch v-model:value="config.assistant_enabled" />
       </NFormItem>
+      <NAlert type="info" :bordered="false" class="mb-4">
+        关掉只是让浮窗不出现：后端 AI 能力（评分 / 合规判定 / 摘要 / 搜索向量）
+        完全不受影响。要停掉它们请去「站点基础」关 AI 总闸。
+      </NAlert>
       <NFormItem label="助手昵称">
         <NInput v-model:value="config.nickname" class="admin-field--key" />
       </NFormItem>

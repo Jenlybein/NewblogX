@@ -78,16 +78,24 @@ type SiteSectionCaptchaRequest conf.Captcha
 
 // ArticleReviewSaveRequest 是「文章审核设置」两个子页共用的聚合请求体（2026-11-28）。
 //
-// 两段都可选：审核规则子页只传 article，关键词命中处理子页只传 auto_dispose。
+// 两段都可选：审核规则子页只传 article，关键词命中处理子页只传 content_filter。
 // 两段都不传由 handler 拒绝（1001）—— 一次「什么都没改」的保存不该变成一次写库。
 //
 // **article 是全量覆盖**：它是整段 site.article 的形状，前端 read-modify-write
-// 之后传回来（与 PUT /site/site 同一条语义）。**auto_dispose 是字段级补丁**：
-// 它是 content_filter 段里的一个子对象，而那一整段还归词表页所有 —— 只传
-// auto_dispose 时其余字段（词表 / 白名单 / 保留期）必须保持不动。
+// 之后传回来（与 PUT /site/site 同一条语义）。**content_filter 只认 auto_dispose**
+// 且是字段级补丁：词表 / 白名单 / 保留期仍归 PUT /site/content_filter，
+// 传这一段时不能顺手动它们。
 type ArticleReviewSaveRequest struct {
 	// Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。
 	Article *SiteSectionSiteRequest `json:"article"`
-	// AutoDispose 是 content_filter 段的命中处置口径；nil 表示这次不改它。
+	// ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。
+	ContentFilter *ArticleReviewContentFilterPatch `json:"content_filter"`
+}
+
+// ArticleReviewContentFilterPatch 是聚合端点里 content_filter 段的白名单。
+//
+// 刻意**只**开 auto_dispose 一个键：词表动辄六万条、与命中处置是完全两件事，
+// 让这个端点也能改词表等于把「一次保存只碰一段」这条约束打开一个缺口。
+type ArticleReviewContentFilterPatch struct {
 	AutoDispose *conf.ContentFilterAutoDispose `json:"auto_dispose"`
 }

@@ -4164,15 +4164,23 @@
                 },
                 "type": "object"
             },
+            "internal_site_adapter_http.ArticleReviewContentFilterPatch": {
+                "properties": {
+                    "auto_dispose": {
+                        "$ref": "#/components/schemas/conf.ContentFilterAutoDispose"
+                    }
+                },
+                "type": "object"
+            },
             "internal_site_adapter_http.ArticleReviewSaveRequest": {
                 "properties": {
                     "article": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionSiteRequest",
                         "description": "Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。"
                     },
-                    "auto_dispose": {
-                        "$ref": "#/components/schemas/conf.ContentFilterAutoDispose",
-                        "description": "AutoDispose 是 content_filter 段的命中处置口径；nil 表示这次不改它。"
+                    "content_filter": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.ArticleReviewContentFilterPatch",
+                        "description": "ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。"
                     }
                 },
                 "type": "object"

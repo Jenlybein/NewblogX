@@ -106,9 +106,11 @@ async function save() {
     // 只传 auto_dispose：这一页是 content_filter 段的**字段级补丁**，
     // 词表 / 白名单 / 保留期由别的页拥有，一条都不该被这次保存覆盖。
     await updateArticleReviewConfig({
-      auto_dispose: {
-        block_action: blockAction.value,
-        watch_action: watchAction.value,
+      content_filter: {
+        auto_dispose: {
+          block_action: blockAction.value,
+          watch_action: watchAction.value,
+        },
       },
     });
     message.success("关键词命中处理已保存，下一次提交即生效");

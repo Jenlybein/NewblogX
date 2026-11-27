@@ -9885,11 +9885,14 @@ export interface components {
         "internal_site_adapter_http.AdminSidebarCardsResponse": {
             list?: components["schemas"]["internal_site_adapter_http.AdminSidebarCardItem"][];
         };
+        "internal_site_adapter_http.ArticleReviewContentFilterPatch": {
+            auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
+        };
         "internal_site_adapter_http.ArticleReviewSaveRequest": {
             /** @description Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。 */
             article?: components["schemas"]["internal_site_adapter_http.SiteSectionSiteRequest"];
-            /** @description AutoDispose 是 content_filter 段的命中处置口径；nil 表示这次不改它。 */
-            auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
+            /** @description ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。 */
+            content_filter?: components["schemas"]["internal_site_adapter_http.ArticleReviewContentFilterPatch"];
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;

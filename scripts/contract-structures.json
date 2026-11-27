@@ -3,7 +3,7 @@
   "minimumEntries": {
     "paths": 179,
     "operations": 223,
-    "schemas": 426
+    "schemas": 427
   },
   "addedIn": [
     {
@@ -582,7 +582,7 @@
     },
     {
       "ticket": "publish-chain-gates",
-      "reason": "发布链路串行化与三道闸门可配（2026-11-28）：新增 path PUT /site/article-review（「文章审核设置」两个子页共用一个聚合端点 —— 审核规则写 site.article 段，关键词命中处理写 content_filter 段的 auto_dispose），新增请求形状 http.ArticleReviewSaveRequest 与 seed 日志的 dsec 无关。site.article 段删掉 quality_auto_release、新增 score_enabled / ai_compliance_enabled / ai_failure_action 三个字段；content_filter.auto_dispose 的两个字段值域从 mask|reject 改为 release|draft|reject（watch 只 release|draft，旧值 mask 读成 release）；ai 段新增 assistant_enabled。产物 178/222/425 → 179/223/426（+1 path +1 operation +1 schema：新增请求形状 ArticleReviewSaveRequest），按实测抬高基线。",
+      "reason": "发布链路串行化与三道闸门可配（2026-11-28）：新增 path PUT /site/article-review（「文章审核设置」两个子页共用一个聚合端点 —— 审核规则写 site.article 段，关键词命中处理写 content_filter 段的 auto_dispose），新增请求形状 http.ArticleReviewSaveRequest 与 seed 日志的 dsec 无关。site.article 段删掉 quality_auto_release、新增 score_enabled / ai_compliance_enabled / ai_failure_action 三个字段；content_filter.auto_dispose 的两个字段值域从 mask|reject 改为 release|draft|reject（watch 只 release|draft，旧值 mask 读成 release）；ai 段新增 assistant_enabled。产物 178/222/425 → 179/223/427（+1 path +1 operation +2 schema：ArticleReviewSaveRequest 与它白名单里的 ArticleReviewContentFilterPatch），按实测抬高基线。",
       "paths": {
         "/site/article-review": [
           "put"
@@ -591,7 +591,8 @@
       "schemas": [
         "myblogx_conf_site.Article",
         "conf.ContentFilterAutoDispose",
-        "internal_site_adapter_http.ArticleReviewSaveRequest"
+        "internal_site_adapter_http.ArticleReviewSaveRequest",
+        "internal_site_adapter_http.ArticleReviewContentFilterPatch"
       ]
     }
   ]

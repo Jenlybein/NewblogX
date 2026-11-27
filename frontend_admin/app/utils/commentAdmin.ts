@@ -47,14 +47,18 @@ export function splitUserInput(raw: string): { user_id?: string; user_keyword?: 
 }
 
 /**
- * 毫秒时间戳 → 自然日 `YYYY-MM-DD`（UTC）。
+ * 毫秒时间戳 → 自然日 `YYYY-MM-DD`，**按本地时区**。
  *
- * 与后端 `from`/`to` 的口径一致：后端按自然日比较（`to` 含当天整天）。
- * 日期选择器在 `Asia/Shanghai` 下选"今天"，切成 UTC 日期可能落到前一天 ——
- * 这是刻意的取舍：后台管理员与服务器在同一个时区口径上，别在两端各发明一种。
+ * 后端 `adminDayBoundary` 用 `time.ParseInLocation(..., time.Local)` 解析 `from`/`to`，
+ * 日期选择器给的是**本地零点**；若这里用 `toISOString()`（UTC），东八区的"今天"
+ * 会被切成前一天，选"今天"就查不到当天的评论。两端必须用同一个时区口径。
  */
 export function dayOf(timestamp: number): string {
-  return new Date(timestamp).toISOString().slice(0, 10)
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
 /**

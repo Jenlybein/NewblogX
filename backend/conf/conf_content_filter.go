@@ -33,6 +33,36 @@ type ContentFilter struct {
 	// 对"审计价值 vs 数据量"的取舍，不该由一次发版决定。清理任务每天读一次现值，
 	// 所以改它不需要重启。
 	RetainDays int `yaml:"retain_days" json:"retain_days" min:"1" max:"3650"`
+	// AutoDispose 是两档命中的处置口径（见 ContentFilterAutoDispose）。
+	//
+	// 它与上面那份"整段替换"的清单放在一起，是因为它也是词表策略的一部分：
+	// 换一份词表的人要能顺手说清"命中了怎么处理"，而不是去别处找开关。
+	// 老库（以及还没跟上的后台请求体）没有这个键时回落 mask —— 空串即 mask，
+	// 默认行为因此与改造前逐字节一致。
+	AutoDispose ContentFilterAutoDispose `yaml:"auto_dispose" json:"auto_dispose"`
+}
+
+// ContentFilterAutoDispose 是按档位的自动处置口径。
+//
+// 取值只有 mask 与 reject，**空串按 mask 处理**：老库那段 JSON 里没有这个键、
+// 旧版后台请求体里没有这两个字段，都必须能读能存 —— 把它们当成非法值拒绝保存，
+// 会让"打开设置页什么都没改就点保存"直接失败。
+//
+// 本期生效范围被刻意收窄（不是实现了却没说）：
+//   - block_action 只作用于**文章面**（标题 / 摘要 / 正文）；评论、昵称 / 简介、
+//     私信、合集仍是"只打星"；
+//   - watch_action 本期只有 mask 一种行为，reject 是预留取值：watch 档是推广话术
+//     这类误报代价低的词，拒发它们等于把"加微信"三个字写成违规内容。
+//
+// reject 是 opt-in：不配就是 mask，与改造前完全一致（命中的地方照样打星，
+// 稿件照常保存 —— 只是不会再"命中即拒"）。
+type ContentFilterAutoDispose struct {
+	// BlockAction 是 block（拦截词）命中且**真被打星**时的处置：mask（默认）/ reject。
+	//
+	// 判据是"真被打星"：白名单豁免的命中文本原样返回，不该触发拒发。
+	BlockAction string `yaml:"block_action" json:"block_action" enums:"mask,reject"`
+	// WatchAction 是 watch（观察词）命中的处置：本期只有 mask。
+	WatchAction string `yaml:"watch_action" json:"watch_action" enums:"mask,reject"`
 }
 
 // ContentFilterWord 是词表里的一条。

@@ -45,6 +45,10 @@ var protocols = map[Code]ProtocolKind{
 	CodeArticleQualityRejected:       ProtocolValidation,
 	CodeArticleQualityGateRequiresAI: ProtocolValidation,
 	CodeArticleRiskRejected:          ProtocolValidation,
+	// 命中即拒（opt-in 的文章面处置）：作者改措辞重发即可，是调用方能自己修正的
+	// 失败，归 1001。归 1002 会让作者以为后端坏了、反复重试同一段文字。
+	// 与 risk_rejected 一样，作者只看到固定文案，不给命中词 / 档位 / 类目。
+	CodeArticleContentBlocked: ProtocolValidation,
 	// 强制退回草稿没填原因（管理员纠错）：后台补一句话就能过，属于调用方
 	// 自己修正输入即可解决的失败，归 1001；归 1002 会让运营以为接口坏了。
 	CodeArticleForceDemoteReasonRequired: ProtocolValidation,
@@ -91,6 +95,10 @@ var protocols = map[Code]ProtocolKind{
 	// 改一改就能过 —— 同样归 1001。归 1002 会让运营以为存储服务坏了，
 	// 而真正的原因（哪个字段越界）就在 UserMessage 里。
 	CodeSiteStorageInvalid: ProtocolValidation,
+
+	// 文章段（2026-11-27）：标签上限越界是运营填错了数字，改一改就能过 —— 归 1001，
+	// 而不是让后台以为服务坏了。
+	CodeSiteArticleInvalid: ProtocolValidation,
 
 	// 违规事件与申诉（ADR-0035）：id 传错 / 超窗口 / 重复申诉都是"改一改就能过"，
 	// 归 1001；归 1002 会让前端以为服务坏了、不敢让用户重试。

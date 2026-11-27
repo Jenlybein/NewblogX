@@ -77,4 +77,13 @@ var (
 	// 与 taxonomy.ErrTagDisabled 分开：那个是"这条标签不存在或已停用"（换一个就能过），
 	// 这个是"你选得太多了"（少选几个）。作者下一步的动作不同，前端提示也不同。
 	ErrTooManyTags = apperr.New(apperr.CodeArticleTagLimitExceeded)
+	// ErrContentBlocked 文章文本里有 block 档命中且站点要求拒发（opt-in）。
+	//
+	// 与 ErrForbidden 分开：那个是"你不能发"，这个是"这段话里有些说法不能出现"，
+	// 作者的动作是改措辞再发，不是找管理员。文案与错误体里都不带命中词 / 档位 /
+	// 类目 —— 带上就等于把词表送给作者，绕过过滤的成本降到零（ADR-0032 决策 4）。
+	//
+	// 它是"作者可控的失败"：本次一个字节都没落库，命中记录照样写好了，
+	// 投稿配额也不归还（防反复试探词表）。
+	ErrContentBlocked = apperr.New(apperr.CodeArticleContentBlocked)
 )

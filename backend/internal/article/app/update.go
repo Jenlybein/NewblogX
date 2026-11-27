@@ -34,17 +34,20 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	// 那两个判定要读替换后的文本（先替换、再判定、再落库）。只过滤本次真的要改
 	// 的字段 —— nil 指针代表"不改"，替换成空串会把它变成"清空"。
 	filteredCount := 0
+	// blocked 是"本次要写入的字段里有 block 档命中、且站点要求拒发"（opt-in）。
+	// 三个字段用 `||` 聚合：拒发是整篇文章的结论，标题命中与正文命中没有区别。
+	blocked := false
 	if cmd.Title != nil {
-		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Title)
-		cmd.Title, filteredCount = &masked, filteredCount+count
+		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Title)
+		cmd.Title, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
 	}
 	if cmd.Abstract != nil {
-		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Abstract)
-		cmd.Abstract, filteredCount = &masked, filteredCount+count
+		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Abstract)
+		cmd.Abstract, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
 	}
 	if cmd.Content != nil {
-		masked, count := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Content)
-		cmd.Content, filteredCount = &masked, filteredCount+count
+		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Content)
+		cmd.Content, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
 	}
 
 	// 只读预演 + **事务外**的同步风险扫描与评分。两者都必须在 WithinTx 之外：
@@ -58,6 +61,24 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		return err
 	}); err != nil {
 		return nil, err
+	}
+
+	// 命中即拒（opt-in：content_filter.auto_dispose.block_action = reject）。
+	//
+	// 位置刻意在**只读预演之后**：预演里含"这篇文章是不是我的"这条判定。
+	// 把拒发放到它之前，就等于给了一个"不用拥有任何文章也能问『这个词在不在
+	// 词表里』"的探针 —— 别人的文章 ID 随便填，命中即拒与文章不存在用了两种
+	// 错误码，词表就被一条条问出来了。预演是只读的，多跑一次没有副作用。
+	//
+	// 也因此在配额预占之前：这次更新一个字节都不落库，也不预占投稿配额
+	// （后续自动送审那 5–30 秒的评分更不该为一条注定被拒的请求开跑）。
+	// 命中记录已经在过滤那一步写好了，拒绝不等于不记录。
+	//
+	// 与 Create 同一口径：只拦 block 档且真被打星的命中（白名单豁免不算），
+	// 草稿也拦（否则"存草稿打星、提交时已不再命中"会让拒发失效）。
+	// 错误里不带命中词 / 档位 / 类目。
+	if blocked {
+		return nil, domain.ErrContentBlocked
 	}
 
 	// 账号闸门（票 399 / ADR-0032 决策 8、10）：禁言 / 禁用 / 封禁只拦**发布类**动作。

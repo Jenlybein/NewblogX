@@ -174,6 +174,7 @@ describe("两页共写 content_filter 段的字段归属", () => {
     const payload = mergeContentFilterPayload(latestConfig(), {}, CONTENT_FILTER_WORD_FIELDS);
 
     expect(Object.keys(payload).sort()).toEqual([
+      "auto_dispose",
       "retain_days",
       "whitelist",
       "whitelist_phrases",

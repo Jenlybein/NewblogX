@@ -18,11 +18,28 @@ import type {
   ContentFilterWord,
 } from "~/types/api"
 
-/** content_filter 段里由 UI 拥有的四个字段（响应里的 required_* / whitelist_stats 是只读派生）。 */
-export type ContentFilterField = "words" | "retain_days" | "whitelist" | "whitelist_phrases"
+/** content_filter 段里由 UI 拥有的字段（响应里的 required_* / whitelist_stats 是只读派生）。 */
+export type ContentFilterField =
+  | "words"
+  | "retain_days"
+  | "whitelist"
+  | "whitelist_phrases"
+  | "auto_dispose"
 
-/** 词表页拥有：词表 + 保留期。 */
-export const CONTENT_FILTER_WORD_FIELDS: readonly ContentFilterField[] = ["words", "retain_days"]
+/** 自动处置的两个动作：只打星（现状）/ 拒发（opt-in，只作用于文章面）。 */
+export type ContentDisposeAction = "mask" | "reject"
+
+/**
+ * 词表页拥有：词表 + 保留期 + 自动处置。
+ *
+ * 自动处置是"命中之后怎么处理"的策略，与词表本身同一张卡维护；白名单页不碰它
+ * （白名单页保存时必须把它整段带回，否则一次白名单保存就会把档位设置清零）。
+ */
+export const CONTENT_FILTER_WORD_FIELDS: readonly ContentFilterField[] = [
+  "words",
+  "retain_days",
+  "auto_dispose",
+]
 
 /** 白名单页拥有：两份白名单。 */
 export const CONTENT_FILTER_WHITELIST_FIELDS: readonly ContentFilterField[] = [
@@ -38,8 +55,8 @@ export const CONTENT_FILTER_WHITELIST_FIELDS: readonly ContentFilterField[] = [
  *   - `owned` 里的字段若本页没给（`undefined`），退回 `latest` 的值；
  *   - 不原地修改入参：组件可能还持有 latest 做展示。
  *
- * 注意返回的是**完整请求体**：请求契约的四个字段都是必填（缺一个后端就按零值覆盖），
- * 所以这里永远构造四个字段，而不是只构造"本页要改的那几个"。
+ * 注意返回的是**完整请求体**：请求契约的五个字段都必须带上（缺一个后端就按零值覆盖），
+ * 所以这里永远构造五个字段，而不是只构造"本页要改的那几个"。
  *
  * 后端把 nil 切片序列化成 null，老库的段可能字段不全，所以这里对数组/数字兜一层默认值。
  */
@@ -63,11 +80,24 @@ export function mergeContentFilterPayload(
       ? mine.whitelist_phrases
       : latest.whitelist_phrases ?? []
 
+  /**
+   * 自动处置：缺失时回退"两档都只打星"。
+   *
+   * 后端把"空串"当 mask，所以这里不需要把空串纠正成 mask；但老库的段里整个
+   * `auto_dispose` 对象可能不存在，此时必须显式补默认值 —— 否则请求体缺这一项，
+   * 后端按零值落库，等于把用户刚设的拒发策略悄悄改回打星。
+   */
+  const pickAutoDispose = (): ContentFilterRuntimeConfigPayload["auto_dispose"] =>
+    owned.includes("auto_dispose") && mine.auto_dispose !== undefined
+      ? mine.auto_dispose
+      : latest.auto_dispose ?? { block_action: "mask", watch_action: "mask" }
+
   return {
     words: pickWords(),
     retain_days: pickRetainDays(),
     whitelist: pickWhitelist(),
     whitelist_phrases: pickWhitelistPhrases(),
+    auto_dispose: pickAutoDispose(),
   }
 }
 

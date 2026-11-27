@@ -388,6 +388,14 @@ content_filter:
   # 命中记录的保留天数（1–3650）。记录里存着 ±20 字上下文，留多久是运营对
   # "审计价值 vs 数据量"的取舍；清理任务每天读一次现值，改这里不需要重启。
   retain_days: 90
+  # 按档位自动处置（ADR-0032 补丁）：mask 只打星（默认，与改造前一致），
+  # reject 拒发本次写入。空串 = mask，所以老库缺这个键时行为不变。
+  # 本期生效范围收窄：block_action 只作用于文章面（标题 / 摘要 / 正文），
+  # 评论、昵称 / 简介、私信、合集仍只打星；watch_action 本期只有 mask。
+  # 判据是"词真的被打星"——白名单豁免的说法不会触发拒发。
+  auto_dispose:
+    block_action: mask
+    watch_action: mask
 # 第 12 段 captcha（ADR-0033）：图形验证码的开关、入口闸门、图形与时效参数。
 #
 # 只有后台具名端点（GET /site/admin/captcha、PUT /site/captcha），没有公开读：

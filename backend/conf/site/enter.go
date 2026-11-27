@@ -69,6 +69,17 @@ type Login struct {
 	LoginFailIPMax        int64 `yaml:"login_fail_ip_max" json:"login_fail_ip_max"`               // 单IP窗口内最大失败次数
 }
 
+// 「一篇文章最多可选几个标签」的默认值与合法区间。
+//
+// 这三个数字与 `internal/article/domain` 里的同名常量是**同一件事的两份声明**：
+// 配置段不能 import 业务模块的 domain（会成环），所以各写一份，由
+// `internal/platform/config` 的一致性测试盯着它们不许漂。
+const (
+	DefaultArticleMaxTags = 5
+	MinArticleMaxTags     = 1
+	MaxArticleMaxTags     = 20
+)
+
 type Article struct {
 	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
 

@@ -4,8 +4,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
@@ -206,7 +208,34 @@ func (s *Service) UpdateSite(site conf.Site) error {
 	if site.Article.QualityGate.Enabled && s.aiReady != nil && !s.aiReady() {
 		return apperr.New(apperr.CodeArticleQualityGateRequiresAI)
 	}
+	if err := validateArticleMaxTags(site.Article.MaxTagsPerArticle); err != nil {
+		return err
+	}
 	return s.runtime.UpdateSite(site)
+}
+
+// validateArticleMaxTags 校验"一篇文章最多可选几个标签"。
+//
+// 越界**不静默回落**（与 UpdateAI 的每日额度同一条口径）：后台是唯一写入口，
+// 悄悄把 25 改成 5 只会让管理员以为改成功了。更要紧的是它有两个读面 ——
+// 后台表单与读者站写稿页都按`GET /api/site/site` 里的值显示上限，
+// 而真正拦人的后端按 `domain.NormalizeTagLimit` 回落默认值；两边不一致时
+// 作者会选到"界面上合法、提交却被拒"的数量，那是最难解释的一种失败。
+func validateArticleMaxTags(limit int) error {
+	// 0 = 这一项从没配过（老库缺键解码出来的零值），按默认上限生效。
+	// 放行它而不是拒绝，是因为整段保存会被一起否决 —— 运营改一次备案号
+	// 不该因为一个从没碰过的字段失败。真正的默认值由 `domain.NormalizeTagLimit` 给。
+	if limit == 0 {
+		return nil
+	}
+	if limit >= siteconf.MinArticleMaxTags && limit <= siteconf.MaxArticleMaxTags {
+		return nil
+	}
+	return apperr.NewWithMessage(
+		apperr.CodeSiteArticleInvalid,
+		fmt.Sprintf("一篇文章的标签上限必须在 %d–%d 之间，收到 %d",
+			siteconf.MinArticleMaxTags, siteconf.MaxArticleMaxTags, limit),
+	)
 }
 
 // UpdateAI 覆盖站点级 AI 设置。
@@ -428,6 +457,15 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 		WhitelistPhrases: contentfilter.NormalizeWhitelist(contentFilter.WhitelistPhrases),
 		RetainDays:       normalizeRetainDays(contentFilter.RetainDays),
 	}
+	// 处置口径必须显式写进结果：out 是**逐字段手写的字面量**，漏一项就等于
+	// 每次在后台保存词表都把它静默清零（"改一次词表，自动处置就悄悄变回默认"）。
+	// 这类漏项不会报错、不会红测试，只会在某次保存之后才被发现，所以这里
+	// 有专门的回归用例（TestUpdateContentFilterDefaultsAutoDisposeWhenBodyOmitsIt）。
+	trimmedDispose, err := normalizeAutoDispose(contentFilter.AutoDispose)
+	if err != nil {
+		return conf.ContentFilter{}, err
+	}
+	out.AutoDispose = trimmedDispose
 	for _, entry := range normalized {
 		out.Words = append(out.Words, conf.ContentFilterWord{
 			Word:     entry.Word,
@@ -436,6 +474,49 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 		})
 	}
 	return out, nil
+}
+
+// 按档位处置的合法取值。空串也按 mask 处理（见 normalizeAutoDispose）。
+const (
+	// ContentFilterActionMask 只把命中替换成等长星号，文本照常入库。
+	ContentFilterActionMask = "mask"
+	// ContentFilterActionReject 拒发本次写入（本期只有文章面真的这么处置）。
+	ContentFilterActionReject = "reject"
+)
+
+// normalizeAutoDispose 整理并校验按档位处置的口径。
+//
+// 空串 → mask 而不是报错：老库那段 JSON 与旧版后台请求体里都没有这两个字段，
+// 把它们当非法值拒绝，会让"打开设置页什么都没改就点保存"直接失败；更要紧的是
+// 前端还没跟上时，任何人保存词表都会把老配置变成一次 400。
+//
+// 非空且不在 mask/reject → 参数错误：写进库里只会让处置链路读到一条"读不懂的
+// 口径"，到时候是按 mask 还是按 reject 处理都说不清。保存期就拒绝，运营当场能改。
+func normalizeAutoDispose(in conf.ContentFilterAutoDispose) (conf.ContentFilterAutoDispose, error) {
+	block, err := normalizeDisposeAction(in.BlockAction, "block_action")
+	if err != nil {
+		return conf.ContentFilterAutoDispose{}, err
+	}
+	watch, err := normalizeDisposeAction(in.WatchAction, "watch_action")
+	if err != nil {
+		return conf.ContentFilterAutoDispose{}, err
+	}
+	return conf.ContentFilterAutoDispose{BlockAction: block, WatchAction: watch}, nil
+}
+
+// normalizeDisposeAction 校验单个处置取值：空串按 mask，其余只认 mask / reject。
+//
+// field 只用于报错文案（运营要一眼看出是哪个档位填错了），不参与任何判定。
+func normalizeDisposeAction(action, field string) (string, error) {
+	switch trimmed := strings.TrimSpace(action); trimmed {
+	case "":
+		return ContentFilterActionMask, nil
+	case ContentFilterActionMask, ContentFilterActionReject:
+		return trimmed, nil
+	default:
+		return "", apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+			"自动处置口径不合法："+field+" 只能是 mask（只打星）或 reject（拒发），实际是 "+trimmed)
+	}
 }
 
 // DefaultContentFilterRetainDays 是命中记录保留天数的缺省值（与 ADR-0032 决策 10 一致）。

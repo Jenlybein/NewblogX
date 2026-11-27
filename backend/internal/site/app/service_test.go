@@ -3,6 +3,8 @@ package app_test
 import (
 	"myblogx/conf"
 	confsite "myblogx/conf/site"
+	"myblogx/internal/apperr"
+	siteapp "myblogx/internal/site/app"
 	"myblogx/internal/site/apptest"
 	"myblogx/internal/site/domain"
 	"testing"
@@ -92,6 +94,46 @@ func TestUpdateSitePersists(t *testing.T) {
 	}
 	if got := env.Runtime.Site().Seo.Description; got != "新的描述" {
 		t.Fatalf("站点描述未更新，得到 %s", got)
+	}
+}
+
+// 标签上限越界必须**否决保存**，而不是静默回落。
+//
+// 两条读面（后台表单 / 读者站写稿页）都按这个值显示"最多选几个"，
+// 而真正拦人的后端会把越界值回落成默认 5 —— 存进来的 25 一旦被读出去，
+// 作者就会选到"界面上合法、提交却被拒"的数量。
+func TestUpdateSiteRejectsArticleMaxTagsOutOfRange(t *testing.T) {
+	for _, limit := range []int{-1, confsite.MaxArticleMaxTags + 1, 9999} {
+		env := newEnv()
+		site := env.Service.PublicSite()
+		site.Article.MaxTagsPerArticle = limit
+		err := env.Service.UpdateSite(site)
+		if err == nil {
+			t.Fatalf("标签上限 %d 应当被拒绝", limit)
+		}
+		if !apperr.IsCode(err, apperr.CodeSiteArticleInvalid) {
+			t.Fatalf("标签上限 %d 的错误码应为 site.article_invalid，得到 %v", limit, err)
+		}
+		// 拒绝之后库里不能留下这个值。
+		if got := env.Runtime.Site().Article.MaxTagsPerArticle; got == limit {
+			t.Fatalf("被拒绝的值 %d 仍被写入", limit)
+		}
+	}
+}
+
+// 合法区间内（含两端）必须原样保存 —— 区间边界是最容易被写错的地方。
+func TestUpdateSiteAcceptsArticleMaxTagsInRange(t *testing.T) {
+	// 0 也在这条里：它表示"没配过 → 用默认上限"，整段保存不能被它否决。
+	for _, limit := range []int{0, confsite.MinArticleMaxTags, 5, confsite.MaxArticleMaxTags} {
+		env := newEnv()
+		site := env.Service.PublicSite()
+		site.Article.MaxTagsPerArticle = limit
+		if err := env.Service.UpdateSite(site); err != nil {
+			t.Fatalf("标签上限 %d 应当被接受，得到 %v", limit, err)
+		}
+		if got := env.Runtime.Site().Article.MaxTagsPerArticle; got != limit {
+			t.Fatalf("标签上限未保存：期望 %d，得到 %d", limit, got)
+		}
 	}
 }
 
@@ -364,5 +406,96 @@ func TestUpdateContentFilterNotifiesEngineOnSuccess(t *testing.T) {
 	}
 	if len(got) != 1 {
 		t.Fatalf("校验失败不应触发回调，实际 %d 次", len(got))
+	}
+}
+
+// 保存词表时请求体里**没有** auto_dispose（旧前端 / 老客户端）→ 落库是 mask/mask。
+//
+// 这是"手写字面量清零"的回归用例：normalizeContentFilter 返回的是逐字段手写的
+// conf.ContentFilter，漏写 AutoDispose 就把零值（两个空串）存进库 —— 不报错、
+// 不红测试，只在下一次读配置时才看出"自动处置莫名其妙变空了"。
+// 断言 mask/mask 而不是空串，是因为空串虽然按 mask 解释，但后台下拉框会显示空，
+// 运营看到的是"没配置"，与"配了 mask"不是一回事。
+func TestUpdateContentFilterDefaultsAutoDisposeWhenBodyOmitsIt(t *testing.T) {
+	env := newEnv()
+
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words: []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+	}); err != nil {
+		t.Fatalf("保存词表失败: %v", err)
+	}
+	got := env.Runtime.ContentFilter().AutoDispose
+	want := conf.ContentFilterAutoDispose{
+		BlockAction: siteapp.ContentFilterActionMask,
+		WatchAction: siteapp.ContentFilterActionMask,
+	}
+	if got != want {
+		t.Fatalf("请求体缺 auto_dispose 时应落库 mask/mask，实际 %+v", got)
+	}
+}
+
+// 显式配 reject 要原样存下来（GET 回显与下一次处置都靠它），并且再存一次词表
+// **带着**这个值时要保持不变。
+func TestUpdateContentFilterKeepsExplicitReject(t *testing.T) {
+	env := newEnv()
+
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words: []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+		AutoDispose: conf.ContentFilterAutoDispose{
+			BlockAction: siteapp.ContentFilterActionReject,
+			WatchAction: siteapp.ContentFilterActionMask,
+		},
+	}); err != nil {
+		t.Fatalf("保存词表失败: %v", err)
+	}
+	got := env.Runtime.ContentFilter().AutoDispose
+	if got.BlockAction != siteapp.ContentFilterActionReject || got.WatchAction != siteapp.ContentFilterActionMask {
+		t.Fatalf("reject 应原样落库，实际 %+v", got)
+	}
+
+	// 再存一次（带上同一个口径）：不能被"手写字面量"洗回默认值。
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words:       []conf.ContentFilterWord{{Word: "枪支", Tier: "block", Category: "violence"}},
+		AutoDispose: got,
+	}); err != nil {
+		t.Fatalf("二次保存词表失败: %v", err)
+	}
+	if after := env.Runtime.ContentFilter().AutoDispose; after != got {
+		t.Fatalf("二次保存不该改动处置口径，期望 %+v，实际 %+v", got, after)
+	}
+}
+
+// 处置口径的非法取值必须当场拒绝：写进库里只会让处置链路读到一条读不懂的口径。
+func TestUpdateContentFilterRejectsInvalidAutoDispose(t *testing.T) {
+	env := newEnv()
+
+	invalid := map[string]conf.ContentFilterAutoDispose{
+		"block_action 未知": {BlockAction: "blocked", WatchAction: "mask"},
+		"watch_action 未知": {BlockAction: "mask", WatchAction: "warn"},
+		"大小写不对":           {BlockAction: "Reject", WatchAction: "mask"},
+	}
+	for name, dispose := range invalid {
+		err := env.Service.UpdateContentFilter(conf.ContentFilter{
+			Words:       []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+			AutoDispose: dispose,
+		})
+		if err == nil {
+			t.Fatalf("%s 应当拒绝保存", name)
+		}
+		if !apperr.IsCode(err, apperr.CodeSiteContentFilterInvalid) {
+			t.Fatalf("%s 应报 site.content_filter_invalid，实际 %v", name, err)
+		}
+	}
+	// 校验失败不能改动已保存的配置（env 是干净的，所以仍是零值）。
+	if after := env.Runtime.ContentFilter(); len(after.Words) != 0 {
+		t.Fatalf("校验失败不应改动已保存的词表，得到 %+v", after.Words)
+	}
+
+	// 空串是合法值（= mask），不能当非法值拒 —— 旧前端缺字段要能存。
+	if err := env.Service.UpdateContentFilter(conf.ContentFilter{
+		Words:       []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
+		AutoDispose: conf.ContentFilterAutoDispose{},
+	}); err != nil {
+		t.Fatalf("空串口径应按 mask 接受，实际被拒: %v", err)
 	}
 }

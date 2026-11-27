@@ -101,6 +101,16 @@ const (
 	// 反向 import 会成环。文案里别再出现数字这件事由 domain 包的一条反向守卫
 	// 测试盯着（TestTagLimitMessageHasNoHardcodedNumber），不是靠这条注释。
 	CodeArticleTagLimitExceeded Code = "article.tag_limit_exceeded"
+	// CodeArticleContentBlocked 是"文章文本里有不容许发布的词，本次不保存"（opt-in）。
+	//
+	// 它与 risk_rejected / quality_rejected 都不同：risk_rejected 是同步风险扫描
+	// 给了结论（落 REJECTED、不给改），本条是**词表层面**直接不收这篇稿子 ——
+	// 一个字节都没落库，作者改措辞重发即可。所以不能复用前者：前端据此显示的
+	// 下一步动作不同（"改措辞再发" vs "这篇不给发了"）。
+	//
+	// 文案刻意不含命中词 / 档位 / 类目：词表是敏感数据，回显命中词等于把词表
+	// 一条一条送给作者，绕过过滤的成本降到零（ADR-0032 决策 4）。
+	CodeArticleContentBlocked Code = "article.content_blocked"
 )
 
 // 分类与标签。
@@ -473,6 +483,11 @@ const (
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
 	// CodeSiteCaptchaInvalid 是图形验证码段（第 12 段）参数不合法。
 	CodeSiteCaptchaInvalid Code = "site.captcha_invalid"
+	// CodeSiteArticleInvalid 是 site.article 块（第 1 段）参数不合法（2026-11-27）。
+	//
+	// 目前只有一处：标签上限越界。与"提交时标签超限"（article.tag_limit_exceeded）
+	// 分开 —— 那是作者多选了标签（改稿就能过），这是管理员把配置填出了范围（改配置才能过）。
+	CodeSiteArticleInvalid Code = "site.article_invalid"
 	// CodeModerationEventNotFound 是违规事件不存在（申诉处置 / 撤销时传错 id）。
 	CodeModerationEventNotFound Code = "moderation.event_not_found"
 	// CodeModerationAppealInvalid 是申诉不合法（超过 7 天窗口、重复提交、理由为空）。
@@ -647,6 +662,9 @@ var messages = map[Code]string{
 	CodeArticleForceDemoteReasonRequired: "强制退回草稿必须填写原因（这句话会发给作者，也是处置记录）",
 	CodeArticleQualityNotApproved:        "内部状态不一致：缺少质量放行结论，已阻止本次放行（请联系管理员）",
 	CodeArticleTagLimitExceeded:          "标签数量超出上限，请取消一些再保存",
+	// 文案说清"本次没保存"与"改一改再发"：作者的动作是改措辞重试，
+	// 而不是去查自己的账号或等明天。命中词、档位、类目一律不出现。
+	CodeArticleContentBlocked: "内容包含不允许发布的词，本次未保存，请修改后重试",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",
@@ -851,6 +869,7 @@ var messages = map[Code]string{
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeSiteCaptchaInvalid:             "图形验证码配置不合法：类型、尺寸、有效期、字符集或颜色超出允许范围",
+	CodeSiteArticleInvalid:             "文章配置不合法：一篇文章的标签上限必须是 1–20 之间的整数",
 	CodeSiteStorageInvalid:             "对象存储配置不合法：样式名、分隔符、签名有效期或审核开关超出允许范围",
 	CodeModerationEventNotFound:        "违规事件不存在",
 	CodeModerationAppealInvalid:        "申诉不合法：只能对 7 天内的违规事件申诉，且必须填写理由",

@@ -47,12 +47,27 @@ const DEFAULT_MAX_TAGS = 5;
 /** 老库合并默认值之前这一段可能缺键，表单不能因为 undefined 整页炸掉。 */
 const maxTags = ref(DEFAULT_MAX_TAGS);
 
+/**
+ * 合法区间（与后端 `domain.NormalizeTagLimit` 一致：1–20，越界回落默认 5）。
+ *
+ * 为什么前端也要钳位：后端读到越界值会**静默**回落到 5，而后台表单照样显示 25、
+ * 读者站写稿页也照样按 25 拦 —— 界面显示的上限与实际生效的上限就分叉了。
+ * 这里在"存之前"和"显示之前"各钳一次，让界面永远等于真正生效的值。
+ */
+function clampTagLimit(value: number): number {
+  if (!Number.isFinite(value) || value < 1) return DEFAULT_MAX_TAGS;
+  if (value > 20) return DEFAULT_MAX_TAGS;
+  return Math.trunc(value);
+}
+
 async function load() {
   loading.value = true;
   try {
     config.value = await getSiteRuntimeConfig();
     // 上限是后加的字段：老库合并默认值之前可能是 undefined。
-    maxTags.value = config.value.article?.max_tags_per_article ?? DEFAULT_MAX_TAGS;
+    maxTags.value = clampTagLimit(
+      config.value.article?.max_tags_per_article ?? DEFAULT_MAX_TAGS,
+    );
     loaded.value = true;
   } catch {
     message.error("文章发布配置加载失败");
@@ -70,7 +85,7 @@ async function save() {
     }
     // 读-改-写：取最新整段 → 只覆盖本页字段 → 写回。
     // 本地 ref 在提交前写回配置：读出来的兜底值不能只活在前端。
-    config.value.article.max_tags_per_article = maxTags.value;
+    config.value.article.max_tags_per_article = clampTagLimit(maxTags.value);
     const latest = await getSiteRuntimeConfig();
     const merged = applySiteBlockFieldPatch(
       latest,
@@ -101,6 +116,10 @@ onMounted(load);
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="发布与展示" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          这三个开关只管普通用户（非管理员）。两个发布 / 草稿开关都关掉时，
+          普通用户只能查看和删除自己的存量草稿，不能新建、不能保存、不能发布。
+        </NAlert>
         <NFormItem label="允许非管理员发布文章">
           <NSwitch v-model:value="config.article.allow_non_admin_publish" />
         </NFormItem>
@@ -123,16 +142,6 @@ onMounted(load);
         </NFormItem>
       </NCard>
 
-      <!-- 发布约束（2026-11-27）：标签上限从"代码里写死 5"改成站点配置可调。 -->
-      <NCard class="admin-card mb-4" title="发布约束" size="small">
-        <NAlert type="info" :bordered="false" class="mb-4">
-          作者在写稿页选标签时，超过这个数量会被拦住；这与「标签管理」里的词库是两件事
-          —— 那里管"有哪些标签"，这里管"一篇能用几个"。
-        </NAlert>
-        <NFormItem label="一篇文章最多可选标签数">
-          <NInputNumber v-model:value="maxTags" class="admin-field--number" :min="1" :max="20" />
-        </NFormItem>
-      </NCard>
 
       <NButton type="primary" :loading="saving" @click="save"
         >保存文章发布配置</NButton

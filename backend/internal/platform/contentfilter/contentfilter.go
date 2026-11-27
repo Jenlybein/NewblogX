@@ -75,6 +75,13 @@ type Hit struct {
 	Word     string
 	Tier     Tier
 	Category Category
+	// Masked 表示这条命中**是否真的被替换成了星号**。
+	//
+	// 白名单（词级 / 短语级）覆盖的命中照样出现在 Hits 里（要能统计误伤），
+	// 但那些位置一个字符都没变。所以调用方要判"命中即拒发"时必须看这个字段，
+	// 不能拿 Tier 直接判：`冰毒科普` 被短语白名单豁免时文本原样返回，
+	// 只按档位判会把这条正常说法一并拒掉 —— 白名单也就形同虚设了。
+	Masked   bool
 	Snippets []Snippet
 }
 

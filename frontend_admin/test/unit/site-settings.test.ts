@@ -253,9 +253,16 @@ describe('站点配置菜单层级（三级）', () => {
    * 「文章审核设置」页（2026-11-27，它写 site 段的 article 块，但不属于
    * `SiteSettingsSection` 清单 —— 那套清单是"段 → 页"的映射）。
    */
-  const OPERATIONAL_CHILDREN = [{ label: '文章审核设置', path: '/site/article-review' }]
+  /**
+   * 「站点配置」下不属于任何分组的裸挂页面。
+   *
+   * 2026-11-27 第二次调整后**一个都没有**：右栏卡片进了「站点界面」，
+   * 文章审核设置进了「内容修改与发布」。这个常量留着是因为断言要能表达
+   * "现在没有裸挂页" —— 空数组比删掉断言更清楚。
+   */
+  const OPERATIONAL_CHILDREN: { label: string; path: string }[] = []
 
-  it('「站点配置」是纯分组，子项 = 五个分组 + 三个独立域 + 两个运营页', () => {
+  it('「站点配置」是纯分组，子项 = 五个分组 + 三个独立域（没有裸挂页）', () => {
     const group = ADMIN_NAV_TREE.find(node => node.label === '站点配置')
     expect(group).toBeDefined()
     expect(group!.path).toBeUndefined()
@@ -296,10 +303,12 @@ describe('站点配置菜单层级（三级）', () => {
     expect(byName('验证码与通知').children!.map(({ label, path }) => ({ label, path }))).toEqual(
       SITE_VERIFICATION_SECTIONS.map(({ label, path }) => ({ label, path })),
     )
-    // 内容修改与发布（2026-11-27 从一级分组降为站点配置下的三级分组）。
-    expect(byName('内容修改与发布').children!.map(({ label, path }) => ({ label, path }))).toEqual(
-      CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
-    )
+    // 内容修改与发布（2026-11-27 从一级分组降为站点配置下的三级分组）：
+    // 三个内容页 + 文章审核设置（审核规则与"改词表 / 定发布线"是同一条链的第三步）。
+    expect(byName('内容修改与发布').children!.map(({ label, path }) => ({ label, path }))).toEqual([
+      ...CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
+      { label: '文章审核设置', path: '/site/article-review' },
+    ])
     // 站点界面：装饰来自站点域清单，右栏卡片是运营位（不在清单里，显式挂上）。
     expect(byName('站点界面').children!.map(({ label, path }) => ({ label, path }))).toEqual([
       ...SITE_INTERFACE_SECTIONS.map(({ label, path }) => ({ label, path })),
@@ -372,9 +381,10 @@ describe('内容修改与发布（站点配置下的三级分组）', () => {
     expect(group).toBeDefined()
     // 一条链没有"总览页"可看，所以父项只分组。
     expect(group!.path).toBeUndefined()
-    expect(group!.children!.map(({ label, path }) => ({ label, path }))).toEqual(
-      CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
-    )
+    expect(group!.children!.map(({ label, path }) => ({ label, path }))).toEqual([
+      ...CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
+      { label: '文章审核设置', path: '/site/article-review' },
+    ])
 
     for (const page of CONTENT_PUBLISH_PAGES) {
       const item = navItemByPath(page.path)

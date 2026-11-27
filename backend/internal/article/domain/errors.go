@@ -59,4 +59,15 @@ var (
 	// 与 ErrReviewReasonRequired 分开成两个码：前者的下一步是"写一句话"，
 	// 后者是"从下拉里选一条"，前端提示不同。
 	ErrForceDemoteReasonRequired = apperr.New(apperr.CodeArticleForceDemoteReasonRequired)
+	// ErrQualityNotApproved 试图把文章推成对读者可见，但没有质量结论。
+	//
+	// 它是 published+pending_review → visible 这条转换的门槛：调用方必须证明质量闸门
+	// 已放行。存在这个错误的理由不是完整性癖 —— 2026-11-27 就是因为"质量判定"与
+	// "合规放行"是两个订阅者，闸门报错后合规照样放行，一篇 6 分文章漏给了读者。
+	//
+	// 文案刻意写成"内部不一致"而不是"用户操作失败"：正常路径不该出现它，
+	// 出现就是代码 bug（少传/漏传凭据），而不是用户做错了什么。
+	ErrQualityNotApproved = apperr.New(apperr.CodeArticleQualityNotApproved)
 )
+
+

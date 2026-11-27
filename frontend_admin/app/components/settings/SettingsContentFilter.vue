@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 站点 → 内容过滤（`/site/content-filter`，ADR-0032）。
+ * 内容修改与发布 → 关键词过滤（`/site/content-filter`，ADR-0032）。
  *
  * 这一页管第 11 段运行时配置 `content_filter`：全站唯一的词表 + 白名单。
  * 三件事必须一起说清楚，否则运营会按旧的两份词表习惯乱填：
@@ -557,6 +557,7 @@ onMounted(load)
   background: var(--color-highlight);
 }
 </style>
+
 
 
 

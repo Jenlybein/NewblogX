@@ -158,6 +158,9 @@ function sourceLabel(value: string) {
     create: '新建', edit: '编辑', resubmit: '重提',
     compliance: '合规自动拒', risk_check: '内容检查拒',
     model_suspect: '模型存疑', model_failure: '模型判定失败',
+    // 管理员强制退回草稿（票 481）：队列里出现它说明"这篇文章被人工撤过"，
+    // 复盘时要能一眼认出是运营动作而不是模型结论。
+    force_demote: '管理员退回',
   } as Record<string, string>)[value] || value
 }
 
@@ -207,7 +210,9 @@ function qualityLine(row: ArticleReviewTaskItem): string {
   if (score === undefined || score === null) {
     return `当前分数未知（放行线 ${pass} 分）`
   }
-  const verdict = score >= pass ? '已过线' : '**低于放行线**'
+  // naive 的 dialog 正文是纯文本，不渲染 Markdown —— 这里不能写 **加粗**，
+  // 否则运营会看到字面的星号。
+  const verdict = score >= pass ? '已过线' : '低于放行线'
   return `当前 ${score} 分（放行线 ${pass} 分，${verdict}）`
 }
 
@@ -252,13 +257,36 @@ function openBatchReject() {
   rejectVisible.value = true
 }
 
-/** 批量通过：不需要原因，点一下确认即可。 */
-async function batchApprove() {
+/**
+ * 批量通过：没有逐条的原因要填，但**必须**先把分数摆出来。
+ *
+ * 单条通过会显示"当前 X 分（放行线 Y 分）"，批量却是裸确认 —— 一次越过十几条
+ * 质量线而屏幕上没有任何数字，这比逐条误放更难复盘。所以这里汇总一句：
+ * 勾选里有多少条低于放行线、多少条取不到分数。
+ */
+function batchApprove() {
   if (checkedKeys.value.length === 0) return
-  const result = await batchReviewArticleTasks(checkedKeys.value, { status: 3 })
-  reportBatch(result.succeeded, result.failed?.length ?? 0)
-  checkedKeys.value = []
-  await refresh()
+  const picked = rows.value.filter(row => checkedKeys.value.includes(row.id))
+  const pass = picked.find(row => row.quality_pass_score !== undefined)?.quality_pass_score ?? 0
+  const below = picked.filter(
+    row => row.quality_score !== undefined && row.quality_score !== null && row.quality_score < pass,
+  ).length
+  const unknown = picked.filter(row => row.quality_score === undefined || row.quality_score === null).length
+
+  const parts = [`将把勾选的 ${picked.length} 篇文章推向发布态。`]
+  parts.push(`其中 ${below} 篇低于放行线 ${pass} 分，${unknown} 篇分数未知。`)
+  dialog.warning({
+    title: '确认批量通过',
+    content: parts.join(''),
+    positiveText: '通过',
+    negativeText: '取消',
+    async onPositiveClick() {
+      const result = await batchReviewArticleTasks(checkedKeys.value, { status: 3 })
+      reportBatch(result.succeeded, result.failed?.length ?? 0)
+      checkedKeys.value = []
+      await refresh()
+    },
+  })
 }
 
 async function reject() {
@@ -381,5 +409,6 @@ onMounted(async () => {
     />
   </NSpace>
 </template>
+
 
 

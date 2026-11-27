@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"encoding/json"
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/apptest"
@@ -21,17 +22,17 @@ import (
 //  2. 已经是草稿时按"目的已达成"返回成功，且不写库（连点两次不留痕迹）；
 //  3. 原因必填 —— 这句话是要发给作者的，空串必须是一个明确的参数错误码。
 
-// fakeForceDemoteNotifier 记录端口收到的通知，用来断言"作者到底收到了什么"。
-type fakeForceDemoteNotifier struct {
-	notices []app.ForceDemoteNotice
-	err     error
-}
-
-func (f *fakeForceDemoteNotifier) NotifyForceDemoted(_ context.Context, n app.ForceDemoteNotice) error {
-	if f.err != nil {
-		return f.err
+// forceDemotedEvent 从 outbox 里取那条「强制退回」事件（没有则返回 nil）。
+//
+// 通知本身不再是这条用例的职责：它已经改成发件箱事件（票 481 的 code-review 修复），
+// 由 app 层的订阅者投递。这里只钉"用例真的把该带的事实都发出去了" ——
+// 事件的字段就是订阅者拼站内信的全部素材。
+func forceDemotedEvent(events []app.Event) *app.Event {
+	for i := range events {
+		if events[i].Name == app.EventArticleForceDemoted {
+			return &events[i]
+		}
 	}
-	f.notices = append(f.notices, n)
 	return nil
 }
 
@@ -58,8 +59,6 @@ func TestForceDemotePublishedArticleBecomesInvisibleDraft(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
-	notifier := &fakeForceDemoteNotifier{}
-	svc.WithNotifier(notifier)
 
 	ctx := context.Background()
 	articleID := seedVisiblePublishedArticle(t, repos, 9001, domain.VisibilityVisible)
@@ -127,15 +126,23 @@ func TestForceDemotePublishedArticleBecomesInvisibleDraft(t *testing.T) {
 		t.Fatalf("档案行应记下原因，实际 %q", trace.Reason())
 	}
 
-	if len(notifier.notices) != 1 {
-		t.Fatalf("应给作者发一条站内信，实际 %d 条", len(notifier.notices))
+	// 通知素材：事件体必须带全"谁、哪篇、为什么"，订阅者拿它直接拼站内信。
+	event := forceDemotedEvent(repos.FakeOutbox().Events())
+	if event == nil {
+		t.Fatal("应发出 article.force_demoted 事件（通知由订阅者投递）")
 	}
-	got := notifier.notices[0]
-	if got.AuthorID != author || got.ArticleID != articleID || got.OperatorID != admin {
-		t.Fatalf("通知收/发件人与文章不对: %+v", got)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
+		t.Fatalf("事件体解析失败: %v", err)
 	}
-	if got.Reason != reason || got.Title != "被误放行的文章" {
-		t.Fatalf("通知正文素材不对: %+v", got)
+	if payload["reason"] != reason {
+		t.Fatalf("事件体必须带管理员填的原因，实际 %v", payload["reason"])
+	}
+	if payload["title"] != "被误放行的文章" {
+		t.Fatalf("事件体必须带处置那一刻的标题，实际 %v", payload["title"])
+	}
+	if payload["author_id"] != author.String() || payload["operator_id"] != admin.String() {
+		t.Fatalf("事件体必须带作者与操作人，实际 %v / %v", payload["author_id"], payload["operator_id"])
 	}
 }
 
@@ -145,8 +152,6 @@ func TestForceDemoteAlreadyDraftIsNoop(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
-	notifier := &fakeForceDemoteNotifier{}
-	svc.WithNotifier(notifier)
 
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(9002), author, domain.StatusDraft)
@@ -160,8 +165,8 @@ func TestForceDemoteAlreadyDraftIsNoop(t *testing.T) {
 	if calls := repos.FakeReviews().Calls("Save"); calls != 0 {
 		t.Fatalf("已是草稿时不该新建任务档案，实际 Save %d 次", calls)
 	}
-	if len(notifier.notices) != 0 {
-		t.Fatalf("什么都没变时不该发通知，实际 %d 条", len(notifier.notices))
+	if forceDemotedEvent(repos.FakeOutbox().Events()) != nil {
+		t.Fatal("什么都没变时不该发出退回事件（否则会给作者发一条莫名的通知）")
 	}
 }
 
@@ -176,8 +181,6 @@ func TestForceDemoteRequiresReason(t *testing.T) {
 			t.Parallel()
 
 			svc, repos, _ := newService(t)
-			notifier := &fakeForceDemoteNotifier{}
-			svc.WithNotifier(notifier)
 
 			ctx := context.Background()
 			articleID := seedVisiblePublishedArticle(t, repos, 9003, domain.VisibilityVisible)
@@ -194,8 +197,8 @@ func TestForceDemoteRequiresReason(t *testing.T) {
 			if calls := repos.FakeArticles().Calls("Update"); calls != 0 {
 				t.Fatalf("参数不合法时不该写库，实际 Update %d 次", calls)
 			}
-			if len(notifier.notices) != 0 {
-				t.Fatalf("参数不合法时不该发通知，实际 %d 条", len(notifier.notices))
+			if forceDemotedEvent(repos.FakeOutbox().Events()) != nil {
+				t.Fatal("参数不合法时不该发出退回事件")
 			}
 		})
 	}

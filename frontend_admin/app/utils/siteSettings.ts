@@ -126,26 +126,43 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
 ]
 
+/**
+ * 三个分组的成员表（唯一一份）。
+ *
+ * 写成"哪些域属于哪一组"而不是三处 filter：以前用两份白名单 filter 加一份
+ * 六项否定式，新增一个域要同时改三处，而漏改的那一处不会报错 —— 域会悄悄从
+ * 菜单里消失（`reconcileAdminNav` 只对"有 path 没页面"报警，不对"有页面没菜单"报警，
+ * 那份文档漂移就是这么来的）。
+ *
+ * 不在表里的域直接挂在「站点配置」下（见 SITE_STANDALONE_SECTIONS）。
+ */
+const GROUP_MEMBERS: Readonly<Record<string, readonly SiteSettingsKey[]>> = {
+  '用户操作': ['site-login', 'site-chat', 'oauth'],
+  '验证码与通知': ['captcha', 'mail', 'sms'],
+}
+
+/** 取某个分组下的域（顺序取 GROUP_MEMBERS 里的顺序，也就是菜单顺序）。 */
+function sectionsOfGroup(name: string): readonly SiteSettingsSection[] {
+  const keys = GROUP_MEMBERS[name] ?? []
+  return keys.flatMap(key => {
+    const section = SITE_SETTINGS_SECTIONS.find(candidate => candidate.key === key)
+    // 分组表里写了一个不存在的域是代码错误（拼错 key 或域被删了），
+    // 让它在开发期就炸掉，而不是菜单里静默少一项。
+    if (!section) throw new Error(`站点配置分组「${name}」引用了不存在的域: ${key}`)
+    return [section]
+  })
+}
+
 /** 「用户操作」分组下的域（顺序即菜单顺序）。 */
-export const SITE_USER_ACTION_SECTIONS: readonly SiteSettingsSection[] = [
-  ...SITE_SETTINGS_SECTIONS.filter(
-    section => section.key === 'site-login' || section.key === 'site-chat' || section.key === 'oauth',
-  ),
-]
+export const SITE_USER_ACTION_SECTIONS: readonly SiteSettingsSection[] = sectionsOfGroup('用户操作')
 
 /** 「验证码与通知」分组下的域（顺序即菜单顺序）。 */
-export const SITE_VERIFICATION_SECTIONS: readonly SiteSettingsSection[] = [
-  ...SITE_SETTINGS_SECTIONS.filter(
-    section => section.key === 'captcha' || section.key === 'mail' || section.key === 'sms',
-  ),
-]
+export const SITE_VERIFICATION_SECTIONS: readonly SiteSettingsSection[] = sectionsOfGroup('验证码与通知')
 
 /** 直接挂在「站点配置」下、不属于上面两个分组的域。 */
 export const SITE_STANDALONE_SECTIONS: readonly SiteSettingsSection[] = [
   ...SITE_SETTINGS_SECTIONS.filter(
-    section =>
-      section.key !== 'site-login' && section.key !== 'site-chat' && section.key !== 'oauth'
-      && section.key !== 'captcha' && section.key !== 'mail' && section.key !== 'sms',
+    section => ![...GROUP_MEMBERS['用户操作']!, ...GROUP_MEMBERS['验证码与通知']!].includes(section.key),
   ),
 ]
 
@@ -191,4 +208,5 @@ export function siteSettingsSectionByKey(key: SiteSettingsKey): SiteSettingsSect
 export function siteSectionBlocks(section: SiteSettingsSection): readonly SiteSectionBlock[] {
   return section.blocks
 }
+
 

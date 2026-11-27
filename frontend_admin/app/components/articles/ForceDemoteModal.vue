@@ -79,7 +79,7 @@ async function submit() {
         v-model:value="reason"
         type="textarea"
         :autosize="{ minRows: 3, maxRows: 6 }"
-        :maxlength="200"
+        :maxlength="300"
         show-count
         placeholder="填写退回原因（必填）：它会原样出现在作者收到的站内信里"
         data-role="force-demote-reason"
@@ -96,3 +96,4 @@ async function submit() {
     </template>
   </NModal>
 </template>
+

@@ -445,9 +445,16 @@ func (a *Article) Approve(reviewer UserID, now time.Time) error {
 // "已发布"回执；只有模型判干净才对匿名访客可见。
 //
 // 幂等：已经是 visible 时直接返回 nil，outbox 重复投递不会产生额外写入。
-func (a *Article) PublishForCompliance(now time.Time) error {
+// qualityPassed 是**必填凭据**：调用方必须已经确认质量闸门放行回来。这不是形式主义 ——
+// 2026-11-27 漏放过一篇 6 分文章，原因正是"质量判定"与"合规放行"分成两个订阅者时，
+// 闸门报错后合规判定照样跑。把"质量已过"做成转换函数的入参，任何新代码想把文章推成
+// 可见都必须显式拿出这个凭据，绕不过去（ADR-0030）。
+func (a *Article) PublishForCompliance(now time.Time, qualityPassed bool) error {
 	if a.deleted {
 		return ErrArticleNotFound
+	}
+	if !qualityPassed {
+		return ErrQualityNotApproved
 	}
 	if a.status != StatusPublished || a.visibility != VisibilityPendingReview {
 		return nil
@@ -606,3 +613,5 @@ func (a *Article) ForceDemote(now time.Time) error {
 	a.updatedAt = now
 	return nil
 }
+
+

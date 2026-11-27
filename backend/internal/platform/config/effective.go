@@ -275,6 +275,21 @@ func (e *EffectiveConfig) Article() siteconf.Article {
 			AllowNonAdminDraft:   true,
 			ShowNonAdminArticles: true,
 			SubmitDailyMax:       DefaultArticleSubmitDailyMax,
+			// 闸门这里刻意保持**关闭**（没配置就不拦，与上面"宁可多出内容"同一条口径），
+			// 但放行线给业务默认 50 + 灰带 2 而**不是零值**。
+			//
+			// 零值会让消费点读到"放行线 0 分"—— 那是个后端永远不会产生的值：
+			// 它会静默把展示口径变成"人人都过线"，也会让契约里的人看到假的 0。
+			// 闸门关闭与否由 Enabled 表达，阈值该是什么就有默认值。
+			QualityGate: siteconf.QualityGate{
+				Enabled:            false,
+				PassScore:          siteconf.DefaultQualityGatePassScore,
+				GrayBandWidth:      siteconf.DefaultQualityGateGrayBandWidth,
+				BandPoorMax:        siteconf.DefaultQualityGateBandPoorMax,
+				BandUnqualifiedMax: siteconf.DefaultQualityGateBandUnqualifiedMax,
+				BandNormalMax:      siteconf.DefaultQualityGateBandNormalMax,
+				BandGoodMax:        siteconf.DefaultQualityGateBandGoodMax,
+			},
 		}
 	}
 	return e.store.GetRuntimeArticle()

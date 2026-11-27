@@ -85,6 +85,13 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
 	relay.On(articleapp.EventArticleRejected, notifySubscriber(infra))
 
+	// 通知：管理员强制退回草稿（票 481）。
+	//
+	// 它必须是独立事件而不是让用例同步发信：同步发信时"发失败 → 前端报错 →
+	// 管理员重试 → 文章已是草稿 → 提前返回"这条链会把通知永久丢掉。走发件箱之后
+	// 投递失败会重试，与那次请求成不成功彻底解耦。
+	relay.On(articleapp.EventArticleForceDemoted, forceDemoteNoticeSubscriber(infra))
+
 	// 通知：互动类（点赞 / 收藏）。
 	// 旧实现里这两处是 handler 中的裸 goroutine，删掉旧代码后必须在这里接回来，
 	// 否则"有人点赞/收藏你的文章"的通知会静默消失。
@@ -210,7 +217,11 @@ func notifyQualityDemoted(
 //
 // 失败语义：拿不到结论时返回 error，交给发件箱重试；重试耗尽后进死信，
 // 后台看到的是"这篇文章没有合规结论"（未判定），而不是被当成"干净"放行。
-func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
+//
+// qualityProof 会原样交给 domain 的可见性转换：只有它说"质量已过"，判 clean 才
+// 真的能把文章放开。这条参数存在的唯一目的就是让"质量判定先于合规放行"成为
+// **编译器能管住的事实**，而不是两个订阅者之间的约定（ADR-0030 / 2026-11-27 事故）。
+func complianceSubscriber(infra *Infra, qualityProof bool) outboxrelay.Subscriber {
 	return func(ctx context.Context, e outboxrelay.Event) error {
 		articleID := e.AggregateID
 		if articleID.IsZero() {
@@ -285,7 +296,7 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		switch moderation.Verdict(result.Verdict) {
 		case moderation.VerdictClean:
 			// 模型判干净：真正放开可见。幂等，重复投递不会产生额外写入。
-			return articleSvc.PublishForCompliance(ctx, articleID)
+			return articleSvc.PublishForCompliance(ctx, articleID, qualityProof)
 		case moderation.VerdictSuspect:
 			// 存疑：误判会直接落到作者身上且他没有申诉渠道，一律交人。
 			// 从"已发布待可见"改回审核中并建一条待处理任务。

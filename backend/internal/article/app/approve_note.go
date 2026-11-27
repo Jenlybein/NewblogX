@@ -31,13 +31,10 @@ func (s *Service) approveNoteFor(
 ) string {
 	var score *int
 	if s.scores != nil {
-		facts, err := s.scores.LatestScores(ctx, []domain.ArticleID{articleID})
-		if err == nil {
-			if got, ok := facts[articleID]; ok {
-				// 有评分记录就是有分数：0 分要原样记成 0 分，只有 nil 才是"取不到"。
-				v := got.TotalScore
-				score = &v
-			}
+		if facts, err := s.scores.LatestScores(ctx, []domain.ArticleID{articleID}); err == nil {
+			// 与队列同一条收敛（reviewTaskScore），所以"队列里显示 0 分"与
+			// "备注里写 0 分"永远不会各说各话。
+			score = reviewTaskScore(facts, articleID)
 		}
 		// 读失败不回滚、不报错：这条读数是留痕的唯一来源，不是放行的前提。
 		// 备注里会写成"未知分数"，所以降级本身也是留痕的一部分（见 FormatApproveNote）。

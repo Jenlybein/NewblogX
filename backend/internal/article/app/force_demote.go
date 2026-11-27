@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -21,29 +22,6 @@ import (
 // 所以这条用例的三件事都在这里：状态复位（domain）、作废旧任务 + 留档（本文件）、
 // 站内信（事务外，通过端口交给装配层）。
 
-// ForceDemoteNotice 是「文章被管理员强制退回草稿」这条站内信的内容。
-//
-// 由用例层填好再交给端口：装配层只负责"怎么发"，不该回头去库里拼标题与作者。
-type ForceDemoteNotice struct {
-	ArticleID  domain.ArticleID
-	AuthorID   domain.UserID
-	Title      string
-	Reason     string
-	OperatorID domain.UserID
-}
-
-// Notifier 是文章模块的站内信出口。
-//
-// 只声明当前真实需要的一条：app 层不认识通知模块（跨模块不 import），
-// 形状由使用方定义、实现放在装配层（backend/app/article_wiring.go），
-// 与 AuthorStatsPort / ActivityPort 同一做法。
-type Notifier interface {
-	// NotifyForceDemoted 通知作者"文章已被管理员退回草稿"，正文里带原因。
-	//
-	// 实现必须**幂等**：同一篇文章 + 同一条原因只发一条（并发重复请求也会走到这里）。
-	NotifyForceDemoted(ctx context.Context, notice ForceDemoteNotice) error
-}
-
 // ForceDemote 管理员把文章强制退回草稿（运营纠错）。
 //
 // reason 必填：它会原样出现在作者的站内信里，也是这次处置唯一的审计依据；
@@ -51,8 +29,8 @@ type Notifier interface {
 // 而不是静默落一条空原因 —— 作者收到"你被退回了"却说不出为什么，比不退回更糟。
 //
 // 幂等语义：文章已经是草稿时返回 nil（"目的已达成"），不写库、不留档、不发通知。
-// 客户端重试或管理员连点两次因此不会产生第二条站内信；并发重复请求由通知端口的
-// 去重兜住（两笔事务可能都看到"已发布"，各自都发一次）。
+// 客户端重试或管理员连点两次因此不会产生第二条站内信；并发重复请求由通知实现
+// 的去重兜住（两笔事务可能都看到"已发布"，各自都会发一条事件）。
 func (s *Service) ForceDemote(
 	ctx context.Context, articleID domain.ArticleID, operatorID domain.UserID, reason string,
 ) error {
@@ -74,7 +52,13 @@ func (s *Service) ForceDemote(
 		return domain.ErrReviewReasonTooLong
 	}
 
-	var notice *ForceDemoteNotice
+	// 通知走**发件箱事件**而不是事务外同步发送（票 481 的 code-review 修复）。
+	//
+	// 原写法有一个真实的漏通知：站内信在事务提交之后发，发失败就把 error 返给前端；
+	// 管理员重试时文章已经是草稿，用例按"目的已达成"提前返回、根本不构造通知 ——
+	// 作者永远收不到那条"为什么被退回"。改成事件之后，通知由中继投递、失败会重试，
+	// 与"这次请求成功与否"彻底解耦；去重仍由通知实现按（接收者 + 链接 + 正文）做。
+	var demoted *forceDemotedFacts
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		a, err := r.Articles().Find(ctx, articleID)
@@ -110,7 +94,7 @@ func (s *Service) ForceDemote(
 			return err
 		}
 
-		notice = &ForceDemoteNotice{
+		demoted = &forceDemotedFacts{
 			ArticleID:  a.ID(),
 			AuthorID:   a.AuthorID(),
 			Title:      a.Title(),
@@ -119,18 +103,51 @@ func (s *Service) ForceDemote(
 		}
 		// 与作者自己改回草稿共用同一条事件名：对下游来说语义相同（文章回到草稿、
 		// 不再对读者露出），不需要再按"是谁撤的"分叉。
-		return emit(ctx, r, EventArticleBackToDraft, a.ID())
+		if err := emit(ctx, r, EventArticleBackToDraft, a.ID()); err != nil {
+			return err
+		}
+		return emitForceDemoted(ctx, r, *demoted)
 	})
 	if err != nil {
 		return err
 	}
-	if notice == nil || s.notifier == nil {
-		return nil
-	}
+	_ = demoted
+	return nil
+}
 
-	// 事务外发送：站内信不是这次处置的一部分，失败也不该让文章退回这个事实回滚。
-	// 返回错误是为了让调用方知道"作者没收到通知"（重试不会再改状态，只会重发通知）。
-	return s.notifier.NotifyForceDemoted(ctx, *notice)
+// forceDemotedFacts 是「强制退回」事件要带的全部事实。
+//
+// 订阅者只拿这些字段就能拼出一条站内信：文章 ID、标题、作者、原因、操作人。
+// 不让订阅者回头查库是因为"事后查到的标题可能已经被作者改过" —— 通知要写的是
+// 处置那一刻的事实。
+type forceDemotedFacts struct {
+	ArticleID  domain.ArticleID
+	AuthorID   domain.UserID
+	Title      string
+	Reason     string
+	OperatorID domain.UserID
+}
+
+// emitForceDemoted 发一条「管理员强制退回草稿」事件（票 481）。
+func emitForceDemoted(ctx context.Context, r Repos, facts forceDemotedFacts) error {
+	// ID 一律用字符串：雪花 ID 是 uint64，写成 JSON 数字会超出 JS 的安全整数范围，
+	// 订阅者（或以后的任何消费者）一旦在 JS 里解析就会静默丢精度。
+	payload, err := json.Marshal(map[string]any{
+		"article_id":  facts.ArticleID.String(),
+		"author_id":   facts.AuthorID.String(),
+		"operator_id": facts.OperatorID.String(),
+		"title":       facts.Title,
+		"reason":      facts.Reason,
+	})
+	if err != nil {
+		return err
+	}
+	return r.Outbox().Emit(ctx, Event{
+		Name:          EventArticleForceDemoted,
+		Payload:       payload,
+		AggregateID:   facts.ArticleID,
+		AggregateType: "article",
+	})
 }
 
 // recordForceDemoteTrace 给一次强制退回留一条已撤销的审核任务行。

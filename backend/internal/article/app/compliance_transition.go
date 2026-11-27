@@ -16,7 +16,9 @@ import (
 //
 // 幂等：BackToReview / AutoRejectForCompliance 可能已经把文章改走，
 // 此时 domain.PublishForCompliance 是空操作，重复投递不会产生额外写入。
-func (s *Service) PublishForCompliance(ctx context.Context, articleID domain.ArticleID) error {
+// qualityPassed 必须由调用方给出：它是 published+pending_review → visible 的凭据。
+// 传 false 会得到 domain.ErrQualityNotApproved（内部错误，正常路径不该出现）。
+func (s *Service) PublishForCompliance(ctx context.Context, articleID domain.ArticleID, qualityPassed bool) error {
 	if articleID.IsZero() {
 		return domain.ErrArticleNotFound
 	}
@@ -25,7 +27,7 @@ func (s *Service) PublishForCompliance(ctx context.Context, articleID domain.Art
 		if err != nil {
 			return err
 		}
-		if err := a.PublishForCompliance(s.clock.Now()); err != nil {
+		if err := a.PublishForCompliance(s.clock.Now(), qualityPassed); err != nil {
 			return err
 		}
 		return r.Articles().Update(ctx, a)
@@ -109,3 +111,4 @@ func (s *Service) BackToReviewForCompliance(ctx context.Context, articleID domai
 		return createReviewTask(ctx, s, r, a, review.Source(source), now)
 	})
 }
+

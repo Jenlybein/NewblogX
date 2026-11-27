@@ -28,6 +28,12 @@ const (
 	EventArticleDeleted = "article.deleted"
 	// EventArticleBackToDraft 作者退回草稿。
 	EventArticleBackToDraft = "article.back_to_draft"
+	// EventArticleForceDemoted 管理员强制退回草稿（票 481）。
+	//
+	// 与 EventArticleBackToDraft 分开而不是合并：前者是作者自己改主意，后者是一次
+	// 人工干预，下游要发的是"管理员以什么理由撤的"这条通知 —— 事件体要带原因与
+	// 操作人，而 back_to_draft 的负载只有一个 article_id。
+	EventArticleForceDemoted = "article.force_demoted"
 	// EventArticleDigg 文章被点赞（只在"新增点赞"时发，取消点赞不发）。
 	EventArticleDigg = "article.digg"
 	// EventArticleFavorited 文章被收藏。
@@ -333,3 +339,4 @@ func emitWithActor(ctx context.Context, r Repos, name string, articleID domain.A
 		AggregateType: "article",
 	})
 }
+

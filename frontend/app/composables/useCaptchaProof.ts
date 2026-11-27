@@ -5,7 +5,7 @@ import { useSiteStore } from "~/stores/site";
 /**
  * 图形验证码的入口标识，与后端 `middleware.CaptchaScope*` 一一对应。
  *
- * 三个入口各自一个闸门（`site.login.captcha_login` 等），因为登录与发码被滥用的
+ * 四个入口各自一个闸门（`captcha.captcha_login` 等），因为登录与发码被滥用的
  * 方式不同：发码烧钱（短信按条计费），登录被撞库。一刀切会让"只想给发码加验证码"
  * 做不到，而真的只想加一处时又只能整体关掉、连带拆掉另一处的防护。
  */
@@ -18,7 +18,9 @@ export type CaptchaGateScope = "login" | "email_verify" | "phone_verify" | "regi
  * scope**：后端按入口校验，前端也要按入口渲染 —— 否则会出现"登录表单画了框、
  * 但后端那条路由不校验"的错位（用户白填，还以为自己填错了）。
  *
- * 是否启用 = 总开关 `site.login.captcha` && 本入口闸门（后端同一条判定）。
+ * 是否启用 = 后端给出的**生效值**（`GET /api/site/login_capabilities` 的
+ * `captcha_required`）。总开关与入口闸门在后端已经合取过，前端不再自己 `&&`
+ * 一次：每个调用点各与一次，漏一处就渲染出一个永远不被校验的输入框。
  *
  * 注意验证码是**一次性**的：存储层校验成功即删（`Verify(..., true)`），
  * 所以每次提交之后都要 `refresh()`，否则第二次一定失败。
@@ -27,19 +29,17 @@ export function useCaptchaProof(scope: CaptchaGateScope = "login") {
   const siteStore = useSiteStore();
 
   const enabled = computed(() => {
-    const login = siteStore.runtimeConfig?.login;
-    if (!login || login.captcha !== true) {
-      return false;
-    }
+    const required = siteStore.loginCapabilities?.captcha_required;
+    if (!required) return false;
     switch (scope) {
       case "email_verify":
-        return login.captcha_email_verify === true;
+        return required.email_verify === true;
       case "phone_verify":
-        return login.captcha_phone_verify === true;
+        return required.phone_verify === true;
       case "register":
-        return login.captcha_register === true;
+        return required.register === true;
       default:
-        return login.captcha_login === true;
+        return required.login === true;
     }
   });
 
@@ -125,3 +125,4 @@ export function useCaptchaProof(scope: CaptchaGateScope = "login") {
 
   return { enabled, image, code, loading, missing, refresh, payload, expireSeconds };
 }
+

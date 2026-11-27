@@ -1,12 +1,28 @@
 import { useNuxtApp } from "#imports";
 import type {
   BannerListData,
+  LoginCapabilities,
   SiteAiInfo,
   SiteDecoConfig,
   SiteRuntimeConfig,
   SiteSeoData,
   SiteSidebarCardsData,
 } from "~/types/api";
+
+/**
+ * 登录能力面（票 票 481）：登录方式可用性 + 四个入口要不要画验证码框。
+ *
+ * 为什么要单独一个端点：登录/发码/验证码这几类开关按通道拆进了 mail / sms /
+ * oauth / captcha 四段，而**那四段含凭据、只有后台能读**。读者站原来靠公开的
+ * `site` 段拿这些布尔位，拆段后就没有来源了。这个端点把布尔位现读一遍、只公开
+ * 布尔位，凭据一个字节都不出 —— 比"让读者站直读后台段"安全，比"继续把开关塞回
+ * site 段"干净。
+ */
+export function getLoginCapabilities() {
+  return useNuxtApp().$api.request<LoginCapabilities>("/api/site/login_capabilities", {
+    auth: false,
+  });
+}
 
 export function getSiteRuntimeConfig() {
   return useNuxtApp().$api.request<SiteRuntimeConfig>("/api/site/site", {
@@ -60,3 +76,4 @@ export function getBannerList() {
     auth: false,
   });
 }
+

@@ -57,7 +57,11 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
  */
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
-  { label: '文章审核', path: '/review', icon: 'shield' },
+  // 内容生产链（ADR-0029 改写版）：改关键词 → 调发布策略 → 审文章，三页同一个一级分组。
+  { label: '关键词过滤', path: '/content/keywords', icon: 'article' },
+  { label: '文章发布', path: '/content/publish', icon: 'article' },
+  { label: '文章审核', path: '/content/review', icon: 'article' },
+  // 审核分组只剩"不是文章生产"的两件：图片待审与关键词命中处置。
   { label: '图片审核', path: '/review/images', icon: 'shield' },
   { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
   { label: '文章列表', path: '/articles', icon: 'article' },
@@ -66,17 +70,16 @@ const EXPECTED_ADMIN_NAV = [
   { label: '项目管理', path: '/articles/projects', icon: 'article' },
   { label: '标签管理', path: '/articles/tags', icon: 'tag' },
   { label: '用户管理', path: '/users', icon: 'users' },
+  // 站点配置按"谁受影响"分组：站点（基础信息）/ 用户操作 / 验证码与通知 / 其余独立域。
   { label: '站点基础', path: '/site', icon: 'settings' },
-  { label: '登录与发码', path: '/site/login', icon: 'settings' },
-  { label: '发布与审核', path: '/site/publish', icon: 'settings' },
-  { label: '私信', path: '/site/chat', icon: 'settings' },
-  { label: '内容过滤', path: '/site/content-filter', icon: 'settings' },
-  { label: '图形验证码', path: '/site/captcha', icon: 'settings' },
-  { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
-  { label: '邮件', path: '/site/mail', icon: 'settings' },
-  { label: '对象存储', path: '/site/storage', icon: 'settings' },
+  { label: '登录设置', path: '/site/login', icon: 'settings' },
+  { label: '私信设置', path: '/site/chat', icon: 'settings' },
   { label: '第三方登录', path: '/site/oauth', icon: 'settings' },
+  { label: '图形验证码', path: '/site/captcha', icon: 'settings' },
+  { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '短信', path: '/site/sms', icon: 'settings' },
+  { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
+  { label: '对象存储', path: '/site/storage', icon: 'settings' },
   { label: '日志', path: '/site/log', icon: 'settings' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
@@ -135,6 +138,7 @@ describe('后台菜单拍平视图', () => {
     })
     expect(FLAT_NAV.filter(item => item.depth === 0).map(item => item.label)).toEqual([
       '数据概览',
+      '内容修改与发布',
       '审核',
       '文章管理',
       '用户管理',
@@ -145,13 +149,17 @@ describe('后台菜单拍平视图', () => {
       '日志中心',
     ])
 
-    // 审核域（ADR-0032 决策 7）：父项只分组，「文章审核」与「关键词风险」下沉一级。
-    expect(FLAT_NAV.find(item => item.label === '审核')!.path).toBeUndefined()
+    // 内容生产链（ADR-0029 改写版）：父项只分组，改词表 / 调发布线 / 审文章下沉一级。
+    // 「文章审核」不再挂在「审核」下 —— 它属于生产链的最后一环，不是事后处置。
+    expect(FLAT_NAV.find(item => item.label === '内容修改与发布')!.path).toBeUndefined()
     expect(FLAT_NAV.find(item => item.label === '文章审核')).toMatchObject({
-      parentLabel: '审核',
+      path: '/content/review',
+      parentLabel: '内容修改与发布',
       parentPath: null,
       depth: 1,
     })
+    // 审核域（ADR-0032 决策 7 / ADR-0034）：父项只分组，图片待审与命中处置下沉一级。
+    expect(FLAT_NAV.find(item => item.label === '审核')!.path).toBeUndefined()
     expect(FLAT_NAV.find(item => item.label === '关键词风险')).toMatchObject({
       path: '/review/content-filter',
       parentLabel: '审核',
@@ -215,15 +223,20 @@ describe('后台菜单拍平视图', () => {
   it('navItemByPath 按路由查激活项；没有页面就不算激活，未知路径返回 undefined', () => {
     expect(navItemByPath('/')?.label).toBe('数据概览')
     expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
-    // 站点配置的三个编辑层级：站点四页（深度 2）挂在「站点」分组下，其余域深度 1。
+    // 站点配置的三层结构（ADR-0029 改写版）：三个分组下各挂自己的域，深度 2；
+    // 独立域直接挂在「站点配置」下，深度 1。
     expect(navItemByPath('/site')?.label).toBe('站点基础')
     expect(navItemByPath('/site/deco')?.label).toBe('装饰')
     expect(FLAT_NAV.find(item => item.label === '站点基础')).toMatchObject({
       parentLabel: '站点',
       depth: 2,
     })
-    expect(FLAT_NAV.find(item => item.label === '私信')).toMatchObject({
-      parentLabel: '站点',
+    expect(FLAT_NAV.find(item => item.label === '私信设置')).toMatchObject({
+      parentLabel: '用户操作',
+      depth: 2,
+    })
+    expect(FLAT_NAV.find(item => item.label === '短信')).toMatchObject({
+      parentLabel: '验证码与通知',
       depth: 2,
     })
     expect(navItemByPath('/site/missing')).toBeUndefined()
@@ -661,6 +674,9 @@ describe('pageFileCandidates', () => {
     expect(pageFileCandidates('logs/dead-letter')).toEqual(['logs/dead-letter', 'logs/dead-letter/index'])
   })
 })
+
+
+
 
 
 

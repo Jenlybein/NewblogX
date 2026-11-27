@@ -142,6 +142,11 @@ type ArticleReviewTaskListRequest struct {
 // （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
 // 历史行（#308 之前、撤销）没有枚举，reason_code 为 null，reason 是整段原文——
 // 前端因此只剩"枚举 + 补充"与"只有一段话"两种情形要显示。
+//
+// 2026-11 起审核通过**豁免质量闸门**（管理员是终审），但豁免不许静默：
+// 列表把「当前分数 + 放行线」一并下发（quality_score / quality_pass_score），
+// 放行时再在任务行上留一句 approve_note（"管理员以 X 分放行（放行线 Y 分）"）。
+// 三者都是事实陈述，不参与判定；分数为 null 时表示取不到，不是 0 分。
 type ArticleReviewTaskItem struct {
 	ID            ctype.ID          `json:"id"`
 	ArticleID     ctype.ID          `json:"article_id"`
@@ -167,6 +172,24 @@ type ArticleReviewTaskItem struct {
 	// nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
 	// 与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
 	Compliance *ArticleReviewCompliance `json:"compliance"`
+	// QualityScore 是这条任务对应文章**当前**的 AI 总分；null 表示取不到分数
+	// （AI 关闭、还没评分、模型调用失败），**与 0 分不是一回事**：
+	// 0 分是"模型评了、结果就是 0 分"，null 是"没有可用的评分结论"。
+	//
+	// 放行确认框要显示"当前 X 分（放行线 Y 分）"：管理员豁免质量闸门但不静默，
+	// 先把事实摆在眼前，再由管理员决定是否越级放行。
+	QualityScore *int `json:"quality_score,omitempty"`
+	// QualityPassScore 是当前放行线（及格线 + 灰带宽度）。
+	//
+	// 闸门关闭时仍然是算出值：前端**只用它做展示**，不据此判定——
+	// 判定在提交链路，这里只陈述"现在的线是多少分"。
+	QualityPassScore int `json:"quality_pass_score"`
+	// ApproveNote 是管理员放行时留下的那句话：
+	// "管理员以 X 分放行（放行线 Y 分）"；分数取不到时写"未知分数"。
+	//
+	// 与 reason 分字段：reason 只承载驳回原因（通过时为空），
+	// 放行备注是"这次通过豁免了质量闸门"的独立事实，可选（历史行与系统通过没有）。
+	ApproveNote string `json:"approve_note,omitempty"`
 }
 
 // ArticleReviewTaskContentResponse 是审核任务正文（按需读取）。
@@ -246,6 +269,28 @@ type ArticleReviewBatchRequest struct {
 type ArticleAdminVisibilityURI struct {
 	ID         ctype.ID `uri:"id" binding:"required"`
 	Visibility string   `uri:"visibility" binding:"required,oneof=hide show" enums:"hide,show"`
+}
+
+// ArticleForceDemoteRequest 管理员把文章强制退回草稿（运营纠错）。
+//
+// 故意**不**写 binding:"required"：原因的必填校验只在用例层一处
+// （app.ForceDemote），这样空串拿到的是稳定错误码
+// article.force_demote_reason_required 与一句可读的中文，而不是框架的
+// "参数绑定失败"。管理后台、脚本、将来的批量纠错都走同一条用例，绕过 HTTP
+// 也绕不过这条规则（与驳回原因校验同一取舍，见 app.reviewReason）。
+type ArticleForceDemoteRequest struct {
+	Reason string `json:"reason"`
+}
+
+// ArticleForceDemoteResponse 强制退回的结果：被退回的文章与它的最终状态。
+//
+// 最终状态是**契约保证**而不是回读：domain.ForceDemote 的落点固定为草稿，
+// 已经就是草稿的调用同样落在这里（"目的已达成"），所以 publish_status 永远是
+// 草稿。可见性刻意不回显：它只在"实际发生了退回"时被复位成 visible，
+// 而已经就是草稿的文章保留着作者自己设的值，回一个固定值会撒谎。
+type ArticleForceDemoteResponse struct {
+	ID            ctype.ID      `json:"id"`
+	PublishStatus ArticleStatus `json:"publish_status"`
 }
 
 // ArticleViewCountRequest 浏览上报。

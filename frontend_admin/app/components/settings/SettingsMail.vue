@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NForm, NFormItem, NInput, NInputNumber, NSelect, useMessage } from 'naive-ui'
+import { NAlert, NButton, NCard, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NSwitch, useMessage } from 'naive-ui'
 import { getMailRuntimeConfig, updateMailRuntimeConfig } from '~/services/admin'
 import type { MailRuntimeConfig } from '~/types/api'
 
@@ -55,11 +55,29 @@ onMounted(load)
       四个场景（注册、重置密码、绑定邮箱、邮箱登录）共用同一个模板。
     </NAlert>
     <NAlert type="info" :bordered="false" class="mb-4">
-      填完密钥后，还需要去「站点 → 登录」把「邮箱验证码登录」打开，读者站才会显示入口。
-      未填完就打开开关，用户点「获取验证码」会直接报错。
+      本页的「邮箱验证码登录」开关决定读者站显示不显示这个入口：密钥没填完就打开，
+      用户点「获取验证码」会直接报错。发码频率也在本页（票 票 481 把这三类策略按通道拆开）。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
+      <NCard class="admin-card mb-4" title="邮箱登录" size="small">
+        <!--
+          开关跟着通道走（票 票 481）：以前它们住在 site.login，改一个邮箱入口要先跑到
+          「站点配置 → 登录与发码」，而发码限流又在同一页的另一张卡里 —— 改邮件通道
+          要横跨两个配置段、两个页面。
+        -->
+        <NFormItem label="邮箱验证码登录">
+          <NSwitch v-model:value="config.email_login" data-role="mail-email-login" />
+        </NFormItem>
+        <!--
+          邮箱注册与邮箱登录分开：绑定邮箱要用发码接口，混成一个开关会连带把
+          「给已注册用户发绑定验证码」一起关掉。本站点默认注册只走手机号。
+        -->
+        <NFormItem label="邮箱注册（默认关闭：注册只走手机号）">
+          <NSwitch v-model:value="config.email_register" data-role="mail-email-register" />
+        </NFormItem>
+      </NCard>
+
       <NFormItem label="SecretId">
         <NInput v-model:value="config.secret_id" class="admin-field--secret" placeholder="腾讯云 API 密钥 ID" />
       </NFormItem>
@@ -89,8 +107,29 @@ onMounted(load)
       <NFormItem label="单次调用超时（秒）">
         <NInputNumber v-model:value="config.timeout_sec" class="admin-field--number" :min="1" :max="60" />
       </NFormItem>
+      <NCard class="admin-card mb-4" title="发码限流" size="small">
+        <NAlert type="info" :bordered="false" class="mb-3">
+          邮件与短信分开计数：短信成本远高于邮件，两条通道的滥用方式也不同，配额互不占用。
+        </NAlert>
+        <NSpace :size="12" class="w-full">
+          <NFormItem label="验证码有效期（分钟）">
+            <NInputNumber v-model:value="config.email_code_timeout" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="发码限流窗口（秒）">
+            <NInputNumber v-model:value="config.email_send_window_second" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="单邮箱窗口内最多发码">
+            <NInputNumber v-model:value="config.email_send_per_email_max" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="单 IP 窗口内最多发码">
+            <NInputNumber v-model:value="config.email_send_per_ip_max" class="admin-field--number" :min="1" />
+          </NFormItem>
+        </NSpace>
+      </NCard>
+
       <NButton type="primary" :loading="saving" @click="save">保存邮件配置</NButton>
     </NForm>
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
   </div>
 </template>
+

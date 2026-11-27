@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"myblogx/conf"
-	siteconf "myblogx/conf/site"
 	"myblogx/internal/apperr"
 	"myblogx/internal/platform/mail"
 	redis_service "myblogx/internal/platform/redis"
@@ -43,6 +42,7 @@ func newTestEmailCodeBridge(users userdomain.Repository, sender *recordingSender
 	return &emailCodeBridge{
 		users:  users,
 		mailer: mail.NewWithSender(sender),
+		// 开关、验证码有效期与发码限流都来自邮件段（票 票 481 从 site.login 迁入）。
 		mailConf: func() conf.Mail {
 			return conf.Mail{
 				SecretID:    "id",
@@ -51,20 +51,17 @@ func newTestEmailCodeBridge(users userdomain.Repository, sender *recordingSender
 				FromAddress: "noreply@example.com",
 				FromName:    "果冻盒",
 				TemplateID:  100,
-			}
-		},
-		// 没有 Redis 时 AllowEmailSend 直接放行（redis_auth.go 的 fail-open），
-		// 频控不在本文件的验证范围内。
-		redisOptions: redis_service.Options{},
-		loginConf: func() siteconf.Login {
-			return siteconf.Login{
+
 				EmailCodeTimeout:      5,
 				EmailSendWindowSecond: 60,
 				EmailSendPerEmailMax:  1,
 				EmailSendPerIPMax:     10,
 			}
 		},
-		logger: logger,
+		// 没有 Redis 时 AllowEmailSend 直接放行（redis_auth.go 的 fail-open），
+		// 频控不在本文件的验证范围内。
+		redisOptions: redis_service.Options{},
+		logger:       logger,
 	}
 }
 

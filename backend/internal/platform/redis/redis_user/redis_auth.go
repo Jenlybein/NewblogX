@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"myblogx/conf"
 	siteconf "myblogx/conf/site"
 	"myblogx/internal/platform/redis"
 )
@@ -47,16 +48,20 @@ func ResetLoginFailures(deps redis_service.Options, account, ip string) {
 	).Err()
 }
 
-// AllowEmailSend 检查邮箱发送是否在频率限制范围内
-func AllowEmailSend(deps redis_service.Options, loginConf siteconf.Login, email, ip string, sendType int8) bool {
+// AllowEmailSend 检查邮箱发送是否在频率限制范围内。
+//
+// 频控参数跟着**邮件段**走（mail.email_send_*，票 票 481 从 site.login 迁入）：
+// 它们是这条通道自己的配额，与"登录失败限流"那种跨通道的策略无关，
+// 混在一处会让"改邮件配额"变成"改站点登录策略"。
+func AllowEmailSend(deps redis_service.Options, mailConf conf.Mail, email, ip string, sendType int8) bool {
 	if deps.Client == nil {
 		return true
 	}
 	ctx := context.Background()
-	window := time.Duration(loginConf.EmailSendWindowSecond) * time.Second
+	window := time.Duration(mailConf.EmailSendWindowSecond) * time.Second
 	// 分别检查邮箱和IP的发送频率
-	okEmail := allowWithinWindow(deps, ctx, emailSendKeyByEmail(email, sendType), window, loginConf.EmailSendPerEmailMax)
-	okIP := allowWithinWindow(deps, ctx, emailSendKeyByIP(ip, sendType), window, loginConf.EmailSendPerIPMax)
+	okEmail := allowWithinWindow(deps, ctx, emailSendKeyByEmail(email, sendType), window, mailConf.EmailSendPerEmailMax)
+	okIP := allowWithinWindow(deps, ctx, emailSendKeyByIP(ip, sendType), window, mailConf.EmailSendPerIPMax)
 	// 只有邮箱和IP都未超限才允许发送
 	return okEmail && okIP
 }
@@ -65,14 +70,15 @@ func AllowEmailSend(deps redis_service.Options, loginConf siteconf.Login, email,
 //
 // 与 AllowEmailSend 同形但独立计数：短信成本远高于邮件，需要单独收紧配额，
 // 而且两条通道混用一个计数器会让"今天邮件发多了"连带挡掉短信登录。
-func AllowSmsSend(deps redis_service.Options, loginConf siteconf.Login, phone, ip string, sendType int8) bool {
+// 参数取自**短信段**（sms.sms_send_*），与邮件段互不干扰。
+func AllowSmsSend(deps redis_service.Options, smsConf conf.SMS, phone, ip string, sendType int8) bool {
 	if deps.Client == nil {
 		return true
 	}
 	ctx := context.Background()
-	window := time.Duration(loginConf.SmsSendWindowSecond) * time.Second
-	okPhone := allowWithinWindow(deps, ctx, smsSendKeyByPhone(phone, sendType), window, loginConf.SmsSendPerPhoneMax)
-	okIP := allowWithinWindow(deps, ctx, smsSendKeyByIP(ip, sendType), window, loginConf.SmsSendPerIPMax)
+	window := time.Duration(smsConf.SmsSendWindowSecond) * time.Second
+	okPhone := allowWithinWindow(deps, ctx, smsSendKeyByPhone(phone, sendType), window, smsConf.SmsSendPerPhoneMax)
+	okIP := allowWithinWindow(deps, ctx, smsSendKeyByIP(ip, sendType), window, smsConf.SmsSendPerIPMax)
 	return okPhone && okIP
 }
 

@@ -1,20 +1,22 @@
 package conf
 
-// Captcha 是第 12 个运行时配置段：图形验证码的「图形与时效」参数。
+// Captcha 是第 12 个运行时配置段：图形验证码的「开关、入口闸门、图形与时效」参数。
 //
 // 为什么单开一段而不是塞进 `site`：
 //   - `site` 段有匿名公开读（`GET /api/site/site`），图片尺寸、字符集、有效期这些
 //     参数读者没有必要知道，混进去只是白白扩大公开面；
-//   - `site.login` 承载的是**登录策略**（哪种方式开放、发码限流多严），
-//     而这里是**渲染细节**。沿用 [ADR-0020](../../docs/adr/0020-config-section-registry-and-named-sections.md)
+//   - 沿用 [ADR-0020](../../docs/adr/0020-config-section-registry-and-named-sections.md)
 //     决策 3 的分法（`sms` 段只放发送凭证、登录策略留在 `site.login`）：
-//     策略留 `site.login`，渲染参数进本段。
+//     配置跟着"它服务的那个东西"走，而不是按"是不是策略"切。
 //
-// 「哪些入口要求验证码」**不在这里**：它是登录策略，见 `site.Login` 的三个闸门
-// （`captcha_login` / `captcha_email_verify` / `captcha_phone_verify`），
-// 那三个布尔位必须公开可读 —— 读者站要知道每个表单渲染不渲染验证码框。
+// 「哪些入口要求验证码」也在本段（票 票 481 从 `site.login` 迁入）：它是图形验证码
+// 这个机制自己的属性，混在 site 段里会让「验证码」页改不了自己最关键的五个开关。
+// 读者站渲染表单需要知道这些布尔位，但它们**不再靠公开 site 段**得到 ——
+// 公开只读端点 `GET /api/site/login_capabilities` 用 `captcha_required` 现读给出
+// （已与总开关合取，见 internal/site/app 的 LoginCapabilities），
+// 本段的渲染参数仍然只给后台读写。
 //
-// 本段只有后台具名端点：`GET /site/admin/captcha` 与 `PUT /site/captcha`。
+// 本段的具名端点：`GET /site/admin/captcha` 与 `PUT /site/captcha`。
 //
 // 字段适用性（不适用项会被忽略，后台按驱动禁用对应输入框，见
 // internal/site/app/captcha.go 的 normalize）：
@@ -29,6 +31,26 @@ package conf
 //	max_skew / dot_count —      —     ✓
 //	expire_seconds       ✓      ✓     ✓
 type Captcha struct {
+	// Captcha 是图形验证码的**总开关**（json 键名沿用历史写法 `captcha`）。
+	//
+	// 总开关关掉时四个入口一律不校验，这样"先整体关、再逐条开"的回滚路径是通的。
+	Captcha bool `yaml:"captcha" json:"captcha"`
+	// 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
+	//
+	// 默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
+	// 需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
+	// 登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
+	CaptchaLogin       bool `yaml:"captcha_login" json:"captcha_login"`
+	CaptchaEmailVerify bool `yaml:"captcha_email_verify" json:"captcha_email_verify"`
+	CaptchaPhoneVerify bool `yaml:"captcha_phone_verify" json:"captcha_phone_verify"`
+	// CaptchaRegister 是「注册专用入口」的闸门。
+	//
+	// 它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
+	// 独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
+	// 分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
+	// （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
+	CaptchaRegister bool `yaml:"captcha_register" json:"captcha_register"`
+
 	// Driver 是图形验证码的类型：
 	//   - string：字符型（字母 + 数字），旧实现的形态；
 	//   - math：算术型（两位数四则运算），对脚本更有效；

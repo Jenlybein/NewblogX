@@ -73,6 +73,17 @@ var columnAdditions = []ColumnAddition{
 		// 禁言不是状态机，到期由惰性判定 + 每小时对账恢复，不需要第三个 status 值。
 		Definition: "`mute_until` datetime(3) DEFAULT NULL",
 	},
+	{
+		Table:  "article_review_task_models",
+		Column: "approve_note",
+		// 管理员放行留痕（"管理员以 X 分放行（放行线 Y 分）"）。
+		//
+		// 为什么必须登记：这条列只写进 CREATE TABLE 的话，全新库有、既有库没有，
+		// 代码一 UPDATE 就 Unknown column。可空且默认 NULL：历史行与系统通过
+		// 没有这条留痕，NULL 正是"没有"，与空串的"有留痕但内容为空"同义无需区分
+		// （写入侧只在通过时写非空句子）。
+		Definition: "`approve_note` varchar(255) DEFAULT NULL",
+	},
 }
 
 // Additions 返回补列清单的副本（供测试与文档断言，不允许调用方改内部状态）。

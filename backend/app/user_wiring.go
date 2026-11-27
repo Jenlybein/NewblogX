@@ -110,6 +110,8 @@ func WireUser(infra *Infra) {
 
 	// ── auth 模块 ──
 	sessionRepo := authmysql.NewSessionRepo(infra.DB)
+	// loginConf 现在只服务「登录失败限流」：发码限流与验证码有效期都跟着各自的
+	// 通道段走（mail / sms），site.login 只剩密码登录开关与登录失败计数（票 票 481）。
 	loginConf := func() siteconf.Login { return infra.RuntimeSite.GetRuntimeLogin() }
 
 	authSvc = authapp.New(
@@ -132,18 +134,16 @@ func WireUser(infra *Infra) {
 			mailer:       mail.New(),
 			mailConf:     func() conf.Mail { return infra.RuntimeSite.GetRuntimeMail() },
 			redisOptions: redisOptions,
-			loginConf:    loginConf,
 			logger:       infra.Logger,
 		}),
-		// QQ 配置每次现读：后台改 AppID / 回调地址后立刻生效，不用重启。
+		// QQ 配置每次现读：后台改 AppID / 回调地址 / 开关后立刻生效，不用重启。
 		authapp.WithOAuth(qqBridge{conf: func() conf.QQ { return infra.RuntimeSite.GetRuntimeOAuth() }}),
-		// 短信同理：密钥、签名、模板都走运行时配置，后台改完即时生效。
+		// 短信同理：密钥、签名、模板、开关与发码限流都走运行时配置，后台改完即时生效。
 		authapp.WithSmsCodes(&smsCodeBridge{
-			sender:    sms.New(),
-			conf:      func() conf.SMS { return infra.RuntimeSite.GetRuntimeSMS() },
-			loginConf: loginConf,
-			redis:     redisOptions,
-			logger:    infra.Logger,
+			sender: sms.New(),
+			conf:   func() conf.SMS { return infra.RuntimeSite.GetRuntimeSMS() },
+			redis:  redisOptions,
+			logger: infra.Logger,
 		}),
 	)
 
@@ -316,12 +316,14 @@ func (b *directoryBridge) BindPhone(ctx context.Context, userID uint64, phone st
 // 永远收不到信，还会拿着一个没有对应记录的空 id 去提交（2026-10-31 线上事故：
 // 读者站注册表单误传了 2=重置密码）。代价是这个公开接口能被用来探测某个邮箱
 // 是否已注册，这是刻意接受的取舍，见 docs/adr/0014。
+//
+// 开关、验证码有效期、发码限流全部取自邮件段（conf.Mail，票 票 481）：
+// 它们与"怎么把信发出去"服务同一条通道，所以只有一个来源。
 type emailCodeBridge struct {
 	users        userdomain.Repository
 	mailer       *mail.Service
 	mailConf     func() conf.Mail
 	redisOptions redis_service.Options
-	loginConf    func() siteconf.Login
 	logger       *logrus.Logger
 }
 
@@ -353,19 +355,19 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 
 	// 频控放在状态校验之后：被拒的请求（比如拿已注册的邮箱去注册）不该
 	// 顺手烧掉同一邮箱的发码额度，否则用户按提示换个入口重试会被无谓地挡住。
-	lc := b.loginConf()
-	if !redis_user.AllowEmailSend(b.redisOptions, lc, email, ip, kind) {
+	mailConf := b.mailConf()
+	if !redis_user.AllowEmailSend(b.redisOptions, mailConf, email, ip, kind) {
 		return "", apperr.New(apperr.CodeUserMailTooFrequent)
 	}
 
-	timeout := lc.EmailCodeTimeout
+	timeout := mailConf.EmailCodeTimeout
 	if timeout <= 0 {
 		timeout = 5
 	}
 	code := base64Captcha.RandText(4, "0123456789")
 
 	// 四种场景共用同一个 SES 模板，靠 action 变量区分文案。
-	if err := b.mailer.SendCode(ctx, b.mailConf(), email, mail.Kind(kind), code, timeout); err != nil {
+	if err := b.mailer.SendCode(ctx, mailConf, email, mail.Kind(kind), code, timeout); err != nil {
 		if b.logger != nil {
 			b.logger.Errorf("邮件发送失败: to=%s err=%v", email, err)
 		}
@@ -403,12 +405,14 @@ func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, e
 // 与 emailCodeBridge 的分工差别：邮件验证码由我们生成并存在 Redis（校验在
 // 中间件里一次性消费），短信验证码由阿里云生成、也只能由阿里云核验，
 // 所以这里同时提供 Send 与 Check 两个动作。
+//
+// 发送参数（密钥、签名、模板、验证码有效期、发码限流）全部取自短信段
+// （conf.SMS，票 票 481）：同一条通道只认一个来源。
 type smsCodeBridge struct {
-	sender    sms.Sender
-	conf      func() conf.SMS
-	loginConf func() siteconf.Login
-	redis     redis_service.Options
-	logger    *logrus.Logger
+	sender sms.Sender
+	conf   func() conf.SMS
+	redis  redis_service.Options
+	logger *logrus.Logger
 }
 
 var _ authapp.SmsCodes = (*smsCodeBridge)(nil)
@@ -421,19 +425,18 @@ func (b *smsCodeBridge) Send(ctx context.Context, kind int8, phone, ip string) e
 		return err
 	}
 
-	lc := b.loginConf()
-	if !redis_user.AllowSmsSend(b.redis, lc, phone, ip, kind) {
+	smsConf := b.conf()
+	if !redis_user.AllowSmsSend(b.redis, smsConf, phone, ip, kind) {
 		return apperr.New(apperr.CodeUserSmsTooFrequent)
 	}
 
-	timeout := lc.SmsCodeTimeout
+	timeout := smsConf.SmsCodeTimeout
 	if timeout <= 0 {
 		timeout = 5
 	}
 	// 重发间隔与限流窗口取同一个值：两边不一致时用户会「我们放行、平台拒绝」。
-	interval := lc.SmsSendWindowSecond
-	conf := b.conf()
-	if err := b.sender.Send(ctx, conf, phone, sms.Kind(kind), timeout, interval); err != nil {
+	interval := smsConf.SmsSendWindowSecond
+	if err := b.sender.Send(ctx, smsConf, phone, sms.Kind(kind), timeout, interval); err != nil {
 		if b.logger != nil {
 			// 只记打码后的号码：日志会被收集，不能把完整手机号写进去。
 			//
@@ -441,7 +444,7 @@ func (b *smsCodeBridge) Send(ctx context.Context, kind int8, phone, ip string) e
 			// 这句人话，阿里云返回的 code / message（签名未审核、模板不存在、余额不足…）
 			// 全在被包装的 cause 里。只打 err 的话，运维只能看到一个没有信息量的错误。
 			b.logger.Errorf("短信发送失败: phone=%s sign=%s template=%s cause=%v err=%v",
-				userdomain.MaskPhone(phone), conf.SignName, conf.TemplateCode, errors.Unwrap(err), err)
+				userdomain.MaskPhone(phone), smsConf.SignName, smsConf.TemplateCode, errors.Unwrap(err), err)
 		}
 		// "没配凭证"必须原样带给管理员：统一改写成"发送失败，请稍后重试"会让
 		// 他对着一个永远失败、却看不出该去配什么的提示反复重试。
@@ -459,6 +462,10 @@ func (b *smsCodeBridge) Check(ctx context.Context, phone, code string) (bool, er
 }
 
 // policyBridge 实现 authhttp.LoginPolicy。
+//
+// 每个开关都取自它所属的那一段（票 票 481）：密码登录在 site.login，
+// 邮箱登录/注册在 mail，手机号登录在 sms，QQ 登录在 oauth ——
+// 一次登录方式是否可用，只由那条通道自己的段说了算。
 type policyBridge struct {
 	site *sitecfg.RuntimeConfigService
 }
@@ -470,7 +477,7 @@ func (p *policyBridge) PasswordEnabled() bool {
 
 // EmailEnabled 是否启用邮箱登录。
 func (p *policyBridge) EmailEnabled() bool {
-	return p.site != nil && p.site.GetRuntimeLogin().EmailLogin
+	return p.site != nil && p.site.GetRuntimeMail().EmailLogin
 }
 
 // EmailRegisterEnabled 是否启用邮箱注册。
@@ -478,17 +485,17 @@ func (p *policyBridge) EmailEnabled() bool {
 // 与 EmailEnabled 分开：注册与登录是两件事，而绑定邮箱要用发码接口。
 // 只用一个开关时，"关掉邮箱注册"会连带把"给已注册用户发绑定验证码"一起关掉。
 func (p *policyBridge) EmailRegisterEnabled() bool {
-	return p.site != nil && p.site.GetRuntimeLogin().EmailRegister
+	return p.site != nil && p.site.GetRuntimeMail().EmailRegister
 }
 
 // PhoneEnabled 是否启用手机号 + 短信验证码登录。
 func (p *policyBridge) PhoneEnabled() bool {
-	return p.site != nil && p.site.GetRuntimeLogin().PhoneLogin
+	return p.site != nil && p.site.GetRuntimeSMS().PhoneLogin
 }
 
 // QQEnabled 是否启用 QQ 登录。
 func (p *policyBridge) QQEnabled() bool {
-	return p.site != nil && p.site.GetRuntimeLogin().QQLogin
+	return p.site != nil && p.site.GetRuntimeOAuth().QQLogin
 }
 
 // loginEmitter 实现 authhttp.LoginEmitter。

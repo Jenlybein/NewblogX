@@ -11,12 +11,23 @@ import {
 } from '~/services/admin'
 import type { SearchArticleItem } from '~/types/api'
 import { resolveArticleCoverSrc } from '~/utils/articleCover'
-import { isAdminHidden, isPendingReview, publishLabel, visibilityLabel } from '~/utils/articleLabels'
+import { PUBLISH_PUBLISHED, isAdminHidden, isPendingReview, publishLabel, visibilityLabel } from '~/utils/articleLabels'
 import { formatDateTime } from '~/utils/format'
 import { HOT_TOP_LIMIT, hotTopIds } from '~/utils/hotTop'
+import ForceDemoteModal from '~/components/articles/ForceDemoteModal.vue'
 
 const message = useMessage()
 const dialog = useDialog()
+
+// 「强制退回草稿」（票 票 481）：运营纠错用的那一个动作。列表里放入口是因为
+// 出问题的时候运营就在这张表里找文章 —— 让他在别处改状态是把动作藏起来。
+const demoteTarget = ref<{ id: string, title: string } | null>(null)
+const demoteVisible = ref(false)
+
+function openForceDemote(row: SearchArticleItem) {
+  demoteTarget.value = { id: row.id, title: row.title }
+  demoteVisible.value = true
+}
 const loading = ref(false)
 const key = ref('')
 const page = ref(1)
@@ -166,6 +177,19 @@ const columns = [
                 },
                 { default: () => (isAdminHidden(row.visibility_status) ? '恢复' : '隐藏') },
               ),
+          // 只对「已发布」的文章露出来：草稿 / 已拒文章本来就不该在公开面，
+          // 退回草稿对它们是空操作，摆出来只会让运营以为自己没点中。
+          row.publish_status === PUBLISH_PUBLISHED
+            ? h(
+                NButton,
+                {
+                  size: 'small',
+                  tertiary: true,
+                  onClick: () => openForceDemote(row),
+                },
+                { default: () => '退回草稿' },
+              )
+            : null,
           h(
             NButton,
             {
@@ -293,5 +317,15 @@ onMounted(() => {
         :bordered="false"
       />
     </NCard>
+
+    <ForceDemoteModal
+      v-if="demoteTarget"
+      v-model:show="demoteVisible"
+      :article-id="demoteTarget.id"
+      :article-title="demoteTarget.title"
+      @done="refresh"
+    />
   </NSpace>
 </template>
+
+

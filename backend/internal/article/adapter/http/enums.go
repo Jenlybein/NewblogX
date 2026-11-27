@@ -66,9 +66,14 @@ const (
 	// 单列一个来源：复盘时要能一眼分清"人拒的"与"系统拒的"。
 	ReviewTaskSourceCompliance ReviewTaskSource = "compliance"
 	// 票 302 新规则：同步风险扫描直接拒、模型判存疑转人工、模型判定失败转人工。
-	ReviewTaskSourceRiskCheck   ReviewTaskSource = "risk_check"
+	ReviewTaskSourceRiskCheck    ReviewTaskSource = "risk_check"
 	ReviewTaskSourceModelSuspect ReviewTaskSource = "model_suspect"
 	ReviewTaskSourceModelFailure ReviewTaskSource = "model_failure"
+	// ReviewTaskSourceForceDemote 是管理员强制退回草稿（运营纠错）。
+	//
+	// 只作为**读响应**里可能出现的值，不出现在任何入参枚举里（请求没有 source 字段），
+	// 所以本文件与契约都不需要它的 oneof / enums 注解。
+	ReviewTaskSourceForceDemote ReviewTaskSource = "force_demote"
 )
 
 // ReviewTaskSort 是审核队列的排序口径（票 311）。

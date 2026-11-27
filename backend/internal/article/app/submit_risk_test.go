@@ -182,7 +182,7 @@ func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 		Build()
 	repos.FakeArticles().Seed(a)
 
-	if err := svc.PublishForCompliance(ctx, a.ID()); err != nil {
+	if err := svc.PublishForCompliance(ctx, a.ID(), true); err != nil {
 		t.Fatalf("放行失败: %v", err)
 	}
 	stored, _ := repos.FakeArticles().Find(ctx, a.ID())
@@ -190,7 +190,7 @@ func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 		t.Fatalf("放行后应 visible 且对读者可见，实际 %s", stored.Visibility())
 	}
 	// 幂等：重复投递不报错。
-	if err := svc.PublishForCompliance(ctx, a.ID()); err != nil {
+	if err := svc.PublishForCompliance(ctx, a.ID(), true); err != nil {
 		t.Fatalf("幂等重投不该报错: %v", err)
 	}
 }
@@ -369,3 +369,4 @@ func TestAuthorCannotPublishPendingReviewByHand(t *testing.T) {
 		t.Fatal("管理员也不该用改可见性接口绕过模型判定（应走审核通过）")
 	}
 }
+

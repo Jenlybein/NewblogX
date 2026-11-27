@@ -123,20 +123,23 @@ func TestDecodeSection_段缺失时整段用默认值(t *testing.T) {
 
 func TestDecodeSection_嵌套结构逐字段合并(t *testing.T) {
 	// conf.Site 是 8 段嵌套 + 数组，是最容易"整段退化成零值"的地方。
-	defaults := conf.Site{Login: siteconf.Login{EmailCodeTimeout: 10}}
+	// 样本取 site.login 剩下的四个字段：通道开关已迁走（票 票 481），
+	// 但只要"载荷里出现的字段覆盖、没出现的字段保留默认值"这条不变，
+	// 逐字段合并就是成立的。
+	defaults := conf.Site{Login: siteconf.Login{UsernamePwdLogin: true, LoginFailWindowMinute: 15}}
 	payloads := map[string]string{
-		SectionSite: `{"login":{"qq_login":true}}`,
+		SectionSite: `{"login":{"username_pwd_login":false}}`,
 	}
 
 	got, err := decodeSection(SectionSite, defaults, payloads)
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
-	if !got.Login.QQLogin {
-		t.Fatal("载荷里的 qq_login 应生效")
+	if got.Login.UsernamePwdLogin {
+		t.Fatal("载荷里的 username_pwd_login 应生效（false）")
 	}
-	if got.Login.EmailCodeTimeout != 10 {
-		t.Fatalf("同段内未提及的字段应保留默认值 10，实际 %d", got.Login.EmailCodeTimeout)
+	if got.Login.LoginFailWindowMinute != 15 {
+		t.Fatalf("同段内未提及的字段应保留默认值 15，实际 %d", got.Login.LoginFailWindowMinute)
 	}
 }
 

@@ -721,8 +721,10 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 		sortBy = app.ReviewSortRisk
 	}
 
+	// 闸门配置快照随列表一起给用例层：条目要带「当前分数 + 放行线」，
+	// 而 app 层不读配置（与提交链路同一条口径，见 h.qualityGate）。
 	tasks, total, err := h.svc.ListReviewTasks(c.Request.Context(), h.viewerOf(c), status, sortBy,
-		domain.Page{Offset: pageOffset(cr.Page, cr.Limit), Limit: cr.Limit})
+		h.qualityGate(), domain.Page{Offset: pageOffset(cr.Page, cr.Limit), Limit: cr.Limit})
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -775,7 +777,7 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 	// 驳回原因的校验在用例层（app.reviewReason）：这里再挡一次没有额外收益，
 	// 只会让"哪些值算合法"多一处手抄的清单。用例层在开事务之前就返回错误码，
 	// 所以空原因同样进不了事务。
-	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uri.ID, approve, cr.ReasonCode, cr.Reason); err != nil {
+	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uri.ID, approve, cr.ReasonCode, cr.Reason, h.qualityGate()); err != nil {
 		h.fail(c, err)
 		return
 	}
@@ -799,7 +801,7 @@ func (h *Handler) BatchHandleReviewTasks(c *gin.Context) {
 
 	approve := cr.Status == ArticleStatusPublished
 	result, err := h.svc.BatchHandleReviewTasks(
-		c.Request.Context(), h.viewerOf(c), cr.IDs, approve, cr.ReasonCode, cr.Reason)
+		c.Request.Context(), h.viewerOf(c), cr.IDs, approve, cr.ReasonCode, cr.Reason, h.qualityGate())
 	if err != nil {
 		h.fail(c, err)
 		return

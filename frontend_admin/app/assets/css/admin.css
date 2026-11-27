@@ -40,8 +40,42 @@
 }
 
 @layer components {
+  /*
+   * 后台外壳固定一屏高，左右两栏各自滚动（票 票 481）。
+   *
+   * 以前这里是 `min-height: 100vh`：外壳高度不受限，sider 被 flex 拉到整行文档高度，
+   * 于是"左栏的滚动位置"其实就是 window 的 scrollTop，而每次路由切换 Nuxt 都会把
+   * window 滚回顶部 —— 菜单一长，点一次就要重新滚一遍才能看到刚点的位置。
+   *
+   * 现在把高度钉死在一屏，左栏用 naive 自己的滚动容器、内容区用下面的 flex 布局：
+   * 左栏的滚动位置与内容区彻底解耦，切页时内容区回顶部而左栏纹丝不动。
+   */
   .admin-shell {
+    height: 100vh;
     min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /*
+   * 右侧：页头固定、内容区自己滚。
+   *
+   * naive 的 NLayout 内部是 `.n-layout-scroll-container` 一层，所以 flex 要落在它身上；
+   * 内容区必须 `min-height: 0`，否则 flex 子项按内容高度撑开、永远滚不起来。
+   */
+  .admin-main-layout .n-layout-scroll-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .admin-main-layout .n-layout-header {
+    flex: 0 0 auto;
+  }
+
+  .admin-main-layout .n-layout-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   /* 后台不做玻璃（ADR-0011 约束 6：密集信息面以对比度为先）。侧栏是不透明纸面。 */

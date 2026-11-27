@@ -411,3 +411,4 @@ type ActivityPort interface {
 	// 新用户从来没创作过，这是正常状态。
 	DailyActivity(ctx context.Context, userID domain.UserID, days int) (map[string]int, error)
 }
+

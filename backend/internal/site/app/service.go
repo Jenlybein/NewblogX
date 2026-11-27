@@ -38,6 +38,34 @@ type AIInfo struct {
 	Abstract string
 }
 
+// LoginCapabilities 是读者站「能用哪些登录方式 + 哪些入口要图形验证码」的公开快照。
+//
+// 为什么需要它（票 票 481）：这九个布尔位原本搭着公开读的 site 段一起发给读者站，
+// 而它们已经按通道分散在 site.login / mail / sms / oauth / captcha 五段里 ——
+// 邮件与短信段带密钥，只能后台读。读者站要回答的其实只有两个问题：
+// "这个登录入口画不画"与"这个表单要不要渲染验证码框"，所以由后端把这五段现读
+// 一遍、只挑布尔位拼成一份不含任何凭据的形状。
+type LoginCapabilities struct {
+	LoginMethods    LoginMethodSwitches
+	CaptchaRequired CaptchaGates
+}
+
+// LoginMethodSwitches 是四条登录通道的开关。
+type LoginMethodSwitches struct {
+	UsernamePwd bool
+	Email       bool
+	Phone       bool
+	QQ          bool
+}
+
+// CaptchaGates 是四个入口的图形验证码闸门（**生效值**：已与总开关合取）。
+type CaptchaGates struct {
+	Login       bool
+	EmailVerify bool
+	PhoneVerify bool
+	Register    bool
+}
+
 // Service 是站点服务。
 type Service struct {
 	banners domain.BannerRepository
@@ -116,6 +144,42 @@ func (s *Service) PublicSEO() SEO {
 func (s *Service) PublicAI() AIInfo {
 	ai := s.runtime.AI()
 	return AIInfo{Enable: ai.Enable, Nickname: ai.Nickname, Avatar: ai.Avatar, Abstract: ai.Abstract}
+}
+
+// LoginCapabilities 返回登录方式与验证码闸门的公开快照（每次现读，不缓存）。
+//
+// 五个段各读一次：后台保存后下一次请求就该是新值，缓存住会让"刚关掉邮箱登录、
+// 读者站还在显示入口"这种状态持续到重启。
+func (s *Service) LoginCapabilities() LoginCapabilities {
+	login := s.runtime.Site().Login
+	mailConf := s.runtime.Mail()
+	smsConf := s.runtime.SMS()
+	oauthConf := s.runtime.OAuth()
+	captchaConf := s.runtime.Captcha()
+
+	// 闸门按总开关合取，而不是把总开关单独发给前端。
+	// 读者站唯一要回答的问题是"这个表单画不画验证码框"；给出两个开关等于让每个
+	// 调用点自己再与一次，漏一处就会渲染出一个永远不被校验的输入框
+	// （用户填了不报错、看起来像验证码失效）。
+	gates := CaptchaGates{}
+	if captchaConf.Captcha {
+		gates = CaptchaGates{
+			Login:       captchaConf.CaptchaLogin,
+			EmailVerify: captchaConf.CaptchaEmailVerify,
+			PhoneVerify: captchaConf.CaptchaPhoneVerify,
+			Register:    captchaConf.CaptchaRegister,
+		}
+	}
+
+	return LoginCapabilities{
+		LoginMethods: LoginMethodSwitches{
+			UsernamePwd: login.UsernamePwdLogin,
+			Email:       mailConf.EmailLogin,
+			Phone:       smsConf.PhoneLogin,
+			QQ:          oauthConf.QQLogin,
+		},
+		CaptchaRequired: gates,
+	}
 }
 
 // ── 管理端配置 ──────────────────────────────────────────────────

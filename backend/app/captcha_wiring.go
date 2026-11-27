@@ -29,16 +29,16 @@ type captchaSettings struct {
 	site *sitecfg.RuntimeConfigService
 }
 
-// CaptchaEnabled 读总开关（site.login.captcha）。
+// CaptchaEnabled 读总开关（captcha 段的 captcha 键，票 票 481 从 site.login 迁入）。
 // 配置服务缺失时按"关闭"处理，与旧实现的 nil 判断一致。
 func (s captchaSettings) CaptchaEnabled() bool {
 	if s.site == nil {
 		return false
 	}
-	return s.site.GetRuntimeLogin().Captcha
+	return s.site.GetRuntimeCaptcha().Captcha
 }
 
-// CaptchaConfig 读第 12 段的图形与时效参数。
+// CaptchaConfig 读 captcha 段的图形与时效参数。
 //
 // 每次现读：后台保存后立刻生效，请求路径不做"重建驱动"的缓存。
 func (s captchaSettings) CaptchaConfig() conf.Captcha {

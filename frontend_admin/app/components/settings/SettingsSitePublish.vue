@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 发布与审核：发布/展示开关、审核开关、投稿配额、质量闸门（ADR-0029 拆页后的第三页）。
+// 文章发布：发布/展示开关、审核开关、投稿配额、质量闸门（ADR-0029 拆页后的第三页）。
 //
 // 词表（阻断级 / 观察级）已随「文章词表机审退场」摘除（票 401 / ADR-0032 决策 1）：
 // 命中词在落库前被全站内容过滤替换成 `*`，词表只归「站点 → 内容过滤」一页维护。
@@ -54,7 +54,7 @@ async function load() {
     submitDailyMax.value = config.value.article?.submit_daily_max ?? 15
     loaded.value = true
   } catch {
-    message.error('发布与审核配置加载失败')
+    message.error('文章发布配置加载失败')
   } finally {
     loading.value = false
   }
@@ -71,7 +71,7 @@ async function save() {
     const latest = await getSiteRuntimeConfig()
     const merged = applySiteSectionPatch(latest, config.value, OWNED_BLOCKS)
     await updateSiteRuntimeConfig(merged)
-    message.success('发布与审核配置已保存')
+    message.success('文章发布配置已保存')
   } catch {
     message.error('保存失败')
   } finally {
@@ -163,8 +163,9 @@ onMounted(load)
         </NFormItem>
       </NCard>
 
-      <NButton type="primary" :loading="saving" @click="save">保存发布与审核配置</NButton>
+      <NButton type="primary" :loading="saving" @click="save">保存文章发布配置</NButton>
     </NForm>
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
   </div>
 </template>
+

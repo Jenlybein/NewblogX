@@ -133,8 +133,13 @@ type ArticleReviewTaskRow struct {
 	Source               article_review_enum.Source `gorm:"type:varchar(16);not null" json:"source"`
 	Status               article_review_enum.Status `gorm:"type:varchar(16);not null;default:'pending';index" json:"status"`
 	Reason               string                     `gorm:"size:500" json:"reason"`
-	ReviewedAt           *time.Time                 `json:"reviewed_at"`
-	ReviewedBy           *ctype.ID                  `gorm:"index" json:"reviewed_by"`
+	// ApproveNote 是管理员放行留痕（"管理员以 X 分放行（放行线 Y 分）"）。
+	//
+	// 与 reason 分列：reason 只承载驳回原因，通过时必须为空；放行备注是
+	// "这次通过豁免了质量闸门"的独立事实，复盘与前端展示都要能单独取它。
+	ApproveNote string     `gorm:"size:255" json:"approve_note"`
+	ReviewedAt  *time.Time `json:"reviewed_at"`
+	ReviewedBy  *ctype.ID  `gorm:"index" json:"reviewed_by"`
 }
 
 // TableName 固定表名。

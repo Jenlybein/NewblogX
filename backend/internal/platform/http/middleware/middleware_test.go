@@ -3,7 +3,6 @@ package middleware_test
 import (
 	"encoding/json"
 	"myblogx/conf"
-	confsite "myblogx/conf/site"
 	"myblogx/internal/kernel/enum"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/middleware"
@@ -98,7 +97,7 @@ func testRedisOptions() redis_service.Options {
 	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
-func newMiddlewareRuntime(t *testing.T, site conf.Site) middleware.Runtime {
+func newMiddlewareRuntime(t *testing.T, defaults conf.RuntimeDefaults) middleware.Runtime {
 	t.Helper()
 	baseCfg := testutil.Config()
 	// testutil.DB() 只有一个槽位，同一用例里可能多次建引擎，而运行时配置表
@@ -107,8 +106,10 @@ func newMiddlewareRuntime(t *testing.T, site conf.Site) middleware.Runtime {
 	if err := testutil.DB().Unscoped().Where("1 = 1").Delete(&schema.RuntimeConfigRow{}).Error; err != nil {
 		t.Fatalf("清空运行时配置失败: %v", err)
 	}
+	// 日志默认值属于进程级配置，从这里补；其余段由用例自己给。
+	defaults.Log = baseCfg.Log
 	runtimeSvc := sitecfg.NewRuntimeConfigService(
-		conf.RuntimeDefaults{Log: baseCfg.Log, Site: site},
+		defaults,
 		testutil.Logger(),
 		testutil.DB(),
 	)
@@ -130,16 +131,17 @@ func newMiddlewareRuntime(t *testing.T, site conf.Site) middleware.Runtime {
 }
 
 func newMiddlewareEngine(t *testing.T) *gin.Engine {
-	return newMiddlewareEngineWithSite(t, conf.Site{})
+	return newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{})
 }
 
-// newMiddlewareEngineWithSite 造一个把站点段灌进运行时配置表的引擎。
+// newMiddlewareEngineWithSite 造一个把给定段灌进运行时配置表的引擎。
 //
-// 站点配置（含登录验证码开关）已经是运行时配置，不再来自 conf.Config，
-// 所以"验证码开着"这类场景只能从默认值注入。
-func newMiddlewareEngineWithSite(t *testing.T, site conf.Site) *gin.Engine {
+// 站点配置与验证码开关都已经在运行时配置里（不再来自 conf.Config），
+// 所以"验证码开着"这类场景只能从默认值注入。参数是整包默认值而不是单个段：
+// 验证码的五个开关在 captcha 段（票 票 481 从 site.login 迁入），站点段里没有它们了。
+func newMiddlewareEngineWithSite(t *testing.T, defaults conf.RuntimeDefaults) *gin.Engine {
 	t.Helper()
-	runtimeMw := newMiddlewareRuntime(t, site)
+	runtimeMw := newMiddlewareRuntime(t, defaults)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -299,7 +301,7 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 		}
 	}
 
-	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true, CaptchaLogin: true}})
+	r = newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{Captcha: true, CaptchaLogin: true}})
 	registerCaptchaEmailRoutes(r)
 	_ = testutil.ImageCaptchaStore().Set("cid", "1234")
 	{
@@ -398,7 +400,7 @@ func postCaptchaGate(t *testing.T, r *gin.Engine, path, body string) *httptest.R
 // 而屏幕上没有任何东西说明为什么。
 func TestCaptchaGateAllScopesOpenWhenMasterSwitchOff(t *testing.T) {
 	setupAuthEnv(t)
-	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+	r := newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{
 		Captcha:            false,
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
@@ -428,7 +430,7 @@ func TestCaptchaGateAllScopesOpenWhenMasterSwitchOff(t *testing.T) {
 // 这里断言的是 1001 而不是 HTTP 400。
 func TestCaptchaGateRejectsMissingCaptchaWhenSwitchesOn(t *testing.T) {
 	setupAuthEnv(t)
-	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+	r := newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{
 		Captcha:            true,
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
@@ -465,7 +467,7 @@ func TestCaptchaGateRejectsMissingCaptchaWhenSwitchesOn(t *testing.T) {
 // 那正是这次把开关拆成三个闸门要解决的问题。
 func TestCaptchaGateSkipsWhenScopeGateOff(t *testing.T) {
 	setupAuthEnv(t)
-	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+	r := newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{
 		Captcha:            true,
 		CaptchaLogin:       false,
 		CaptchaEmailVerify: false,
@@ -488,7 +490,7 @@ func TestCaptchaGateSkipsWhenScopeGateOff(t *testing.T) {
 // 400，而错误信息完全不指向挂载点。
 func TestCaptchaGateUnknownScopePasses(t *testing.T) {
 	setupAuthEnv(t)
-	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+	r := newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{
 		Captcha:            true,
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: true,
@@ -510,7 +512,7 @@ func TestCaptchaGateUnknownScopePasses(t *testing.T) {
 // 任一个开就全开），运营对发码限流的调整会连带改变登录页的体验，而没人能预测。
 func TestCaptchaGateScopesAreIndependent(t *testing.T) {
 	setupAuthEnv(t)
-	r := newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{
+	r := newMiddlewareEngineWithSite(t, conf.RuntimeDefaults{Captcha: conf.Captcha{
 		Captcha:            true,
 		CaptchaLogin:       true,
 		CaptchaEmailVerify: false,

@@ -121,7 +121,10 @@ func (s *RuntimeConfigService) GetRuntimeSite() conf.Site {
 	return s.GetRuntimeConfig().Site
 }
 
-// GetRuntimeLogin 返回登录方式开关。
+// GetRuntimeLogin 返回登录策略：密码登录开关与登录失败限流。
+//
+// 只剩这两件事（票 票 481）：通道开关与发码参数各自由 GetRuntimeMail /
+// GetRuntimeSMS / GetRuntimeOAuth / GetRuntimeCaptcha 给出。
 func (s *RuntimeConfigService) GetRuntimeLogin() siteconf.Login {
 	return s.GetRuntimeSite().Login
 }

@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS `article_review_task_models` (
   `source` varchar(16) NOT NULL,
   `status` varchar(16) NOT NULL DEFAULT 'pending',
   `reason` varchar(500) DEFAULT NULL,
+  `approve_note` varchar(255) DEFAULT NULL,
   `reviewed_at` datetime(3) DEFAULT NULL,
   `reviewed_by` bigint unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),

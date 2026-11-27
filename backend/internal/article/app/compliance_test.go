@@ -91,7 +91,7 @@ func TestListReviewTasksDistinguishesUncheckedFromClean(t *testing.T) {
 		t.Fatalf("写入干净结论失败: %v", err)
 	}
 
-	views, _, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 50})
+	views, _, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, testQualityGate(), domain.Page{Limit: 50})
 	if err != nil {
 		t.Fatalf("列表失败: %v", err)
 	}

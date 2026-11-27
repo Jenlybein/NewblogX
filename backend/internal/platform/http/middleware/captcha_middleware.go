@@ -3,7 +3,7 @@ package middleware
 import (
 	"strings"
 
-	confsite "myblogx/conf/site"
+	"myblogx/conf"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/io_util"
@@ -34,9 +34,14 @@ type CaptchaMiddlewareRequest struct {
 
 // CaptchaGate 按入口返回校验中间件。
 //
-// 是否真的校验由两件事合起来决定：总开关 `site.login.captcha` 打开，且该入口自己的
+// 是否真的校验由两件事合起来决定：总开关 `captcha.captcha` 打开，且该入口自己的
 // 闸门打开。总开关关掉时所有入口都不校验（与旧行为一致），这样"先整体关、再逐条开"
 // 的迁移路径是通的。
+//
+// 五个开关都在 captcha 段（票 票 481 从 site.login 迁入）：验证码要不要拦、拦哪条
+// 入口，是验证码这个机制自己的属性。读者站仍然能知道这些闸门的**合成结果**
+// （GET /api/site/login_capabilities 的 captcha_required），只是不再靠公开整个
+// site 段拿到 —— 那一段现在只剩密码登录开关与登录失败限流。
 func CaptchaGate(scope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		runtimeFromContext(c).captchaGate(c, scope)
@@ -48,11 +53,11 @@ func (h Runtime) captchaGate(c *gin.Context, scope string) {
 	if h.RuntimeSite == nil {
 		return
 	}
-	login := h.RuntimeSite.GetRuntimeLogin()
-	if !login.Captcha {
+	captchaConf := h.RuntimeSite.GetRuntimeCaptcha()
+	if !captchaConf.Captcha {
 		return
 	}
-	if !captchaGateEnabled(login, scope) {
+	if !captchaGateEnabled(captchaConf, scope) {
 		return
 	}
 
@@ -77,16 +82,16 @@ func (h Runtime) captchaGate(c *gin.Context, scope string) {
 //
 // 未知 scope 一律不校验：写错挂载点时宁可少校验一次（会立刻被登录链路测出来），
 // 也不要把一个没登记的路由默认当成"要验证码"，那会让整条链路静默 400。
-func captchaGateEnabled(login confsite.Login, scope string) bool {
+func captchaGateEnabled(captchaConf conf.Captcha, scope string) bool {
 	switch scope {
 	case CaptchaScopeLogin:
-		return login.CaptchaLogin
+		return captchaConf.CaptchaLogin
 	case CaptchaScopeEmailVerify:
-		return login.CaptchaEmailVerify
+		return captchaConf.CaptchaEmailVerify
 	case CaptchaScopePhoneVerify:
-		return login.CaptchaPhoneVerify
+		return captchaConf.CaptchaPhoneVerify
 	case CaptchaScopeRegister:
-		return login.CaptchaRegister
+		return captchaConf.CaptchaRegister
 	}
 	return false
 }

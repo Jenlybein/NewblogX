@@ -467,7 +467,11 @@ func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) er
 //
 // 默认排序由仓储负责：提交时间升序（老投稿在前）。按风险排序时风险不在库里，
 // 需要先取整个筛选范围、在内存里排序后再按页码切片（见 ReviewSortRisk）。
-func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, status *review.Status, sortBy ReviewListSort, page domain.Page) ([]ReviewTaskView, int64, error) {
+//
+// gate 是本次请求的闸门配置快照：列表要把「当前分数 + 放行线」带给前端，
+// 放行确认框据此显示"当前 X 分（放行线 Y 分）"。分数取不到时是 nil（不是 0），
+// 放行线即便闸门关闭也照算——两者都只是**事实展示**，判定不在这里做。
+func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, status *review.Status, sortBy ReviewListSort, gate QualityGatePolicy, page domain.Page) ([]ReviewTaskView, int64, error) {
 	if !viewer.IsAdmin() {
 		return nil, 0, domain.ErrForbidden
 	}
@@ -502,6 +506,8 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 	}
 
 	out := make([]ReviewTaskView, 0, len(tasks))
+	// 放行线一条请求里只有一个值：它是配置的算出结果，与具体文章无关。
+	passLine := gate.PublishLine()
 	for _, task := range tasks {
 		// 没有评分记录时 facts 保持 nil：这一层不产生信号，不报错（票 311 验收标准 5）。
 		var facts *moderation.ScoreFacts
@@ -513,6 +519,10 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 			Task:       *task,
 			Risk:       moderation.Evaluate(facts),
 			Compliance: compliances[task.ArticleID()],
+			// 分数只在"有评分记录"时给指针：缺记录是 nil（取不到），
+			// 记录里是 0 分则给 &0——两者前端要分开显示。
+			QualityScore:     reviewTaskScore(scores, task.ArticleID()),
+			QualityPassScore: passLine,
 		})
 	}
 
@@ -606,7 +616,10 @@ func (s *Service) ReviewTaskContent(ctx context.Context, viewer domain.Viewer, t
 // 与 Examine 的区别：Examine 是按文章审核，这里是按任务审核（管理后台的队列视图）。
 // 两者最终都改文章状态，只是入口不同；"驳回必须选一条固定原因"由同一条规则把关
 // （reviewReason），所以两个入口不会一个能空着原因通过、另一个不行。
-func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, code review.ReasonCode, note string) (*domain.Article, error) {
+//
+// gate 是本次请求的闸门配置快照：通过时用它拼放行留痕（"管理员以 X 分放行
+// （放行线 Y 分）"）。管理员通过**豁免质量闸门**，但仍要留痕——豁免不等于没发生。
+func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, code review.ReasonCode, note string, gate QualityGatePolicy) (*domain.Article, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
@@ -632,10 +645,13 @@ func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, ta
 
 		now := s.clock.Now()
 		if approve {
+			// 留痕在状态判定之后才读分数：文章已被别人处理时不必白读一次评分。
+			// 读失败按"未知分数"降级，不让它挡住放行（见 approveNoteFor）。
+			approveNote := s.approveNoteFor(ctx, task.ArticleID(), gate)
 			if err := a.Approve(viewer.UserID, now); err != nil {
 				return err
 			}
-			if err := task.Approve(viewer.UserID, now); err != nil {
+			if err := task.Approve(viewer.UserID, approveNote, now); err != nil {
 				return err
 			}
 		} else {

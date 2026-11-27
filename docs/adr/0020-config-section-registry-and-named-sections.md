@@ -85,6 +85,7 @@
 
 本 ADR 的机制同样没有被推翻：段仍是一份注册表、仍全部具名进契约、仍「漏登记即测试失败」。变的只是段的数量。
 
-为什么另开一段而不是塞进 `site`：图片尺寸、字符集、有效期是**渲染参数**，读者没有必要知道；而 `site` 段有匿名可读的 `GET /site/site`，塞进去等于把运营参数发给所有访客（见 [ADR-0033](./0033-captcha-configurable-and-redis-store.md) 决策 1）。这也是把决策 3 的分法再用一次：`sms` 只放发送凭证、登录策略留在 `site.login`；`captcha` 只放渲染参数、图形验证码的总开关与四个入口闸门留在 `site.login`。
+为什么另开一段而不是塞进 `site`：图片尺寸、字符集、有效期是**渲染参数**，读者没有必要知道；而 `site` 段有匿名可读的 `GET /site/site`，塞进去等于把运营参数发给所有访客（见 [ADR-0033](./0033-captcha-configurable-and-redis-store.md) 决策 1）。决策 3 的分法在票 481 时又推进了一步：`sms` / `mail` / `oauth` / `captcha` 四段各自拥有自己那条通道的全部策略（凭据 + 开关 + 发码限流 / 闸门），`site.login` 只剩与通道无关的两件事（登录失败限流、`username_pwd_login`）。见 [ADR-0029](./0029-admin-nav-three-levels-and-site-split.md)。
 
-边界差异只有一条：`captcha` **没有**公开读端点，只有 `GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）；而它的总开关与四个闸门反而**必须**公开可读——它们留在 `site.login` 正是为了这个（`captcha_register` 只挂专门的注册路由 `POST /users/email/register`，手机号注册与登录共用 `/users/phone`，没有独立闸门）。与 `content_filter` 一起，十二段里有两段（`content_filter` / `captcha`）没有公开读。这也是一次「登记表多一行」的增补，不是对「自由键值块退场」的否定。
+边界差异只有一条：`captcha` **没有段级公开读**，只有 `GET /site/admin/captcha` 与 `PUT /site/captcha`（管理员）。票 481 起它的总开关与四个入口闸门也住在本段（原先在 `site.login`），读者站需要的四个布尔位由公开只读端点 `GET /api/site/login_capabilities` 提供（总开关已合取、不含参数与凭据）。与 `content_filter` 一起，十二段里有两段（`content_filter` / `captcha`）没有公开读。这也是一次「登记表多一行」的增补，不是对「自由键值块退场」的否定。
+

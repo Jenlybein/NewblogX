@@ -166,6 +166,12 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		id := ctype.NewID(by.Uint64())
 		item.ReviewedBy = &id
 	}
+	// 放行留痕单独出站：不要混进 reason，否则前端会把"越级放行"当成"驳回原因"。
+	item.ApproveNote = task.ApproveNote()
+	// 分数与放行线是列表视图里的两个事实：nil 分数照原样写 null（omitempty
+	// 让它整个字段消失），前端据此区分"还没有分数"与"0 分"。
+	item.QualityScore = t.QualityScore
+	item.QualityPassScore = t.QualityPassScore
 	item.RiskLevel = ReviewRiskLevel(t.Risk.Level)
 	// nil → []：契约里这是数组，空列表比 null 更好消费（前端不用再判空）。
 	labels := t.Risk.Labels()

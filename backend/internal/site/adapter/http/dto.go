@@ -93,6 +93,47 @@ type SEOResponse struct {
 	Description  string `json:"description"`
 }
 
+// LoginCapabilitiesResponse 是公开的「登录能力」形状（票 票 481）。
+//
+// 它替代了"读者站读公开 site 段拿登录开关"这条老路：那一段现在只剩密码登录开关
+// 与登录失败限流，邮箱/短信/QQ 开关与验证码闸门分散到各自带密钥的段里，
+// 只有后台能读。这个端点把它们现读一遍，只公开布尔位。
+//
+// 用具名嵌套结构体而不是 map：契约要靠它派生字段级类型
+// （docs/architecture/overview.md B2：注解里禁止 map[string]any）。
+type LoginCapabilitiesResponse struct {
+	LoginMethods    LoginMethodsResponse    `json:"login_methods"`
+	CaptchaRequired CaptchaRequiredResponse `json:"captcha_required"`
+}
+
+// LoginMethodsResponse 是四条登录通道的开关。
+type LoginMethodsResponse struct {
+	// UsernamePwd 对应 site.login.username_pwd_login。
+	UsernamePwd bool `json:"username_pwd"`
+	// Email 对应 mail.email_login。
+	Email bool `json:"email"`
+	// Phone 对应 sms.phone_login。
+	Phone bool `json:"phone"`
+	// QQ 对应 oauth.qq_login。
+	QQ bool `json:"qq"`
+}
+
+// CaptchaRequiredResponse 是四个入口的验证码闸门（**生效值**）。
+//
+// 已与 captcha.captcha 总开关合取：总开关关掉时四项一律 false。
+// 前端只需要"画不画输入框"这一个答案，再给一个总开关只会让每个调用点自己
+// 再与一次，漏一处就渲染出一个永远不被校验的框。
+type CaptchaRequiredResponse struct {
+	// Login 对应 captcha.captcha_login：密码 / 邮箱 / 手机号登录入口。
+	Login bool `json:"login"`
+	// EmailVerify 对应 captcha.captcha_email_verify：发邮箱验证码入口。
+	EmailVerify bool `json:"email_verify"`
+	// PhoneVerify 对应 captcha.captcha_phone_verify：发短信验证码入口。
+	PhoneVerify bool `json:"phone_verify"`
+	// Register 对应 captcha.captcha_register：注册专用入口。
+	Register bool `json:"register"`
+}
+
 // ── 右栏卡片 ───────────────────────────────────────────────────
 
 // SidebarCardItem 是读者侧一张右栏卡片的传输形状。

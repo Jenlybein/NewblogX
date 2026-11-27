@@ -40,63 +40,33 @@ type About struct {
 
 // 登录设置
 //
-// 这一节只放「登录策略」：哪种方式开放、验证码多久过期、发码限流多严。
-// 短信通道的密钥与模板不在这里（那些是机密，要加密落库、且 site 段有
-// 匿名可读的公开端点），见 conf.SMS 与运行时配置的 sms 段。
+// 这一节只剩「登录这件事本身」的两组策略：密码登录开关与登录失败限流。
+//
+// 其它字段都按**通道**搬回了各自的段（票 票 481）：
+//   - 邮箱登录/注册、验证码有效期、发码限流 → conf.Mail；
+//   - 手机号登录、验证码有效期、发码限流 → conf.SMS；
+//   - QQ 登录开关 → conf.QQ；
+//   - 图形验证码总开关与四个入口闸门 → conf.Captcha。
+//
+// 为什么按通道拆：字段留在 site.login 有三个讲不通的地方。
+//  1. site 段有**匿名可读**的公开端点（GET /api/site/site 直接返回整个 conf.Site），
+//     发码限流这类只关内部策略的参数跟着一起公开；
+//  2. 管理端是按段授权编辑的（「邮件」页只该改邮件段），字段在 site.login 时
+//     同一张「邮件」页改的数字要写进 site 段，谁生效取决于最后保存的是哪一页；
+//  3. 邮件、短信、第三方登录、验证码各自的通道属性（能不能用、多久过期、限流多严）
+//     本该只有一处事实源，混在 site 段里就出现了"改邮件要动站点配置"。
+//
+// 读者站需要的「能用哪些登录方式 + 哪些入口要验证码」改由公开只读端点
+// GET /api/site/login_capabilities 现读各段拼出来（它不含任何凭据）。
 type Login struct {
-	QQLogin          bool `yaml:"qq_login" json:"qq_login"`
+	// UsernamePwdLogin 是用户名密码登录开关。
 	UsernamePwdLogin bool `yaml:"username_pwd_login" json:"username_pwd_login"`
-	EmailLogin       bool `yaml:"email_login" json:"email_login"`
-	// EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
-	//
-	// 必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
-	// 只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
-	// 本项目的口径是「注册只走手机号」，所以它默认 false。
-	EmailRegister bool `yaml:"email_register" json:"email_register"`
-	// PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关。
-	PhoneLogin bool `yaml:"phone_login" json:"phone_login"`
-	// Captcha 是图形验证码的**总开关**。
-	//
-	// 它必须留在 site 段并保持公开可读：读者站要靠 GET /api/site/site 决定
-	// 每个登录/发码表单渲染不渲染验证码框，藏进后台专属段只会让所有表单
-	// 都渲染一个永远填不对的输入框。
-	//
-	// 图片尺寸、字符集、有效期这些**渲染参数**不在这里，见 conf.Captcha（第 12 段）。
-	Captcha bool `yaml:"captcha" json:"captcha"`
-	// 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
-	//
-	// 默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
-	// 需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
-	// 登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
-	//
-	// 它们也必须是公开可读的（渲染需要），所以留在 site 段而不是 captcha 段：
-	// 这就是 ADR-0020 决策 3 的分法 —— 策略留在 site.login，渲染参数进专属段。
-	CaptchaLogin       bool `yaml:"captcha_login" json:"captcha_login"`
-	CaptchaEmailVerify bool `yaml:"captcha_email_verify" json:"captcha_email_verify"`
-	CaptchaPhoneVerify bool `yaml:"captcha_phone_verify" json:"captcha_phone_verify"`
-	// CaptchaRegister 是「注册专用入口」的闸门。
-	//
-	// 它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
-	// 独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
-	// 分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
-	// （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
-	CaptchaRegister  bool `yaml:"captcha_register" json:"captcha_register"`
-	EmailCodeTimeout int  `yaml:"email_code_timeout" json:"email_code_timeout"` // 邮箱验证码有效期，单位：分钟
-	SmsCodeTimeout   int  `yaml:"sms_code_timeout" json:"sms_code_timeout"`     // 短信验证码有效期，单位：分钟
 
+	// 登录失败限流：这三项留在本段，因为它们描述的是"登录尝试"这件事，
+	// 与具体走哪条通道无关（密码、邮箱、手机号登录共用同一套失败计数）。
 	LoginFailWindowMinute int   `yaml:"login_fail_window_minute" json:"login_fail_window_minute"` // 登录失败统计窗口，单位：分钟
 	LoginFailUserMax      int64 `yaml:"login_fail_user_max" json:"login_fail_user_max"`           // 单账号窗口内最大失败次数
 	LoginFailIPMax        int64 `yaml:"login_fail_ip_max" json:"login_fail_ip_max"`               // 单IP窗口内最大失败次数
-
-	EmailSendWindowSecond int   `yaml:"email_send_window_second" json:"email_send_window_second"` // 邮件发送限流窗口，单位：秒
-	EmailSendPerEmailMax  int64 `yaml:"email_send_per_email_max" json:"email_send_per_email_max"` // 单邮箱窗口内最大发送次数
-	EmailSendPerIPMax     int64 `yaml:"email_send_per_ip_max" json:"email_send_per_ip_max"`       // 单IP窗口内最大发送次数
-
-	// 短信发送限流：与邮件那三个并列，因为它们是同一类策略。
-	// 分开计数（互不占用额度）：短信成本远高于邮件，且两条通道的滥用方式不同。
-	SmsSendWindowSecond int   `yaml:"sms_send_window_second" json:"sms_send_window_second"` // 短信发送限流窗口，单位：秒
-	SmsSendPerPhoneMax  int64 `yaml:"sms_send_per_phone_max" json:"sms_send_per_phone_max"` // 单手机号窗口内最大发送次数
-	SmsSendPerIPMax     int64 `yaml:"sms_send_per_ip_max" json:"sms_send_per_ip_max"`       // 单IP窗口内最大发送次数
 }
 
 type Article struct {

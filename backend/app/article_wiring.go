@@ -86,6 +86,12 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
 }
 
+// 管理员强制退回草稿的站内信走**发件箱**（票 481），不在这里同步发。
+//
+// 同步发过一次，留下一个真实的漏通知：事务提交后发信失败 → 用例把错误返给前端 →
+// 管理员重试时文章已是草稿、用例按"目的已达成"提前返回，通知再也发不出去。
+// 订阅者见 outbox_wiring.go 的 forceDemoteNoticeSubscriber。
+
 // articleTextFilterBridge 把内容过滤服务接成 article 模块的文章面端口（票 397）。
 //
 // 与评论面同构：文章模块的端口不带 surface（它只知道"这是我的标题 / 正文"），

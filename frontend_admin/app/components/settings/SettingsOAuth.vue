@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
+import { NAlert, NButton, NCard, NForm, NFormItem, NInput, NSwitch, useMessage } from 'naive-ui'
 import { getOAuthRuntimeConfig, updateOAuthRuntimeConfig } from '~/services/admin'
 import type { OAuthRuntimeConfig } from '~/types/api'
 
@@ -46,11 +46,17 @@ onMounted(load)
       先填着无妨，等入口上线即可用。
     </NAlert>
     <NAlert type="info" :bordered="false" class="mb-4">
-      填完这里之后，还要去「站点 → 登录策略」把「QQ 登录」开关打开。
-      两个开关是独立的：配置为空时打开开关，用户点登录会直接报错。
+      「QQ 登录」开关已搬回本页（票 票 481）：通道开关跟着通道走，配完密钥顺手就能开，
+      不必再跑到「站点配置 → 登录设置」。配置为空时打开开关，用户点登录会直接报错。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
+      <NCard class="admin-card mb-4" title="QQ 登录" size="small">
+        <NFormItem label="启用 QQ 登录">
+          <NSwitch v-model:value="config.qq_login" data-role="oauth-qq-login" />
+        </NFormItem>
+      </NCard>
+
       <NFormItem label="AppID">
         <NInput v-model:value="config.app_id" class="admin-field--key" placeholder="QQ 互联应用管理里的 APP ID" />
       </NFormItem>
@@ -70,3 +76,4 @@ onMounted(load)
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
   </div>
 </template>
+

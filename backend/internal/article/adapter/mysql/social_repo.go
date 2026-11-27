@@ -73,18 +73,18 @@ func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) 
 // 依赖一个"某条写路径忘了刷新"就长期撒谎的值（#344）。
 func (r *FavoriteRepo) ListFolders(ctx context.Context, q favorite.ListFoldersQuery) ([]*favorite.Folder, error) {
 	var rows []struct {
-		ID            ctype.ID
-		CreatedAt     time.Time
-		UpdatedAt     time.Time
-		UserID        ctype.ID
-		Title         string
-		Cover         string
-		Abstract      string
-		IsDefault     bool
-		ArticleCount  int
-		Nickname      string
-		Avatar        string
-		HasArticle    bool
+		ID           ctype.ID
+		CreatedAt    time.Time
+		UpdatedAt    time.Time
+		UserID       ctype.ID
+		Title        string
+		Cover        string
+		Abstract     string
+		IsDefault    bool
+		ArticleCount int
+		Nickname     string
+		Avatar       string
+		HasArticle   bool
 	}
 	// 公开读面（看别人的夹子或匿名）只数已发布文章：草稿/审核中的数量不该
 	// 透给访客，与收藏内容列表同一口径。
@@ -148,8 +148,6 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, q favorite.ListFoldersQu
 	}
 	return out, nil
 }
-
-
 
 // ExistsFolderTitle 判断名称重复。
 //
@@ -769,11 +767,12 @@ func (r *ReviewRepo) Update(ctx context.Context, t *review.Task) error {
 	tx := r.db.WithContext(ctx).Model(&reviewTaskRow{}).
 		Where("id = ?", m.ID).
 		Updates(map[string]any{
-			"status":      m.Status,
-			"reason":      m.Reason,
-			"reviewed_at": m.ReviewedAt,
-			"reviewed_by": m.ReviewedBy,
-			"stage":       m.Stage,
+			"status":       m.Status,
+			"reason":       m.Reason,
+			"approve_note": m.ApproveNote,
+			"reviewed_at":  m.ReviewedAt,
+			"reviewed_by":  m.ReviewedBy,
+			"stage":        m.Stage,
 		})
 	if tx.Error != nil {
 		return tx.Error
@@ -870,6 +869,7 @@ func toReviewRow(t *review.Task) *reviewTaskRow {
 		Source:               string(t.Source()),
 		Status:               string(t.Status()),
 		Reason:               t.Reason(),
+		ApproveNote:          t.ApproveNote(),
 		ReviewedAt:           t.ReviewedAt(),
 		ReviewedBy:           fromReviewerID(t.ReviewedBy()),
 	}
@@ -893,6 +893,7 @@ func toDomainTask(m reviewTaskRow) *review.Task {
 		Source:        review.Source(m.Source),
 		Status:        review.Status(m.Status),
 		Reason:        m.Reason,
+		ApproveNote:   m.ApproveNote,
 		ReviewedAt:    m.ReviewedAt,
 		ReviewedBy:    toReviewerID(m.ReviewedBy),
 		CreatedAt:     m.CreatedAt,

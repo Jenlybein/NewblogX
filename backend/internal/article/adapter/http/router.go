@@ -95,6 +95,11 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 管理员
 	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.RemoveBatch)
 	adminGroup.POST(":id/admin/:visibility", mw.BindUri[ArticleAdminVisibilityURI], h.AdminVisibility)
+	// 强制退回草稿（运营纠错）：撤回一篇**已经放行**的文章。与"改可见性"是两件事——
+	// 后者只改 visibility、文章仍是已发布，作者拿不回可编辑的落点；这里把文章复位成
+	// 草稿并通知作者。挂管理员分组，且与后台列表/详情两处按钮共用同一个端点。
+	adminGroup.POST(":id/force-demote", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ArticleForceDemoteRequest], h.ForceDemote)
 	// 热门置顶的运营动作：设置/取消（幂等）与整表排序。
 	adminGroup.GET("hot-top/admin", h.AdminHotTops)
 	adminGroup.POST(":id/admin/hot-top", mw.BindUri[kernel.IDRequest], h.SetHotTop)

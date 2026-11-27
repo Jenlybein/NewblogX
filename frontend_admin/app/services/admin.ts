@@ -8,6 +8,8 @@ import type {
   AdminSidebarCardsResponseData,
   SidebarCardsSavePayload,
   ActionAuditRecord,
+  ArticleForceDemoteRequest,
+  ArticleForceDemoteResponse,
   ArticleReviewBatchRequest,
   ArticleReviewBatchResponse,
   ArticleReviewHandleRequest,
@@ -163,6 +165,22 @@ export function reviewArticleTask(id: string, payload: ArticleReviewHandleReques
  * 与单条接口同一份后端用例：批量不是第二套规则。响应里的 `failed` 是**正常
  * 结局**——某条任务可能已被别人处理，不该让整批失败。
  */
+/**
+ * 管理员强制退回草稿（运营纠错，票 票 481）。
+ *
+ * 与「改可见性」是两件事：后者只改 visibility、文章仍是已发布，作者拿不回可编辑的落点；
+ * 这里把文章复位成草稿、作废待办任务、通知作者并留一条审核日志。
+ *
+ * 原因必填 —— 后端遇到空串报参数错误，前端先给出 `ArticleForceDemoteRequest` 必填类型，
+ * 让漏传在编译期就暴露。
+ */
+export function forceDemoteArticle(id: string, payload: ArticleForceDemoteRequest) {
+  return api().request<ArticleForceDemoteResponse, ArticleForceDemoteRequest>(
+    `/articles/${id}/force-demote`,
+    { method: 'POST', body: payload },
+  )
+}
+
 export function batchReviewArticleTasks(ids: string[], payload: Omit<ArticleReviewBatchRequest, 'ids'>) {
   return api().request<ArticleReviewBatchResponse, ArticleReviewBatchRequest>(
     '/article-review-tasks/batch-review',
@@ -865,6 +883,8 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+
+
 
 
 

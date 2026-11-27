@@ -83,6 +83,10 @@ var serviceFallbackCodes = []apperr.Code{
 	// 主密钥缺失同样是运维侧配置问题（部署时忘了设环境变量），
 	// 不该让用户看到"配置解析失败"这种指向数据损坏的文案。
 	apperr.CodeRuntimeConfigSecretUnavailable,
+	// 缺少质量放行凭据（票 481）：published+pending_review → visible 的凭据由
+	// 发布判定那一步给出，正常路径不会缺。缺了就是有代码绕过了那条链路 ——
+	// 这是内部 bug，不是参数或登录态问题，所以按服务异常返回（1002）。
+	apperr.CodeArticleQualityNotApproved,
 	// 文章主体。
 	apperr.CodeArticleNotFound,
 	apperr.CodeArticleForbidden,
@@ -396,4 +400,3 @@ func TestEveryCodeHasMessageAndProtocolDecision(t *testing.T) {
 		}
 	}
 }
-

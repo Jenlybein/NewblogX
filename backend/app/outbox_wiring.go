@@ -11,7 +11,6 @@ import (
 	"myblogx/internal/ai/moderation"
 	"myblogx/internal/apperr"
 	articleapp "myblogx/internal/article/app"
-	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
@@ -71,25 +70,27 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 		return
 	}
 
-	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
-	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
-	relay.On(articleapp.EventArticlePublished, scoreSubscriber(infra))
-
-	// 质量闸门（ADR-0030）：评分先进来（上面的 scoreSubscriber），再做判定，
-	// 最后才是合规判定。订阅者按注册顺序串行执行，所以质量未达标的文章
-	// 会在合规放行之前被退回草稿 —— 读者永远看不到一个没过质量线的稿子。
-	relay.On(articleapp.EventArticleCreated, qualityGateSubscriber(infra))
-	relay.On(articleapp.EventArticlePublished, qualityGateSubscriber(infra))
-
-	// 合规判定（票 312 / ADR-0024）：文章创建与发布各跑一次。
-	// 与评分并列挂在同一批事件上，但**结论落在自己的表**（article_risk_models），
-	// 不借用评分记录——两者判的是不同的问题，失败与重试口径也不同。
-	relay.On(articleapp.EventArticleCreated, complianceSubscriber(infra))
-	relay.On(articleapp.EventArticlePublished, complianceSubscriber(infra))
+	// 发布判定：评分 → 质量闸门 → 合规判定，**合并成一个订阅者**。
+	//
+	// 以前这是三个订阅者（score / qualityGate / compliance）挂在同一批事件上，
+	// 靠注册顺序保证"闸门先于合规"。但中继对失败的订阅者是收集错误后继续执行
+	// 后面的订阅者，于是闸门一旦报错（例如评分还没提交、读到空集），合规判定
+	// 照样跑并把文章推成 visible，重试回来时闸门已经不看它了 —— 2026-11-27
+	// 那篇 6 分文章就是这么漏放的。合并之后顺序变成函数内的代码事实，
+	// 任何"会把文章推向可见"的新逻辑都必须加进 publishJudgeSubscriber 内部。
+	relay.On(articleapp.EventArticleCreated, publishJudgeSubscriber(infra))
+	relay.On(articleapp.EventArticlePublished, publishJudgeSubscriber(infra))
 
 	// 通知：审核结果与旧链路一致（通过 / 拒绝各一条）。
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
 	relay.On(articleapp.EventArticleRejected, notifySubscriber(infra))
+
+	// 通知：管理员强制退回草稿（票 481）。
+	//
+	// 它必须是独立事件而不是让用例同步发信：同步发信时"发失败 → 前端报错 →
+	// 管理员重试 → 文章已是草稿 → 提前返回"这条链会把通知永久丢掉。走发件箱之后
+	// 投递失败会重试，与那次请求成不成功彻底解耦。
+	relay.On(articleapp.EventArticleForceDemoted, forceDemoteNoticeSubscriber(infra))
 
 	// 通知：互动类（点赞 / 收藏）。
 	// 旧实现里这两处是 handler 中的裸 goroutine，删掉旧代码后必须在这里接回来，
@@ -160,83 +161,6 @@ func relayOptions(infra *Infra, wire OutboxWiringOptions) outboxrelay.Options {
 	return opts
 }
 
-// scoreSubscriber 确保文章有 AI 质量评分。
-//
-// 用同步版 EnsureArticleScoreIfMissing 而不是 ...Async：
-// 中继本身已经是异步的，用同步版才能拿到错误，进而走重试与死信。
-// 该操作天然幂等（"缺失时才生成"），重复投递不会产生重复评分记录。
-func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
-	return func(ctx context.Context, e outboxrelay.Event) error {
-		articleID := e.AggregateID
-		if articleID.IsZero() {
-			return nil
-		}
-
-		// 文章已经不在了（例如投递前被删除）就没什么可评分的。
-		// 不加这层判断的话，一次删除就会换来 5 次重试 + 一条死信。
-		var count int64
-		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
-			Where("id = ?", articleID).Count(&count).Error; err != nil {
-			return err
-		}
-		if count == 0 {
-			return nil
-		}
-
-		if aiService == nil {
-			return nil
-		}
-		return aiService.EnsureScoreIfMissing(ctx, articleID.Uint64())
-	}
-}
-
-// qualityGateSubscriber 在评分之后、合规判定之前做一次质量闸门判定（ADR-0030）。
-//
-// 失败语义：拿不到分数 → 返回 error 交给发件箱重试；重试耗尽进死信，文章继续
-// 停在「已发布待可见」（对读者不可见），不会把没评过的稿子当干净放行。
-func qualityGateSubscriber(infra *Infra) outboxrelay.Subscriber {
-	return func(ctx context.Context, e outboxrelay.Event) error {
-		articleID := e.AggregateID
-		if articleID.IsZero() {
-			return nil
-		}
-		policy := deferredQualityGate(infra)
-		if !policy.Enabled {
-			return nil
-		}
-
-		var article noticeArticleRow
-		err := infra.DB.WithContext(ctx).Table(article.TableName()).
-			Select("id, title, author_id, publish_status, visibility_status").
-			Where("id = ?", articleID).Take(&article).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		// 只判「已发布待可见」：草稿、已拒、已公开的文章不归这条链路管。
-		if article.PublishStatus != int(domain.StatusPublished) ||
-			article.Visibility != string(domain.VisibilityPendingReview) {
-			return nil
-		}
-
-		articleSvc := newArticleService(infra)
-		verdict, err := articleSvc.AssessDeferredQuality(ctx, articleID, policy)
-		if err != nil {
-			return err
-		}
-		if verdict.Passed {
-			return nil
-		}
-
-		if _, err := articleSvc.DemotePendingForQuality(ctx, articleID, "文章质量未达标"); err != nil {
-			return err
-		}
-		return notifyQualityDemoted(ctx, infra, article, verdict)
-	}
-}
-
 // deferredQualityGate 取后台链路的闸门配置（与 HTTP 层同一份站点生效值）。
 func deferredQualityGate(infra *Infra) articleapp.QualityGatePolicy {
 	if infra == nil || infra.Effective == nil {
@@ -293,7 +217,11 @@ func notifyQualityDemoted(
 //
 // 失败语义：拿不到结论时返回 error，交给发件箱重试；重试耗尽后进死信，
 // 后台看到的是"这篇文章没有合规结论"（未判定），而不是被当成"干净"放行。
-func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
+//
+// qualityProof 会原样交给 domain 的可见性转换：只有它说"质量已过"，判 clean 才
+// 真的能把文章放开。这条参数存在的唯一目的就是让"质量判定先于合规放行"成为
+// **编译器能管住的事实**，而不是两个订阅者之间的约定（ADR-0030 / 2026-11-27 事故）。
+func complianceSubscriber(infra *Infra, qualityProof bool) outboxrelay.Subscriber {
 	return func(ctx context.Context, e outboxrelay.Event) error {
 		articleID := e.AggregateID
 		if articleID.IsZero() {
@@ -368,7 +296,7 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		switch moderation.Verdict(result.Verdict) {
 		case moderation.VerdictClean:
 			// 模型判干净：真正放开可见。幂等，重复投递不会产生额外写入。
-			return articleSvc.PublishForCompliance(ctx, articleID)
+			return articleSvc.PublishForCompliance(ctx, articleID, qualityProof)
 		case moderation.VerdictSuspect:
 			// 存疑：误判会直接落到作者身上且他没有申诉渠道，一律交人。
 			// 从"已发布待可见"改回审核中并建一条待处理任务。

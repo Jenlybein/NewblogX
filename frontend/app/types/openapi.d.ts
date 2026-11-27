@@ -1863,6 +1863,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/{id}/force-demote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 强制退回草稿 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文章 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 退回原因（必填，会发给作者） */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleForceDemoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleForceDemoteResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/banners": {
         parameters: {
             query?: never;
@@ -6529,6 +6573,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/login_capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取登录方式与验证码闸门（公开） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_LoginCapabilitiesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/mail": {
         parameters: {
             query?: never;
@@ -8514,6 +8594,13 @@ export interface components {
             favor_count?: number;
             is_favor?: boolean;
         };
+        "internal_article_adapter_http.ArticleForceDemoteRequest": {
+            reason?: string;
+        };
+        "internal_article_adapter_http.ArticleForceDemoteResponse": {
+            id?: string;
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+        };
         "internal_article_adapter_http.ArticleHotTopAdminItem": {
             article_id?: string;
             cover?: string;
@@ -8572,6 +8659,14 @@ export interface components {
             content?: string;
         };
         "internal_article_adapter_http.ArticleReviewTaskItem": {
+            /**
+             * @description ApproveNote 是管理员放行时留下的那句话：
+             *     "管理员以 X 分放行（放行线 Y 分）"；分数取不到时写"未知分数"。
+             *
+             *     与 reason 分字段：reason 只承载驳回原因（通过时为空），
+             *     放行备注是"这次通过豁免了质量闸门"的独立事实，可选（历史行与系统通过没有）。
+             */
+            approve_note?: string;
             article_id?: string;
             article_title?: string;
             author_id?: string;
@@ -8586,6 +8681,22 @@ export interface components {
             created_at?: string;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            /**
+             * @description QualityPassScore 是当前放行线（及格线 + 灰带宽度）。
+             *
+             *     闸门关闭时仍然是算出值：前端**只用它做展示**，不据此判定——
+             *     判定在提交链路，这里只陈述"现在的线是多少分"。
+             */
+            quality_pass_score?: number;
+            /**
+             * @description QualityScore 是这条任务对应文章**当前**的 AI 总分；null 表示取不到分数
+             *     （AI 关闭、还没评分、模型调用失败），**与 0 分不是一回事**：
+             *     0 分是"模型评了、结果就是 0 分"，null 是"没有可用的评分结论"。
+             *
+             *     放行确认框要显示"当前 X 分（放行线 Y 分）"：管理员豁免质量闸门但不静默，
+             *     先把事实摆在眼前，再由管理员决定是否越级放行。
+             */
+            quality_score?: number;
             reason?: string;
             reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
             reviewed_at?: string;
@@ -8945,7 +9056,7 @@ export interface components {
         /** @enum {string} */
         "internal_article_adapter_http.ReviewRiskLevel": "none" | "low" | "medium" | "high";
         /** @enum {string} */
-        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit" | "compliance" | "risk_check" | "model_suspect" | "model_failure";
+        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit" | "compliance" | "risk_check" | "model_suspect" | "model_failure" | "force_demote";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskStage": "manual";
         /** @enum {string} */
@@ -9545,8 +9656,32 @@ export interface components {
             title?: string;
             updated_at?: string;
         };
+        "internal_site_adapter_http.CaptchaRequiredResponse": {
+            /** @description EmailVerify 对应 captcha.captcha_email_verify：发邮箱验证码入口。 */
+            email_verify?: boolean;
+            /** @description Login 对应 captcha.captcha_login：密码 / 邮箱 / 手机号登录入口。 */
+            login?: boolean;
+            /** @description PhoneVerify 对应 captcha.captcha_phone_verify：发短信验证码入口。 */
+            phone_verify?: boolean;
+            /** @description Register 对应 captcha.captcha_register：注册专用入口。 */
+            register?: boolean;
+        };
         "internal_site_adapter_http.IDListRequest": {
             id_list: string[];
+        };
+        "internal_site_adapter_http.LoginCapabilitiesResponse": {
+            captcha_required?: components["schemas"]["internal_site_adapter_http.CaptchaRequiredResponse"];
+            login_methods?: components["schemas"]["internal_site_adapter_http.LoginMethodsResponse"];
+        };
+        "internal_site_adapter_http.LoginMethodsResponse": {
+            /** @description Email 对应 mail.email_login。 */
+            email?: boolean;
+            /** @description Phone 对应 sms.phone_login。 */
+            phone?: boolean;
+            /** @description QQ 对应 oauth.qq_login。 */
+            qq?: boolean;
+            /** @description UsernamePwd 对应 site.login.username_pwd_login。 */
+            username_pwd?: boolean;
         };
         "internal_site_adapter_http.SEOResponse": {
             description?: string;
@@ -9671,6 +9806,31 @@ export interface components {
              *     默认值带 10/255 的不透明度，与旧实现一致。
              */
             bg_color?: string;
+            /**
+             * @description Captcha 是图形验证码的**总开关**（json 键名沿用历史写法 `captcha`）。
+             *
+             *     总开关关掉时四个入口一律不校验，这样"先整体关、再逐条开"的回滚路径是通的。
+             */
+            captcha?: boolean;
+            captcha_email_verify?: boolean;
+            /**
+             * @description 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
+             *
+             *     默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
+             *     需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
+             *     登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
+             */
+            captcha_login?: boolean;
+            captcha_phone_verify?: boolean;
+            /**
+             * @description CaptchaRegister 是「注册专用入口」的闸门。
+             *
+             *     它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
+             *     独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
+             *     分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
+             *     （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
+             */
+            captcha_register?: boolean;
             dot_count?: number;
             /**
              * @description Driver 是图形验证码的类型：
@@ -9731,6 +9891,31 @@ export interface components {
              *     默认值带 10/255 的不透明度，与旧实现一致。
              */
             bg_color?: string;
+            /**
+             * @description Captcha 是图形验证码的**总开关**（json 键名沿用历史写法 `captcha`）。
+             *
+             *     总开关关掉时四个入口一律不校验，这样"先整体关、再逐条开"的回滚路径是通的。
+             */
+            captcha?: boolean;
+            captcha_email_verify?: boolean;
+            /**
+             * @description 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
+             *
+             *     默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
+             *     需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
+             *     登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
+             */
+            captcha_login?: boolean;
+            captcha_phone_verify?: boolean;
+            /**
+             * @description CaptchaRegister 是「注册专用入口」的闸门。
+             *
+             *     它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
+             *     独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
+             *     分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
+             *     （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
+             */
+            captcha_register?: boolean;
             dot_count?: number;
             /**
              * @description Driver 是图形验证码的类型：
@@ -9959,6 +10144,37 @@ export interface components {
             wal_dir?: string;
         };
         "internal_site_adapter_http.SiteSectionMailRequest": {
+            /** @description EmailCodeTimeout 是邮箱验证码有效期，单位：分钟。 */
+            email_code_timeout?: number;
+            /**
+             * @description ── 邮箱验证码通道的策略（票 票 481 从 site.login 迁入）──
+             *
+             *     为什么跟着邮件段走，而不是留在 site.login：这几项描述的是**这条通道**的
+             *     属性（开不开、验证码多久过期、发码限流多严），而 site 段有匿名可读的公开
+             *     端点（GET /api/site/site 返回整个 conf.Site），发码限流跟着一起公开说不通。
+             *     拆过来之后，后台「邮件」页改完只写这一段，不再与站点段抢同一个数字。
+             *
+             *     读者站要的只是"邮箱登录开没开"这一个布尔位，由公开只读端点
+             *     GET /api/site/login_capabilities 现读给出，不再公开整个 site 段。
+             *
+             *     EmailLogin 是「邮箱验证码登录」开关；启用前需要先配好腾讯云 SES，
+             *     否则用户点「获取验证码」会直接报错。
+             */
+            email_login?: boolean;
+            /**
+             * @description EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
+             *
+             *     必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
+             *     只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
+             *     本项目的口径是「注册只走手机号」，所以它默认 false。
+             */
+            email_register?: boolean;
+            /** @description EmailSendPerEmailMax 是单邮箱在限流窗口内允许的最大发送次数。 */
+            email_send_per_email_max?: number;
+            /** @description EmailSendPerIPMax 是单 IP 在限流窗口内允许的最大发送次数。 */
+            email_send_per_ip_max?: number;
+            /** @description EmailSendWindowSecond 是邮件发送限流窗口，单位：秒。 */
+            email_send_window_second?: number;
             /** @description Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com */
             endpoint?: string;
             /** @description FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender */
@@ -9977,6 +10193,37 @@ export interface components {
             timeout_sec?: number;
         };
         "internal_site_adapter_http.SiteSectionMailResponse": {
+            /** @description EmailCodeTimeout 是邮箱验证码有效期，单位：分钟。 */
+            email_code_timeout?: number;
+            /**
+             * @description ── 邮箱验证码通道的策略（票 票 481 从 site.login 迁入）──
+             *
+             *     为什么跟着邮件段走，而不是留在 site.login：这几项描述的是**这条通道**的
+             *     属性（开不开、验证码多久过期、发码限流多严），而 site 段有匿名可读的公开
+             *     端点（GET /api/site/site 返回整个 conf.Site），发码限流跟着一起公开说不通。
+             *     拆过来之后，后台「邮件」页改完只写这一段，不再与站点段抢同一个数字。
+             *
+             *     读者站要的只是"邮箱登录开没开"这一个布尔位，由公开只读端点
+             *     GET /api/site/login_capabilities 现读给出，不再公开整个 site 段。
+             *
+             *     EmailLogin 是「邮箱验证码登录」开关；启用前需要先配好腾讯云 SES，
+             *     否则用户点「获取验证码」会直接报错。
+             */
+            email_login?: boolean;
+            /**
+             * @description EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
+             *
+             *     必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
+             *     只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
+             *     本项目的口径是「注册只走手机号」，所以它默认 false。
+             */
+            email_register?: boolean;
+            /** @description EmailSendPerEmailMax 是单邮箱在限流窗口内允许的最大发送次数。 */
+            email_send_per_email_max?: number;
+            /** @description EmailSendPerIPMax 是单 IP 在限流窗口内允许的最大发送次数。 */
+            email_send_per_ip_max?: number;
+            /** @description EmailSendWindowSecond 是邮件发送限流窗口，单位：秒。 */
+            email_send_window_second?: number;
             /** @description Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com */
             endpoint?: string;
             /** @description FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender */
@@ -9997,11 +10244,15 @@ export interface components {
         "internal_site_adapter_http.SiteSectionOauthRequest": {
             app_id?: string;
             app_key?: string;
+            /** @description QQLogin 是否启用 QQ 登录；启用前还需要填好上面三项。 */
+            qq_login?: boolean;
             redirect?: string;
         };
         "internal_site_adapter_http.SiteSectionOauthResponse": {
             app_id?: string;
             app_key?: string;
+            /** @description QQLogin 是否启用 QQ 登录；启用前还需要填好上面三项。 */
+            qq_login?: boolean;
             redirect?: string;
         };
         "internal_site_adapter_http.SiteSectionSiteRequest": {
@@ -10033,8 +10284,31 @@ export interface components {
             access_key_secret?: string;
             /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
             endpoint?: string;
+            /**
+             * @description ── 手机号验证码通道的策略（票 票 481 从 site.login 迁入）──
+             *
+             *     与邮件段同一口径：这几项描述的是"这条通道"的属性，跟着本段走。
+             *     「要不要允许发」「验证码多久过期」「发码限流多严」不再散在 site.login ——
+             *     那里只剩密码登录开关与登录失败限流（与走哪条通道无关）。
+             *
+             *     PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关：
+             *     首次验证即建档，所以同一个开关同时是注册开关。
+             */
+            phone_login?: boolean;
             /** @description SignName 短信签名。PNVS 短信认证用控制台赠送的签名，必须与赠送模板配套 */
             sign_name?: string;
+            /** @description SmsCodeTimeout 是短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行。 */
+            sms_code_timeout?: number;
+            /** @description SmsSendPerIPMax 是单 IP 在限流窗口内允许的最大发送次数。 */
+            sms_send_per_ip_max?: number;
+            /** @description SmsSendPerPhoneMax 是单手机号在限流窗口内允许的最大发送次数。 */
+            sms_send_per_phone_max?: number;
+            /**
+             * @description SmsSendWindowSecond 是短信发送限流窗口，单位：秒。
+             *
+             *     与邮件分开计数：短信成本远高于邮件，两条通道的滥用方式也不同。
+             */
+            sms_send_window_second?: number;
             /** @description TemplateCode 短信模板 Code。同样是控制台赠送的那一个 */
             template_code?: string;
             /**
@@ -10052,8 +10326,31 @@ export interface components {
             access_key_secret?: string;
             /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
             endpoint?: string;
+            /**
+             * @description ── 手机号验证码通道的策略（票 票 481 从 site.login 迁入）──
+             *
+             *     与邮件段同一口径：这几项描述的是"这条通道"的属性，跟着本段走。
+             *     「要不要允许发」「验证码多久过期」「发码限流多严」不再散在 site.login ——
+             *     那里只剩密码登录开关与登录失败限流（与走哪条通道无关）。
+             *
+             *     PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关：
+             *     首次验证即建档，所以同一个开关同时是注册开关。
+             */
+            phone_login?: boolean;
             /** @description SignName 短信签名。PNVS 短信认证用控制台赠送的签名，必须与赠送模板配套 */
             sign_name?: string;
+            /** @description SmsCodeTimeout 是短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行。 */
+            sms_code_timeout?: number;
+            /** @description SmsSendPerIPMax 是单 IP 在限流窗口内允许的最大发送次数。 */
+            sms_send_per_ip_max?: number;
+            /** @description SmsSendPerPhoneMax 是单手机号在限流窗口内允许的最大发送次数。 */
+            sms_send_per_phone_max?: number;
+            /**
+             * @description SmsSendWindowSecond 是短信发送限流窗口，单位：秒。
+             *
+             *     与邮件分开计数：短信成本远高于邮件，两条通道的滥用方式也不同。
+             */
+            sms_send_window_second?: number;
             /** @description TemplateCode 短信模板 Code。同样是控制台赠送的那一个 */
             template_code?: string;
             /**
@@ -10380,75 +10677,16 @@ export interface components {
             stranger_msg_enabled?: boolean;
         };
         "myblogx_conf_site.Login": {
-            /**
-             * @description Captcha 是图形验证码的**总开关**。
-             *
-             *     它必须留在 site 段并保持公开可读：读者站要靠 GET /api/site/site 决定
-             *     每个登录/发码表单渲染不渲染验证码框，藏进后台专属段只会让所有表单
-             *     都渲染一个永远填不对的输入框。
-             *
-             *     图片尺寸、字符集、有效期这些**渲染参数**不在这里，见 conf.Captcha（第 12 段）。
-             */
-            captcha?: boolean;
-            captcha_email_verify?: boolean;
-            /**
-             * @description 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验。
-             *
-             *     默认全开（与总开关合起来等价于旧行为「一开就三条路由都校验」）。
-             *     需要按入口分开的理由：登录和发码被滥用的方式不同 —— 发码要卡成本，
-             *     登录要卡爆破；一刀切会让"只想给发码加验证码"做不到。
-             *
-             *     它们也必须是公开可读的（渲染需要），所以留在 site 段而不是 captcha 段：
-             *     这就是 ADR-0020 决策 3 的分法 —— 策略留在 site.login，渲染参数进专属段。
-             */
-            captcha_login?: boolean;
-            captcha_phone_verify?: boolean;
-            /**
-             * @description CaptchaRegister 是「注册专用入口」的闸门。
-             *
-             *     它只挂在**专门的注册路由**上（POST /users/email/register）。手机号注册没有
-             *     独立路由 —— 它与登录共用 POST /users/phone（"首次验证即建档"），请求体层面
-             *     分不出这次是注册还是登录，所以那条通道的验证码挂在**发码那一步**
-             *     （captcha_phone_verify）。这是设计约束不是遗漏，ADR-0033 决策 11 记了这件事。
-             */
-            captcha_register?: boolean;
-            /** @description 邮箱验证码有效期，单位：分钟 */
-            email_code_timeout?: number;
-            email_login?: boolean;
-            /**
-             * @description EmailRegister 是「邮箱注册」开关，与 EmailLogin 分开。
-             *
-             *     必须分开的理由：注册与登录是两件事，而绑邮箱要用发码接口。
-             *     只用一个开关时，关掉邮箱注册会连"给已注册用户发绑定验证码"一起关掉。
-             *     本项目的口径是「注册只走手机号」，所以它默认 false。
-             */
-            email_register?: boolean;
-            /** @description 单邮箱窗口内最大发送次数 */
-            email_send_per_email_max?: number;
-            /** @description 单IP窗口内最大发送次数 */
-            email_send_per_ip_max?: number;
-            /** @description 邮件发送限流窗口，单位：秒 */
-            email_send_window_second?: number;
             /** @description 单IP窗口内最大失败次数 */
             login_fail_ip_max?: number;
             /** @description 单账号窗口内最大失败次数 */
             login_fail_user_max?: number;
-            /** @description 登录失败统计窗口，单位：分钟 */
-            login_fail_window_minute?: number;
-            /** @description PhoneLogin 是「手机号 + 短信验证码」登录（兼注册）开关。 */
-            phone_login?: boolean;
-            qq_login?: boolean;
-            /** @description 短信验证码有效期，单位：分钟 */
-            sms_code_timeout?: number;
-            /** @description 单IP窗口内最大发送次数 */
-            sms_send_per_ip_max?: number;
-            /** @description 单手机号窗口内最大发送次数 */
-            sms_send_per_phone_max?: number;
             /**
-             * @description 短信发送限流：与邮件那三个并列，因为它们是同一类策略。
-             *     分开计数（互不占用额度）：短信成本远高于邮件，且两条通道的滥用方式不同。
+             * @description 登录失败限流：这三项留在本段，因为它们描述的是"登录尝试"这件事，
+             *     与具体走哪条通道无关（密码、邮箱、手机号登录共用同一套失败计数）。
              */
-            sms_send_window_second?: number;
+            login_fail_window_minute?: number;
+            /** @description UsernamePwdLogin 是用户名密码登录开关。 */
             username_pwd_login?: boolean;
         };
         "myblogx_conf_site.Project": {
@@ -10839,6 +11077,11 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.ArticleFavoriteResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleForceDemoteResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleForceDemoteResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewBatchResponse"];
@@ -11007,6 +11250,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_BannerCreateResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.BannerCreateResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_LoginCapabilitiesResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.LoginCapabilitiesResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SEOResponse": {

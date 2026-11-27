@@ -152,7 +152,7 @@ type Service struct{ cfg func() conf.Mail }
 | `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
 | `image_gc` | `conf.ImageGC` | 孤儿图回收的总开关、宽限期与单批上限 | 下一次回收任务 |
 | `content_filter` | `conf.ContentFilter` | 内容过滤的词表（词 / 档位 / 类目）、**词级白名单**、**短语级白名单**、命中记录保留天数 | 保存后原子重建，下一次过滤 |
-| `captcha` | `conf.Captcha` | 图形验证码的驱动、图片尺寸、字符数、字符集、噪点、三种干扰线、背景色、有效期、失败文案（第 12 段，**仅后台、无公开读**） | 下一次生成 |
+| `captcha` | `conf.Captcha` | 图形验证码总开关与四个入口闸门、驱动、图片尺寸、字符数、字符集、噪点、三种干扰线、背景色、有效期、失败文案（第 12 段，**仅后台、无公开读**；闸门生效值经 `GET /site/login_capabilities` 公开） | 下一次生成 / 下一次请求 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要在注册表里
@@ -174,9 +174,13 @@ type Service struct{ cfg func() conf.Mail }
 `noise_count` / `max_skew` / `dot_count` 的 `0` 是合法值（不放噪点 / 不倾斜 / 不放点）。**不适用字段按驱动清零**，范围是
 `length`（算术型，题目固定两位数）、`source` / `bg_color` / `noise_count` 与三个干扰线开关；`max_skew` / `dot_count` **保留原值**
 （清零会让 GET→PUT 往返把 0.5 变 0，运营切换驱动后还会看到与自己填的不一样的值）。
-「哪些入口要验证码」不在这段，留在 `site.login`：总开关 `captcha` 之外有**四个**入口闸门
-`captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`，它们**必须公开可读**——
-读者站靠 `GET /api/site/site` 决定每个表单渲染不渲染验证码框（见 §六 的登录策略说明）。`captcha_register` 只挂专门的注册路由
+「哪些入口要验证码」**也在这段**（票 481 把它们从 `site.login` 拆进来了）：总开关 `captcha` 之外有**四个**入口闸门
+`captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`。拆进本段而不是留在 `site.login` 的理由：
+它们与"图片长什么样、多久失效"是同一件事的两面，分住两页时想只给发码加验证码要翻半页表。
+**读者站不读本段**（本段含运营参数、只有管理端能读），它读公开只读端点 `GET /api/site/login_capabilities`：
+该端点把总开关与四个闸门**合取**后只回布尔位（`captcha_required.{login,email_verify,phone_verify,register}`），
+不含任何图片参数与凭据。前端不再自己 `&&` 一次总开关 —— 每个调用点各与一次，漏一处就会渲染出一个永远不被校验的输入框。
+`captcha_register` 只挂专门的注册路由
 `POST /users/email/register`（图形码在邮箱码之前）；手机号注册与登录共用 `POST /users/phone`，请求体层面分不出注册还是登录，
 所以那条通道的验证码只挂在发码那一步（`captcha_phone_verify`）——这是设计约束不是遗漏。
 答案存 Redis（键前缀 `blogx:captcha:`，TTL 每次生成现读 `expire_seconds`，校验用 `GETDEL` 原子取删，实现「答对一次即作废、不可重放」）。
@@ -258,12 +262,18 @@ type Service struct{ cfg func() conf.Mail }
 菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
 派生 —— 这份清单同时是路由、菜单与页面文件的对账来源。
 
-**唯一的例外**：「登录策略」它不是一段，而是 `site.login` 子对象。所以它和站点基础信息
-放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
-覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
-图形验证码的**四个**入口闸门（`captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`）与总开关
-`captcha` 也在这个子对象、这个页面（「站点 → 登录与发码」）里：它们必须公开可读，而「图长什么样、多久失效、填错说什么」
-在独立的 `captcha` 段（第 12 段，自己的整段端点与「站点 → 图形验证码」页，见 [ADR-0033](../adr/0033-captcha-configurable-and-redis-store.md)）。
+**分段口径**（票 481 起，见 [ADR-0029](../adr/0029-admin-nav-three-levels-and-site-split.md)）：字段按**通道**归属，
+`site.login` 只剩「用户名密码登录开关 + 登录失败限流」两项，其余各自回到自己的段 ——
+邮箱登录/注册与发码限流进 `mail`、手机号登录与发码限流进 `sms`、QQ 开关进 `oauth`、
+图形验证码总开关与四个入口闸门进 `captcha`。页面随之变成「用户操作 → 登录设置」与
+「验证码与通知 → 邮件 / 短信 / 图形验证码」，同一张表里的数字只写一个段，
+不再出现"改邮件要动站点配置"。
+
+`site.login` 仍然**不是独立段**（它是 `site` 的子对象），所以它和站点基础信息放在
+**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
+覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。这一点没有变。
+图形验证码的**四个**入口闸门与总开关现在住在 `captcha` 段里（与"图长什么样、多久失效、填错说什么"同段、同页），
+它们不再公开可读：读者站改读公开只读端点 `GET /api/site/login_capabilities`（见 §五 的 captcha 段说明）。
 `captcha_register` 只对 `POST /users/email/register` 生效（图形码在邮箱码之前）；手机号注册与登录共用 `/users/phone`，没有独立闸门，
 验证码留在发码那一步（`captcha_phone_verify`）。
 
@@ -274,6 +284,7 @@ type Service struct{ cfg func() conf.Mail }
 | 管理读 | `GET /site/admin/<段名>` | `kernel.Envelope[SiteSection<Name>Response]` —— 每段自己的字段级 schema |
 | 写 | `PUT /site/<段名>` | `SiteSection<Name>Request` —— 绑定时就是该段的强类型 |
 | 公开读 | `GET /site/site`、`GET /site/deco` | 与同段具名响应同形（`deco` 无敏感字段） |
+| 公开读（跨段聚合） | `GET /site/login_capabilities` | 只回布尔位：四条登录通道是否可用、四个入口要不要验证码（总开关已合取）。用来替代"读者站读公开 `site` 段拿登录开关"那条老路 —— 拆段后那些开关住在含凭据的段里 |
 
 参数化 `/site/{name}`、`/site/admin/{name}` 与 `kernel.SiteConfigData = map[string]any`
 自由键值块已整体退场。前端类型从各自生成的 `openapi.d.ts` 派生（`RequiredSchema<...>`），
@@ -323,7 +334,7 @@ const loaded = ref(false)
 1. **契约是破坏性变更**。每段各有具名端点与具名形状，旧参数化端点与自由键值块整体下线；
    仍按 `/site/{name}` 调用的客户端会 404，两个前端的派生类型必须同批重生成。三份契约产物
    （`backend/docs/swagger.json` 与两个 app 的 `app/types/openapi.d.ts`）由生成器同批产出，
-   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 168/212/392），
+   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 174/218/413），
    判据四文件零改动。当初「拆成八组路由 + 八个 DTO」的否决理由与推翻经过见
    [ADR-0020](../adr/0020-config-section-registry-and-named-sections.md)。
 2. **密钥明文入库**（§3.4）。它不会比 `.env` 更安全，只换来"改完即生效"。
@@ -348,5 +359,8 @@ const loaded = ref(false)
 
 `settings.yaml` 现在只剩进程级配置。业务默认值只有一个来源
 （`site_default_settings.yaml`），不再有两份默认值互相打架。
+
+
+
 
 

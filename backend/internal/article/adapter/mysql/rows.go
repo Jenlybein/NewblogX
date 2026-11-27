@@ -239,8 +239,13 @@ type reviewTaskRow struct {
 	Source               string `gorm:"type:varchar(16)"`
 	Status               string `gorm:"type:varchar(16)"`
 	Reason               string
-	ReviewedAt           *time.Time
-	ReviewedBy           *ctype.ID
+	// ApproveNote 是管理员放行留痕（varchar(255)，NULL 可空）。
+	//
+	// 单独一列而不是编进 reason：reason 的语义是驳回原因，通过时必须为空；
+	// 放行备注是另一件事实（管理员豁免质量闸门的"当时分数 / 放行线"）。
+	ApproveNote string `gorm:"type:varchar(255)"`
+	ReviewedAt  *time.Time
+	ReviewedBy  *ctype.ID
 }
 
 // TableName 固定表名。

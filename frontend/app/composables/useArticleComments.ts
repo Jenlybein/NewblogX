@@ -285,10 +285,13 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
     if (rootId) {
       const state = ensureReplyState(rootId);
       await loadReplyPage(rootId, state.currentPage || 1, true);
+      // 评论计数由后端扣减，页面上的「N 条评论」不跟着刷新就会滞后。
+      await deps.refreshArticle();
       return;
     }
 
     await deps.pager.refreshCurrentPage();
+    await deps.refreshArticle();
   }
 
   /**

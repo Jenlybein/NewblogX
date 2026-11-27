@@ -483,6 +483,11 @@ const (
 	CodeSiteContentFilterInvalid Code = "site.content_filter_invalid"
 	// CodeSiteCaptchaInvalid 是图形验证码段（第 12 段）参数不合法。
 	CodeSiteCaptchaInvalid Code = "site.captcha_invalid"
+	// CodeSiteArticleInvalid 是 site.article 块（第 1 段）参数不合法（2026-11-27）。
+	//
+	// 目前只有一处：标签上限越界。与"提交时标签超限"（article.tag_limit_exceeded）
+	// 分开 —— 那是作者多选了标签（改稿就能过），这是管理员把配置填出了范围（改配置才能过）。
+	CodeSiteArticleInvalid Code = "site.article_invalid"
 	// CodeModerationEventNotFound 是违规事件不存在（申诉处置 / 撤销时传错 id）。
 	CodeModerationEventNotFound Code = "moderation.event_not_found"
 	// CodeModerationAppealInvalid 是申诉不合法（超过 7 天窗口、重复提交、理由为空）。
@@ -864,6 +869,7 @@ var messages = map[Code]string{
 	CodeSiteAIDailyLimitInvalid:        "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 	CodeSiteContentFilterInvalid:       "内容过滤词表不合法：词条不能为空，档位只有 block / watch，类目只有七类",
 	CodeSiteCaptchaInvalid:             "图形验证码配置不合法：类型、尺寸、有效期、字符集或颜色超出允许范围",
+	CodeSiteArticleInvalid:             "文章配置不合法：一篇文章的标签上限必须是 1–20 之间的整数",
 	CodeSiteStorageInvalid:             "对象存储配置不合法：样式名、分隔符、签名有效期或审核开关超出允许范围",
 	CodeModerationEventNotFound:        "违规事件不存在",
 	CodeModerationAppealInvalid:        "申诉不合法：只能对 7 天内的违规事件申诉，且必须填写理由",

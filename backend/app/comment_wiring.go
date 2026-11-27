@@ -334,7 +334,10 @@ func (notifierBridge) DiggCreated(ctx context.Context, in domain.DiggNotice) err
 //     会把令牌版本 +1 并吊销全部会话（被封的人手里那张未过期令牌立即失效）。
 //
 // 管理员身份在这里用 RoleAdmin 钉死：评论模块只交出"动作发起人 ID"，
-// 不负责证明他是不是管理员（用例层已经判过），user 侧仍会再判一次。
+// 不负责证明他是不是管理员 —— 评论用例层已经用 `viewer.Admin` 判过一次。
+// **user 侧拿到的是"被钉成管理员"的 Viewer，所以那次权限判定恒为真**：
+// 这里的防线只有一道（评论用例层），不是两道；之后再加账号处置入口时，
+// 必须在调用方自己判权限，别指望这层兜底。
 type commentAccountDisposerBridge struct {
 	users *userapp.Service
 }

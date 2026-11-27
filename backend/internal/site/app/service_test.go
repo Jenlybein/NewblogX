@@ -97,6 +97,46 @@ func TestUpdateSitePersists(t *testing.T) {
 	}
 }
 
+// 标签上限越界必须**否决保存**，而不是静默回落。
+//
+// 两条读面（后台表单 / 读者站写稿页）都按这个值显示"最多选几个"，
+// 而真正拦人的后端会把越界值回落成默认 5 —— 存进来的 25 一旦被读出去，
+// 作者就会选到"界面上合法、提交却被拒"的数量。
+func TestUpdateSiteRejectsArticleMaxTagsOutOfRange(t *testing.T) {
+	for _, limit := range []int{-1, confsite.MaxArticleMaxTags + 1, 9999} {
+		env := newEnv()
+		site := env.Service.PublicSite()
+		site.Article.MaxTagsPerArticle = limit
+		err := env.Service.UpdateSite(site)
+		if err == nil {
+			t.Fatalf("标签上限 %d 应当被拒绝", limit)
+		}
+		if !apperr.IsCode(err, apperr.CodeSiteArticleInvalid) {
+			t.Fatalf("标签上限 %d 的错误码应为 site.article_invalid，得到 %v", limit, err)
+		}
+		// 拒绝之后库里不能留下这个值。
+		if got := env.Runtime.Site().Article.MaxTagsPerArticle; got == limit {
+			t.Fatalf("被拒绝的值 %d 仍被写入", limit)
+		}
+	}
+}
+
+// 合法区间内（含两端）必须原样保存 —— 区间边界是最容易被写错的地方。
+func TestUpdateSiteAcceptsArticleMaxTagsInRange(t *testing.T) {
+	// 0 也在这条里：它表示"没配过 → 用默认上限"，整段保存不能被它否决。
+	for _, limit := range []int{0, confsite.MinArticleMaxTags, 5, confsite.MaxArticleMaxTags} {
+		env := newEnv()
+		site := env.Service.PublicSite()
+		site.Article.MaxTagsPerArticle = limit
+		if err := env.Service.UpdateSite(site); err != nil {
+			t.Fatalf("标签上限 %d 应当被接受，得到 %v", limit, err)
+		}
+		if got := env.Runtime.Site().Article.MaxTagsPerArticle; got != limit {
+			t.Fatalf("标签上限未保存：期望 %d，得到 %d", limit, got)
+		}
+	}
+}
+
 func TestAdminViewsMaskNewSecrets(t *testing.T) {
 	env := newEnv()
 	if err := env.Service.UpdateMail(conf.Mail{SecretID: "id-1", SecretKey: "mail-secret"}); err != nil {

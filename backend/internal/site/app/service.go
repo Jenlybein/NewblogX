@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
@@ -207,7 +208,34 @@ func (s *Service) UpdateSite(site conf.Site) error {
 	if site.Article.QualityGate.Enabled && s.aiReady != nil && !s.aiReady() {
 		return apperr.New(apperr.CodeArticleQualityGateRequiresAI)
 	}
+	if err := validateArticleMaxTags(site.Article.MaxTagsPerArticle); err != nil {
+		return err
+	}
 	return s.runtime.UpdateSite(site)
+}
+
+// validateArticleMaxTags 校验"一篇文章最多可选几个标签"。
+//
+// 越界**不静默回落**（与 UpdateAI 的每日额度同一条口径）：后台是唯一写入口，
+// 悄悄把 25 改成 5 只会让管理员以为改成功了。更要紧的是它有两个读面 ——
+// 后台表单与读者站写稿页都按`GET /api/site/site` 里的值显示上限，
+// 而真正拦人的后端按 `domain.NormalizeTagLimit` 回落默认值；两边不一致时
+// 作者会选到"界面上合法、提交却被拒"的数量，那是最难解释的一种失败。
+func validateArticleMaxTags(limit int) error {
+	// 0 = 这一项从没配过（老库缺键解码出来的零值），按默认上限生效。
+	// 放行它而不是拒绝，是因为整段保存会被一起否决 —— 运营改一次备案号
+	// 不该因为一个从没碰过的字段失败。真正的默认值由 `domain.NormalizeTagLimit` 给。
+	if limit == 0 {
+		return nil
+	}
+	if limit >= siteconf.MinArticleMaxTags && limit <= siteconf.MaxArticleMaxTags {
+		return nil
+	}
+	return apperr.NewWithMessage(
+		apperr.CodeSiteArticleInvalid,
+		fmt.Sprintf("一篇文章的标签上限必须在 %d–%d 之间，收到 %d",
+			siteconf.MinArticleMaxTags, siteconf.MaxArticleMaxTags, limit),
+	)
 }
 
 // UpdateAI 覆盖站点级 AI 设置。

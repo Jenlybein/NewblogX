@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	siteconf "myblogx/conf/site"
 	"myblogx/internal/article/domain"
 
 	"gopkg.in/yaml.v3"
@@ -51,5 +52,27 @@ func TestDefaultSettingsYaml_标签上限默认值(t *testing.T) {
 	if domain.MaxArticleTags < domain.MinArticleTagLimit || domain.MaxArticleTags > domain.MaxArticleTagLimit {
 		t.Fatalf("默认上限 %d 不在合法区间 [%d, %d] 内",
 			domain.MaxArticleTags, domain.MinArticleTagLimit, domain.MaxArticleTagLimit)
+	}
+}
+
+// 配置段与业务规则里的三个数字必须一致。
+//
+// 「一篇文章最多可选几个标签」的两份声明住在两个不能互相 import 的包里：
+// `conf/site`（配置形状与默认值、保存期校验用）与 `internal/article/domain`
+// （归一化与提交判定用）。配置段 import 业务 domain 会成环，所以只能各写一份 ——
+// 那么这里就必须有一条测试盯着它们不许漂：漂了以后后台能存 20、提交时却按 5 拒，
+// 而两边都不会报错。
+func TestArticleMaxTagsBoundsMatchDomain(t *testing.T) {
+	if siteconf.DefaultArticleMaxTags != domain.MaxArticleTags {
+		t.Fatalf("默认上限不一致：conf/site=%d，article/domain=%d",
+			siteconf.DefaultArticleMaxTags, domain.MaxArticleTags)
+	}
+	if siteconf.MinArticleMaxTags != domain.MinArticleTagLimit {
+		t.Fatalf("下限不一致：conf/site=%d，article/domain=%d",
+			siteconf.MinArticleMaxTags, domain.MinArticleTagLimit)
+	}
+	if siteconf.MaxArticleMaxTags != domain.MaxArticleTagLimit {
+		t.Fatalf("上限不一致：conf/site=%d，article/domain=%d",
+			siteconf.MaxArticleMaxTags, domain.MaxArticleTagLimit)
 	}
 }

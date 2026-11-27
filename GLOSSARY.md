@@ -865,7 +865,7 @@ _Avoid_: 往里加"通道有没有配好""限流阈值""密钥掩码"（能力�
 _Avoid_: 把它叫「质量闸门」或「合规判定」；说"闸门过了就会自动可见"（还差合规判定）；用"订阅者注册顺序"解释它的顺序（顺序必须是代码事实，不能只是注释里的承诺）。
 
 **文章审核设置（article review settings）**：
-「站点配置」下的一页（`/site/article-review`，2026-11-27 从「文章发布」拆出），审核规则的**唯一配置入口**：**内容审核**（免审核开关）、**投稿配额**（一天能交几篇）、**发布质量闸门**（及格线 / 灰带 / 档界，木桶判定）、**质量达标自动放行**（下一条）、**命中词自动处置**（下下条）。它写的是 `site.article` 块，与「文章发布」**共用一个配置段**，所以保存走**字段级补丁**：两页各自只覆盖自己声明的字段。
+「站点配置」下的一页（`/site/article-review`，2026-11-27 从「文章发布」拆出），**文章侧**审核规则的唯一配置入口：**内容审核**（免审核开关）、**投稿配额**（一天能交几篇）、**发布质量闸门**（及格线 / 灰带 / 档界，木桶判定）、**质量达标自动放行**（下一条）。命中词的自动处置（下下条）住在 `content_filter` 段，因此跟着**关键词过滤页**的设置面板走，不在这页 —— 一个页面只碰一个配置段，避免"改完这页却要存那段"。它写的是 `site.article` 块，与「文章发布」**共用一个配置段**，所以保存走**字段级补丁**：两页各自只覆盖自己声明的字段。
 位置：`frontend_admin/app/components/settings/SettingsArticleReview.vue`；路由 `/site/article-review`；`site.article` 的字段归属见 `utils/siteSectionSave.ts` 的 `applySiteBlockFieldPatch`；决定见 [ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md)（第二版）与 [ADR-0023](./docs/adr/0023-quality-gate.md)。
 易混：与「文章审核」（`/review/article`）不是一件事——那一页是**队列**（这一篇批不批），这一页是**规则**（要不要审、审多严）。
 _Avoid_: 把两页都叫「文章审核」；在「文章发布」页再放一份免审核开关（双入口必然漂移）；直接整段 PUT（会把兄弟页的字段写回旧值）。
@@ -878,13 +878,13 @@ _Avoid_: 说它等于"AI 判定通过后免人工"（现状本来就是 AI clean
 
 **命中词自动处置（auto dispose of filter hits）**：
 `content_filter.auto_dispose` 段里的两个动作：拦截档命中时"只打星（照常发布）/ 拒发"，观察档命中时目前只有"只打星"。默认两档都打星（与改造前逐字节一致）；`reject` 是显式 opt-in，且**只作用于文章标题 / 摘要 / 正文**（评论、昵称、私信、合集仍是打星）。拒发时文章**不落库**、不建审核任务、错误文案不含命中词，但**命中记录照旧写进关键词风险**（拒绝 ≠ 不记录）。
-位置：`conf.ContentFilter.AutoDispose`；引擎侧 `platform/contentfilter` 的 `Hit.Masked`（是否真被打星，白名单覆盖时为 false）→ `filter/app` 的 `BlockTierMasked` → `article/app` 的 create/update 一处拒绝（`article.content_blocked`）；后台在关键词过滤页的「命中词自动处置」卡；决定见 [ADR-0032](./docs/adr/0032-content-filter.md) 的补丁段。
+位置：`conf.ContentFilter.AutoDispose`；引擎侧 `platform/contentfilter` 的 `Hit.Masked`（是否真被打星，白名单覆盖时为 false）→ `filter/app` 的 `BlockTierMasked` → `article/app` 的 create/update 一处拒绝（`article.content_blocked`）；后台在**关键词过滤页 → 保留期面板**里的「命中词自动处置」卡（它与 `content_filter` 段同源，跟着词表页走，不在「文章审核设置」页 —— 那页只写 `site.article` 块）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md) 的补丁段。
 易混：与「发布判定」无关（那管质量与合规，这管文本里有没有不许出现的词）；与「关键词风险」的四个处置动作也不是同一层（那是**事后**对你记下的命中记录做处置，这是**落库前**的自动处置）。
 _Avoid_: 把它说成"命中即拒"的全站规则（只有文章面生效）；用白名单覆盖的命中触发拒发（白名单命中不算 block 命中）；在评论面上开这个开关（本期不做，误伤代价太高且没有改稿再投的退路）。
 
 **评论管理（comment moderation）**：
 后台「文章管理 → 评论管理」页（`/articles/comments`，2026-11-27），管理端处置读者站评论的入口：五维筛选（内容关键词 / 用户 ID 或昵称 / 文章 ID / 时间区间 / 状态）+ 单条与批量删除 + **禁言**与**封禁**发布人 + 查看文章。删除与作者在文章页点「删除」走**同一套**业务逻辑（级联同根回复、清点赞、扣文章评论数），不是另一条路径。**删除解决这一次，封禁解决这个人**：禁言只拦发布类动作（登录、浏览、点赞照旧），封禁是账号状态置封禁并吊销会话。读者站文章页也给了行内删除入口，可见性 = 管理员 / 评论作者 / 文章作者（`domain.CanDelete`）。
-位置：`frontend_admin/app/components/articles/CommentManager.vue`；后端 `GET /api/comments/admin/list`、`DELETE /api/comments/admin`、`POST /api/comments/admin/mute`、`POST /api/comments/admin/ban`（`internal/comment/{domain,app,adapter}` + `app/comment_wiring.go` 的账号处置桥接）；决定见 [ADR-0035](./docs/adr/0035-comment-moderation.md)。
+位置：`frontend_admin/app/components/articles/CommentManager.vue`；后端 `GET /api/comments/admin/list`、`DELETE /api/comments/admin`、`POST /api/comments/admin/mute`、`POST /api/comments/admin/ban`（`internal/comment/{domain,app,adapter}` + `app/comment_wiring.go` 的账号处置桥接）；决定见 [ADR-0035](./docs/adr/0036-comment-moderation.md)。
 易混：与「关键词风险」不同（那管文本命中）；与「用户管理」的封禁入口是**同一个动作**（这里只是从评论场景直达，改了账号状态就等于那边改了）。
 _Avoid_: 把"删评论"当成"处理这个人"（删完还会继续刷，封/禁才治人）；在管理端另造一条绕过 `Service.Remove` 的删除路径（计数与级联会漂）；把「已删除」判据写成只看 `status`（软删只写 `deleted_at`，`status` 仍是 2）。
 

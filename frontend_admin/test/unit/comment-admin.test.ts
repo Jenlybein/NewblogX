@@ -40,14 +40,21 @@ describe('splitUserInput', () => {
 })
 
 describe('dayOf', () => {
-  it('毫秒时间戳切成 YYYY-MM-DD', () => {
-    expect(dayOf(Date.UTC(2026, 10, 27, 12, 0, 0))).toBe('2026-11-27')
+  // 用例按**本地时间**构造：日期选择器给的就是本地零点，后端也按 time.Local 解析。
+  // 若这条用例喂 Date.UTC，它会掩盖"东八区的今天被切成前一天"这个真 bug。
+  it('按本地时区切成 YYYY-MM-DD', () => {
+    expect(dayOf(new Date(2026, 10, 27, 12, 0, 0).getTime())).toBe('2026-11-27')
+  })
+
+  it('本地零点不会被切成前一天', () => {
+    expect(dayOf(new Date(2026, 10, 27, 0, 0, 0).getTime())).toBe('2026-11-27')
   })
 
   it('同一天的任意时刻都落在同一天', () => {
-    const start = Date.UTC(2026, 10, 27, 0, 0, 0)
-    const end = Date.UTC(2026, 10, 27, 23, 59, 59)
-    expect(dayOf(start)).toBe(dayOf(end))
+    const start = new Date(2026, 10, 27, 0, 0, 1).getTime()
+    const end = new Date(2026, 10, 27, 23, 59, 59).getTime()
+    expect(dayOf(start)).toBe('2026-11-27')
+    expect(dayOf(end)).toBe('2026-11-27')
   })
 })
 

@@ -79,6 +79,17 @@ const DISPOSE_OPTIONS: { label: string; value: ContentDisposeAction }[] = [
   { label: "拒发（不保存，提示作者修改）", value: "reject" },
 ];
 
+/**
+ * 观察档的可选动作：本期只有"打星"。
+ *
+ * 后端 `watch_action` 接受 `reject` 并原样落库，但运行时**不读取**它 ——
+ * 推广话术类词拒发等于把"加微信"写成违规内容。下拉里不给这个选项，
+ * 免得运营选了保存、以为生效了（配置里也不会因此变脏）。
+ */
+const WATCH_DISPOSE_OPTIONS: { label: string; value: ContentDisposeAction }[] = [
+  { label: "只打星（照常发布）", value: "mask" },
+];
+
 /** 段里缺 auto_dispose 时（老库）的默认值：两档都打星，也就是改造前的行为。 */
 const DEFAULT_AUTO_DISPOSE: ContentFilterRuntimeConfigPayload["auto_dispose"] = {
   block_action: "mask",
@@ -811,7 +822,7 @@ onMounted(load);
           <span class="cf-sample__key">观察档命中</span>
           <NSelect
             v-model:value="config.auto_dispose.watch_action"
-            :options="DISPOSE_OPTIONS"
+            :options="WATCH_DISPOSE_OPTIONS"
             class="admin-field--select"
             data-role="content-filter-dispose-watch"
           />

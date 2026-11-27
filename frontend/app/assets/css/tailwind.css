@@ -2674,6 +2674,13 @@ html {
   box-shadow: var(--shadow-lg);
 }
 
+/* 多选上限提示：坐在搜索框与选项之间，说明"为什么剩下的点不动了"。
+ * 没有它的话，达上限后唯一反馈是"点了没反应"，用户会以为是卡顿。 */
+.chip-select__limit {
+  @apply text-xs;
+  color: var(--color-ink-muted);
+}
+
 .chip-select__chips {
   @apply flex max-h-[240px] flex-wrap gap-1.5 overflow-y-auto;
 }
@@ -2697,6 +2704,10 @@ html {
   border-color: var(--color-ink);
   background: var(--color-ink);
   color: var(--color-surface);
+}
+
+.chip-select__chip--blocked {
+  @apply cursor-not-allowed opacity-40;
 }
 
 .chip-select__empty {
@@ -4405,3 +4416,4 @@ html {
     transform: none;
   }
 }
+

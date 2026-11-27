@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import ChipSelect from "~/components/common/ChipSelect.vue";
+import {
+  MAX_ARTICLE_TAGS,
+  MAX_ARTICLE_TAGS_HINT,
+} from "~/constants/articleTags";
 import { computed, ref } from "vue";
 import { NAlert, NButton, NCard, NInput, NModal, NSwitch } from "naive-ui";
 
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
-import type { QualityRejectionDetails, QualityRejectionDimension } from "~/composables/useStudioPublish";
+import type {
+  QualityRejectionDetails,
+  QualityRejectionDimension,
+} from "~/composables/useStudioPublish";
 import type { ShapeImageTarget } from "~/utils/imageShaping";
 import { scoreDimensionLabel } from "~/utils/scoreDimensions";
-import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
+import {
+  categoryTitleError,
+  normalizeCategoryTitle,
+} from "~/utils/studioCategory";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
 //
@@ -22,8 +32,12 @@ const show = defineModel<boolean>("show", { required: true });
 const categoryId = defineModel<string | null>("categoryId", { required: true });
 const tagIds = defineModel<string[]>("tagIds", { required: true });
 const abstractText = defineModel<string>("abstractText", { required: true });
-const commentsToggle = defineModel<boolean>("commentsToggle", { required: true });
-const visibility = defineModel<"visible" | "user_hidden">("visibility", { required: true });
+const commentsToggle = defineModel<boolean>("commentsToggle", {
+  required: true,
+});
+const visibility = defineModel<"visible" | "user_hidden">("visibility", {
+  required: true,
+});
 
 const props = defineProps<{
   /** 提交中（任一流程），此时不允许点遮罩关闭。 */
@@ -96,7 +110,9 @@ const emit = defineEmits<{
 // 内联新建分类：输入框的开关与草稿标题都是纯 UI 状态，判断逻辑留在 composable。
 const categoryCreateOpen = ref(false);
 const newCategoryTitle = ref("");
-const newCategoryTitleError = computed(() => categoryTitleError(newCategoryTitle.value));
+const newCategoryTitleError = computed(() =>
+  categoryTitleError(newCategoryTitle.value),
+);
 
 // 驳回时没达到及格线的维度（木桶判定）。空数组表示"这次是总分不够"，
 // 两种驳回理由的措辞完全不同，所以先归一成列表再决定文案。
@@ -117,7 +133,9 @@ async function submitCategory() {
   if (props.categoryCreating || newCategoryTitleError.value) {
     return;
   }
-  const created = await props.onCreateCategory(normalizeCategoryTitle(newCategoryTitle.value));
+  const created = await props.onCreateCategory(
+    normalizeCategoryTitle(newCategoryTitle.value),
+  );
   // 只有真正完成"创建并选中"才收起面板；重名/网络失败时保留输入，让用户改名重试。
   if (created) {
     newCategoryTitle.value = "";
@@ -129,34 +147,54 @@ async function submitCategory() {
 <template>
   <NModal v-model:show="show" :mask-closable="!props.locked">
     <div class="publish-modal-shell">
-      <NCard title="发布文章" :bordered="false" closable class="publish-modal-card" @close="show = false">
+      <NCard
+        title="发布文章"
+        :bordered="false"
+        closable
+        class="publish-modal-card"
+        @close="show = false"
+      >
         <div class="publish-form">
           <div class="publish-form__row">
-            <label class="publish-form__label" for="publish-category-control">分类</label>
+            <label class="publish-form__label" for="publish-category-control"
+              >分类</label
+            >
             <div class="publish-category">
               <ChipSelect
                 v-model="categoryId"
                 control-id="publish-category-control"
                 :options="props.categoryOptions || []"
                 placeholder="请选择分类"
-                data-role="publish-category" />
+                data-role="publish-category"
+              />
 
               <!-- 分类下拉的两种"空"（票 320）：没数据 vs 没加载出来。
                    前者给一句能照着做的话，后者给原因 —— 都不能是一声不响的空白。 -->
               <p
                 v-if="props.categoryError"
                 class="publish-category__hint publish-category__hint--error"
-                data-role="category-error">
+                data-role="category-error"
+              >
                 {{ props.categoryError }}
               </p>
-              <p v-else-if="!(props.categoryOptions || []).length" class="publish-category__hint" data-role="category-empty">
-                {{ props.canCreateCategory ? "还没有分类，点下面「+ 新建分类」创建第一个" : "还没有可选分类" }}
+              <p
+                v-else-if="!(props.categoryOptions || []).length"
+                class="publish-category__hint"
+                data-role="category-empty"
+              >
+                {{
+                  props.canCreateCategory
+                    ? "还没有分类，点下面「+ 新建分类」创建第一个"
+                    : "还没有可选分类"
+                }}
               </p>
 
               <!-- 新建分类就地展开：不跳分类管理页，创建成功后自动选中（issue 127）。 -->
               <template v-if="props.canCreateCategory">
                 <div v-if="categoryCreateOpen" class="publish-category__create">
-                  <label class="sr-only" for="publish-new-category-control">新分类名称</label>
+                  <label class="sr-only" for="publish-new-category-control"
+                    >新分类名称</label
+                  >
                   <NInput
                     v-model:value="newCategoryTitle"
                     size="small"
@@ -164,18 +202,28 @@ async function submitCategory() {
                     placeholder="新分类名称"
                     class="publish-category__input"
                     :input-props="{ id: 'publish-new-category-control' }"
-                    @keyup.enter="submitCategory" />
+                    @keyup.enter="submitCategory"
+                  />
                   <NButton
                     type="primary"
                     size="small"
                     :loading="props.categoryCreating"
                     :disabled="Boolean(newCategoryTitleError)"
-                    @click="submitCategory">
+                    @click="submitCategory"
+                  >
                     创建
                   </NButton>
-                  <NButton quaternary size="small" @click="toggleCategoryCreate">取消</NButton>
+                  <NButton quaternary size="small" @click="toggleCategoryCreate"
+                    >取消</NButton
+                  >
                 </div>
-                <NButton v-else quaternary size="small" class="publish-category__add" @click="toggleCategoryCreate">
+                <NButton
+                  v-else
+                  quaternary
+                  size="small"
+                  class="publish-category__add"
+                  @click="toggleCategoryCreate"
+                >
                   + 新建分类
                 </NButton>
               </template>
@@ -183,7 +231,9 @@ async function submitCategory() {
           </div>
 
           <div class="publish-form__row">
-            <label class="publish-form__label" for="publish-tags-control">添加标签</label>
+            <label class="publish-form__label" for="publish-tags-control"
+              >添加标签</label
+            >
             <div class="publish-tags">
               <ChipSelect
                 v-model="tagIds"
@@ -191,18 +241,30 @@ async function submitCategory() {
                 multiple
                 :options="props.tagOptions || []"
                 :max-tag-count="4"
+                :max-selected="MAX_ARTICLE_TAGS"
                 placeholder="请选择已有标签"
-                data-role="publish-tags" />
+                data-role="publish-tags"
+              />
+              <!-- 上限先写在脸上：选满之后选项会置灰，但"为什么"要提前说清楚。 -->
+              <p class="publish-tags__hint" data-role="tag-limit-hint">
+                {{ MAX_ARTICLE_TAGS_HINT }}（已选 {{ tagIds.length }} 个）
+              </p>
 
               <!-- 标签下拉的故障态（与分类同款）：接口挂了不能装成"还没有标签"。 -->
-              <p v-if="props.tagError" class="publish-tags__hint publish-tags__hint--error" data-role="tag-error">
+              <p
+                v-if="props.tagError"
+                class="publish-tags__hint publish-tags__hint--error"
+                data-role="tag-error"
+              >
                 {{ props.tagError }}
               </p>
             </div>
           </div>
 
           <div class="publish-form__row publish-form__row--top">
-            <label class="publish-form__label" for="publish-cover-control">文章封面</label>
+            <label class="publish-form__label" for="publish-cover-control"
+              >文章封面</label
+            >
             <StudioCoverUploadPanel
               control-id="publish-cover-control"
               :busy="props.coverUploading"
@@ -211,30 +273,40 @@ async function submitCategory() {
               :error="props.coverError"
               :size="props.coverSize"
               :on-file-change="props.onCoverChange"
-              :on-clear="props.onClear" />
+              :on-clear="props.onClear"
+            />
           </div>
 
           <div class="publish-form__row publish-form__row--top">
-            <label class="publish-form__label" for="publish-abstract-control">编辑摘要</label>
+            <label class="publish-form__label" for="publish-abstract-control"
+              >编辑摘要</label
+            >
             <div class="publish-summary">
               <NInput
                 v-model:value="abstractText"
                 type="textarea"
                 maxlength="180"
                 :input-props="{ id: 'publish-abstract-control' }"
-                :autosize="{ minRows: 5, maxRows: 8 }" placeholder="请输入文章摘要" />
-              <span class="publish-summary__count">{{ abstractText.length }}/180</span>
+                :autosize="{ minRows: 5, maxRows: 8 }"
+                placeholder="请输入文章摘要"
+              />
+              <span class="publish-summary__count"
+                >{{ abstractText.length }}/180</span
+              >
             </div>
           </div>
 
           <div class="publish-form__row">
-            <label class="publish-form__label" for="publish-visibility-control">可见范围</label>
+            <label class="publish-form__label" for="publish-visibility-control"
+              >可见范围</label
+            >
             <ChipSelect
               v-model="visibility"
               control-id="publish-visibility-control"
               :options="props.visibilityOptions"
               placeholder="请选择文章可见范围"
-              data-role="publish-visibility" />
+              data-role="publish-visibility"
+            />
           </div>
 
           <div class="publish-form__row">
@@ -242,7 +314,9 @@ async function submitCategory() {
                  不能和裸 <label> 拼成"看得见却指不到控件"的假关联。 -->
             <span class="publish-form__label">评论开关</span>
             <div class="publish-form__switch">
-              <span class="muted">{{ commentsToggle ? "文章发布后允许评论" : "文章发布后将关闭评论区" }}</span>
+              <span class="muted">{{
+                commentsToggle ? "文章发布后允许评论" : "文章发布后将关闭评论区"
+              }}</span>
               <NSwitch v-model:value="commentsToggle" aria-label="评论开关" />
             </div>
           </div>
@@ -257,40 +331,47 @@ async function submitCategory() {
             type="error"
             :bordered="false"
             class="publish-form__rejection"
-            data-role="quality-rejection">
+            data-role="quality-rejection"
+          >
             <template #header>
               <template v-if="rejectionWeakDimensions.length">
-                内容质量未达标：{{ props.qualityRejection.score }} 分，
-                有 {{ rejectionWeakDimensions.length }} 项低于及格线
+                内容质量未达标：{{ props.qualityRejection.score }} 分， 有
+                {{ rejectionWeakDimensions.length }} 项低于及格线
                 {{ props.qualityRejection.min_dimension_score }} 分
                 <template v-if="props.qualityRejection.gap > 0">
                   ，总分还差 {{ props.qualityRejection.gap }} 分
                 </template>
               </template>
               <template v-else>
-                内容质量未达标：{{ props.qualityRejection.score }} 分，
-                放行线 {{ props.qualityRejection.required_score }} 分，
-                还差 {{ props.qualityRejection.gap }} 分
+                内容质量未达标：{{ props.qualityRejection.score }} 分， 放行线
+                {{ props.qualityRejection.required_score }} 分， 还差
+                {{ props.qualityRejection.gap }} 分
               </template>
             </template>
             <ul
               v-if="rejectionWeakDimensions.length"
               class="publish-rejection__list"
-              data-role="quality-rejection-dimensions">
+              data-role="quality-rejection-dimensions"
+            >
               <li v-for="item in rejectionWeakDimensions" :key="item.name">
                 <strong>{{ scoreDimensionLabel(item.name) }}</strong>：
-                {{ item.score }} 分（需 ≥ {{ props.qualityRejection.min_dimension_score }} 分）
+                {{ item.score }} 分（需 ≥
+                {{ props.qualityRejection.min_dimension_score }} 分）
               </li>
             </ul>
-            <ul v-if="props.qualityRejection.issues?.length" class="publish-rejection__list">
-              <li v-for="(issue, index) in props.qualityRejection.issues" :key="index">
+            <ul
+              v-if="props.qualityRejection.issues?.length"
+              class="publish-rejection__list"
+            >
+              <li
+                v-for="(issue, index) in props.qualityRejection.issues"
+                :key="index"
+              >
                 <strong>{{ issue.reason || "需要修改" }}</strong>
                 <span v-if="issue.suggestion"> —— {{ issue.suggestion }}</span>
               </li>
             </ul>
-            <p
-              v-else-if="!rejectionWeakDimensions.length"
-              class="muted m-0">
+            <p v-else-if="!rejectionWeakDimensions.length" class="muted m-0">
               这篇文章已落回草稿，改完可以立刻重投。
             </p>
           </NAlert>
@@ -302,30 +383,45 @@ async function submitCategory() {
             type="info"
             :bordered="false"
             class="publish-form__rejection"
-            data-role="pending-review">
+            data-role="pending-review"
+          >
             文章已发布，正在做内容检查；检查通过后才会对读者可见。期间仍可继续编辑并重新提交。
           </NAlert>
-
         </div>
 
         <template #footer>
           <div class="publish-modal__footer">
             <NButton quaternary @click="show = false">取消</NButton>
-            <NButton secondary :loading="props.aiPending" @click="emit('aiFill')">AI 填入</NButton>
+            <NButton
+              secondary
+              :loading="props.aiPending"
+              @click="emit('aiFill')"
+              >AI 填入</NButton
+            >
             <NButton
               quaternary
               :loading="props.draftPending"
               :disabled="props.coverUploading || props.draftDisabled"
-              :title="props.draftDisabled ? '站点当前不允许保存草稿（站点策略）' : undefined"
-              @click="emit('submit', 1)">
+              :title="
+                props.draftDisabled
+                  ? '站点当前不允许保存草稿（站点策略）'
+                  : undefined
+              "
+              @click="emit('submit', 1)"
+            >
               {{ props.draftLabel }}
             </NButton>
             <NButton
               type="primary"
               :loading="props.publishPending"
               :disabled="props.coverUploading || props.publishDisabled"
-              :title="props.publishDisabled ? '站点当前不允许发布文章（站点策略）' : undefined"
-              @click="emit('submit', 2)">
+              :title="
+                props.publishDisabled
+                  ? '站点当前不允许发布文章（站点策略）'
+                  : undefined
+              "
+              @click="emit('submit', 2)"
+            >
               {{ props.publishLabel }}
             </NButton>
           </div>

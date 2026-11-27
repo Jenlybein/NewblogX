@@ -16,154 +16,202 @@
  *  - 不提供"无匹配时新建"：新建入口只保留在业务页面里（例如"+ 新建分类"）；
  *  - 不在选项上显示文章数：chip 里只放名称，密度优先。
  */
-import { computed, nextTick, ref, watch } from 'vue'
-import { NInput, NPopover, NTag } from 'naive-ui'
+import { computed, nextTick, ref, watch } from "vue";
+import { NInput, NPopover, NTag } from "naive-ui";
 
 interface ChipOption<V extends string = string> {
-  label: string
-  value: V
+  label: string;
+  value: V;
 }
 
-const props = withDefaults(defineProps<{
-  options: ChipOption<T>[]
-  multiple?: boolean
-  placeholder?: string
-  clearable?: boolean
-  /** 触发器上最多显示几个已选 tag，其余折成 +N。 */
-  maxTagCount?: number
-  disabled?: boolean
-  /** 用于测试与可访问性：触发器与面板的稳定标识。 */
-  dataRole?: string
-  /**
-   * 触发器按钮的 DOM id。
-   *
-   * 发布弹窗里的字段名是裸 `<label>`：只有把 id 落到真正接收点击的触发按钮上，
-   * `label[for]` 才会在点标签时开合下拉（票 435）。
-   */
-  controlId?: string
-}>(), {
-  multiple: false,
-  placeholder: '请选择',
-  clearable: true,
-  maxTagCount: 3,
-  disabled: false,
-  dataRole: 'chip-select',
-  controlId: undefined,
-})
+const props = withDefaults(
+  defineProps<{
+    options: ChipOption<T>[];
+    multiple?: boolean;
+    placeholder?: string;
+    clearable?: boolean;
+    /** 触发器上最多显示几个已选 tag，其余折成 +N。 */
+    maxTagCount?: number;
+    /**
+     * 多选上限（0 或不填 = 不限制）。
+     *
+     * 与 maxTagCount 是两件事：那个决定"触发器上显示几个"，这个决定"能选几个"。
+     * 达上限后**未选中的选项置灰且不可点**，已选中的仍可点（那是取消）——
+     * 静默忽略点击是最糟的反馈：用户会以为卡了，反复点同一下。
+     */
+    maxSelected?: number;
+    disabled?: boolean;
+    /** 用于测试与可访问性：触发器与面板的稳定标识。 */
+    dataRole?: string;
+    /**
+     * 触发器按钮的 DOM id。
+     *
+     * 发布弹窗里的字段名是裸 `<label>`：只有把 id 落到真正接收点击的触发按钮上，
+     * `label[for]` 才会在点标签时开合下拉（票 435）。
+     */
+    controlId?: string;
+  }>(),
+  {
+    multiple: false,
+    placeholder: "请选择",
+    clearable: true,
+    maxTagCount: 3,
+    maxSelected: 0,
+    disabled: false,
+    dataRole: "chip-select",
+    controlId: undefined,
+  },
+);
 
 /** 单选绑字符串、多选绑字符串数组：与 NSelect 的 v-model 语义一致。 */
-const model = defineModel<T | T[] | null>({ default: null })
+const model = defineModel<T | T[] | null>({ default: null });
 
-const open = ref(false)
-const keyword = ref('')
-const activeIndex = ref(0)
-const triggerRef = ref<HTMLElement | null>(null)
+const open = ref(false);
+const keyword = ref("");
+const activeIndex = ref(0);
+const triggerRef = ref<HTMLElement | null>(null);
 
 const selectedValues = computed<T[]>(() => {
-  const value = model.value
-  if (Array.isArray(value)) return value
-  if (value === null || value === undefined || value === '') return []
-  return [value as T]
-})
+  const value = model.value;
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined || value === "") return [];
+  return [value as T];
+});
 
-const selectedSet = computed(() => new Set(selectedValues.value))
+const selectedSet = computed(() => new Set(selectedValues.value));
+
+/** 已达多选上限（单选或没设上限时恒为 false）。 */
+const atLimit = computed(
+  () =>
+    props.multiple &&
+    props.maxSelected > 0 &&
+    selectedValues.value.length >= props.maxSelected,
+);
+
+/** 面板顶部的计数提示文案（没设上限时为 null，不占位）。 */
+const limitHint = computed(() =>
+  props.multiple && props.maxSelected > 0
+    ? `已选 ${selectedValues.value.length} / 最多 ${props.maxSelected} 个`
+    : null,
+);
+
+/** 某个选项此刻点不动（未选中 + 已达上限）。 */
+function isBlocked(value: T) {
+  return atLimit.value && !isSelected(value);
+}
 
 const filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  if (!kw) return props.options
-  return props.options.filter(option => option.label.toLowerCase().includes(kw))
-})
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return props.options;
+  return props.options.filter((option) =>
+    option.label.toLowerCase().includes(kw),
+  );
+});
 
 /** 触发器上显示的文字（单选）或 tag 列表（多选）。 */
 const selectedLabels = computed(() =>
   selectedValues.value
-    .map(value => props.options.find(option => option.value === value)?.label ?? value)
-    .filter(Boolean))
+    .map(
+      (value) =>
+        props.options.find((option) => option.value === value)?.label ?? value,
+    )
+    .filter(Boolean),
+);
 
-const visibleTags = computed(() => selectedLabels.value.slice(0, props.maxTagCount))
-const hiddenTagCount = computed(() => Math.max(0, selectedLabels.value.length - props.maxTagCount))
+const visibleTags = computed(() =>
+  selectedLabels.value.slice(0, props.maxTagCount),
+);
+const hiddenTagCount = computed(() =>
+  Math.max(0, selectedLabels.value.length - props.maxTagCount),
+);
 
 function toggleOpen() {
-  if (props.disabled) return
-  open.value = !open.value
+  if (props.disabled) return;
+  open.value = !open.value;
 }
 
 watch(open, (value) => {
   if (value) {
-    keyword.value = ''
-    activeIndex.value = 0
-    return
+    keyword.value = "";
+    activeIndex.value = 0;
+    return;
   }
-})
+});
 
 // 搜索后高亮回到第一条：否则回车会选中一条当前看不见的选项。
 watch(keyword, () => {
-  activeIndex.value = 0
-})
+  activeIndex.value = 0;
+});
 
 function isSelected(value: T) {
-  return selectedSet.value.has(value)
+  return selectedSet.value.has(value);
 }
 
 function pick(option: ChipOption<T>) {
   if (props.multiple) {
-    const next = new Set(selectedValues.value)
-    if (next.has(option.value)) next.delete(option.value)
-    else next.add(option.value)
-    model.value = [...next] as T[]
-    return
+    const next = new Set(selectedValues.value);
+    if (next.has(option.value)) {
+      next.delete(option.value);
+    } else {
+      // 达上限就不再加；取消不受限制（否则选满之后连改主意都不行）。
+      if (atLimit.value) return;
+      next.add(option.value);
+    }
+    model.value = [...next] as T[];
+    return;
   }
-  model.value = option.value
-  open.value = false
+  model.value = option.value;
+  open.value = false;
 }
 
 function clearAll() {
-  model.value = props.multiple ? [] : null
+  model.value = props.multiple ? [] : null;
 }
 
 function moveActive(step: number) {
-  const total = filtered.value.length
-  if (total === 0) return
-  activeIndex.value = (activeIndex.value + step + total) % total
+  const total = filtered.value.length;
+  if (total === 0) return;
+  activeIndex.value = (activeIndex.value + step + total) % total;
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    event.preventDefault()
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
     if (!open.value) {
-      open.value = true
-      return
+      open.value = true;
+      return;
     }
-    moveActive(event.key === 'ArrowDown' ? 1 : -1)
-    return
+    moveActive(event.key === "ArrowDown" ? 1 : -1);
+    return;
   }
-  if (event.key === 'Enter') {
+  if (event.key === "Enter") {
     if (!open.value) {
-      open.value = true
-      event.preventDefault()
-      return
+      open.value = true;
+      event.preventDefault();
+      return;
     }
-    const option = filtered.value[activeIndex.value]
+    const option = filtered.value[activeIndex.value];
     if (option) {
-      event.preventDefault()
-      pick(option)
+      event.preventDefault();
+      pick(option);
     }
-    return
+    return;
   }
-  if (event.key === 'Escape' && open.value) {
-    event.preventDefault()
-    open.value = false
+  if (event.key === "Escape" && open.value) {
+    event.preventDefault();
+    open.value = false;
   }
 }
 
 /** 面板打开后把焦点交给搜索框：打开即可输入，不用再点一次。 */
-const searchRef = ref<InstanceType<typeof NInput> | null>(null)
+const searchRef = ref<InstanceType<typeof NInput> | null>(null);
 watch(open, async (value) => {
-  if (!value) return
-  await nextTick()
-  const input = (searchRef.value as unknown as { $el?: HTMLElement } | null)?.$el
-  input?.querySelector('input')?.focus()
-})
+  if (!value) return;
+  await nextTick();
+  const input = (searchRef.value as unknown as { $el?: HTMLElement } | null)
+    ?.$el;
+  input?.querySelector("input")?.focus();
+});
 </script>
 
 <template>
@@ -174,32 +222,50 @@ watch(open, async (value) => {
     :disabled="disabled"
     :show-arrow="false"
     raw
-    class="chip-select__popover">
+    class="chip-select__popover"
+  >
     <template #trigger>
       <button
         :id="props.controlId"
         ref="triggerRef"
         type="button"
         class="chip-select__trigger"
-        :class="{ 'chip-select__trigger--open': open, 'chip-select__trigger--empty': selectedLabels.length === 0 }"
+        :class="{
+          'chip-select__trigger--open': open,
+          'chip-select__trigger--empty': selectedLabels.length === 0,
+        }"
         :disabled="disabled"
         :data-role="`${dataRole}-trigger`"
         :aria-expanded="open"
         aria-haspopup="listbox"
         @click="toggleOpen"
-        @keydown="onKeydown">
+        @keydown="onKeydown"
+      >
         <template v-if="selectedLabels.length === 0">
           <span class="chip-select__placeholder">{{ placeholder }}</span>
         </template>
         <template v-else-if="multiple">
-          <NTag v-for="label in visibleTags" :key="label" size="small" :bordered="false">{{ label }}</NTag>
-          <span v-if="hiddenTagCount > 0" class="chip-select__more">+{{ hiddenTagCount }}</span>
+          <NTag
+            v-for="label in visibleTags"
+            :key="label"
+            size="small"
+            :bordered="false"
+            >{{ label }}</NTag
+          >
+          <span v-if="hiddenTagCount > 0" class="chip-select__more"
+            >+{{ hiddenTagCount }}</span
+          >
         </template>
         <template v-else>
           <span class="chip-select__value">{{ selectedLabels[0] }}</span>
         </template>
 
-        <span v-if="clearable && selectedLabels.length > 0" class="chip-select__clear" @click.stop="clearAll">✕</span>
+        <span
+          v-if="clearable && selectedLabels.length > 0"
+          class="chip-select__clear"
+          @click.stop="clearAll"
+          >✕</span
+        >
         <span class="chip-select__caret" aria-hidden="true">▾</span>
       </button>
     </template>
@@ -212,12 +278,30 @@ watch(open, async (value) => {
         placeholder="搜索"
         clearable
         :data-role="`${dataRole}-search`"
-        @keydown="onKeydown" />
+        @keydown="onKeydown"
+      />
 
-      <div v-if="filtered.length === 0" class="chip-select__empty" :data-role="`${dataRole}-empty`">
+      <div
+        v-if="limitHint"
+        class="chip-select__limit"
+        :data-role="`${dataRole}-limit`"
+      >
+        {{ limitHint }}
+      </div>
+
+      <div
+        v-if="filtered.length === 0"
+        class="chip-select__empty"
+        :data-role="`${dataRole}-empty`"
+      >
         没有匹配项
       </div>
-      <div v-else class="chip-select__chips" role="listbox" :aria-multiselectable="multiple">
+      <div
+        v-else
+        class="chip-select__chips"
+        role="listbox"
+        :aria-multiselectable="multiple"
+      >
         <button
           v-for="(option, index) in filtered"
           :key="option.value"
@@ -226,12 +310,16 @@ watch(open, async (value) => {
           :class="{
             'chip-select__chip--selected': isSelected(option.value),
             'chip-select__chip--active': index === activeIndex,
+            'chip-select__chip--blocked': isBlocked(option.value),
           }"
           role="option"
           :aria-selected="isSelected(option.value)"
+          :aria-disabled="isBlocked(option.value)"
+          :disabled="isBlocked(option.value)"
           :data-role="`${dataRole}-option`"
           @click="pick(option)"
-          @mouseenter="activeIndex = index">
+          @mouseenter="activeIndex = index"
+        >
           {{ option.label }}
         </button>
       </div>

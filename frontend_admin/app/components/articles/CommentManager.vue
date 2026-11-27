@@ -255,7 +255,8 @@ const columns = [
   {
     title: '用户',
     key: 'user_nickname',
-    minWidth: 180,
+    // 18 位雪花 ID 在 180px 里会折成两行（线上实拍过）；240 刚好放下"ID + 18 位数字"。
+    minWidth: 240,
     render: (row: AdminCommentItem) => h('div', { class: 'comment-admin__user' }, [
       h('p', { class: 'comment-admin__text' }, row.user_nickname || '（未留下昵称）'),
       row.user_id ? h('p', { class: 'comment-admin__sub' }, `ID ${row.user_id}`) : null,
@@ -327,7 +328,7 @@ onMounted(refresh)
 
         <NSpace align="center">
           <NButton
-            type="error"
+            :type="checkedKeys.length === 0 ? 'default' : 'error'"
             :loading="removing"
             :disabled="checkedKeys.length === 0"
             data-role="comment-admin-batch-delete"
@@ -437,6 +438,11 @@ onMounted(refresh)
   margin: 0;
   color: var(--color-ink-muted);
   font-size: 12px;
+}
+
+/* 雪花 ID 是 18 位连续数字：允许它撑宽列，但不要折成两行（折行后完全没法读）。 */
+.comment-admin__sub {
+  white-space: nowrap;
 }
 
 .comment-admin__link {

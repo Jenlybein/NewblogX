@@ -262,7 +262,10 @@ type Service struct{ cfg func() conf.Mail }
 菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
 派生 —— 这份清单同时是路由、菜单与页面文件的对账来源。
 
-**分段口径**（票 481 起，见 [ADR-0029](../adr/0029-admin-nav-three-levels-and-site-split.md)）：字段按**通道**归属，
+**分段口径**（票 481 起，见 [ADR-0029](../adr/0029-admin-nav-three-levels-and-site-split.md)）：字段按**通道**归属。
+改段结构时跑一次 `-migrate-runtime-config`（默认只读、`-apply` 才写、物理删除旧键），
+**然后必须重启服务**：CLI 是另一个进程直写库，运行中的进程持有启动期载入的缓存，不重启就会
+"库里已搬好、接口还在按旧值回答"。以下为分段细节：
 `site.login` 只剩「用户名密码登录开关 + 登录失败限流」两项，其余各自回到自己的段 ——
 邮箱登录/注册与发码限流进 `mail`、手机号登录与发码限流进 `sms`、QQ 开关进 `oauth`、
 图形验证码总开关与四个入口闸门进 `captcha`。页面随之变成「用户操作 → 登录设置」与
@@ -359,6 +362,7 @@ const loaded = ref(false)
 
 `settings.yaml` 现在只剩进程级配置。业务默认值只有一个来源
 （`site_default_settings.yaml`），不再有两份默认值互相打架。
+
 
 
 

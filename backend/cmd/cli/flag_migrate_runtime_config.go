@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"myblogx/conf"
 	"myblogx/internal/platform/config"
@@ -35,17 +34,22 @@ func FlagMigrateRuntimeConfig(db *gorm.DB, logger *logrus.Logger, apply bool) er
 		return fmt.Errorf("运行时配置迁移失败: %w", err)
 	}
 
+	// 报告只走 stdout，**不再同时写日志**。
+	//
+	// 这条命令由人手动执行，输出要能整段读；同一句话既 print 又 logger 会让
+	// 每行出现两次（一次人类可读、一次 JSON 包装），在几十个键的报告里完全没法看。
+	// 需要留痕时重定向 stdout 即可。
 	for _, line := range config.LoginSectionMigrationReportLines(result, apply) {
 		fmt.Println(line)
-		if logger != nil {
-			// 告警行（"被跳过的键没有生效"）走 Warn，方便按级别筛出来；
-			// 其余走 Info —— 与 -filter-coverage 的输出口径一致。
-			if strings.HasPrefix(line, "⚠") {
-				logger.Warn(line)
-			} else {
-				logger.Info(line)
-			}
-		}
+	}
+	if apply {
+		// 运行中的进程持有一份启动期载入的运行时配置缓存，CLI 是另一个进程、
+		// 只写库，**改不到那份缓存**。所以写完必须重启服务，否则会出现
+		// "库里已经搬好、接口还在按旧值回答"（生产实测：迁移后 email_login 仍报 false，
+		// 重启 blogx_server 才恢复 true）。
+		fmt.Println()
+		fmt.Println("⚠ 已写入数据库，但运行中的进程仍持有旧缓存：请重启服务后生效 ——")
+		fmt.Println("    docker compose restart blogx_server")
 	}
 	return nil
 }

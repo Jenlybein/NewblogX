@@ -472,3 +472,25 @@ export type ImageAuditStatus =
   | CreateImageUploadTaskResponseData['audit_status']
   | UploadTaskStatusResponseData['audit_status'];
 
+// ── 评论管理（管理端，2026-11-27）─────────────────────────────
+
+/** 一条评论（管理端视角：带文章标题与昵称快照）。 */
+export type AdminCommentItem = RequiredSchema<"myblogx_internal_comment_app.AdminCommentItem">
+
+/** 评论管理列表载荷（`GET /comments/admin/list`）。 */
+export type AdminCommentListData = HasMoreList<AdminCommentItem>
+
+/** 批量删除请求体（`DELETE /comments/admin`）。 */
+export type AdminCommentRemoveRequest = Schema<"internal_comment_adapter_http.AdminRemoveRequest">
+
+/** 批量删除结果：成功的条数与逐条失败原因。 */
+export type AdminCommentRemoveResult = RequiredSchema<"myblogx_internal_comment_app.AdminRemoveManyResult">
+
+/** 禁言请求体（`POST /comments/admin/mute`）。 */
+export type AdminCommentMuteRequest = Schema<"internal_comment_adapter_http.AdminMuteRequest">
+
+/** 禁言结果：到期时间（永久时是远期时间点）。 */
+export type AdminCommentMuteResult = RequiredSchema<"internal_comment_adapter_http.AdminMuteResponse">
+
+/** 封禁请求体（`POST /comments/admin/ban`）。 */
+export type AdminCommentBanRequest = Schema<"internal_comment_adapter_http.AdminBanRequest">

@@ -66,3 +66,17 @@ export function diggComment(id: string) {
     method: "POST",
   });
 }
+
+/**
+ * 删除一条评论（根评论或子评论）。
+ *
+ * 权限不在前端判：后端 `domain.CanDelete` 已经收口成「管理员 / 该评论作者 /
+ * 该文章作者」三类人，前端只负责**不给别人看入口**（`canDeleteComment`），
+ * 真正的拦截仍在服务端 —— 前端藏按钮是体验，不是鉴权。
+ *
+ * 删一级评论会连带删掉它下面的全部回复，所以二次确认必须发生在调用方
+ * （页面侧），这里只发请求。
+ */
+export function deleteComment(id: string) {
+  return useNuxtApp().$api.request(`/api/comments/${String(id)}`, { method: "DELETE" });
+}

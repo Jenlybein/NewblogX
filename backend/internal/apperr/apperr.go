@@ -319,6 +319,21 @@ const (
 	CodeCommentDiggChanged    Code = "comment.digg_changed"
 	CodeCommentDiggDuplicated Code = "comment.digg_duplicated"
 	CodeCommentContentEmpty   Code = "comment.content_empty"
+
+	// 管理端评论管理（后台「文章管理 → 评论管理」）。
+	//
+	// 这一组全是"后台改一个值 / 补一个字段就能过"的失败，因此登记为参数类
+	// （protocol.go 的 ProtocolValidation），而不是让后台看到"服务异常"后
+	// 误以为后端坏了、不敢重试。
+	// 处置端口没装配是例外：那是装配漏了一步（CodeCommentAdminUnavailable），
+	// 按服务异常返回，登记在 protocol_test.go 的 serviceFallbackCodes。
+	CodeCommentAdminStatusInvalid  Code = "comment.admin_status_invalid"
+	CodeCommentAdminBatchInvalid   Code = "comment.admin_batch_invalid"
+	CodeCommentAdminUserInvalid    Code = "comment.admin_user_invalid"
+	CodeCommentAdminDaysInvalid    Code = "comment.admin_days_invalid"
+	CodeCommentAdminReasonRequired Code = "comment.admin_reason_required"
+	CodeCommentAdminReasonTooLong  Code = "comment.admin_reason_too_long"
+	CodeCommentAdminUnavailable    Code = "comment.admin_unavailable"
 )
 
 // 图片与对象存储。
@@ -728,6 +743,16 @@ var messages = map[Code]string{
 	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
 	CodeCommentDiggDuplicated: "请勿重复点赞",
 	CodeCommentContentEmpty:   "评论内容不能为空",
+
+	CodeCommentAdminStatusInvalid:  "状态筛选只能是 all / published / deleted",
+	CodeCommentAdminBatchInvalid:   "批量删除一次只能选 1–100 条评论",
+	CodeCommentAdminUserInvalid:    "请指定要处理的用户",
+	CodeCommentAdminDaysInvalid:    "禁言时长只能选 1 天 / 7 天 / 30 天 / 永久",
+	CodeCommentAdminReasonRequired: "请填写处置理由",
+	CodeCommentAdminReasonTooLong:  "处置理由不能超过 200 字",
+	// 装配层没接线：后台点「禁言 / 封禁」时发现这个进程没接账号处置端口。
+	// 用户改不了任何东西，按服务异常返回，也不把装配细节透出去。
+	CodeCommentAdminUnavailable: "账号处置能力未就绪，请稍后重试或联系运维",
 
 	CodeImageUnavailable:      "图片不存在或不可用",
 	CodeImageUploadDisabled:   "站点未启用图片上传",

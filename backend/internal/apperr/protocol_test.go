@@ -218,6 +218,10 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeCommentDiggChanged,
 	apperr.CodeCommentDiggDuplicated,
 	apperr.CodeCommentContentEmpty,
+	// 管理端评论页的账号处置端口没装配（评论模块的 AccountDisposer 为零值）：
+	// 管理员点「禁言 / 封禁」时发现这个进程没接 user 队列的服务，是装配漏了
+	// 一步，不是他传错了参数，也不该把装配细节透出去。按通用服务异常返回。
+	apperr.CodeCommentAdminUnavailable,
 
 	// 图片与对象存储。
 	apperr.CodeImageUnavailable,

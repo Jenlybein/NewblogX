@@ -370,6 +370,13 @@ func translate(err error) error {
 
 // toComment 把 row 映射成领域实体。
 func toComment(row commentRow) domain.Comment {
+	// 软删时间单独折成 *time.Time：gorm 的 DeletedAt 是"零值 = 未删除"的包装，
+	// 领域层需要的是"有没有删过"这个事实（管理端列表靠它区分已发布 / 已删除）。
+	var deletedAt *time.Time
+	if row.DeletedAt.Valid {
+		value := row.DeletedAt.Time
+		deletedAt = &value
+	}
 	return domain.Comment{
 		ID:                row.ID,
 		CreatedAt:         row.CreatedAt,
@@ -385,6 +392,7 @@ func toComment(row commentRow) domain.Comment {
 		DiggCount:         row.DiggCount,
 		ReplyCount:        row.ReplyCount,
 		Status:            domain.Status(row.Status),
+		DeletedAt:         deletedAt,
 	}
 }
 

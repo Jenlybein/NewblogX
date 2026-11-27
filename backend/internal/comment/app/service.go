@@ -81,6 +81,9 @@ type Service struct {
 	filter domain.ContentFilterer
 	// publishGate 是发布闸门（票 399）；nil 表示未接入（系统动作 / 旧测试）。
 	publishGate domain.PublishGate
+	// accounts 是账号处置端口（管理端评论页的禁言 / 封禁）；nil 表示未接入
+	// （单测或那些不服务管理端的进程角色）。
+	accounts domain.AccountDisposer
 }
 
 // WithPublishGate 注入发布闸门（票 399 / ADR-0032 决策 8）。

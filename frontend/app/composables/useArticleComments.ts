@@ -18,6 +18,8 @@ import { errorMessage } from "~/utils/errorMessage";
  *  - **回复目标精确到被回复的评论**（`replyTarget = {id, nickname, rootId}`），
  *    点「回复」顺带把页面交给输入面板（`openComposer`，见决定清单 §4）；
  *  - **点赞后只重取相关楼层**：子评论 → 该 root 的当前回复页；根评论 → 根评论页；
+ *  - **删除同一套口径**（`handleDeleteComment`）：确认在页面侧，成功之后仍只重取
+ *    受影响的楼层，不本地假删（评论计数由后端维护）；
  *  - **所有互动先过登录闸门**（`requireLogin`）：未登录时一个请求都不发。
  *
  * 依赖全部注入（与 `useArticleDigg` 同一套做法），页面只负责接线，测试用假服务
@@ -66,6 +68,13 @@ export interface ArticleCommentsDeps {
     reply_id?: string;
   }) => Promise<{ status?: number; filtered_count?: number } | null | undefined>;
   diggComment: (commentId: string) => Promise<unknown>;
+  /**
+   * 删除一条评论（根评论或子评论）。
+   *
+   * 与 `createComment` 同一个边界：二次确认在页面侧（它是交互，不是状态机），
+   * 这里只负责"先过登录闸门 → 发请求 → 按楼层重取"。
+   */
+  deleteComment: (id: string) => Promise<unknown>;
   /** 评论/回复成功后刷新正文（评论数在正文上）。 */
   refreshArticle: () => Promise<unknown> | unknown;
   /** 点「回复」后把握手权交给页面：打开底部评论输入面板（并聚焦）。 */
@@ -249,6 +258,40 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
   }
 
   /**
+   * 删除一条评论（根评论或子评论，权限由后端判定）。
+   *
+   * 三件事与点赞同口径：
+   *  - **先过登录闸门**：未登录时一个请求都不发，只弹登录框（游客看不到删除按钮，
+   *    但闸门不能只靠"按钮藏起来"——那只是体验，不是前置）；
+   *  - **失败只提示、不改本地状态**：文案用后端返回的 `errorMessage`，用户看到的是
+   *    "评论不存在 / 无权限删除"这类真实原因，而不是一句笼统的"删除失败"；
+   *  - **成功后按楼层重取**：子评论（带 `rootId`）重取该 root 的当前回复页；
+   *    根评论重取根评论页。**不本地假删、不整块清空** —— 删一级评论会连带删掉
+   *    它下面的全部回复，评论计数也由后端维护。
+   */
+  async function handleDeleteComment(commentId: string, rootId?: string) {
+    if (!(await deps.requireLogin())) {
+      return;
+    }
+
+    try {
+      await deps.deleteComment(commentId);
+      deps.notify.success(rootId ? "回复已删除" : "评论已删除");
+    } catch (error) {
+      deps.notify.error(errorMessage(error, "删除评论失败"));
+      return;
+    }
+
+    if (rootId) {
+      const state = ensureReplyState(rootId);
+      await loadReplyPage(rootId, state.currentPage || 1, true);
+      return;
+    }
+
+    await deps.pager.refreshCurrentPage();
+  }
+
+  /**
    * 发表评论 / 回复。
    *
    * `reply_id` 必须是**被回复的那条评论**的 id（回复子评论时不能传根 id），
@@ -338,6 +381,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
     replyLoadedPages,
     handleReply,
     handleCommentDigg,
+    handleDeleteComment,
     handleCreateComment,
     handleLoadReplies,
     handleNextReplies,

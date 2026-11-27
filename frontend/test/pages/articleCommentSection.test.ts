@@ -70,12 +70,37 @@ describe("文章页：评论区接线", () => {
       "fetchReplies:",
       "createComment",
       "diggComment",
+      "deleteComment",
       "refreshArticle",
       "openComposer:",
       "notify: message",
     ]) {
       expect(block, `useArticleComments 缺少依赖 ${dep}`).toContain(dep);
     }
+  });
+
+  it("删除接线：判据从页面注入（canDelete），事件交给页面自己的二次确认", () => {
+    const panel = commentPanelSource(pageSource());
+
+    expect(panel).toContain(':can-delete="canDeleteComment"');
+    expect(panel).toContain('@delete="handleDeleteComment"');
+  });
+
+  it("删除只给三类人看，且确认文案写明「会连同回复一起删」", () => {
+    const source = pageSource();
+
+    // 后端 domain.CanDelete 的口径：管理员 / 评论作者 / 文章作者。
+    const canDelete = functionSource(source, "canDeleteComment");
+    expect(canDelete).toContain("authStore.profileId");
+    expect(canDelete).toContain("isAdminUser");
+    expect(canDelete).toContain("authorId.value");
+
+    // 点删除先确认（全站统一的 confirmDestructive），确认之前不发请求；
+    // 修一线评论会连带删回复，这句后果必须在正文里。
+    const handleDelete = functionSource(source, "handleDeleteComment");
+    expect(handleDelete).toContain("confirmDestructive(dialog");
+    expect(handleDelete).toContain("会连同它下面的全部回复一起删除");
+    expect(handleDelete).toContain("performDeleteComment");
   });
 
   it("内嵌输入框换成「去发表评论」按钮；面板挂在页面根、点它是开面板的唯一入口", () => {

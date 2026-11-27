@@ -54,7 +54,9 @@ describe("文章页：编辑入口的判定接线", () => {
 
     expect(source).toContain('import { resolveArticleEditEntry } from "~/utils/articleEdit";');
     expect(source).toContain('import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";');
-    expect(source).toMatch(/const \{ entryVisible: writeEntryVisible \} = useArticleWritePolicy\(\);/u);
+    expect(source).toMatch(/const \{ entryVisible: writeEntryVisible, isAdmin: isAdminUser \} = useArticleWritePolicy\(\);/u);
+    // 管理员标识也共用那一份 `isAdmin`（页面不复写 `role === 1` 这类取值映射）。
+    expect(source).not.toMatch(/role === 1/u);
     expect(source).toMatch(
       /resolveArticleEditEntry\(\{\s*articleId: articleId\.value,\s*isSelfAuthor: isSelfAuthor\.value,\s*writeEntryVisible: writeEntryVisible\.value,\s*\}\)/u,
     );

@@ -219,7 +219,7 @@ describe("每页都有可见且可用的主题开关", () => {
     // 票 481 内容生产链三页搬到 /content/* 并各留一个旧地址跳转页：33 → 36。
     // 2026-11-27 菜单重构：新增「文章审核设置」页（/site/article-review）；
     // 「文章审核」换路由（/content/review → /review/article，旧地址留跳转页）：36 → 38。
-  expect(pages.length).toBe(38);
+  expect(pages.length).toBe(39);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);

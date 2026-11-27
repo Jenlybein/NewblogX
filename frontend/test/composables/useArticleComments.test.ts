@@ -72,6 +72,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
   });
   const createComment = vi.fn(async (): Promise<{ status?: number } | null> => ({ status: 2 }));
   const diggComment = vi.fn(async () => ({}) as unknown);
+  const deleteComment = vi.fn(async () => ({}) as unknown);
   const refreshArticle = vi.fn(async () => undefined);
   const openComposer = vi.fn();
   const notify = { success: vi.fn(), error: vi.fn() };
@@ -85,6 +86,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
     fetchReplies,
     createComment,
     diggComment,
+    deleteComment,
     refreshArticle,
     openComposer,
     notify,
@@ -98,6 +100,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
     fetchReplies,
     createComment,
     diggComment,
+    deleteComment,
     refreshArticle,
     openComposer,
     notify,
@@ -282,6 +285,77 @@ describe("评论区：提交", () => {
     expect(pager.loadPage).not.toHaveBeenCalled();
     expect(notify.error).toHaveBeenCalledWith("内容太短");
     expect(section.replyTarget.value).toEqual({ id: "c1", nickname: "读者甲", rootId: "c1" });
+  });
+});
+
+describe("评论区：删除（读者站行内删除）", () => {
+  it("未登录点删除：一个接口都不打，也不刷新任何楼层", async () => {
+    const { section, deleteComment, pager, fetchReplies, notify, requireLogin } = harness({ loggedIn: false });
+
+    await section.handleDeleteComment("c1");
+
+    // 游客看不到删除按钮，但闸门不能只靠"按钮藏起来"：前置是真的不发请求。
+    expect(requireLogin).toHaveBeenCalledTimes(1);
+    expect(deleteComment).not.toHaveBeenCalled();
+    expect(pager.refreshCurrentPage).not.toHaveBeenCalled();
+    expect(fetchReplies).not.toHaveBeenCalled();
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("根评论删除成功：重取根评论页，不动任何回复页", async () => {
+    const { section, deleteComment, pager, fetchReplies, notify } = harness();
+
+    await section.handleDeleteComment("c1");
+
+    expect(deleteComment).toHaveBeenCalledExactlyOnceWith("c1");
+    expect(pager.refreshCurrentPage).toHaveBeenCalledTimes(1);
+    expect(fetchReplies).not.toHaveBeenCalled();
+    expect(notify.success).toHaveBeenCalledWith("评论已删除");
+  });
+
+  it("子评论删除成功（带 rootId）：只重取该楼层的当前回复页，根评论页不重取", async () => {
+    const { section, deleteComment, pager, fetchReplies, notify } = harness({
+      replyPages: {
+        c1: {
+          1: { list: [makeReply({ id: "r1" })], has_more: true, reply_count: 4 },
+          2: { list: [makeReply({ id: "r2" })], has_more: false, reply_count: 4 },
+        },
+      },
+    });
+    await section.handleLoadReplies("c1");
+    await section.handleNextReplies("c1");
+
+    await section.handleDeleteComment("r2", "c1");
+
+    expect(deleteComment).toHaveBeenCalledExactlyOnceWith("r2");
+    // 重取的是这一楼层**当前页**（第 2 页）：不把楼层打回第一页，也不整页重取。
+    expect(fetchReplies).toHaveBeenLastCalledWith("a1", "c1", 2, 3);
+    expect(pager.refreshCurrentPage).not.toHaveBeenCalled();
+    expect(notify.success).toHaveBeenCalledWith("回复已删除");
+  });
+
+  it("删除失败：提示文案来自后端，且不刷新任何列表", async () => {
+    const { section, deleteComment, pager, fetchReplies, notify } = harness();
+    deleteComment.mockRejectedValueOnce(new Error("无权限删除这条评论"));
+
+    await section.handleDeleteComment("c1");
+
+    expect(notify.error).toHaveBeenCalledWith("无权限删除这条评论");
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(pager.refreshCurrentPage).not.toHaveBeenCalled();
+    expect(fetchReplies).not.toHaveBeenCalled();
+  });
+
+  it("删除成功但重取失败：楼层保持原样（不做本地假删）", async () => {
+    const { section, fetchReplies, notify } = harness();
+    await section.handleLoadReplies("c1");
+    fetchReplies.mockRejectedValueOnce(new Error("网络错误"));
+
+    await section.handleDeleteComment("r1", "c1");
+
+    // 列表里还有 r1 —— 说明删除后没有前端自己把条目摘掉，展示永远以重取结果为准。
+    expect(section.comments.value[0]?.replies?.map((reply) => reply.id)).toEqual(["r1"]);
+    expect(notify.error).toHaveBeenCalledWith("网络错误");
   });
 });
 

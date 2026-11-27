@@ -2982,6 +2982,62 @@
                 },
                 "type": "object"
             },
+            "internal_comment_adapter_http.AdminBanRequest": {
+                "properties": {
+                    "reason": {
+                        "description": "Reason 是可选理由（≤200 字）：封禁没有到期日要向用户解释，留空也允许。",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_comment_adapter_http.AdminMuteRequest": {
+                "properties": {
+                    "days": {
+                        "description": "Days 是禁言档位：1 / 7 / 30 天，0 表示永久；其它取值被拒绝。",
+                        "enum": [
+                            1,
+                            7,
+                            30,
+                            0
+                        ],
+                        "type": "integer"
+                    },
+                    "reason": {
+                        "description": "Reason 是处置理由（必填、≤200 字）。",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_comment_adapter_http.AdminMuteResponse": {
+                "properties": {
+                    "muted_until": {
+                        "description": "MutedUntil 是禁言到期时间（RFC3339）；\"永久\"时是远期时间点。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_comment_adapter_http.AdminRemoveRequest": {
+                "properties": {
+                    "id_list": {
+                        "description": "IDList 是 1–100 条评论 ID；条数、零值 ID 在用例层校验。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_comment_adapter_http.CreateRequest": {
                 "properties": {
                     "article_id": {
@@ -6572,6 +6628,77 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_comment_app.AdminCommentItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "article_title": {
+                        "description": "ArticleTitle 由 domain.ArticleInfo 端口批量读；读不到的保持空串。",
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "deleted": {
+                        "description": "Deleted 表示这条评论是否已被删除（软删标记或状态为已删除）。",
+                        "type": "boolean"
+                    },
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "reply_count": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "description": "Status 是对外状态：2 已发布 / 3 已删除。软删过的行（deleted_at 非空但\nstatus 列仍是 2）也一律报 3，见 EffectiveStatus。",
+                        "type": "integer"
+                    },
+                    "user_avatar": {
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_comment_app.AdminRemoveFailure": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "description": "Message 是失败原因的中文文案（来自错误码文案表；没有错误码的内部错误\n折成通用服务异常文案，不把 SQL 报错原文透给后台）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_comment_app.AdminRemoveManyResult": {
+                "properties": {
+                    "failed": {
+                        "items": {
+                            "$ref": "#/components/schemas/myblogx_internal_comment_app.AdminRemoveFailure"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "succeeded": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_comment_app.CreateResult": {
                 "properties": {
                     "article_id": {
@@ -7117,6 +7244,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_chat_adapter_http.WsTicketResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_AdminMuteResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_comment_adapter_http.AdminMuteResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7768,6 +7909,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_AdminRemoveManyResult": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_comment_app.AdminRemoveManyResult"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
                 "properties": {
                     "code": {
@@ -7873,6 +8028,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_AdminCommentItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_AdminCommentItem"
                     },
                     "msg": {
                         "type": "string"
@@ -8411,6 +8580,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_user_adapter_http.UserSearchItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_AdminCommentItem": {
+                "properties": {
+                    "has_more": {
+                        "type": "boolean"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/myblogx_internal_comment_app.AdminCommentItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -12153,6 +12337,224 @@
                     }
                 ],
                 "summary": "发表评论",
+                "tags": [
+                    "comment"
+                ]
+            }
+        },
+        "/comments/admin": {
+            "delete": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_comment_adapter_http.AdminRemoveRequest",
+                                "summary": "payload",
+                                "description": "要删除的评论 ID（1–100 条）"
+                            }
+                        }
+                    },
+                    "description": "要删除的评论 ID（1–100 条）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_AdminRemoveManyResult"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "批量删除评论（管理员）",
+                "tags": [
+                    "comment"
+                ]
+            }
+        },
+        "/comments/admin/ban": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_comment_adapter_http.AdminBanRequest",
+                                "summary": "payload",
+                                "description": "用户 ID 与可选理由"
+                            }
+                        }
+                    },
+                    "description": "用户 ID 与可选理由",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "封禁评论发布人（管理员）",
+                "tags": [
+                    "comment"
+                ]
+            }
+        },
+        "/comments/admin/list": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码（默认 1）",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页条数（默认 20，上限 100）",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "评论内容关键词（子串）",
+                        "in": "query",
+                        "name": "keyword",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "评论发布人 ID",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "评论发布人昵称关键词（子串）",
+                        "in": "query",
+                        "name": "user_keyword",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "文章 ID",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "起始日期（YYYY-MM-DD，按 created_at）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束日期（YYYY-MM-DD，含当天，按 created_at）",
+                        "in": "query",
+                        "name": "to",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "状态筛选",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "all",
+                                "published",
+                                "deleted"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_AdminCommentItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "管理端评论列表（管理员）",
+                "tags": [
+                    "comment"
+                ]
+            }
+        },
+        "/comments/admin/mute": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_comment_adapter_http.AdminMuteRequest",
+                                "summary": "payload",
+                                "description": "用户 ID、禁言天数与理由"
+                            }
+                        }
+                    },
+                    "description": "用户 ID、禁言天数与理由",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_comment_adapter_http_AdminMuteResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "禁言评论发布人（管理员）",
                 "tags": [
                     "comment"
                 ]

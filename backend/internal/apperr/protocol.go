@@ -99,6 +99,18 @@ var protocols = map[Code]ProtocolKind{
 
 	CodeSiteCaptchaInvalid: ProtocolValidation,
 
+	// 管理端评论管理（后台「文章管理 → 评论管理」）：状态筛选值、批量条数、
+	// 禁言档位、理由为空 / 超长都是运营改一下就能过的失败，归 1001；
+	// 归 1002 会让后台以为是服务坏了，反复点同一颗按钮。
+	// 处置端口没装配（comment.admin_unavailable）**不**登记在这里：那是服务异常，
+	// 按仓库约定登记在 protocol_test.go 的 serviceFallbackCodes 并写明理由。
+	CodeCommentAdminStatusInvalid:  ProtocolValidation,
+	CodeCommentAdminBatchInvalid:   ProtocolValidation,
+	CodeCommentAdminUserInvalid:    ProtocolValidation,
+	CodeCommentAdminDaysInvalid:    ProtocolValidation,
+	CodeCommentAdminReasonRequired: ProtocolValidation,
+	CodeCommentAdminReasonTooLong:  ProtocolValidation,
+
 	// 关键词风险页的筛选参数（ADR-0032）：后台传了不认识的文本面或状态，
 	// 换个值就能过，同属调用方能修正的失败。
 	CodeFilterSurfaceInvalid: ProtocolValidation,

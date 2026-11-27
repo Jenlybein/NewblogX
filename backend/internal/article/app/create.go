@@ -104,11 +104,29 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 	// 内容过滤（票 397 / ADR-0032 决策 5/6）：落库前把标题 / 摘要 / 正文里的
 	// 命中词替换成等长 `*`。替换后的文本是后面所有步骤（同步风险扫描、质量闸门、
 	// 落库、ES 投影、通知）唯一读到的版本。
-	texts, filteredCount := s.filterArticle(ctx, cmd.Actor.UserID, articleID, articleTexts{
+	texts, filteredCount, blocked := s.filterArticle(ctx, cmd.Actor.UserID, articleID, articleTexts{
 		Title:    cmd.Title,
 		Abstract: cmd.Abstract,
 		Content:  cmd.Content,
 	})
+
+	// 命中即拒（opt-in：content_filter.auto_dispose.block_action = reject）。
+	//
+	// 四条边界写在这里是有意的：
+	//   - 只拦 block 档且**真被打星**的命中 —— 白名单豁免的说法文本原样返回，
+	//     按档位直接判会把"冰毒科普"这类正常内容一起拒掉；
+	//   - 位置在过滤之后、闸门与落库之前：拒掉的提交一个字节都不落库，也不白烧
+	//     一次几秒的质量评分；
+	//   - 草稿同样拦。只拦提交的话，存草稿时命中词已被打成星号入库，作者把星号
+	//     改回原词再提交就不再命中 —— 拒发会整条失效；
+	//   - 配额**不归还**：这是作者自己能改的失败（换个说法就能过），归还额度等于
+	//     给反复试探词表的人发免费次数。命中记录已经在过滤那一步写好了
+	//     （拒绝 ≠ 不记录），风险页照常能看到这次试探。
+	//
+	// 错误里不带命中词 / 档位 / 类目，也不回显原文：那等于把词表送给作者。
+	if blocked {
+		return nil, domain.ErrContentBlocked
+	}
 
 	if target == domain.StatusExamining {
 		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，

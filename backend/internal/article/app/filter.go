@@ -39,6 +39,12 @@ type FilteredText struct {
 	Masked string
 	// FilteredCount 是实际被替换的处数（只用于"已过滤 N 处"的提示）。
 	FilteredCount int
+	// BlockTierMasked 表示"这段文本里确实有 block 档命中被替换成了星号"。
+	//
+	// 实现方只报事实，是否因此拒发由调用方决定：本站默认两档都只打星，
+	// "命中即拒"是按站点配置开启的 opt-in 行为。白名单覆盖的 block 命中
+	// 不算（文本没变），所以这个字段为 true 依然意味着"真的改过这段文本"。
+	BlockTierMasked bool
 }
 
 // ArticleTextFilterer 在全站唯一的内容过滤层里替换**文章**文本，并记一条关键词风险。
@@ -46,6 +52,9 @@ type FilteredText struct {
 // 错误语义：实现方在"命中记录写失败"时应当自己吞掉并记日志（fail-open），
 // 返回 error 只留给装配级异常；即便如此，调用方拿到 error 也按原文继续，
 // 不阻断作者发布（ADR-0032 决策 11）。
+//
+// 实现方只报事实（命中记录写了没有、文本改没改），是否因此拒发由调用方决定：
+// 内容过滤层不认识"草稿 / 投稿 / 编辑"这些动作，也不该替文章模块做发布决策。
 type ArticleTextFilterer interface {
 	FilterArticleText(ctx context.Context, in FilterText) (FilteredText, error)
 }
@@ -71,14 +80,18 @@ type articleTexts struct {
 // 三个字段各过滤一次、而不是拼成一段再切回来：引擎给出的上下文片段是按单段
 // 文本算的，拼接会让风险页看到"跨越标题与正文"的假上下文；等长替换虽然能切回
 // 原文偏移，但没必要为此把风险页的可读性搭进去。
+//
+// "有没有 block 档命中真被打星"按三个字段用 `||` 聚合：拒发是整篇文章的结论，
+// 标题命中与正文命中没有区别。
 func (s *Service) filterArticle(
 	ctx context.Context, userID domain.UserID, articleID ctype.ID, in articleTexts,
-) (articleTexts, int) {
-	title, titleCount := s.filterArticleText(ctx, userID, articleID, in.Title)
-	abstract, abstractCount := s.filterArticleText(ctx, userID, articleID, in.Abstract)
-	content, contentCount := s.filterArticleText(ctx, userID, articleID, in.Content)
+) (articleTexts, int, bool) {
+	title, titleCount, titleHit := s.filterArticleText(ctx, userID, articleID, in.Title)
+	abstract, abstractCount, abstractHit := s.filterArticleText(ctx, userID, articleID, in.Abstract)
+	content, contentCount, contentHit := s.filterArticleText(ctx, userID, articleID, in.Content)
 	return articleTexts{Title: title, Abstract: abstract, Content: content},
-		titleCount + abstractCount + contentCount
+		titleCount + abstractCount + contentCount,
+		titleHit || abstractHit || contentHit
 }
 
 // filterArticleText 过滤一段文章文本；未接入过滤器时原样返回。
@@ -87,23 +100,26 @@ func (s *Service) filterArticle(
 // articleTexts 三件套（nil 指针变成空串会把"不改"写成"清空"）。
 func (s *Service) filterArticleText(
 	ctx context.Context, userID domain.UserID, articleID ctype.ID, text string,
-) (string, int) {
+) (string, int, bool) {
 	if s.filter == nil {
-		return text, 0
+		return text, 0, false
 	}
 	return s.filterOne(ctx, userID, articleID, text, s.filter.FilterArticleText)
 }
 
 // filterCollection 过滤合集的标题与描述，返回替换后的两份文本与总处数。
+//
+// 合集面本期不参与"命中即拒"（只有文章面按配置拒发），所以这里只丢掉
+// filterOne 报回的 block 档事实。
 func (s *Service) filterCollection(
 	ctx context.Context, userID domain.UserID, collectionID ctype.ID, title, description string,
 ) (string, string, int) {
 	if s.collectionFilter == nil {
 		return title, description, 0
 	}
-	maskedTitle, titleCount := s.filterOne(ctx, userID, collectionID, title,
+	maskedTitle, titleCount, _ := s.filterOne(ctx, userID, collectionID, title,
 		s.collectionFilter.FilterCollectionText)
-	maskedDescription, descriptionCount := s.filterOne(ctx, userID, collectionID, description,
+	maskedDescription, descriptionCount, _ := s.filterOne(ctx, userID, collectionID, description,
 		s.collectionFilter.FilterCollectionText)
 	return maskedTitle, maskedDescription, titleCount + descriptionCount
 }
@@ -115,22 +131,24 @@ func (s *Service) filterCollection(
 //   - 过滤器返回错误（装配级异常，命中记录写失败由过滤模块自己吞掉）→ 原文；
 //   - 过滤器返回空文本（不该发生，但不能把作者的话弄丢）→ 原文；
 //   - 空串不送进过滤器：没有文本就没有命中，省一次 AC 自动机扫描。
+//
+// 后三条一律把 block 档事实置为 false：调用方拿到的是"没被过滤过的原文"，
+// 此时按"有命中、该拒发"处理，等于用一次装配故障把作者的文章拒掉。
 func (s *Service) filterOne(
 	ctx context.Context, userID domain.UserID, contentID ctype.ID, text string,
 	apply func(context.Context, FilterText) (FilteredText, error),
-) (string, int) {
+) (string, int, bool) {
 	// apply 恒非 nil：调用方（filterArticleText / filterCollectionText）已经各判过一次
 	// "端口没装配"，方法值也永远不是 nil。这里只判"这段文本是不是空的"。
 	if strings.TrimSpace(text) == "" {
-		return text, 0
+		return text, 0, false
 	}
 	got, err := apply(ctx, FilterText{UserID: userID, ContentID: contentID, Text: text})
 	if err != nil {
-		return text, 0
+		return text, 0, false
 	}
 	if got.Masked == "" {
-		return text, got.FilteredCount
+		return text, got.FilteredCount, got.BlockTierMasked
 	}
-	return got.Masked, got.FilteredCount
+	return got.Masked, got.FilteredCount, got.BlockTierMasked
 }
-

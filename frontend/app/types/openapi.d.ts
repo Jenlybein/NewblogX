@@ -8451,6 +8451,20 @@ export interface components {
              */
             stiffness: number;
         };
+        "conf.ContentFilterAutoDispose": {
+            /**
+             * @description BlockAction 是 block（拦截词）命中且**真被打星**时的处置：mask（默认）/ reject。
+             *
+             *     判据是"真被打星"：白名单豁免的命中文本原样返回，不该触发拒发。
+             * @enum {string}
+             */
+            block_action?: "mask" | "reject";
+            /**
+             * @description WatchAction 是 watch（观察词）命中的处置：本期只有 mask。
+             * @enum {string}
+             */
+            watch_action?: "mask" | "reject";
+        };
         "conf.ContentFilterWord": {
             /**
              * @description Category 是类目，固定七类，用于词云筛选与风险页归类。
@@ -10173,6 +10187,15 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionContentFilterRequest": {
             /**
+             * @description AutoDispose 是两档命中的处置口径（见 ContentFilterAutoDispose）。
+             *
+             *     它与上面那份"整段替换"的清单放在一起，是因为它也是词表策略的一部分：
+             *     换一份词表的人要能顺手说清"命中了怎么处理"，而不是去别处找开关。
+             *     老库（以及还没跟上的后台请求体）没有这个键时回落 mask —— 空串即 mask，
+             *     默认行为因此与改造前逐字节一致。
+             */
+            auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
+            /**
              * @description RetainDays 是命中记录的保留天数（默认 90，范围 1–3650）。
              *
              *     它是**运行时配置**而不是常量：命中记录里存着 ±20 字上下文，保留多久是运营
@@ -10206,6 +10229,15 @@ export interface components {
             words?: components["schemas"]["conf.ContentFilterWord"][];
         };
         "internal_site_adapter_http.SiteSectionContentFilterResponse": {
+            /**
+             * @description AutoDispose 是两档命中的处置口径（见 ContentFilterAutoDispose）。
+             *
+             *     它与上面那份"整段替换"的清单放在一起，是因为它也是词表策略的一部分：
+             *     换一份词表的人要能顺手说清"命中了怎么处理"，而不是去别处找开关。
+             *     老库（以及还没跟上的后台请求体）没有这个键时回落 mask —— 空串即 mask，
+             *     默认行为因此与改造前逐字节一致。
+             */
+            auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
             /** @description MissingRequiredCategories 是其中当前一条词都没有的（为空表示覆盖完整）。 */
             missing_required_categories?: string[];
             /** @description RequiredCategories 是"必须非空"的类目（当前是 politics 与 violence）。 */

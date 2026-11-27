@@ -60,6 +60,15 @@ type FilterOutput struct {
 	Masked string
 	// FilteredCount 是实际被替换的处数（白名单命中不算，重叠命中按并集算一处）。
 	FilteredCount int
+	// BlockTierMasked 表示"这段文本里确实有 block 档的命中被替换成了星号"。
+	//
+	// 它只报**事实**，不代表任何处置结论：本站默认两档都只打星（与改造前一致），
+	// 是否因此拒发是调用方（文章面）按站点配置决定的 opt-in 行为。
+	//
+	// 判据必须是"真被打星的 block 命中"，不能只看 Tier：白名单覆盖的 block 命中
+	// 也会出现在 Hits 里（那是为了统计误伤），可那些位置一个字符都没变 ——
+	// 把它们算进来就等于白名单失效。
+	BlockTierMasked bool
 }
 
 // Filter 过滤文本并记录命中（写入口）。
@@ -73,9 +82,12 @@ func (s *Service) Filter(ctx context.Context, in FilterInput) (FilterOutput, err
 	}
 	result := s.engine.Filter(in.Text)
 	out := FilterOutput{Masked: result.Masked, FilteredCount: result.MaskedSpans}
+	// 命中记录的写入**先于**处置结论：即使调用方最终决定拒发，这次试探也已经
+	// 留痕（风险页看得到、违规计分照算）。否定处置不该把证据一起丢掉。
 	if len(result.Hits) == 0 {
 		return out, nil
 	}
+	out.BlockTierMasked = hasMaskedBlockTier(result.Hits)
 	s.Record(ctx, domain.Hit{
 		CreatedAt: time.Now(),
 		Surface:   in.Surface,
@@ -86,6 +98,19 @@ func (s *Service) Filter(ctx context.Context, in FilterInput) (FilterOutput, err
 		Status:    domain.StatusPending,
 	})
 	return out, nil
+}
+
+// hasMaskedBlockTier 判断这段文本里是否有**真被打星**的 block 档命中。
+//
+// 两条都看：档位是 block，且该命中确实被替换过（白名单覆盖时为 false）。
+// 只看档位会把"冰毒科普"这种被短语白名单豁免的说法算成命中，进而误拒正常内容。
+func hasMaskedBlockTier(hits []contentfilter.Hit) bool {
+	for _, hit := range hits {
+		if hit.Tier == contentfilter.TierBlock && hit.Masked {
+			return true
+		}
+	}
+	return false
 }
 
 // Record 写入一条命中记录；写失败只记日志，不向调用方返回错误。

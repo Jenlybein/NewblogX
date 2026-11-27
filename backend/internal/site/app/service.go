@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
@@ -428,6 +429,15 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 		WhitelistPhrases: contentfilter.NormalizeWhitelist(contentFilter.WhitelistPhrases),
 		RetainDays:       normalizeRetainDays(contentFilter.RetainDays),
 	}
+	// 处置口径必须显式写进结果：out 是**逐字段手写的字面量**，漏一项就等于
+	// 每次在后台保存词表都把它静默清零（"改一次词表，自动处置就悄悄变回默认"）。
+	// 这类漏项不会报错、不会红测试，只会在某次保存之后才被发现，所以这里
+	// 有专门的回归用例（TestUpdateContentFilterDefaultsAutoDisposeWhenBodyOmitsIt）。
+	trimmedDispose, err := normalizeAutoDispose(contentFilter.AutoDispose)
+	if err != nil {
+		return conf.ContentFilter{}, err
+	}
+	out.AutoDispose = trimmedDispose
 	for _, entry := range normalized {
 		out.Words = append(out.Words, conf.ContentFilterWord{
 			Word:     entry.Word,
@@ -436,6 +446,49 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 		})
 	}
 	return out, nil
+}
+
+// 按档位处置的合法取值。空串也按 mask 处理（见 normalizeAutoDispose）。
+const (
+	// ContentFilterActionMask 只把命中替换成等长星号，文本照常入库。
+	ContentFilterActionMask = "mask"
+	// ContentFilterActionReject 拒发本次写入（本期只有文章面真的这么处置）。
+	ContentFilterActionReject = "reject"
+)
+
+// normalizeAutoDispose 整理并校验按档位处置的口径。
+//
+// 空串 → mask 而不是报错：老库那段 JSON 与旧版后台请求体里都没有这两个字段，
+// 把它们当非法值拒绝，会让"打开设置页什么都没改就点保存"直接失败；更要紧的是
+// 前端还没跟上时，任何人保存词表都会把老配置变成一次 400。
+//
+// 非空且不在 mask/reject → 参数错误：写进库里只会让处置链路读到一条"读不懂的
+// 口径"，到时候是按 mask 还是按 reject 处理都说不清。保存期就拒绝，运营当场能改。
+func normalizeAutoDispose(in conf.ContentFilterAutoDispose) (conf.ContentFilterAutoDispose, error) {
+	block, err := normalizeDisposeAction(in.BlockAction, "block_action")
+	if err != nil {
+		return conf.ContentFilterAutoDispose{}, err
+	}
+	watch, err := normalizeDisposeAction(in.WatchAction, "watch_action")
+	if err != nil {
+		return conf.ContentFilterAutoDispose{}, err
+	}
+	return conf.ContentFilterAutoDispose{BlockAction: block, WatchAction: watch}, nil
+}
+
+// normalizeDisposeAction 校验单个处置取值：空串按 mask，其余只认 mask / reject。
+//
+// field 只用于报错文案（运营要一眼看出是哪个档位填错了），不参与任何判定。
+func normalizeDisposeAction(action, field string) (string, error) {
+	switch trimmed := strings.TrimSpace(action); trimmed {
+	case "":
+		return ContentFilterActionMask, nil
+	case ContentFilterActionMask, ContentFilterActionReject:
+		return trimmed, nil
+	default:
+		return "", apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+			"自动处置口径不合法："+field+" 只能是 mask（只打星）或 reject（拒发），实际是 "+trimmed)
+	}
 }
 
 // DefaultContentFilterRetainDays 是命中记录保留天数的缺省值（与 ADR-0032 决策 10 一致）。

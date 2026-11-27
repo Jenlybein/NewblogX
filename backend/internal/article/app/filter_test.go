@@ -18,6 +18,11 @@ type fakeTextFilter struct {
 	words  []string
 	calls  []string
 	broken bool
+	// maskedBlockTier 是替身报给用例层的"命中即拒"事实（端口上的 BlockTierMasked）。
+	//
+	// 真实实现里它是"block 档真被打星"与"站点配了 reject"两个条件的合取，
+	// 那一步由装配层的桥算好；用例层只看这个字段，所以替身直接给结论。
+	maskedBlockTier bool
 }
 
 func (f *fakeTextFilter) apply(text string) (app.FilteredText, error) {
@@ -39,7 +44,13 @@ func (f *fakeTextFilter) apply(text string) (app.FilteredText, error) {
 			count++
 		}
 	}
-	return app.FilteredText{Masked: string(out), FilteredCount: count}, nil
+	// 命中记录（风险页要用的那条）不在这个替身的职责里：真实实现由过滤模块在
+	// 返回结果之前写好（见 filterapp.Service.Filter）。这里只把"要不要拒发"的事实报上去。
+	return app.FilteredText{
+		Masked:          string(out),
+		FilteredCount:   count,
+		BlockTierMasked: f.maskedBlockTier,
+	}, nil
 }
 
 type fakeArticleTextFilter struct{ inner *fakeTextFilter }

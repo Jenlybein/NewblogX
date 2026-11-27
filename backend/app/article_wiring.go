@@ -81,9 +81,28 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		qualityGatePort{},
 	).
 		// 内容过滤（票 397 / ADR-0032）：两个面各自一个 bridge，面枚举钉死在装配层。
-		WithContentFilter(articleTextFilterBridge{svc: infra.Filter}).
+		// 文章面多接一个"block 档命中是否拒发"的现读判定（content_filter.auto_dispose），
+		// 合集面不接 —— 本期只有文章标题 / 摘要 / 正文按配置拒发。
+		WithContentFilter(articleTextFilterBridge{
+			svc:         infra.Filter,
+			disposition: contentFilterBlockReject(infra),
+		}).
 		WithCollectionContentFilter(collectionTextFilterBridge{svc: infra.Filter}).
 		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
+}
+
+// contentFilterBlockReject 返回"block 档命中是否拒发"的现读判定闭包。
+//
+// 配置在运行时（content_filter.auto_dispose.block_action，后台可改），所以每次过滤
+// 都现读一次；判断只看 `== "reject"`：空串、没填、写了个不认识的值一律按 mask 走 ——
+// 默认必须与改造前逐字节一致，"配置读不到"不能变成把所有人的文章拒掉。
+func contentFilterBlockReject(infra *Infra) func() bool {
+	return func() bool {
+		if infra == nil || infra.RuntimeSite == nil {
+			return false
+		}
+		return infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.BlockAction == "reject"
+	}
 }
 
 // 管理员强制退回草稿的站内信走**发件箱**（票 481），不在这里同步发。
@@ -97,11 +116,25 @@ func newArticleService(infra *Infra) *articleapp.Service {
 // 与评论面同构：文章模块的端口不带 surface（它只知道"这是我的标题 / 正文"），
 // 面枚举由装配层决定。分成文章与合集两个类型而不是一个带参数的实现，是为了让
 // "把合集桥接给文章"变成编译错误，而不是一条悄悄写错面的命中记录。
+//
+// **"命中即拒"只在这一条桥上生效**（block 档 + 站点配了 reject）：合集面、评论面、
+// 昵称 / 简介 / 私信本期都保持"只打星"。把处置口径钉在两个具体类型上，而不是
+// 让过滤服务自己读配置，是因为拒发的语义要落在"哪个面"上 —— 评论被拒是发不出去
+// 一条评论，文章被拒是整篇不落库，两者不是同一件事。
 type articleTextFilterBridge struct {
 	svc *filterapp.Service
+	// disposition 回答"block 档命中真被打星时，站点要求拒发吗"。
+	//
+	// 传函数而不是 bool：这是运行时配置，后台改完下一次请求就该生效，
+	// 启动时捕获一份值会让"改配置要重启"成为隐藏前提（与内容过滤引擎的
+	// 现读 / 原子重建同一口径）。nil 表示没注入，按默认的 mask 处理。
+	disposition func() bool
 }
 
 // FilterArticleText 替换文章文本里的命中词并记一条关键词风险。
+//
+// 命中记录在 svc.Filter 内部就写完了（拒绝 ≠ 不记录）：这里只把"有没有
+// 真被打星的 block 命中"与站点处置口径合取成给用例层的事实。
 func (b articleTextFilterBridge) FilterArticleText(ctx context.Context, in articleapp.FilterText) (articleapp.FilteredText, error) {
 	if b.svc == nil {
 		return articleapp.FilteredText{Masked: in.Text}, nil
@@ -115,7 +148,22 @@ func (b articleTextFilterBridge) FilterArticleText(ctx context.Context, in artic
 	if err != nil {
 		return articleapp.FilteredText{}, err
 	}
-	return articleapp.FilteredText{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
+	return articleapp.FilteredText{
+		Masked:          got.Masked,
+		FilteredCount:   got.FilteredCount,
+		BlockTierMasked: got.BlockTierMasked && b.blockRejected(),
+	}, nil
+}
+
+// blockRejected 现读站点配置，回答"block 档命中是否拒发"。
+//
+// 只有显式配成 reject 才算拒：空串、未知值、没装配运行时配置都按 mask 处理 ——
+// 默认行为必须与改造前逐字节一致，"配置读不到"不能变成"把所有人的文章拒掉"。
+func (b articleTextFilterBridge) blockRejected() bool {
+	if b.disposition == nil {
+		return false
+	}
+	return b.disposition()
 }
 
 // collectionTextFilterBridge 把内容过滤服务接成合集面端口（票 397）。

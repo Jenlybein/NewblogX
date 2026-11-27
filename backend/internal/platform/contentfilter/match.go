@@ -55,8 +55,13 @@ func (m *matcher) apply(text string) Result {
 		hits[index].Snippets = append(hits[index].Snippets, snippetOf(orig, hit.spans))
 		// 白名单命中仍记录（档位/类目照旧），只是不参与替换：
 		// 命中区间被某个白名单词条完整包住时不打星号。
+		//
+		// 同一个词可能出现多次：只要有一处真的被替换，这条命中就算"已打星"。
+		// 只记"是否被替换过"而不是"被替换了几处"：调用方要回答的是
+		// "这段文本里有没有被我们改过的该档命中"，处数另有 MaskedSpans。
 		if !coveredBy(hit.spans, whiteSpans) {
 			mask = append(mask, hit.spans)
+			hits[index].Masked = true
 		}
 	}
 	merged := mergeSpans(mask)

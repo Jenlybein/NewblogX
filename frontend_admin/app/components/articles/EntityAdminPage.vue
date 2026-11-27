@@ -28,7 +28,7 @@ import {
 } from '~/services/admin'
 
 const props = withDefaults(defineProps<{
-  kind: 'collection' | 'project'
+  kind?: 'collection' | 'project'
 }>(), {
   kind: 'collection',
 })

@@ -5,12 +5,13 @@
  * 其中十一段在后台各有编辑页；`image_gc` 已有具名端点但没有编辑页/组件，所以不在
  * 本清单里。这里只描述「有编辑页的域」，不是全部配置段的清单。
  *
- * 2026-11 起菜单分两层组织（ADR-0029 改写版）：
- *   - **内容生产链**（关键词过滤 / 文章发布 / 文章审核）单独成一级分组，不再散落在
- *     「站点配置」（配置）与「审核」（队列）两处；
- *   - **站点配置**按「谁受影响」分组：用户操作（登录/私信/第三方）、验证码与通知
- *     （图形码/邮件/短信）、站点（基础信息），剩下 AI / 存储 / 日志 / 装饰 / 右栏卡片
- *     直接挂在这一层。
+ * 2026-11-27 起菜单按「配置 → 域 → 页」组织（ADR-0029 第三版）：
+ *   - **站点配置** 下挂固定几组：站点（基础信息）、用户操作（登录/私信/第三方）、
+ *     验证码与通知（图形码/邮件/短信）、内容修改与发布（关键词过滤/文章发布）、
+ *     站点界面（装饰/右栏卡片），以及直接挂在这一层的 AI / 存储 / 日志；
+ *   - **文章审核**从站点配置搬回「审核」组：它是处置队列，不是配置页；
+ *   - 「文章审核设置」是新增的配置页（内容审核 / 投稿配额 / 质量闸门 / 自动放行 /
+ *     命中词处置），挂在「站点配置」下。
  *
  * 为什么按"谁受影响"而不是按段编号：段编号是后端实现顺序，运营读不懂；
  * 「登录设置」和「私信设置」都是读者能主动触发的动作，放在一组里才找得到。
@@ -114,16 +115,64 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
     component: 'SettingsSiteChat',
     blocks: ['chat'],
   },
-  { key: 'oauth', label: '第三方登录', path: '/site/oauth', component: 'SettingsOAuth', blocks: [] },
+  {
+    key: 'oauth',
+    label: '第三方登录',
+    path: '/site/oauth',
+    component: 'SettingsOAuth',
+    blocks: [],
+  },
   // 验证码与通知：图形码在前（它决定"要不要拦"，邮件/短信决定"怎么发"）。
-  { key: 'captcha', label: '图形验证码', path: '/site/captcha', component: 'SettingsCaptcha', blocks: [] },
-  { key: 'mail', label: '邮件', path: '/site/mail', component: 'SettingsMail', blocks: [] },
-  { key: 'sms', label: '短信', path: '/site/sms', component: 'SettingsSMS', blocks: [] },
+  {
+    key: 'captcha',
+    label: '图形验证码',
+    path: '/site/captcha',
+    component: 'SettingsCaptcha',
+    blocks: [],
+  },
+  {
+    key: 'mail',
+    label: '邮件',
+    path: '/site/mail',
+    component: 'SettingsMail',
+    blocks: [],
+  },
+  {
+    key: 'sms',
+    label: '短信',
+    path: '/site/sms',
+    component: 'SettingsSMS',
+    blocks: [],
+  },
   // 站点级服务：与"用户操作"无关，也不发通知，各自独立。
-  { key: 'ai', label: 'AI 助手', path: '/site/ai', component: 'SettingsAi', blocks: [] },
-  { key: 'storage', label: '对象存储', path: '/site/storage', component: 'SettingsStorage', blocks: [] },
-  { key: 'log', label: '日志', path: '/site/log', component: 'SettingsLog', blocks: [] },
-  { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },
+  {
+    key: 'ai',
+    label: 'AI 助手',
+    path: '/site/ai',
+    component: 'SettingsAi',
+    blocks: [],
+  },
+  {
+    key: 'storage',
+    label: '对象存储',
+    path: '/site/storage',
+    component: 'SettingsStorage',
+    blocks: [],
+  },
+  {
+    key: 'log',
+    label: '日志',
+    path: '/site/log',
+    component: 'SettingsLog',
+    blocks: [],
+  },
+  {
+    key: 'deco',
+    label: '装饰',
+    path: '/site/deco',
+    component: 'SettingsDeco',
+    blocks: [],
+  },
 ]
 
 /**
@@ -136,16 +185,23 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
  *
  * 不在表里的域直接挂在「站点配置」下（见 SITE_STANDALONE_SECTIONS）。
  */
+/**
+ * 「站点界面」分组：改的是读者站"长什么样"（装饰层与右栏卡片），与"谁能做什么"
+ * 无关。右栏卡片不是 site 段域（自己的页面 + 独立端点），在 menu.ts 里补一项。
+ */
+export const SITE_INTERFACE_GROUP_LABEL = '站点界面'
+
 const GROUP_MEMBERS: Readonly<Record<string, readonly SiteSettingsKey[]>> = {
-  '用户操作': ['site-login', 'site-chat', 'oauth'],
-  '验证码与通知': ['captcha', 'mail', 'sms'],
+  用户操作: ['site-login', 'site-chat', 'oauth'],
+  验证码与通知: ['captcha', 'mail', 'sms'],
+  站点界面: ['deco'],
 }
 
 /** 取某个分组下的域（顺序取 GROUP_MEMBERS 里的顺序，也就是菜单顺序）。 */
 function sectionsOfGroup(name: string): readonly SiteSettingsSection[] {
   const keys = GROUP_MEMBERS[name] ?? []
-  return keys.flatMap(key => {
-    const section = SITE_SETTINGS_SECTIONS.find(candidate => candidate.key === key)
+  return keys.flatMap((key) => {
+    const section = SITE_SETTINGS_SECTIONS.find((candidate) => candidate.key === key)
     // 分组表里写了一个不存在的域是代码错误（拼错 key 或域被删了），
     // 让它在开发期就炸掉，而不是菜单里静默少一项。
     if (!section) throw new Error(`站点配置分组「${name}」引用了不存在的域: ${key}`)
@@ -157,22 +213,33 @@ function sectionsOfGroup(name: string): readonly SiteSettingsSection[] {
 export const SITE_USER_ACTION_SECTIONS: readonly SiteSettingsSection[] = sectionsOfGroup('用户操作')
 
 /** 「验证码与通知」分组下的域（顺序即菜单顺序）。 */
-export const SITE_VERIFICATION_SECTIONS: readonly SiteSettingsSection[] = sectionsOfGroup('验证码与通知')
+export const SITE_VERIFICATION_SECTIONS: readonly SiteSettingsSection[] =
+  sectionsOfGroup('验证码与通知')
 
-/** 直接挂在「站点配置」下、不属于上面两个分组的域。 */
+/** 「站点界面」分组下的域（顺序即菜单顺序）。 */
+export const SITE_INTERFACE_SECTIONS: readonly SiteSettingsSection[] = sectionsOfGroup('站点界面')
+
+/**
+ * 直接挂在「站点配置」下、不属于任何分组的域。
+ *
+ * 排除判据从「分组表里出现过」派生，而不是手写三份白名单：新增一个分组时
+ * 忘了同步这里，那一项会**同时**出现在分组里和裸挂在「站点配置」下（重复菜单项）。
+ */
 export const SITE_STANDALONE_SECTIONS: readonly SiteSettingsSection[] = [
   ...SITE_SETTINGS_SECTIONS.filter(
-    section => ![...GROUP_MEMBERS['用户操作']!, ...GROUP_MEMBERS['验证码与通知']!].includes(section.key),
+    (section) => !Object.values(GROUP_MEMBERS).some((keys) => keys.includes(section.key)),
   ),
 ]
 
 /**
- * 内容生产链（ADR-0029 改写版）：改关键词 → 调发布策略 → 审文章。
+ * 内容修改与发布（ADR-0029 第三版）：改词表 → 定发布线。
  *
- * 这三页彼此是上下游关系，放在同一个一级分组里，不再散落在「站点配置」（配置）
- * 与「审核」（队列）两处。它们各自吃不同的数据源：关键词过滤是 content_filter 段、
- * 文章发布是 site 段的 article 块、文章审核是文章审核队列（不是配置）。
- * 所以这个分组**不出现在**站点配置域清单里，页面也不复用 `SiteSettingsSection`。
+ * 两页吃不同的数据源：关键词过滤是 content_filter 段，文章发布是 site 段的
+ * article 块；所以这个分组**不出现在** `SiteSettingsSection` 清单里，
+ * 页面也不复用那套域清单（它们在菜单里是一层分组，不是可路由的域）。
+ *
+ * 「文章审核」已于 2026-11-27 移出这一组、回到「审核」：它是处置队列，
+ * 不是"改完就生效"的配置。审核规则拆到了「文章审核设置」页。
  */
 export interface ContentPublishPage {
   label: string
@@ -184,7 +251,6 @@ export const CONTENT_PUBLISH_GROUP_LABEL = '内容修改与发布'
 export const CONTENT_PUBLISH_PAGES: readonly ContentPublishPage[] = [
   { label: '关键词过滤', path: '/content/keywords' },
   { label: '文章发布', path: '/content/publish' },
-  { label: '文章审核', path: '/content/review' },
 ]
 
 /** 全部编辑域：站点页在前，其余各域在后（菜单顺序另行按分组拼装）。 */
@@ -196,17 +262,15 @@ export const ALL_SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
 /** 按路由反查配置域；未知路由返回 undefined（与 `navItemByPath` 同一语义）。 */
 export function siteSettingsSectionByPath(path: string): SiteSettingsSection | undefined {
   if (!path) return undefined
-  return ALL_SITE_SETTINGS_SECTIONS.find(section => section.path === path)
+  return ALL_SITE_SETTINGS_SECTIONS.find((section) => section.path === path)
 }
 
 /** 按域名反查配置域。 */
 export function siteSettingsSectionByKey(key: SiteSettingsKey): SiteSettingsSection | undefined {
-  return ALL_SITE_SETTINGS_SECTIONS.find(section => section.key === key)
+  return ALL_SITE_SETTINGS_SECTIONS.find((section) => section.key === key)
 }
 
 /** 取某个域拥有、且确实是 site 段顶层块的那些键（去重、保序）。 */
 export function siteSectionBlocks(section: SiteSettingsSection): readonly SiteSectionBlock[] {
   return section.blocks
 }
-
-

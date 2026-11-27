@@ -378,7 +378,7 @@ async function save() {
           <div class="collection-overlay__split">
             <div class="collection-overlay__cover">
               <div class="collection-overlay__cover-preview">
-                <img v-if="coverPreview" :src="coverPreview" alt="" />
+                <img v-if="coverPreview" :src="coverPreview" alt="" >
                 <span v-else class="admin-hint">未上传时读者侧回退到首篇封面</span>
               </div>
               <NSpace :size="8">
@@ -429,7 +429,7 @@ async function save() {
           type="file"
           accept="image/*"
           class="collection-overlay__file"
-          @change="onCoverFileChange" />
+          @change="onCoverFileChange" >
       </section>
 
       <!-- 右栏：目录树（默认收起，由头部「编排目录树」展开）。

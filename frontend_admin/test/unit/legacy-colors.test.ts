@@ -136,12 +136,14 @@ describe("静态断言：后台不得残留旧青绿色（canary 保证扫描器
     expect(findLegacyPaletteClasses(source)).toEqual([]);
   });
 
-  it("36 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
+  it("38 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
     // 页面数量本身就是验收项（25 个页面退役合集 / 项目两个旧排列页与目录编排页后剩 22 个；
     // #322 新增「标签管理」页后是 23 个；ADR-0029 站点拆三页 + 媒体拆两页后是 28 个；新增站点「短信」页后 29 个；ADR-0032 新增「内容过滤」页后 30 个；票 396 新增「关键词风险」页后 31 个；ADR-0033 新增「图形验证码」页后 32 个；ADR-0034 新增「图片审核」页后 33 个）。
     // 票 418 后 upload 段退场，「上传策略」页随之删除：32 → 31。
   // 票 417 新增「申诉处置」页：31 → 32。
-  expect(pageFiles.length).toBe(36);
+  // 票 481 内容生产链三页搬到 /content/* 并各留跳转页：33 → 36。
+  // 2026-11-27 菜单重构：新增「文章审核设置」页 + 文章审核换路由：36 → 38。
+  expect(pageFiles.length).toBe(38);
 
     const sources = readAppSources();
     const problems = sources.flatMap(({ file, text }) => [
@@ -178,6 +180,8 @@ describe("静态断言：后台不得残留旧青绿色（canary 保证扫描器
     expect(findLegacyTeal(tokensCss)).toEqual([]);
   });
 });
+
+
 
 
 

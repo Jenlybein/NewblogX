@@ -206,7 +206,7 @@ describe("每页都有可见且可用的主题开关", () => {
     expect(toggle).toMatch(/IconSun|IconMoon/u);
   });
 
-  it("36 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
+  it("38 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
     const pages = pageFiles();
 
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
@@ -217,7 +217,9 @@ describe("每页都有可见且可用的主题开关", () => {
     // 票 418 后 upload 段退场，「上传策略」页随之删除：32 → 31。
     // 票 417 新增「申诉处置」页：31 → 32。
     // 票 481 内容生产链三页搬到 /content/* 并各留一个旧地址跳转页：33 → 36。
-  expect(pages.length).toBe(36);
+    // 2026-11-27 菜单重构：新增「文章审核设置」页（/site/article-review）；
+    // 「文章审核」换路由（/content/review → /review/article，旧地址留跳转页）：36 → 38。
+  expect(pages.length).toBe(38);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);
@@ -321,6 +323,7 @@ describe("封面兜底退场（#210）：后台列表只留空白", () => {
     expect(page).not.toMatch(/BRAND\./u);
   });
 });
+
 
 
 

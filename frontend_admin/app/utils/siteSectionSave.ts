@@ -12,6 +12,37 @@
  */
 
 /**
+ * 用 patched 里指定块的**部分字段**覆盖 latest 同名块的对应字段，其余字段原样保留。
+ *
+ * 为什么需要比"块级"更细一层：2026-11-27 把「文章发布」拆成两页
+ * （发布与展示 / 文章审核设置），两页都写 site 段的同一个 `article` 块。
+ * 若仍用块级替换，后保存的那页会把自己加载时的旧快照整体写回 ——
+ * 兄弟页刚改的免审核开关或质量闸门会被悄悄覆盖掉。
+ *
+ * 规则与块级版一致：`fields` 里为 `undefined` 的字段不覆盖；不原地修改入参。
+ */
+export function applySiteBlockFieldPatch<T extends object>(
+  latest: T,
+  patched: T,
+  block: keyof T,
+  fields: readonly string[],
+): T {
+  const merged: T = { ...latest }
+  const latestBlock = latest[block] as Record<string, unknown> | undefined
+  const patchedBlock = patched[block] as Record<string, unknown> | undefined
+  if (patchedBlock === undefined) return merged
+
+  const next: Record<string, unknown> = { ...(latestBlock ?? {}) }
+  for (const field of fields) {
+    const value = patchedBlock[field]
+    if (value === undefined) continue
+    next[field] = value
+  }
+  ;(merged as Record<string, unknown>)[block as string] = next
+  return merged
+}
+
+/**
  * 用 patched 里指定的顶层块覆盖 latest，其余块原样保留（返回新对象）。
  *
  * 两条额外规则：

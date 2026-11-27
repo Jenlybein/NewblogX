@@ -22,6 +22,8 @@
 import {
   CONTENT_PUBLISH_GROUP_LABEL,
   CONTENT_PUBLISH_PAGES,
+  SITE_INTERFACE_GROUP_LABEL,
+  SITE_INTERFACE_SECTIONS,
   SITE_SETTINGS_GROUP_LABEL,
   SITE_SETTINGS_PAGES,
   SITE_STANDALONE_SECTIONS,
@@ -81,26 +83,12 @@ export interface AdminNavFlatItem {
 export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
   {
-    // 内容生产链（ADR-0029 改写版）：改关键词 → 调发布策略 → 审文章。
+    // 审核域（ADR-0032 决策 7 / ADR-0034）：按"处置什么"分，而不是按内容类型分。
     //
-    // 这三页以前散在两处 —— 关键词过滤与发布策略在「站点配置」（配置面），
-    // 文章审核在「审核」（队列面）。它们其实是同一条链上的上下游：运营调完词表
-    // 就想看发布线，发布线上出了争议就要进队列处置。拆到两个一级分组里，
-    // 每次都要在两个分组之间来回找，这正是本次重组的起因。
-    //
-    // 父项只分组、没有自身页面：一条链没有一个"总览页"可看。
-    label: CONTENT_PUBLISH_GROUP_LABEL,
-    icon: 'article',
-    children: CONTENT_PUBLISH_PAGES.map((page): AdminNavNode => ({
-      label: page.label,
-      path: page.path,
-      icon: 'article',
-    })),
-  },
-  {
-    // 审核域（ADR-0032 决策 7 / ADR-0034）：文章审核已随内容生产链搬到
-    // 「内容修改与发布」，这里只剩两件"不是文章生产"的审核 ——
-    // 图片待审与关键词命中处置。
+    // 「文章审核」在 2026-11-27 回到这里（此前随内容生产链挂在「内容修改与发布」下）：
+    // 它是**处置队列**，不是配置页 —— 运营是"有事才进来处理"，不会在调词表的
+    // 顺路上顺手审核。配置侧对应的入口是「站点配置 → 文章审核设置」，
+    // 那里管"要不要审、审多严"，这里管"这一篇怎么处置"。
     //
     // 父项只分组、没有自身页面 —— 否则「审核」会多出一个空落地页。
     label: '审核',
@@ -111,6 +99,7 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       // 和"已经能用的"。
       { label: '图片审核', path: '/review/images', icon: 'shield' },
       { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
+      { label: '文章审核', path: '/review/article', icon: 'shield' },
     ],
   },
   {
@@ -172,12 +161,50 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
           icon: 'settings',
         })),
       },
+      {
+        // 内容修改与发布（ADR-0029 第三版）：改词表 → 定发布线。
+        //
+        // 「文章审核」已于 2026-11-27 回到「审核」组 —— 那条链原本写的是
+        // "改词表 → 调发布 → 审文章"，但审核是处置动作，跟着配置组会让人以为
+        // 它也是"调一下就好"的开关。配置侧拆出「文章审核设置」承接审核规则。
+        label: CONTENT_PUBLISH_GROUP_LABEL,
+        icon: 'article',
+        children: CONTENT_PUBLISH_PAGES.map((page): AdminNavNode => ({
+          label: page.label,
+          path: page.path,
+          icon: 'article',
+        })),
+      },
+      {
+        // 文章审核设置（2026-11-27）：审核规则的唯一配置入口。
+        //
+        // 内容审核（免审核开关）、投稿配额、质量闸门、自动放行与命中词处置
+        // 都写 site 段的 article 块，（与「文章发布」共用一个 site 段端点、保存走字段级补丁）。
+        label: '文章审核设置',
+        path: '/site/article-review' as const,
+        icon: 'shield' as const,
+      },
+      {
+        // 站点界面（2026-11-27）：改读者站长什么样，与"谁能做什么"分开。
+        //
+        // 装饰（特效层 / 站标）与右栏卡片（读者站右侧那几张卡）都只影响外观，
+        // 放在「用户操作 / 验证码与通知」旁边会让人误以为它们也是策略开关。
+        label: SITE_INTERFACE_GROUP_LABEL,
+        icon: 'photo',
+        children: [
+          ...SITE_INTERFACE_SECTIONS.map((section): AdminNavNode => ({
+            label: section.label,
+            path: section.path,
+            icon: 'settings',
+          })),
+          { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
+        ],
+      },
       ...SITE_STANDALONE_SECTIONS.map((section): AdminNavNode => ({
         label: section.label,
         path: section.path,
         icon: 'settings',
       })),
-      { label: '右栏卡片', path: '/site/sidebar-cards' as const, icon: 'settings' as const },
     ],
   },
   {
@@ -250,9 +277,9 @@ export const FLAT_NAV: AdminNavFlatItem[] = flattenNav(ADMIN_NAV_TREE)
  * `ADMIN_NAV` 只包含**可导航项**（有 path 的项）；分组父项会出现在 `FLAT_NAV` 里，
  * 但不会被渲染成链接。改造前后该清单逐项一致（标题 / 路由 / 图标 / 顺序）。
  */
-export const ADMIN_NAV: AdminNavItem[] = FLAT_NAV
-  .filter((item): item is AdminNavFlatItem & { path: string } => item.path !== undefined)
-  .map(({ label, path, icon }) => ({ label, path, icon }))
+export const ADMIN_NAV: AdminNavItem[] = FLAT_NAV.filter(
+  (item): item is AdminNavFlatItem & { path: string } => item.path !== undefined,
+).map(({ label, path, icon }) => ({ label, path, icon }))
 
 /** 按当前路由查激活项（高亮的唯一来源）。只认有页面的项；精确匹配，未命中返回 undefined。 */
 export function navItemByPath(
@@ -260,7 +287,7 @@ export function navItemByPath(
   flat: AdminNavFlatItem[] = FLAT_NAV,
 ): AdminNavFlatItem | undefined {
   if (!path) return undefined
-  return flat.find(item => item.path === path)
+  return flat.find((item) => item.path === path)
 }
 
 /**
@@ -270,7 +297,7 @@ export function navItemByPath(
  * 因此即使父项只分组（没有 path），也能从扁平列表还原层级。
  */
 export function navTrail(path: string, flat: AdminNavFlatItem[] = FLAT_NAV): AdminNavFlatItem[] {
-  const index = flat.findIndex(item => item.path !== undefined && item.path === path)
+  const index = flat.findIndex((item) => item.path !== undefined && item.path === path)
   if (index < 0) return []
 
   const trail: AdminNavFlatItem[] = []
@@ -317,7 +344,7 @@ export function buildAdminBreadcrumb(
   if (!current) return []
 
   return [
-    ...navTrail(path, flat).map(item => ({
+    ...navTrail(path, flat).map((item) => ({
       label: item.label,
       path: item.path ?? null,
       current: false,
@@ -341,10 +368,7 @@ export function navGroupKey(chain: readonly string[]): string {
  *
  * 只服务于展开态；高亮仍以精确 path 命中的激活项为准。
  */
-export function activeGroupKeys(
-  path: string,
-  flat: AdminNavFlatItem[] = FLAT_NAV,
-): string[] {
+export function activeGroupKeys(path: string, flat: AdminNavFlatItem[] = FLAT_NAV): string[] {
   // 祖先链上的每一项都是分组：没有分组的父项就不会有子项挂在它下面。
   // key 用累积链（[站点配置] → [站点配置, 站点]），与 buildMenuEntry 的口径一致。
   const keys: string[] = []
@@ -429,7 +453,7 @@ function buildMenuEntry(
 
   const chain = [...ancestors, node.label]
   const children = childrenNodes
-    .map(child => buildMenuEntry(child, activePath, expandedKeys, depth + 1, chain))
+    .map((child) => buildMenuEntry(child, activePath, expandedKeys, depth + 1, chain))
     .filter((entry): entry is AdminNavMenuEntry => entry !== null)
   const key = navGroupKey(chain)
 
@@ -440,7 +464,7 @@ function buildMenuEntry(
     icon: node.icon,
     path: node.path ?? null,
     depth,
-    active: node.path === activePath || children.some(child => child.active),
+    active: node.path === activePath || children.some((child) => child.active),
     expanded: expandedKeys.has(key),
     children,
   }
@@ -460,7 +484,7 @@ export function buildAdminNavMenu(
 ): AdminNavMenuEntry[] {
   const expanded = new Set(expandedKeys)
   return tree
-    .map(node => buildMenuEntry(node, activePath, expanded, 0))
+    .map((node) => buildMenuEntry(node, activePath, expanded, 0))
     .filter((entry): entry is AdminNavMenuEntry => entry !== null)
 }
 
@@ -494,7 +518,7 @@ function findDuplicates(paths: string[]): string[] {
  * 所以「热门置顶」是组内第二个可导航项 —— 位置判据是"组内顺序"，不是"拍平后相邻"。
  */
 function hotTopOrderProblem(nav: AdminNavFlatItem[]): string | null {
-  const articleIndex = nav.findIndex(item => item.label === '文章管理')
+  const articleIndex = nav.findIndex((item) => item.label === '文章管理')
   if (articleIndex < 0) return '菜单里必须有「文章管理」'
 
   // 组内成员：紧接父项之后、深度 > 0 的项（遇到下一个顶层项即止）。
@@ -504,10 +528,10 @@ function hotTopOrderProblem(nav: AdminNavFlatItem[]): string | null {
     members.push(item)
   }
 
-  const hotTopIndex = members.findIndex(item => item.label === '热门置顶')
+  const hotTopIndex = members.findIndex((item) => item.label === '热门置顶')
   if (hotTopIndex < 0) return '「文章管理」组里必须有「热门置顶」'
   // 组内第一个可导航项是父项自己的页面（文章列表），热门置顶紧随其后。
-  const ownPageIndex = members.findIndex(item => item.path === '/articles')
+  const ownPageIndex = members.findIndex((item) => item.path === '/articles')
   if (ownPageIndex >= 0 && hotTopIndex !== ownPageIndex + 1) {
     return '「热门置顶」必须紧跟在「文章列表」之后'
   }
@@ -536,8 +560,8 @@ export function reconcileAdminNav(
   )
 
   const missingPageFiles = navigable
-    .filter(item => !pageFileCandidates(item.path).some(file => pageFiles.includes(file)))
-    .map(item => `${item.label} ${item.path}`)
+    .filter((item) => !pageFileCandidates(item.path).some((file) => pageFiles.includes(file)))
+    .map((item) => `${item.label} ${item.path}`)
 
   const reachable = new Set<string>()
   for (const item of navigable) {
@@ -547,7 +571,7 @@ export function reconcileAdminNav(
   }
 
   const unreachablePages = pageFiles.filter(
-    file =>
+    (file) =>
       file !== 'login' &&
       file !== 'setup' &&
       !ADMIN_REDIRECT_PAGES.has(file) &&
@@ -557,8 +581,10 @@ export function reconcileAdminNav(
   return {
     missingPageFiles,
     unreachablePages,
-    duplicatePaths: findDuplicates(navigable.map(item => item.path)),
-    nonAbsolutePaths: navigable.filter(item => !item.path.startsWith('/')).map(item => item.path),
+    duplicatePaths: findDuplicates(navigable.map((item) => item.path)),
+    nonAbsolutePaths: navigable
+      .filter((item) => !item.path.startsWith('/'))
+      .map((item) => item.path),
     // 位置对账要看**整棵**拍平视图（含分组父项本身）：父项没有 path，
     // 在 navigable 里会被滤掉，那样就永远找不到「文章管理」这一组。
     hotTopOrder: hotTopOrderProblem(flat),
@@ -582,6 +608,8 @@ export const ADMIN_REDIRECT_PAGES: ReadonlySet<string> = new Set([
   'media',
   'site/content-filter',
   'site/publish',
+  // 文章审核换路由时留的跳转页（2026-11-27：/content/review → /review/article）。
+  'content/review',
   'review/index',
   'review',
 ])
@@ -603,5 +631,3 @@ export function pageFileCandidates(path: string): string[] {
   }
   return [trimmed, `${trimmed}/index`]
 }
-
-

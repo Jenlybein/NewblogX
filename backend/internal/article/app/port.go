@@ -340,6 +340,12 @@ type Service struct {
 	collectionFilter CollectionTextFilterer
 	// publishGate 是发布类动作前的账号闸门（票 399）。nil 表示未接入（系统动作）。
 	publishGate PublishGate
+	// disposition 读站点当前的「关键词命中处理」口径（2026-11-28）。
+	//
+	// 传函数而不是值：这是运行时配置，后台改完下一次提交就该按新档位走；
+	// 启动时捕获一份会让"改配置要重启"成为隐藏前提（与过滤引擎的现读同一口径）。
+	// nil 表示没注入，按 release 处理（默认行为与改造前逐字节一致）。
+	disposition func() FilterDisposition
 }
 
 // WithPublishGate 注入发布闸门（票 399）。

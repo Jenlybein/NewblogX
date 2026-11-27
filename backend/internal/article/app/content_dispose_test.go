@@ -43,6 +43,7 @@ func TestCreateRejectsMaskedBlockTier(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于代开发票的科普",
@@ -87,6 +88,7 @@ func TestCreateRejectsMaskedBlockTierOnDraft(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	_, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "冰毒科普",
@@ -112,6 +114,7 @@ func TestCreateMaskedWordsStillPassesSubmitWhenDispositionOff(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于代开发票的科普",
@@ -157,6 +160,7 @@ func TestUpdateRejectsMaskedBlockTier(t *testing.T) {
 
 	blockedText := "代开发票找我"
 	_, err = svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -196,6 +200,7 @@ func TestUpdateWatchOnlyHitStillSaves(t *testing.T) {
 
 	promoted := "想合作请加微信"
 	result, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -230,6 +235,7 @@ func TestUpdateDoesNotLeakWordTableForForeignArticle(t *testing.T) {
 
 	blockedText := "代开发票找我"
 	_, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -255,12 +261,16 @@ func TestCreateRejectsMaskedBlockTierWithoutRefundingQuota(t *testing.T) {
 	tx := apptest.NewTx(repos)
 	quota := apptest.NewSubmitQuota(15)
 	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil).
+		WithFilterDisposition(func() app.FilterDisposition {
+			return app.FilterDisposition{Block: app.HitReject, Watch: app.HitRelease}
+		}).
 		WithContentFilter(fakeArticleTextFilter{inner: filter}).
 		WithCollectionContentFilter(fakeCollectionTextFilter{inner: filter})
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者", Username: "u100"})
 	repos.FakeCategories().Seed()
 
 	_, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "关于代开发票的科普",

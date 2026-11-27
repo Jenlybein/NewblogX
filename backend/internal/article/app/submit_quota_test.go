@@ -32,6 +32,7 @@ func newQuotaService(t *testing.T, dailyMax int) (*app.Service, *apptest.Repos, 
 // submitCmd 是一次"提交审核"的新建请求。
 func submitCmd() app.CreateArticleCmd {
 	return app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "要提交的文章",
@@ -126,6 +127,7 @@ func TestUpdateResubmitConsumesQuotaButExplicitDraftDoesNot(t *testing.T) {
 	title := "提交审核"
 	target := domain.StatusExamining
 	if _, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		ArticleID:     articleID,
 		Policy:        domain.OpenWritePolicy(),
@@ -142,6 +144,7 @@ func TestUpdateResubmitConsumesQuotaButExplicitDraftDoesNot(t *testing.T) {
 	// 退回草稿不是提交动作。
 	back := domain.StatusDraft
 	if _, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		ArticleID:    articleID,
 		Policy:       domain.OpenWritePolicy(),
@@ -165,6 +168,7 @@ func TestUpdateResubmitRejectedWhenQuotaExhausted(t *testing.T) {
 	title := "提交审核"
 	target := domain.StatusExamining
 	_, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		ArticleID:    articleID,
 		Policy:       domain.OpenWritePolicy(),
@@ -196,6 +200,7 @@ func TestUpdateResubmitReturnsQuotaOnSystemFailure(t *testing.T) {
 	title := "提交审核"
 	target := domain.StatusExamining
 	if _, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		ArticleID:    articleID,
 		Policy:       domain.OpenWritePolicy(),

@@ -100,6 +100,10 @@ var protocols = map[Code]ProtocolKind{
 	// 而不是让后台以为服务坏了。
 	CodeSiteArticleInvalid: ProtocolValidation,
 
+	// 评分开关关掉之后调评分接口：属于"当前配置下这个操作不被允许"，
+	// 不是服务故障 —— 前端拿它把面板收起来，而不是提示"服务出错"。
+	CodeArticleScoreDisabled: ProtocolValidation,
+
 	// 违规事件与申诉（ADR-0035）：id 传错 / 超窗口 / 重复申诉都是"改一改就能过"，
 	// 归 1001；归 1002 会让前端以为服务坏了、不敢让用户重试。
 	CodeModerationEventNotFound: ProtocolValidation,

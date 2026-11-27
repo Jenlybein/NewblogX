@@ -117,8 +117,12 @@ func (h *Handler) SEO(c *gin.Context) {
 func (h *Handler) AIInfo(c *gin.Context) {
 	ai := h.svc.PublicAI()
 	res.OkWithData(AIResponse{
-		Enable:   ai.Enable,
-		Nickname: ai.Nickname,
+		// Enable 与 AssistantEnabled 是两个独立的开关（2026-11-28）：
+		// 前者管"服务端能不能调模型"，后者管"右下角浮窗要不要出现"。
+		// 读者站靠后者决定浮窗、靠前者判断"功能是否可用"那类提示。
+		Enable:           ai.Enable,
+		AssistantEnabled: ai.AssistantEnabled,
+		Nickname:         ai.Nickname,
 		Avatar:   ai.Avatar,
 		Abstract: ai.Abstract,
 	}, c)

@@ -34,10 +34,13 @@ type SEO struct {
 
 // AIInfo 是站点公开的 AI 信息（不包含密钥等敏感项）。
 type AIInfo struct {
-	Enable   bool
-	Nickname string
-	Avatar   string
-	Abstract string
+	// Enable 是 AI 总闸（服务端能否调模型）。
+	Enable bool
+	// AssistantEnabled 是读者站右下角浮窗开关（与总闸解耦，2026-11-28）。
+	AssistantEnabled bool
+	Nickname         string
+	Avatar           string
+	Abstract         string
 }
 
 // LoginCapabilities 是读者站「能用哪些登录方式 + 哪些入口要图形验证码」的公开快照。
@@ -145,7 +148,13 @@ func (s *Service) PublicSEO() SEO {
 // PublicAI 返回站点 AI 信息。
 func (s *Service) PublicAI() AIInfo {
 	ai := s.runtime.AI()
-	return AIInfo{Enable: ai.Enable, Nickname: ai.Nickname, Avatar: ai.Avatar, Abstract: ai.Abstract}
+	return AIInfo{
+		Enable:           ai.Enable,
+		AssistantEnabled: ai.AssistantEnabled,
+		Nickname:         ai.Nickname,
+		Avatar:           ai.Avatar,
+		Abstract:         ai.Abstract,
+	}
 }
 
 // LoginCapabilities 返回登录方式与验证码闸门的公开快照（每次现读，不缓存）。
@@ -205,13 +214,76 @@ func (s *Service) UpdateSite(site conf.Site) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
-	if site.Article.QualityGate.Enabled && s.aiReady != nil && !s.aiReady() {
-		return apperr.New(apperr.CodeArticleQualityGateRequiresAI)
-	}
-	if err := validateArticleMaxTags(site.Article.MaxTagsPerArticle); err != nil {
+	if err := normalizeArticle(&site.Article, s.aiReady); err != nil {
 		return err
 	}
 	return s.runtime.UpdateSite(site)
+}
+
+// normalizeArticle 归一化并校验 site.article 段。
+//
+// 三条规则都写在**保存侧**而不是读取侧，理由见各自的注释：读取侧取 and 会在库里
+// 留下一个「开着却永远不生效」的值，排查时极难看出它是死的。
+//
+//  1. 标签上限越界否决保存（见 validateArticleMaxTags 的长注释）；
+//  2. 评分关 ⇒ 闸门强写 false（父子关系：没有评分就没有判据）；
+//  3. ai_failure_action 只认四档，空串按 manual（老库缺键的零值）。
+//
+// 「开闸门要求 AI 可用」放在归一化**之后**：评分关掉时闸门已被写 false，此时
+// 不该因为 AI 关着就拒绝保存一整段站点配置 —— 那次失败没有意义，而且会让
+// 「关评分」这个动作在 AI 也关着的站点上根本存不进去。
+func normalizeArticle(article *siteconf.Article, aiReady func() bool) error {
+	if err := validateArticleMaxTags(article.MaxTagsPerArticle); err != nil {
+		return err
+	}
+
+	action, err := normalizeAIFailureAction(article.AIFailureAction)
+	if err != nil {
+		return err
+	}
+	article.AIFailureAction = action
+
+	// 评分关 ⇒ 闸门关。不报错、也不静默保留用户填的闸门值：它只是失去意义的
+	// 从属项，写 false 才是诚实的表达。重新打开评分后闸门仍为 false（需手动再开），
+	// 避免「关一下评分再打开，闸门却自己复活」这种意外副作用。
+	if !article.ScoreEnabled {
+		article.QualityGate.Enabled = false
+	}
+
+	// 闸门开启要求 AI 可用（票 306 / ADR-0023）：闸门是失败关闭的，而 AI 默认关闭，
+	// 两者叠在一起就是「新站点上线第一天所有投稿都被拒」。把失败面挪到配置期。
+	if article.QualityGate.Enabled && aiReady != nil && !aiReady() {
+		return apperr.New(apperr.CodeArticleQualityGateRequiresAI)
+	}
+	return nil
+}
+
+// AI 合规判定不可用 / 失败时的四种落点由 conf/site 定义（配置的取值域只有一个来源），
+// 这里用别名暴露给本包的调用方与测试，避免它们去记字符串字面量。
+const (
+	AIFailureManual  = siteconf.AIFailureManual
+	AIFailureHold    = siteconf.AIFailureHold
+	AIFailureDraft   = siteconf.AIFailureDraft
+	AIFailureRelease = siteconf.AIFailureRelease
+)
+
+// AIFailureActions 是四档落点的完整清单（后台下拉与校验共用一份）。
+var AIFailureActions = siteconf.AIFailureActions
+
+// normalizeAIFailureAction 校验失败落点：空串按 manual，其余只认四档。
+//
+// 空串不报错的理由与处置档位一致：老库那段 JSON 里没有这个键，把它当非法值
+// 会让「打开设置页什么都没改就点保存」直接失败。
+func normalizeAIFailureAction(action string) (string, error) {
+	switch trimmed := strings.TrimSpace(action); trimmed {
+	case "":
+		return AIFailureManual, nil
+	case AIFailureManual, AIFailureHold, AIFailureDraft, AIFailureRelease:
+		return trimmed, nil
+	default:
+		return "", apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"AI 合规判定的失败落点不合法：只能是 manual（转人工）/ hold（等次日重投）/ draft（退回草稿）/ release（直接放行），实际是 "+trimmed)
+	}
 }
 
 // validateArticleMaxTags 校验"一篇文章最多可选几个标签"。
@@ -409,6 +481,53 @@ func (s *Service) SetContentFilterChangedHook(fn func(conf.ContentFilter)) {
 	s.contentFilterChanged = fn
 }
 
+// UpdateArticleReview 是「文章审核设置」两个子页的聚合写入口（2026-11-28）。
+//
+// 为什么需要它：审核规则页写 site.article 段，关键词命中处理页写 content_filter
+// 段的 auto_dispose —— 一页两段、两页共用同一个端点。让前端各自去发两个既有端点
+// 也可以，但那样「保存成功」这件事就被拆成两次网络往返，且中间失败会留下半套配置。
+//
+// 这里不做跨段事务（运行时配置服务是两段各自写的），但**先校验后写**：两段都先
+// 归一化，任何一段不合法就一个字节都不写。「半保存」因此只可能发生在第二段写库时
+// 存储层故障（几乎不可能，且日志会点名），而不是发生在最常见的「填错了值」上。
+//
+// contentFilter 为 nil 表示这次只改审核规则（关键词命中处理子页才传它）。
+func (s *Service) UpdateArticleReview(site conf.Site, contentFilter *conf.ContentFilter) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+
+	if err := normalizeArticle(&site.Article, s.aiReady); err != nil {
+		return err
+	}
+
+	var normalizedFilter conf.ContentFilter
+	if contentFilter != nil {
+		normalized, err := normalizeContentFilter(*contentFilter)
+		if err != nil {
+			return err
+		}
+		normalizedFilter = normalized
+	}
+
+	// 两段都校验通过之后才开始写。顺序固定：先写 site（审核规则是主），
+	// 再写 content_filter —— 如果第二段失败，第一段已落库但它是**合法值**，
+	// 不会留下不可解释的状态，只是这次保存没完成（前端会收到错误并可重试）。
+	if err := s.runtime.UpdateSite(site); err != nil {
+		return err
+	}
+	if contentFilter == nil {
+		return nil
+	}
+	if err := s.runtime.UpdateContentFilter(normalizedFilter); err != nil {
+		return err
+	}
+	if s.contentFilterChanged != nil {
+		s.contentFilterChanged(normalizedFilter)
+	}
+	return nil
+}
+
 // UpdateContentFilter 覆盖全站词表段。
 //
 // 保存前先在用例层把词条整理干净（去空白、去重、校验档位与类目）：词表是唯一写入口，
@@ -476,12 +595,25 @@ func normalizeContentFilter(contentFilter conf.ContentFilter) (conf.ContentFilte
 	return out, nil
 }
 
-// 按档位处置的合法取值。空串也按 mask 处理（见 normalizeAutoDispose）。
+// 关键词命中处理的三档取值（串行链路的第①环）。
+//
+// 值域从 mask/reject 扩成 release/draft/reject：
+//   - release 就是改造前的 mask（打星照常往下走），旧值 mask 读成它；
+//   - draft   命中落草稿（文章）/ 拒收（评论），配额不归还；
+//   - reject  命中落已拒绝不可改（文章）/ 拒收（评论）。
+//
+// 为什么改名字而不是保留 mask：mask 描述的是「文本被怎么改写」，而这三个值描述
+// 的是「命中之后文章去哪」—— 后者才是运营在这一步要决定的事。打星在 release
+// 档里仍然发生，只是它不再是这一档的定义。
 const (
-	// ContentFilterActionMask 只把命中替换成等长星号，文本照常入库。
-	ContentFilterActionMask = "mask"
-	// ContentFilterActionReject 拒发本次写入（本期只有文章面真的这么处置）。
+	// ContentFilterActionRelease 只把命中替换成等长星号，文本照常入库并继续后续链路。
+	ContentFilterActionRelease = "release"
+	// ContentFilterActionDraft 命中落草稿（文章）/ 拒收（评论），配额不归还。
+	ContentFilterActionDraft = "draft"
+	// ContentFilterActionReject 命中落已拒绝且不可改（文章）/ 拒收（评论）。
 	ContentFilterActionReject = "reject"
+	// contentFilterActionLegacyMask 是改造前的取值，读到时等价于 release。
+	contentFilterActionLegacyMask = "mask"
 )
 
 // normalizeAutoDispose 整理并校验按档位处置的口径。
@@ -493,29 +625,49 @@ const (
 // 非空且不在 mask/reject → 参数错误：写进库里只会让处置链路读到一条"读不懂的
 // 口径"，到时候是按 mask 还是按 reject 处理都说不清。保存期就拒绝，运营当场能改。
 func normalizeAutoDispose(in conf.ContentFilterAutoDispose) (conf.ContentFilterAutoDispose, error) {
-	block, err := normalizeDisposeAction(in.BlockAction, "block_action")
+	block, err := normalizeDisposeAction(in.BlockAction, "block_action", false)
 	if err != nil {
 		return conf.ContentFilterAutoDispose{}, err
 	}
-	watch, err := normalizeDisposeAction(in.WatchAction, "watch_action")
+	// 观察词不给 reject：watch 是误报代价低的词（推广话术、口头语），拒发它们
+	// 等于把「加微信」三个字写成违规内容。
+	watch, err := normalizeDisposeAction(in.WatchAction, "watch_action", true)
 	if err != nil {
 		return conf.ContentFilterAutoDispose{}, err
 	}
 	return conf.ContentFilterAutoDispose{BlockAction: block, WatchAction: watch}, nil
 }
 
-// normalizeDisposeAction 校验单个处置取值：空串按 mask，其余只认 mask / reject。
+// normalizeDisposeAction 校验单个处置取值：空串与旧值 mask 按 release，
+// 其余只认 release / draft（观察档）或 release / draft / reject（拦截档）。
 //
 // field 只用于报错文案（运营要一眼看出是哪个档位填错了），不参与任何判定。
-func normalizeDisposeAction(action, field string) (string, error) {
+// watchOnly 为 true 时拒绝 reject —— 这是「观察档不设重罚」的落地点，
+// 前端下拉已经不给它，但接口不能只靠前端。
+func normalizeDisposeAction(action, field string, watchOnly bool) (string, error) {
+	allowed := "release（打星照常）/ draft（落草稿）/ reject（拒绝）"
+	if watchOnly {
+		allowed = "release（打星照常）或 draft（落草稿）"
+	}
 	switch trimmed := strings.TrimSpace(action); trimmed {
 	case "":
-		return ContentFilterActionMask, nil
-	case ContentFilterActionMask, ContentFilterActionReject:
-		return trimmed, nil
+		return ContentFilterActionRelease, nil
+	case contentFilterActionLegacyMask:
+		// 旧库与旧请求体给的是 mask：等价于 release，就地升级而不是报错。
+		return ContentFilterActionRelease, nil
+	case ContentFilterActionRelease:
+		return ContentFilterActionRelease, nil
+	case ContentFilterActionDraft:
+		return ContentFilterActionDraft, nil
+	case ContentFilterActionReject:
+		if watchOnly {
+			return "", apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+				"命中处理口径不合法："+field+" 只能是 "+allowed+"，实际是 "+trimmed)
+		}
+		return ContentFilterActionReject, nil
 	default:
 		return "", apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
-			"自动处置口径不合法："+field+" 只能是 mask（只打星）或 reject（拒发），实际是 "+trimmed)
+			"命中处理口径不合法："+field+" 只能是 "+allowed+"，实际是 "+trimmed)
 	}
 }
 

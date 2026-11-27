@@ -14,7 +14,8 @@
  *   3. **保存即生效**：后端写完缓存就按新词表重建过滤引擎，不需要重启。
  *
  * 白名单已拆到独立页 `/content/keywords/whitelist`：两页共写同一个 `content_filter`
- * 段，**本页只覆盖 `words` + `retain_days` + `auto_dispose`**，白名单字段保存时从最新整段原样带回
+ * 段，**本页只覆盖 `words` + `retain_days`**（命中处置自 2026-11-28 起搬到
+ * 「文章审核设置 → 关键词命中处理」子页）
  * （`utils/contentFilterSave.ts`）。任意一页只提交自己那几项都会把另一页清空。
  *
  * 词云：字号 = 近 90 天命中处数、颜色 = 档位。次数来自
@@ -31,10 +32,8 @@ import {
 import { isApiBusinessError } from "~/services/http/errors";
 import type {
   ContentFilterRuntimeConfig,
-  ContentFilterRuntimeConfigPayload,
   ContentFilterWord,
 } from "~/types/api";
-import type { ContentDisposeAction } from "~/utils/contentFilterSave";
 import {
   maskContentFilterText,
   type ContentFilterPreviewResult,
@@ -72,32 +71,6 @@ const sampleText = ref("有需要的私我，代开发票，加微信，量大�
 /** 保存前的快照：脏标记按"相对上一次落库的状态"数，而不是"有没有点过按钮"。 */
 const baselineWords = ref<ContentFilterWord[]>([]);
 const baselineRetainDays = ref(90);
-
-/** 命中词的两个处置动作：打星（现状）/ 拒发（opt-in，只作用于文章面）。 */
-const DISPOSE_OPTIONS: { label: string; value: ContentDisposeAction }[] = [
-  { label: "只打星（照常发布）", value: "mask" },
-  { label: "拒发（不保存，提示作者修改）", value: "reject" },
-];
-
-/**
- * 观察档的可选动作：本期只有"打星"。
- *
- * 后端 `watch_action` 接受 `reject` 并原样落库，但运行时**不读取**它 ——
- * 推广话术类词拒发等于把"加微信"写成违规内容。下拉里不给这个选项，
- * 免得运营选了保存、以为生效了（配置里也不会因此变脏）。
- */
-const WATCH_DISPOSE_OPTIONS: { label: string; value: ContentDisposeAction }[] = [
-  { label: "只打星（照常发布）", value: "mask" },
-];
-
-/** 段里缺 auto_dispose 时（老库）的默认值：两档都打星，也就是改造前的行为。 */
-const DEFAULT_AUTO_DISPOSE: ContentFilterRuntimeConfigPayload["auto_dispose"] = {
-  block_action: "mask",
-  watch_action: "mask",
-};
-
-/** 自动处置的基线快照：脏标记也要算它，否则改完处置不会提示"未保存"。 */
-const baselineAutoDispose = ref({ ...DEFAULT_AUTO_DISPOSE });
 
 const TIER_OPTIONS: { label: string; value: Tier }[] = [
   { label: "拦截词（明确违法/高危）", value: "block" },
@@ -251,26 +224,17 @@ const samplePreview = computed<ContentFilterPreviewResult>(() =>
 );
 
 /**
- * 自动处置是否被改过。
+ * 未保存改动数：词表逐条比较 + 保留期。
  *
- * 只比两个动作字段：后端未来可能给这段加别的字段，那些字段的改动不该让本页的
- * 脏标记亮起来（本页只拥有这两个动作）。
+ * 命中处置已搬到「关键词命中处理」子页（2026-11-28），本页不再拥有它，
+ * 所以脏标记也不算它 —— 否则运营在别处改了处置，回到本页会看到一个
+ * 「有未保存改动」却找不到改在哪。
  */
-const disposeChanged = computed(() => {
-  const current = config.value.auto_dispose ?? DEFAULT_AUTO_DISPOSE;
-  return (
-    current.block_action !== baselineAutoDispose.value.block_action ||
-    current.watch_action !== baselineAutoDispose.value.watch_action
-  );
-});
-
-/** 未保存改动数：词表逐条比较 + 保留期 + 自动处置。 */
 const dirtyCount = computed(() => {
   const retainDays = config.value.retain_days ?? 90;
   return (
     countWordTableChanges(baselineWords.value, words.value) +
-    (retainDays !== baselineRetainDays.value ? 1 : 0) +
-    (disposeChanged.value ? 1 : 0)
+    (retainDays !== baselineRetainDays.value ? 1 : 0)
   );
 });
 
@@ -287,12 +251,9 @@ function applyConfig(current: ContentFilterRuntimeConfig) {
     whitelist: current.whitelist ?? [],
     whitelist_phrases: current.whitelist_phrases ?? [],
     retain_days: current.retain_days ?? 90,
-    // 老库的段里可能没有这一段：兜默认值，表单才不会因为 undefined 整页炸掉。
-    auto_dispose: current.auto_dispose ?? { ...DEFAULT_AUTO_DISPOSE },
   };
   baselineWords.value = words.value.map((entry) => ({ ...entry }));
   baselineRetainDays.value = config.value.retain_days;
-  baselineAutoDispose.value = { ...config.value.auto_dispose };
 }
 
 async function load() {
@@ -342,7 +303,6 @@ async function save() {
       {
         words: words.value,
         retain_days: config.value.retain_days,
-        auto_dispose: config.value.auto_dispose ?? DEFAULT_AUTO_DISPOSE,
       },
       CONTENT_FILTER_WORD_FIELDS,
     );
@@ -799,34 +759,16 @@ onMounted(load);
           />
         </div>
 
-        <!-- 命中词自动处置（2026-11-27）：满星替换是今天的唯一处置，拒发是 opt-in。
-             两个动作都是"命中之后怎么办"，与保留期同属"设置"这一类，所以放在同一面板。 -->
-        <h2 class="cf-panel__title mt-6">命中词自动处置</h2>
+        <!-- 命中处置已搬到「文章审核设置 → 关键词命中处理」子页（2026-11-28）。
+             它写的是同一段配置（content_filter.auto_dispose），但那是「命中之后文章去哪」
+             的发布决策，与"词表长什么样"分开住更清楚；也让本页只碰词表与保留期。 -->
+        <h2 class="cf-panel__title mt-6">命中之后怎么处置</h2>
         <p class="cf-note">
-          命中之后的默认处置是把命中词替换成等长的 <code>*</code>（本文照常发布，命中明细进
-          「审核 → 关键词风险」）。把<strong>拦截档</strong>改成「拒发」后，文章标题 / 摘要 / 正文
-          一命中就直接拒绝保存（作者看到的是"内容包含不允许发布的词"，不会拿到命中词本身，
-          命中记录照旧进风险页）。观察档目前只有「打星」。这套处置<strong>只作用于文章</strong>，
-          评论 / 昵称 / 私信 / 合集仍是打星。
+          这段配置已移到
+          <NuxtLink to="/site/article-review/keywords">站点配置 → 文章审核设置 → 关键词命中处理</NuxtLink>
+          ：拦截词可选「放行 / 退回草稿 / 禁用」，观察词可选「放行 / 退回草稿」。
+          本页只管<strong>词表本身</strong>与保留期，保存词表不会再动那段设置。
         </p>
-        <div class="cf-filter-row mt-3">
-          <span class="cf-sample__key">拦截档命中</span>
-          <NSelect
-            v-model:value="config.auto_dispose.block_action"
-            :options="DISPOSE_OPTIONS"
-            class="admin-field--select"
-            data-role="content-filter-dispose-block"
-          />
-        </div>
-        <div class="cf-filter-row mt-3">
-          <span class="cf-sample__key">观察档命中</span>
-          <NSelect
-            v-model:value="config.auto_dispose.watch_action"
-            :options="WATCH_DISPOSE_OPTIONS"
-            class="admin-field--select"
-            data-role="content-filter-dispose-watch"
-          />
-        </div>
       </section>
     </template>
 

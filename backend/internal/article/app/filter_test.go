@@ -69,7 +69,16 @@ func (f fakeCollectionTextFilter) FilterCollectionText(_ context.Context, in app
 func newFilteredService(t *testing.T, filter *fakeTextFilter) (*app.Service, *apptest.Repos) {
 	t.Helper()
 	svc, repos := newModerationService(t, nil)
-	svc.WithContentFilter(fakeArticleTextFilter{inner: filter}).
+	// 处置档位跟假过滤器的"是否报 block 命中"联动：老用例用 maskedBlockTier=true 表达
+	// "站点配了 reject 且真的命中"。现在这两件事分成了两层（过滤器报事实、用例按档位
+	// 定落点），所以在这里把两者接回去 —— 生产里也是同一个 bridge 干这件事。
+	svc.WithFilterDisposition(func() app.FilterDisposition {
+		if filter.maskedBlockTier {
+			return app.FilterDisposition{Block: app.HitReject, Watch: app.HitRelease}
+		}
+		return app.FilterDisposition{Block: app.HitRelease, Watch: app.HitRelease}
+	}).
+		WithContentFilter(fakeArticleTextFilter{inner: filter}).
 		WithCollectionContentFilter(fakeCollectionTextFilter{inner: filter})
 	return svc, repos
 }
@@ -82,6 +91,7 @@ func TestCreateMasksTitleAndContent(t *testing.T) {
 	svc, _ := newFilteredService(t, filter)
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于冰毒的科普",
@@ -113,6 +123,7 @@ func TestCreateMaskedWordsStillPassesSubmit(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于代开发票的科普",
@@ -157,6 +168,7 @@ func TestCreateFailOpenWhenFilterBroken(t *testing.T) {
 	svc, _ := newFilteredService(t, &fakeTextFilter{words: []string{"冰毒"}, broken: true})
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "冰毒",

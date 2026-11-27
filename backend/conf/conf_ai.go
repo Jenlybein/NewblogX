@@ -11,7 +11,24 @@ package conf
 // 单值的 daily_quota 也已删除：它从上线起就没有被任何调用点读取过，
 // 现在换成按场景分设的 DailyLimits（见下方类型注释）。
 type AI struct {
-	Enable        bool    `yaml:"enable" json:"enable"`
+	// Enable 是「AI 总闸」：**服务端能不能调模型**。
+	//
+	// 它管的是能力本身 —— 评分、合规判定、摘要、搜索向量、图片审核全部经过
+	// llm 层的前置检查（internal/ai/llm.go 的 Ready），关掉之后这些能力一律不可用。
+	//
+	// 2026-11-28 语义澄清：它**不再**表示"右下角要不要显示 AI 助手"。那个是
+	// AssistantEnabled。两个开关各管一层：一个是能力、一个是入口，互不改值。
+	//
+	// UI 位置同时从「站点配置 → AI 助手」迁到「站点配置 → 站点」：它管的是全站能力，
+	// 放在某个功能的设置页里会让人以为只影响那个功能。
+	Enable bool `yaml:"enable" json:"enable"`
+
+	// AssistantEnabled 是「右下角 AI 助手浮窗」开关（默认 true）。
+	//
+	// 只管读者站右下角那个浮窗要不要出现；关掉它不影响任何后端 AI 能力
+	// （评分、合规判定照旧跑）。读者站通过 GET /api/site/ai_info 读它。
+	AssistantEnabled bool `yaml:"assistant_enabled" json:"assistant_enabled"`
+
 	MaxInputChars int     `yaml:"max_input_chars" json:"max_input_chars"`
 	Temperature   float64 `yaml:"temperature" json:"temperature"`
 	TimeoutSec    int     `yaml:"timeout_sec" json:"timeout_sec"`

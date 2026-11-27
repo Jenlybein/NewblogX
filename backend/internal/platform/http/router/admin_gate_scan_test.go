@@ -104,6 +104,9 @@ var adminRouteTemplates = []string{
 	// 读写都在管理员分组下。
 	"GET /api/site/admin/content_filter",
 	"PUT /api/site/content_filter",
+	// 文章审核设置的两个子页共用一个聚合端点（2026-11-28）：审核规则 + 关键词
+	// 命中处置，两段都只有管理员能改（命中处置直接决定"命中的文章发不出去"）。
+	"PUT /api/site/article-review",
 	// 图形验证码（第 12 段，ADR-0033）：图形/时效参数只给管理员。
 	// 读者站需要的是 site.login 的三个闸门布尔位（公开可读），不是这两个端点。
 	"GET /api/site/admin/captcha",

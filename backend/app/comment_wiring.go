@@ -46,7 +46,8 @@ func WireComment(infra *Infra) {
 		notifierBridge{},
 		commentIDs{},
 		infra.Logger,
-	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter}).
+	).WithFilterDisposition(commentHitDisposition(infra)).
+		WithContentFilter(commentContentFilterBridge{svc: infra.Filter}).
 		// 管理端「评论管理」的禁言 / 封禁：接 user 模块那一份用例服务。
 		// WireUser 在 WireComment 之前跑（见 app/wiring_http.go），所以这里拿得到。
 		WithAccountDisposer(commentAccountDisposerBridge{users: infra.UserService})
@@ -100,7 +101,12 @@ func (b commentContentFilterBridge) Filter(ctx context.Context, in domain.Filter
 	if err != nil {
 		return domain.FilterResult{}, err
 	}
-	return domain.FilterResult{Masked: got.Masked, FilteredCount: got.FilteredCount}, nil
+	// 命中事实照报，处置由用例层按站点档位判（与文章面同一条分工）。
+	return domain.FilterResult{
+		Masked:          got.Masked,
+		FilteredCount:   got.FilteredCount,
+		BlockTierMasked: got.BlockTierMasked,
+	}, nil
 }
 
 // commentIDs 用雪花生成评论 ID。
@@ -401,3 +407,25 @@ func toCtypeIDs(ids []uint64) []ctype.ID {
 	return out
 }
 
+// commentHitDisposition 现读"拦截词命中之后评论怎么处置"（2026-11-28）。
+//
+// 评论只有两档语义：release（打星照发）与其余（拒收）。所以这里把 block_action
+// 原样给出去，由用例层判 `!= release` —— 不在装配层折叠成 bool，是为了让
+// 「为什么 draft 也算拒收」这件事只有一个解释处（用例层）。
+//
+// 读不到运行时配置时返回 release：失败方向必须是"照常发布"，不是把所有人拒掉。
+func commentHitDisposition(infra *Infra) func() string {
+	return func() string {
+		if infra == nil || infra.RuntimeSite == nil {
+			return "release"
+		}
+		action := infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.BlockAction
+		// 旧值 mask 读成 release（2026-11-28 三档化）：老配置里的 mask 表达的正是
+		// 「只打星照常发布」。若原样返回，它会被用例层当成「非 release ⇒ 拒收」，
+		// 一次发版就把评论区从打星变成全部拒收。
+		if action == "mask" {
+			return "release"
+		}
+		return action
+	}
+}

@@ -73,13 +73,13 @@ func TestDefaultSettingsYaml_contentFilter只含非涉政种子(t *testing.T) {
 	}
 }
 
-// 老库里那段 JSON 还是「加 auto_dispose 之前」的形状时，解码必须回落 mask/mask。
+// 老库里那段 JSON 还是「加 auto_dispose 之前」的形状时，解码必须回落 release/release。
 //
 // 为什么这条不写成"空串也按 mask 解释"就够：库里存的空串会让后台下拉框显示空白，
 // 运营看到的是"没配置"而不是"配了只打星"；而默认行为必须与改造前逐字节一致。
 // 回落的来源是默认值文件（深度合并补缺字段），所以这里连默认值文件一起验 ——
 // 少了 yaml 里那一段，这条用例就是红的，不会安静地存下一份空口径。
-func TestContentFilterAutoDisposeFallsBackToMaskOnOldSection(t *testing.T) {
+func TestContentFilterAutoDisposeFallsBackToReleaseOnOldSection(t *testing.T) {
 	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
 	if err != nil {
 		t.Fatalf("读取默认值文件失败: %v", err)
@@ -88,9 +88,9 @@ func TestContentFilterAutoDisposeFallsBackToMaskOnOldSection(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &defaults); err != nil {
 		t.Fatalf("解析默认值文件失败: %v", err)
 	}
-	if defaults.ContentFilter.AutoDispose.BlockAction != "mask" ||
-		defaults.ContentFilter.AutoDispose.WatchAction != "mask" {
-		t.Fatalf("默认值文件里的 auto_dispose 应为 mask/mask，实际 %+v",
+	if defaults.ContentFilter.AutoDispose.BlockAction != "release" ||
+		defaults.ContentFilter.AutoDispose.WatchAction != "release" {
+		t.Fatalf("默认值文件里的 auto_dispose 应为 release/release，实际 %+v",
 			defaults.ContentFilter.AutoDispose)
 	}
 
@@ -102,8 +102,8 @@ func TestContentFilterAutoDisposeFallsBackToMaskOnOldSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解码失败: %v", err)
 	}
-	if got.AutoDispose.BlockAction != "mask" || got.AutoDispose.WatchAction != "mask" {
-		t.Fatalf("老库缺 auto_dispose 时应回落 mask/mask，实际 %+v", got.AutoDispose)
+	if got.AutoDispose.BlockAction != "release" || got.AutoDispose.WatchAction != "release" {
+		t.Fatalf("老库缺 auto_dispose 时应回落 release/release，实际 %+v", got.AutoDispose)
 	}
 	if len(got.Words) != 1 || got.Words[0].Word != "冰毒" {
 		t.Fatalf("老字段不该被这次回落影响，实际 %+v", got.Words)

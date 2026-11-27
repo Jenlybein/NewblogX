@@ -480,6 +480,24 @@ export function removeAiProvider(id: string) {
   return api().request<unknown>(`/ai/providers/${id}`, { method: 'DELETE' })
 }
 
+/**
+ * 「文章审核设置」的聚合保存（2026-11-28）。
+ *
+ * 两个子页共用一个端点：审核规则页传 `article`（整段 site.article，read-modify-write），
+ * 关键词命中处理页传 `auto_dispose`（content_filter 段里的一个子对象，字段级补丁）。
+ *
+ * 两段都不传会被后端拒绝（1001）—— 一次"什么都没改"的保存不该变成一次写库。
+ */
+export function updateArticleReviewConfig(payload: {
+  article?: SiteRuntimeConfig['article']
+  auto_dispose?: ContentFilterRuntimeConfig['auto_dispose']
+}) {
+  return api().request<unknown, unknown>('/site/article-review', {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
 export function updateSiteRuntimeConfig(payload: SiteRuntimeConfig) {
   return api().request<unknown, SiteRuntimeConfig>('/site/site', { method: 'PUT', body: payload })
 }

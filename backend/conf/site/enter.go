@@ -116,16 +116,43 @@ type Article struct {
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	MaxTagsPerArticle int `yaml:"max_tags_per_article" json:"max_tags_per_article"`
 
-	// QualityAutoRelease 是「质量达标自动放行」开关（默认 false）。
+	// ScoreEnabled 是「文章质量评分」总开关（默认 true）。
 	//
-	// 开启后：发布质量闸门判定通过 → 不再等第③层 AI 合规判定，直接转 visible。
-	// 它跳过的是"等 AI 判定"这一步，不是"判定失败也放行" —— 判定点在
-	// app/publish_judge.go 里只出现在"质量已过"之后，"拿不到分数"与"质量不过"
-	// 两条分支照旧不让文章可见。
+	// 关掉之后**三条产生路径全部停摆**（提交时同步评分、后台重评、发布判定补算），
+	// 读者站与写稿页不再显示任何分数，评分接口统一返回 article.score_disabled。
 	//
-	// 与上面几项同一条口径：缺省值由 site_default_settings.yaml 显式给出，
-	// 零值就是默认的关闭。
-	QualityAutoRelease bool `yaml:"quality_auto_release" json:"quality_auto_release"`
+	// 它与闸门是**父子关系**：评分关了，闸门就没有判据，因此归一化会强制把
+	// quality_gate.enabled 写成 false（见 internal/site/app 的 normalizeArticle）。
+	// 这条联动写在保存侧而不是读取侧 —— 读取侧取 and 会在库里留下一个"开着却
+	// 永远不生效"的值，排查时极难看出它是死的。
+	//
+	// 关掉评分的**真实代价**：审核队列的风险列由分数派生（moderation.Evaluate 只吃
+	// ScoreFacts），评分一停，同步风险扫描不再产生结论、风险列只能显示「未评估」。
+	// 这是有意接受的取舍，不是缺陷。
+	//
+	// 缺省值由 site_default_settings.yaml 显式写成 true。
+	ScoreEnabled bool `yaml:"score_enabled" json:"score_enabled"`
+
+	// AIComplianceEnabled 是「AI 合规判定」（第③层）开关（默认 true）。
+	//
+	// 关掉之后文章不再走模型判定：质量已过即可见。它跳过的是"等 AI 判定+等人复核"
+	// 这一步，不是"判定失败也放行" —— 分支只出现在质量判定通过之后
+	// （app/publish_judge.go），拿不到分数与质量不过两条路径照旧不放行。
+	//
+	// 与「文章免审核」（skip_examining）的关系：两者最终都走到同一条"没有机器判据
+	// ⇒ 提交即可见"的分支，区别是免审核是**临时放行**（一次性跳过质量与 AI），
+	// 这个开关是**常态配置**（长期不调模型）。免审核不改名，但它不绕过关键词处置。
+	AIComplianceEnabled bool `yaml:"ai_compliance_enabled" json:"ai_compliance_enabled"`
+
+	// AIFailureAction 是「AI 合规判定不可用 / 失败时文章落到哪里」（默认 manual）。
+	//
+	// 取值：manual（转人工，现状）| hold（保持待可见，次日重投）| draft（退回草稿）|
+	// release（直接放行，落「未判定」并记警告日志）。
+	//
+	// **只有"这次调用失败"受它支配**：模型判 suspect、判低风险 violation 都是**结论**
+	// 不是失败，仍按结论转人工；额度用完也固定走 hold（重试注定再被拒、还会白扣一次），
+	// 同样不看这个值。三种语义分开的理由见 app/outbox_wiring.go 的失败分支注释。
+	AIFailureAction string `yaml:"ai_failure_action" json:"ai_failure_action" enums:"manual,hold,draft,release"`
 
 	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
 	//
@@ -199,6 +226,25 @@ func (r Reconcile) Interval() time.Duration {
 // 归一化与默认 10 秒 / 99 条在 internal/platform/config 的生效值模块里，
 // 避免同一个数字被复制成多份。数据库补种用的字面量仍由
 // site_default_settings.yaml 显式给出（它是"库里没有这段时"的唯一来源）。
+
+// AI 合规判定不可用 / 失败时的四种落点（conf.Article.AIFailureAction 的取值域）。
+//
+// 定义在 conf 包而不是某个用例包里：它是**配置**的取值域，写入侧（site/app 的校验）、
+// 读取侧（app 的分流）与文档都要引用同一份常量。散在用例包里会让"改一个值忘一处"
+// 变成静默的字符串比较失败。
+const (
+	// AIFailureManual 转人工（默认值）。
+	AIFailureManual = "manual"
+	// AIFailureHold 保持待可见，次日重投。
+	AIFailureHold = "hold"
+	// AIFailureDraft 退回草稿，作者可重投。
+	AIFailureDraft = "draft"
+	// AIFailureRelease 直接放行并记警告日志（临时兜底）。
+	AIFailureRelease = "release"
+)
+
+// AIFailureActions 是四档的完整清单（后台下拉与保存期校验共用一份）。
+var AIFailureActions = []string{AIFailureManual, AIFailureHold, AIFailureDraft, AIFailureRelease}
 
 // QualityGate 是「发布质量闸门」的配置形状（票 306 / ADR-0023）。
 type QualityGate struct {

@@ -101,6 +101,12 @@ const (
 	// 反向 import 会成环。文案里别再出现数字这件事由 domain 包的一条反向守卫
 	// 测试盯着（TestTagLimitMessageHasNoHardcodedNumber），不是靠这条注释。
 	CodeArticleTagLimitExceeded Code = "article.tag_limit_exceeded"
+	// CodeArticleScoreDisabled 是"站点已关闭文章质量评分"（2026-11-28）。
+	//
+	// 与"评分失败"分开：那是模型/额度问题（重试可能好），这是运营把能力关了
+	// （重试永远不会好）。前端据此把评分面板整块收起来，而不是显示一条错误。
+	CodeArticleScoreDisabled Code = "article.score_disabled"
+
 	// CodeArticleContentBlocked 是"文章文本里有不容许发布的词，本次不保存"（opt-in）。
 	//
 	// 它与 risk_rejected / quality_rejected 都不同：risk_rejected 是同步风险扫描
@@ -665,6 +671,7 @@ var messages = map[Code]string{
 	// 文案说清"本次没保存"与"改一改再发"：作者的动作是改措辞重试，
 	// 而不是去查自己的账号或等明天。命中词、档位、类目一律不出现。
 	CodeArticleContentBlocked: "内容包含不允许发布的词，本次未保存，请修改后重试",
+	CodeArticleScoreDisabled: "站点已关闭文章质量评分，评分相关功能暂不可用",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

@@ -104,7 +104,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 	// 内容过滤（票 397 / ADR-0032 决策 5/6）：落库前把标题 / 摘要 / 正文里的
 	// 命中词替换成等长 `*`。替换后的文本是后面所有步骤（同步风险扫描、质量闸门、
 	// 落库、ES 投影、通知）唯一读到的版本。
-	texts, filteredCount, blocked := s.filterArticle(ctx, cmd.Actor.UserID, articleID, articleTexts{
+	texts, filteredCount, hits := s.filterArticle(ctx, cmd.Actor.UserID, articleID, articleTexts{
 		Title:    cmd.Title,
 		Abstract: cmd.Abstract,
 		Content:  cmd.Content,
@@ -124,14 +124,22 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 	//     （拒绝 ≠ 不记录），风险页照常能看到这次试探。
 	//
 	// 错误里不带命中词 / 档位 / 类目，也不回显原文：那等于把词表送给作者。
-	if blocked {
+	//
+	// 三档（2026-11-28）：reject 立刻中止（一个字节都不落库）；draft 落草稿并
+	// **短路**后面所有机器判据（风险扫描、质量评分都不再跑 —— 结论已定，再评
+	// 只是白花额度）；release 照常往下走（文本已打星）。
+	hitDisposition := s.dispositionAfterFilter(hits)
+	if hitDisposition == HitReject {
 		return nil, domain.ErrContentBlocked
 	}
+	filterDraft := hitDisposition == HitDraft
 
+	// 命中落草稿时跳过后续全部机器判据：配额已预占（命中落草稿仍算一次提交动作），
+	// 但它不该再触发一次风险扫描与一次 5–30 秒的评分 —— 结论已经定了。
 	if target == domain.StatusExamining {
 		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，
 		// 同步风险扫描也不拦（异步合规判定仍作事后兜底）。
-		if !cmd.SkipExamining {
+		if !cmd.SkipExamining && !filterDraft {
 			risk, err := s.scanSubmitRisk(ctx, domain.ArticleID(""))
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
@@ -140,7 +148,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 			riskRejected = risk.Rejected
 		}
 
-		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected {
+		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected && !filterDraft {
 			// 评分必须在数据库事务之外（票 306 / ADR-0023）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
@@ -176,11 +184,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		}
 
 		now := s.clock.Now()
-		outcome := decideSubmit(cmd.SkipExamining, gateRejected, riskRejected)
+		outcome := decideSubmit(cmd.SkipExamining, cmd.ScoreEnabled, cmd.AIComplianceEnabled, gateRejected, riskRejected)
 		status := domain.StatusDraft
 		visibility := domain.NormalizeVisibility(cmd.Visibility)
 		var submittedAt *time.Time
-		if target == domain.StatusExamining {
+		if target == domain.StatusExamining && !filterDraft {
 			status = outcome.Status
 			visibility = outcome.Visibility
 			t := now

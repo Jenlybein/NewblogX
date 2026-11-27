@@ -83,25 +83,49 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		// 内容过滤（票 397 / ADR-0032）：两个面各自一个 bridge，面枚举钉死在装配层。
 		// 文章面多接一个"block 档命中是否拒发"的现读判定（content_filter.auto_dispose），
 		// 合集面不接 —— 本期只有文章标题 / 摘要 / 正文按配置拒发。
-		WithContentFilter(articleTextFilterBridge{
-			svc:         infra.Filter,
-			disposition: contentFilterBlockReject(infra),
-		}).
+		WithContentFilter(articleTextFilterBridge{svc: infra.Filter}).
+		// 命中处置档位（串行链路第①环）：用例层拿它决定"命中之后文章去哪"。
+		//
+		// 桥只报事实（哪一档真的被打星），档位判定在用例层做 —— 三档化之后
+		// "报事实"与"定落点"必须分开：draft 与 reject 用的是同一份命中事实。
+		WithFilterDisposition(contentFilterDispositionReader(infra)).
 		WithCollectionContentFilter(collectionTextFilterBridge{svc: infra.Filter}).
 		WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
 }
 
-// contentFilterBlockReject 返回"block 档命中是否拒发"的现读判定闭包。
+// contentFilterDisposition 返回两档命中处置的现读闭包（2026-11-28 三档化）。
 //
-// 配置在运行时（content_filter.auto_dispose.block_action，后台可改），所以每次过滤
-// 都现读一次；判断只看 `== "reject"`：空串、没填、写了个不认识的值一律按 mask 走 ——
-// 默认必须与改造前逐字节一致，"配置读不到"不能变成把所有人的文章拒掉。
-func contentFilterBlockReject(infra *Infra) func() bool {
-	return func() bool {
+// 配置在运行时（content_filter.auto_dispose，后台可改），所以每次过滤都现读一次。
+// 读到空串或没装配时按 release：默认必须与改造前逐字节一致，"配置读不到"
+// 不能变成把所有人的文章拒掉或退回草稿（ADR-0032 决策 11 的同一条口径）。
+//
+// 这里**不做取值校验**：非法值在保存侧（site/app 的 normalizeAutoDispose）就被
+// 拒掉了，能进运行时的只有三个合法值。运行期再做一次映射等于把同一份规则抄两处。
+func contentFilterDisposition(infra *Infra) func() (block, watch string) {
+	return func() (string, string) {
 		if infra == nil || infra.RuntimeSite == nil {
-			return false
+			return articleapp.HitRelease, articleapp.HitRelease
 		}
-		return infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.BlockAction == "reject"
+		dispose := infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose
+		// 旧值 mask 就地读成 release（2026-11-28 三档化）：
+		//
+		// 库里的 JSON 是按 key 存的，老配置里写的是 mask —— 它表达的正是「只打星
+		// 照常走」。保存路径会把它升级成 release（normalizeDisposeAction），但
+		// 在运营还没打开过设置页之前，读面必须已经按新语义工作，否则一次发版
+		// 就让线上所有命中词从「放行」变成「被当成未知档位」。
+		return upgradeLegacyDisposition(dispose.BlockAction), upgradeLegacyDisposition(dispose.WatchAction)
+	}
+}
+
+// contentFilterDispositionReader 把上面的闭包转成用例层的端口形状。
+//
+// 两处注入（bridge 与用例服务）共用同一个闭包实例，是为了让"过滤时看到的档位"
+// 与"落点时用的档位"来自**同一次现读**——各读一次会让两个值在一次请求内漂开。
+func contentFilterDispositionReader(infra *Infra) func() articleapp.FilterDisposition {
+	read := contentFilterDisposition(infra)
+	return func() articleapp.FilterDisposition {
+		block, watch := read()
+		return articleapp.FilterDisposition{Block: block, Watch: watch}
 	}
 }
 
@@ -123,12 +147,6 @@ func contentFilterBlockReject(infra *Infra) func() bool {
 // 一条评论，文章被拒是整篇不落库，两者不是同一件事。
 type articleTextFilterBridge struct {
 	svc *filterapp.Service
-	// disposition 回答"block 档命中真被打星时，站点要求拒发吗"。
-	//
-	// 传函数而不是 bool：这是运行时配置，后台改完下一次请求就该生效，
-	// 启动时捕获一份值会让"改配置要重启"成为隐藏前提（与内容过滤引擎的
-	// 现读 / 原子重建同一口径）。nil 表示没注入，按默认的 mask 处理。
-	disposition func() bool
 }
 
 // FilterArticleText 替换文章文本里的命中词并记一条关键词风险。
@@ -148,22 +166,17 @@ func (b articleTextFilterBridge) FilterArticleText(ctx context.Context, in artic
 	if err != nil {
 		return articleapp.FilteredText{}, err
 	}
+	// 两档的事实原样上报，**处置**交给用例层按现读档位判定。
+	//
+	// 改造前这里把"有没有 block 命中"与"是否拒发"合取成一个 bool 就返回给用例层，
+	// 现在三档化之后不能这么做了：draft 与 reject 都要用同一份命中事实，
+	// 而哪档对应哪个处置只有拿到配置才知道 —— 那是用例层（article/app）的活。
 	return articleapp.FilteredText{
 		Masked:          got.Masked,
 		FilteredCount:   got.FilteredCount,
-		BlockTierMasked: got.BlockTierMasked && b.blockRejected(),
+		BlockTierMasked: got.BlockTierMasked,
+		WatchTierMasked: got.WatchTierMasked,
 	}, nil
-}
-
-// blockRejected 现读站点配置，回答"block 档命中是否拒发"。
-//
-// 只有显式配成 reject 才算拒：空串、未知值、没装配运行时配置都按 mask 处理 ——
-// 默认行为必须与改造前逐字节一致，"配置读不到"不能变成"把所有人的文章拒掉"。
-func (b articleTextFilterBridge) blockRejected() bool {
-	if b.disposition == nil {
-		return false
-	}
-	return b.disposition()
 }
 
 // collectionTextFilterBridge 把内容过滤服务接成合集面端口（票 397）。
@@ -402,4 +415,15 @@ func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateIn
 		Dimensions: dimensions,
 		Issues:     issues,
 	}, nil
+}
+
+// upgradeLegacyDisposition 把改造前的取值映射到三档语义（2026-11-28）。
+//
+// 只有 mask → release 一条：mask 是「只打星、文本照常入库」，与 release 完全同义。
+// 其余取值原样返回 —— 空串由调用方按 release 兜底，非法值在保存侧就被拒了。
+func upgradeLegacyDisposition(action string) string {
+	if action == "mask" {
+		return articleapp.HitRelease
+	}
+	return action
 }

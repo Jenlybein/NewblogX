@@ -73,6 +73,17 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 		adminGroup.PUT(route.path, mw.CaptureLog(mw.ReqBody), route.update)
 	}
 
+	// 文章审核设置的两个子页共用一个聚合端点（2026-11-28）：审核规则写 site.article 段，
+	// 关键词命中处理写 content_filter 段的 auto_dispose —— 一页两段、一次性保存。
+	//
+	// 为什么另开一个端点而不是复用 PUT /site/site 与 PUT /site/content_filter：
+	// 两个子页各自只知道自己那一段，让它们拼一个跨段请求体等于把"另一段的现值"
+	// 复制到前端再传回来 —— 中间任何一次并发保存都会互相覆盖。
+	adminGroup.PUT("article-review",
+		mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[sitehttp.ArticleReviewSaveRequest],
+		app.UpdateArticleReviewSection)
+
 	// 右栏卡片是独立运营位，不属于运行时配置段注册表。
 	adminGroup.GET("admin/sidebar_cards", app.AdminSidebarCards)
 	adminGroup.PUT("admin/sidebar_cards", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.SidebarCardsSaveRequest], app.UpdateSidebarCards)

@@ -26,14 +26,23 @@ import (
 type Handler struct {
 	svc       *app.Service
 	providers *app.ProviderService
+	// scoreEnabled 现读「文章质量评分」开关（2026-11-28）。
+	//
+	// 评分关掉之后三个 type 的评分接口必须**一起**返回「评分已关闭」：界面隐藏只是
+	// 一层皮，接口还在返回分数就等于开关没生效。传函数而不是布尔：后台改完
+	// 下一次请求即生效。
+	scoreEnabled func() bool
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service, providers *app.ProviderService) *Handler {
+//
+// scoreEnabled 为 nil 表示「没接站点配置」：此时按开启处理（与原行为一致）——
+// 装配缺失不该让评分接口静默变成关闭。
+func NewHandler(svc *app.Service, providers *app.ProviderService, scoreEnabled func() bool) *Handler {
 	if svc == nil {
 		panic("ai/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc, providers: providers}
+	return &Handler{svc: svc, providers: providers, scoreEnabled: scoreEnabled}
 }
 
 // userID 从 claims 取当前登录用户。
@@ -92,6 +101,16 @@ func (h *Handler) Scoring(c *gin.Context) {
 	}
 	articleID := cr.ArticleID.Uint64()
 	ctx := callCtx(c)
+
+	// 站点关了「文章质量评分」：三个 type 一律拒绝。
+	//
+	// 位置在 switch 之前是刻意的：type=1/2 只是读库，type=3 会调模型并扣额度 ——
+	// 三者都属于"评分能力"，开关关掉之后它们不该有任何一条还能用。
+	// 只拦 type=3 会让读者站继续显示历史分数（界面藏了、接口没藏）。
+	if h.scoreEnabled != nil && !h.scoreEnabled() {
+		failScore(c, apperr.New(apperr.CodeArticleScoreDisabled))
+		return
+	}
 
 	switch cr.Type {
 	case 1:

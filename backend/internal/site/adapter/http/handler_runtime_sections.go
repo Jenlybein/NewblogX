@@ -1,10 +1,13 @@
 package http
 
 import (
+	"encoding/json"
+
 	"myblogx/conf"
 
 	"github.com/gin-gonic/gin"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
@@ -61,6 +64,64 @@ func (h *Handler) UpdateSiteSection(c *gin.Context) {
 		TargetID:   "site",
 		Success:    true,
 		Message:    "更新运行时配置成功: site",
+	})
+}
+
+// UpdateArticleReviewSection 是「文章审核设置」两个子页的聚合写入口（2026-11-28）。
+//
+// 一次请求最多写两段：site.article（审核规则页）与 content_filter 的 auto_dispose
+// （关键词命中处理页）。两段都先校验后写，任何一段不合法就一个字节都不写。
+//
+// 两段都不传时报 1001：一次"什么都没改"的保存不该变成一次写库，也不该回
+// "保存成功"让前端以为真的存了。
+// @Summary 保存文章审核设置（审核规则 / 关键词命中处理）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ArticleReviewSaveRequest true "两段任一或都传"
+// @Success 200 {object} kernel.Envelope[SiteSectionSiteResponse]
+// @Router /site/article-review [put]
+func (h *Handler) UpdateArticleReviewSection(c *gin.Context) {
+	var body ArticleReviewSaveRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		fail(c, apperr.NewWithMessage(apperr.CodeSiteArticleInvalid, err.Error()))
+		return
+	}
+	if body.Article == nil && body.AutoDispose == nil {
+		fail(c, apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"请求体里 article 与 auto_dispose 至少要有一段"))
+		return
+	}
+
+	// site 段整段保存（与 PUT /site/site 同一条 read-modify-write 语义）：
+	// 只传 auto_dispose 时也要带上现值的完整 site，否则 UpdateSite 会把
+	// 没传的段写成零值。
+	site := h.svc.AdminSite()
+	if body.Article != nil {
+		site = conf.Site(*body.Article)
+	}
+
+	var filterPatch *conf.ContentFilter
+	if body.AutoDispose != nil {
+		// 字段级补丁：只覆盖 auto_dispose，其余键一律取现值 ——
+		// 词表页（PUT /site/content_filter）随时可能刚改过它们。
+		current := h.svc.AdminContentFilter()
+		current.AutoDispose = *body.AutoDispose
+		filterPatch = &current
+	}
+
+	if err := h.svc.UpdateArticleReview(site, filterPatch); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "article_review",
+		Success:    true,
+		Message:    "更新运行时配置成功: article_review",
 	})
 }
 
@@ -495,9 +556,7 @@ func (h *Handler) UpdateCaptchaSection(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /site/content_filter [put]
 func (h *Handler) UpdateContentFilterSection(c *gin.Context) {
-	if err := updateNamedSection(c, func(v SiteSectionContentFilterRequest) error {
-		return h.svc.UpdateContentFilter(conf.ContentFilter(v))
-	}); err != nil {
+	if err := h.updateContentFilterPatch(c); err != nil {
 		fail(c, err)
 		return
 	}
@@ -509,4 +568,48 @@ func (h *Handler) UpdateContentFilterSection(c *gin.Context) {
 		Success:    true,
 		Message:    "更新运行时配置成功: content_filter",
 	})
+}
+
+// updateContentFilterPatch 是 content_filter 段的**字段级补丁**（2026-11-28）。
+//
+// 为什么必须打补丁而不是整段覆盖：这一段的字段分给两个页面写 —— 词表页管
+// words / whitelist / whitelist_phrases / retain_days，文章审核设置的
+// 关键词命中处理子页管 auto_dispose。整段覆盖会让"在词表页点一次保存"
+// 把命中处置静默恢复默认值（反过来也一样）。
+//
+// 实现方式：先按 raw JSON 记住**这次真的传了哪些键**，再把现值叠上去。
+// 不能用结构体零值判断"没传"，因为 false / 0 / 空数组都是合法现值。
+func (h *Handler) updateContentFilterPatch(c *gin.Context) error {
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteArticleInvalid, err.Error())
+	}
+
+	current := h.svc.AdminContentFilter()
+
+	// 逐键叠加：只覆盖真的出现在请求体里的键。
+	patch := func(key string, target any) error {
+		value, ok := raw[key]
+		if !ok {
+			return nil
+		}
+		return json.Unmarshal(value, target)
+	}
+	if err := patch("words", &current.Words); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, "words 格式不合法")
+	}
+	if err := patch("whitelist", &current.Whitelist); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, "whitelist 格式不合法")
+	}
+	if err := patch("whitelist_phrases", &current.WhitelistPhrases); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, "whitelist_phrases 格式不合法")
+	}
+	if err := patch("retain_days", &current.RetainDays); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, "retain_days 格式不合法")
+	}
+	if err := patch("auto_dispose", &current.AutoDispose); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, "auto_dispose 格式不合法")
+	}
+
+	return h.svc.UpdateContentFilter(current)
 }

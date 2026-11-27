@@ -79,6 +79,12 @@ type Service struct {
 	logger    domain.Logger
 	// filter 是内容过滤端口（票 396）；nil 表示未接入过滤，评论按原文落库。
 	filter domain.ContentFilterer
+	// disposition 读站点当前的命中处置档位（2026-11-28）。
+	//
+	// 评论只有两档语义：release（打星照发）与其余（**拒收**）—— 评论没有草稿态，
+	// 也没有申诉通道，"待审队列"已被票 400 退场。传函数而不是值：后台改完
+	// 下一次发表即生效。nil 表示没注入，按 release 处理（改造前的行为）。
+	disposition func() string
 	// publishGate 是发布闸门（票 399）；nil 表示未接入（系统动作 / 旧测试）。
 	publishGate domain.PublishGate
 	// accounts 是账号处置端口（管理端评论页的禁言 / 封禁）；nil 表示未接入
@@ -97,6 +103,18 @@ func (s *Service) WithPublishGate(g domain.PublishGate) *Service {
 // 用可选项而不是往 New 上加参数：没接入的调用点（旧测试、尚未装配的进程角色）
 // 行为与接入前完全一致 —— 按原文落库。过滤是"多出来的一层"，不是评论模块的
 // 前置条件。
+// hitRelease 是"命中只打星、照常发布"这一档。评论与文章共用同一个取值域，
+// 但评论只区分"放行"与"其余（拒收）"两种落点。
+const hitRelease = "release"
+
+// WithFilterDisposition 注入命中处置档位的现读函数（2026-11-28）。
+//
+// 不注入时按 release（改造前的行为）：评论命中只打星，照常发布。
+func (s *Service) WithFilterDisposition(read func() string) *Service {
+	s.disposition = read
+	return s
+}
+
 func (s *Service) WithContentFilter(filter domain.ContentFilterer) *Service {
 	s.filter = filter
 	return s
@@ -174,7 +192,18 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	// 不可能再出现命中词（ADR-0032 决策 5 / 6）。ID 在这里先取，是因为命中记录
 	// 要指向"新评论 ID"，而评论 ID 平时是在仓储落库时才生成的。
 	commentID := s.ids.NextCommentID()
-	content, filteredCount := s.filterContent(ctx, viewer.ID, commentID, in.Content)
+	content, filteredCount, blockHit := s.filterContent(ctx, viewer.ID, commentID, in.Content)
+
+	// 拦截词命中 + 站点档位非 release ⇒ 拒收（不入库）。
+	//
+	// 评论只有两档：draft 与 reject 都等价于拒收。理由写在 content_filter 段与
+	// GLOSSARY 里 —— 评论没有草稿态（值 1「审核中」已退场），也没有申诉通道，
+	// 把它放进一条"待审队列"等于让作者以为发出去了却永远看不到。
+	//
+	// 错误文案与文章面同一条固定话术，不带命中词 / 档位 / 类目：回显等于把词表送出去。
+	if blockHit && s.disposition != nil && s.disposition() != hitRelease {
+		return nil, apperr.New(apperr.CodeArticleContentBlocked)
+	}
 
 	display := s.display(ctx, viewer.ID.Uint64())
 	c := domain.Comment{
@@ -240,9 +269,9 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 //
 // 也就是说这条路径永远不返回错误：审计问题不该演变成用户发不出评论
 //（ADR-0032 决策 11）。
-func (s *Service) filterContent(ctx context.Context, userID, commentID ctype.ID, text string) (string, int) {
+func (s *Service) filterContent(ctx context.Context, userID, commentID ctype.ID, text string) (string, int, bool) {
 	if s.filter == nil {
-		return text, 0
+		return text, 0, false
 	}
 	got, err := s.filter.Filter(ctx, domain.FilterRequest{
 		UserID:    userID,
@@ -252,12 +281,14 @@ func (s *Service) filterContent(ctx context.Context, userID, commentID ctype.ID,
 	if err != nil {
 		s.logError("评论内容过滤失败，按原文继续: user=%d comment=%d err=%v",
 			userID.Uint64(), commentID.Uint64(), err)
-		return text, 0
+		return text, 0, false
 	}
+	// 过滤失败时把命中事实一律置假（与文章面同一条口径）：拿到的其实是原文，
+	// 此时按"有命中、该拒收"处理等于用一次装配故障把作者的评论拒掉。
 	if got.Masked == "" {
-		return text, got.FilteredCount
+		return text, got.FilteredCount, got.BlockTierMasked
 	}
-	return got.Masked, got.FilteredCount
+	return got.Masked, got.FilteredCount, got.BlockTierMasked
 }
 
 // ToggleDigg 点赞 / 取消点赞；返回操作后是否处于"已点赞"。

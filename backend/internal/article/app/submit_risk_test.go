@@ -43,6 +43,7 @@ func TestUpdateLowScoreIsRejected(t *testing.T) {
 
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		ArticleID:     articleID,
@@ -96,6 +97,7 @@ func TestUpdateLowScoreSignalsStillPublishesPendingReview(t *testing.T) {
 
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		ArticleID:     articleID,
@@ -119,6 +121,7 @@ func TestCreateLowRiskStillPublishesPendingReview(t *testing.T) {
 	// 新建文章没有评分记录，等价于 none。
 	svc, _ := newModerationService(t, nil)
 	res, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "干净稿",
@@ -149,6 +152,7 @@ func TestSkipExaminingBypassesRiskScan(t *testing.T) {
 
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		ArticleID:     articleID,
@@ -334,6 +338,7 @@ func TestSystemRejectedCannotResubmit(t *testing.T) {
 
 			content := "改过的正文"
 			_, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 				Actor:         authorViewer(),
 				Policy:        domain.OpenWritePolicy(),
 				ArticleID:     id,

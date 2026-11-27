@@ -75,3 +75,19 @@ type SiteSectionContentFilterRequest conf.ContentFilter
 // 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，同样只有后台具名端点。
 type SiteSectionCaptchaResponse conf.Captcha
 type SiteSectionCaptchaRequest conf.Captcha
+
+// ArticleReviewSaveRequest 是「文章审核设置」两个子页共用的聚合请求体（2026-11-28）。
+//
+// 两段都可选：审核规则子页只传 article，关键词命中处理子页只传 auto_dispose。
+// 两段都不传由 handler 拒绝（1001）—— 一次「什么都没改」的保存不该变成一次写库。
+//
+// **article 是全量覆盖**：它是整段 site.article 的形状，前端 read-modify-write
+// 之后传回来（与 PUT /site/site 同一条语义）。**auto_dispose 是字段级补丁**：
+// 它是 content_filter 段里的一个子对象，而那一整段还归词表页所有 —— 只传
+// auto_dispose 时其余字段（词表 / 白名单 / 保留期）必须保持不动。
+type ArticleReviewSaveRequest struct {
+	// Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。
+	Article *SiteSectionSiteRequest `json:"article"`
+	// AutoDispose 是 content_filter 段的命中处置口径；nil 表示这次不改它。
+	AutoDispose *conf.ContentFilterAutoDispose `json:"auto_dispose"`
+}

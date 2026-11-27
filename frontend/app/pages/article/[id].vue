@@ -7,6 +7,7 @@ import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
+import { useSiteStore } from "~/stores/site";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import CommentComposerSheet from "~/components/comment/CommentComposerSheet.vue";
@@ -58,6 +59,20 @@ const articleHeadings = ref<ArticleHeadingAnchor[]>([]);
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
 const articleScoreModalOpen = ref(false);
+const siteStore = useSiteStore();
+
+/**
+ * 站点是否开着「文章质量评分」（2026-11-28）。
+ *
+ * 关掉之后读者站**不显示任何分数**：按钮与弹窗整块隐藏，评分请求也不发起
+ * （scoreSource 是 lazy 的，只有点按钮才取数，所以隐藏按钮就同时省掉了请求）。
+ *
+ * 判据按**开关**而不是"有没有分数数据"：线上历史文章都还留着评分记录，
+ * 若按数据判，运营关掉开关后仍会看到旧分数，会以为开关没生效。
+ */
+const scoreEnabled = computed(
+  () => siteStore.runtimeConfig?.article?.score_enabled !== false,
+);
 // 互动条（票 236）评论动作的两块落点：#comments 区块 = 滚动目标，评论框 = 聚焦目标；平滑滚动跟随动效偏好。
 const commentsSectionRef = ref<HTMLElement | null>(null);
 
@@ -392,6 +407,11 @@ function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
 }
 
 function handleArticleScoreOpen() {
+  // 双保险：按钮已经 v-if 了，但热键 / 未来的新入口也可能调到这里。
+  if (!scoreEnabled.value) {
+    return;
+  }
+
   articleScoreModalOpen.value = true;
   if (!articleScoreSummary.value) {
     void refreshArticleScoreSummary();
@@ -635,7 +655,13 @@ useHead(() => {
         </div>
 
         <div class="article-actions">
-          <button type="button" class="article-action" @click="handleArticleScoreOpen">
+          <!-- 评分关闭时整块不显示（2026-11-28）：开关要关得死，不能留一个"能点但没有分"的按钮。 -->
+          <button
+            v-if="scoreEnabled"
+            type="button"
+            class="article-action"
+            @click="handleArticleScoreOpen"
+          >
             {{ articleScoreButtonLabel }}
           </button>
           <!-- 「编辑」入口（票 213 门控：仅作者本人 + 站点允许发布）：票 236 起紧贴质量评分右侧。 -->

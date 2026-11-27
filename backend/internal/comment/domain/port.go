@@ -198,6 +198,13 @@ type FilterResult struct {
 	Masked string
 	// FilteredCount 是实际被替换的处数（只用于"已过滤 N 处"的提示）。
 	FilteredCount int
+	// BlockTierMasked 表示"这段文本里确实有拦截词命中被打成了星号"（2026-11-28）。
+	//
+	// 评论只有两档语义：release（打星照发）与**拒收**（draft 与 reject 都等价）。
+	// 观察词命中不在这里报 —— 观察档不设重罚，命中照发。
+	//
+	// 与文章面同一个判据：白名单覆盖的命中文本没变，因此算"没命中"。
+	BlockTierMasked bool
 }
 
 // ContentFilterer 在全站唯一的内容过滤层里替换命中词，并记一条关键词风险。

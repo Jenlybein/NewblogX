@@ -37,6 +37,7 @@ func TestCreateRejectsMoreTagsThanLimit(t *testing.T) {
 	ids := seedUsableTags(t, repos, domain.MaxArticleTags+1)
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "标签超限",
@@ -68,6 +69,7 @@ func TestCreateAcceptsTagsUpToLimit(t *testing.T) {
 	ids := seedUsableTags(t, repos, domain.MaxArticleTags)
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "正好五个标签",
@@ -94,6 +96,7 @@ func TestCreateCountsTagsAfterDedupe(t *testing.T) {
 	withDuplicate := append(append([]domain.TagID{}, ids...), ids[0])
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "带重复的五个标签",
@@ -122,6 +125,7 @@ func TestUpdateRejectsMoreTagsThanLimit(t *testing.T) {
 	title := "改过的标题"
 	over := ids
 	_, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		ArticleID: articleID,
 		Title:     &title,
@@ -159,6 +163,7 @@ func TestCreateRejectsTagsOverConfiguredLimit(t *testing.T) {
 	ids := seedUsableTags(t, repos, limit+1)
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "配置上限 3",
@@ -181,6 +186,7 @@ func TestCreateFallsBackToDefaultLimitWhenZero(t *testing.T) {
 	ids := seedUsableTags(t, repos, domain.MaxArticleTags)
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "TagLimit 为零",

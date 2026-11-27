@@ -75,10 +75,13 @@ type BannerCreateResponse struct {
 
 // AIResponse 是公开的站点 AI 信息。
 type AIResponse struct {
-	Enable   bool   `json:"enable"`
-	Nickname string `json:"nickname"`
-	Avatar   string `json:"avatar"`
-	Abstract string `json:"abstract"`
+	// Enable 是 AI 总闸（服务端能不能调模型），2026-11-28 起与浮窗解耦。
+	Enable bool `json:"enable"`
+	// AssistantEnabled 是「右下角 AI 助手浮窗」开关：只管入口，不影响任何后端能力。
+	AssistantEnabled bool   `json:"assistant_enabled"`
+	Nickname         string `json:"nickname"`
+	Avatar           string `json:"avatar"`
+	Abstract         string `json:"abstract"`
 }
 
 // SEOResponse 是站点 SEO 摘要。

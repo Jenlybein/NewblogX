@@ -14,6 +14,7 @@ import {
 import {
   ALL_SITE_SETTINGS_SECTIONS,
   CONTENT_PUBLISH_PAGES,
+  SITE_INTERFACE_SECTIONS,
   SITE_SETTINGS_PAGES,
   SITE_SETTINGS_SECTIONS,
   SITE_STANDALONE_SECTIONS,
@@ -135,7 +136,17 @@ const EXPECTED_SECTIONS: ExpectedSection[] = [
     depth: 1,
   },
   { key: 'log', label: '日志', path: '/site/log', page: 'site/log', component: 'SettingsLog', group: null, depth: 1 },
-  { key: 'deco', label: '装饰', path: '/site/deco', page: 'site/deco', component: 'SettingsDeco', group: null, depth: 1 },
+  {
+    key: 'deco',
+    label: '装饰',
+    path: '/site/deco',
+    page: 'site/deco',
+    component: 'SettingsDeco',
+    // 2026-11-27：装饰与右栏卡片合成「站点界面」分组（改的是读者站长什么样，
+    // 与"谁能做什么"分开）。
+    group: '站点界面',
+    depth: 2,
+  },
 ]
 
 function sitePageFiles(): string[] {
@@ -173,20 +184,23 @@ describe('站点配置编辑域清单（路由与组件映射的唯一来源）'
     expect(SITE_SETTINGS_SECTIONS).toHaveLength(10)
   })
 
-  it('三个分组的成员固定，且互不重叠、覆盖全部域', () => {
+  it('四个分组的成员固定，且互不重叠、覆盖全部域', () => {
     expect(SITE_USER_ACTION_SECTIONS.map(section => section.key)).toEqual([
       'site-login',
       'site-chat',
       'oauth',
     ])
     expect(SITE_VERIFICATION_SECTIONS.map(section => section.key)).toEqual(['captcha', 'mail', 'sms'])
-    expect(SITE_STANDALONE_SECTIONS.map(section => section.key)).toEqual(['ai', 'storage', 'log', 'deco'])
+    expect(SITE_INTERFACE_SECTIONS.map(section => section.key)).toEqual(['deco'])
+    expect(SITE_STANDALONE_SECTIONS.map(section => section.key)).toEqual(['ai', 'storage', 'log'])
 
+    // 顺序要与 ALL_SITE_SETTINGS_SECTIONS 一致（deco 在清单里排在 log 之后）。
     const grouped = [
       ...SITE_SETTINGS_PAGES,
       ...SITE_USER_ACTION_SECTIONS,
       ...SITE_VERIFICATION_SECTIONS,
       ...SITE_STANDALONE_SECTIONS,
+      ...SITE_INTERFACE_SECTIONS,
     ].map(section => section.key)
     expect(new Set(grouped).size).toBe(grouped.length)
     expect(grouped).toEqual(ALL_SITE_SETTINGS_SECTIONS.map(section => section.key))
@@ -233,17 +247,21 @@ describe('站点配置编辑域清单（路由与组件映射的唯一来源）'
 })
 
 describe('站点配置菜单层级（三级）', () => {
-  /** 「站点配置」下不属于三个分组、也不在编辑域清单里的运营位。 */
-  const OPERATIONAL_CHILDREN = [{ label: '右栏卡片', path: '/site/sidebar-cards' }]
+  /**
+   * 「站点配置」下不参与站点域清单的条目：运营位（右栏卡片）与新增的
+   * 「文章审核设置」页（2026-11-27，它写 site 段的 article 块，但不属于
+   * `SiteSettingsSection` 清单 —— 那套清单是"段 → 页"的映射）。
+   */
+  const OPERATIONAL_CHILDREN = [{ label: '文章审核设置', path: '/site/article-review' }]
 
-  it('「站点配置」是纯分组，子项 = 三个分组 + 四个独立域 + 右栏卡片', () => {
+  it('「站点配置」是纯分组，子项 = 五个分组 + 三个独立域 + 两个运营页', () => {
     const group = ADMIN_NAV_TREE.find(node => node.label === '站点配置')
     expect(group).toBeDefined()
     expect(group!.path).toBeUndefined()
 
     const children = group!.children ?? []
     const groupNames = children.filter(child => child.path === undefined).map(child => child.label)
-    expect(groupNames).toEqual(['站点', '用户操作', '验证码与通知'])
+    expect(groupNames).toEqual(['站点', '用户操作', '验证码与通知', '内容修改与发布', '站点界面'])
 
     for (const name of groupNames) {
       const sub = children.find(child => child.label === name)!
@@ -261,7 +279,7 @@ describe('站点配置菜单层级（三级）', () => {
     for (const extra of OPERATIONAL_CHILDREN) {
       expect(children.map(({ label, path }) => ({ label, path }))).toContainEqual(extra)
     }
-    expect(children.length).toBe(3 + SITE_STANDALONE_SECTIONS.length + OPERATIONAL_CHILDREN.length)
+    expect(children.length).toBe(5 + SITE_STANDALONE_SECTIONS.length + OPERATIONAL_CHILDREN.length)
   })
 
   it('三个分组各自挂上正确的域，且分组之间不重复', () => {
@@ -277,6 +295,15 @@ describe('站点配置菜单层级（三级）', () => {
     expect(byName('验证码与通知').children!.map(({ label, path }) => ({ label, path }))).toEqual(
       SITE_VERIFICATION_SECTIONS.map(({ label, path }) => ({ label, path })),
     )
+    // 内容修改与发布（2026-11-27 从一级分组降为站点配置下的三级分组）。
+    expect(byName('内容修改与发布').children!.map(({ label, path }) => ({ label, path }))).toEqual(
+      CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
+    )
+    // 站点界面：装饰来自站点域清单，右栏卡片是运营位（不在清单里，显式挂上）。
+    expect(byName('站点界面').children!.map(({ label, path }) => ({ label, path }))).toEqual([
+      ...SITE_INTERFACE_SECTIONS.map(({ label, path }) => ({ label, path })),
+      { label: '右栏卡片', path: '/site/sidebar-cards' },
+    ])
 
     // 「邮件」「短信」只能出现在「验证码与通知」下 —— 双入口会让运营改错页。
     const allPaths = group.children!.flatMap(child => (child.children ?? []).map(grand => grand.path))
@@ -329,13 +356,18 @@ describe('站点配置菜单层级（三级）', () => {
     const expanded = activeGroupKeys('/site/chat')
     // 只展开自己那条链，不把兄弟分组一起打开。
     expect(expanded).not.toContain('group:站点配置 / 验证码与通知')
-    expect(activeGroupKeys('/site/deco')).toEqual(['group:站点配置'])
+    // 装饰在「站点界面」组里（2026-11-27），展开的是它自己那条链。
+    expect(activeGroupKeys('/site/deco')).toEqual([
+      'group:站点配置',
+      'group:站点配置 / 站点界面',
+    ])
   })
 })
 
-describe('内容生产链（一级分组，与站点配置解耦）', () => {
-  it('三页同属「内容修改与发布」，且都不再挂在站点配置或审核下', () => {
-    const group = ADMIN_NAV_TREE.find(node => node.label === '内容修改与发布')
+describe('内容修改与发布（站点配置下的三级分组）', () => {
+  it('两页同属「内容修改与发布」，挂在「站点配置」下、深度 3', () => {
+    const siteConfig = ADMIN_NAV_TREE.find(node => node.label === '站点配置')!
+    const group = (siteConfig.children ?? []).find(node => node.label === '内容修改与发布')
     expect(group).toBeDefined()
     // 一条链没有"总览页"可看，所以父项只分组。
     expect(group!.path).toBeUndefined()
@@ -345,7 +377,8 @@ describe('内容生产链（一级分组，与站点配置解耦）', () => {
 
     for (const page of CONTENT_PUBLISH_PAGES) {
       const item = navItemByPath(page.path)
-      expect(item).toMatchObject({ label: page.label, depth: 1 })
+      // 站点配置(0) → 内容修改与发布(1) → 页面(2)
+      expect(item).toMatchObject({ label: page.label, depth: 2 })
       expect(item!.parentLabel).toBe('内容修改与发布')
       expect(item!.parentPath).toBeNull()
     }
@@ -356,9 +389,13 @@ describe('内容生产链（一级分组，与站点配置解耦）', () => {
     expect(navItemByPath('/site/publish')).toBeUndefined()
   })
 
-  it('审核分组只剩"不是文章生产"的两件', () => {
+  it('「文章审核」回到审核组，深度 1：「审核(0) → 文章审核(1)」', () => {
     const group = ADMIN_NAV_TREE.find(node => node.label === '审核')!
-    expect(group.children!.map(({ label }) => label)).toEqual(['图片审核', '关键词风险'])
+    expect(group.children!.map(({ label }) => label)).toEqual(['图片审核', '关键词风险', '文章审核'])
+    const item = navItemByPath('/review/article')
+    expect(item).toMatchObject({ label: '文章审核', depth: 1 })
+    expect(item!.parentLabel).toBe('审核')
+    expect(item!.parentPath).toBeNull()
   })
 })
 
@@ -370,6 +407,8 @@ describe('站点配置编辑域页面文件（刷新保持当前域）', () => {
       expect(actual).toContain(page)
     }
     expect(actual).toContain('site/sidebar-cards')
+    // 文章审核设置（2026-11-27）：写 site 段 article 块，但不在"段 → 页"清单里。
+    expect(actual).toContain('site/article-review')
     // 旧地址跳转页：搬走的两页仍活着，只是只做跳转（页面数量断言在
     // outline-retirement.test.ts 里另有总账）。
     expect(actual).toContain('site/content-filter')
@@ -423,3 +462,9 @@ describe('站点配置编辑域页面文件（刷新保持当前域）', () => {
     }
   })
 })
+
+
+
+
+
+

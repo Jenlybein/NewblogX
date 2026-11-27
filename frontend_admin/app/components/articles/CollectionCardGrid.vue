@@ -60,7 +60,7 @@ function coverOf(item: CollectionCardItem) {
       :data-id="item.id"
     >
       <div class="collection-card__cover">
-        <img v-if="coverOf(item)" :src="coverOf(item)!.url" :alt="item.title || label" />
+        <img v-if="coverOf(item)" :src="coverOf(item)!.url" :alt="item.title || label" >
         <span v-else class="collection-card__cover-empty">无封面</span>
 
         <!-- hover / 键盘聚焦才浮出：卡片默认只有内容。 -->

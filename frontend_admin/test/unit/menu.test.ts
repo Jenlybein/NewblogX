@@ -57,20 +57,18 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
  */
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
-  // 内容生产链（ADR-0029 改写版）：改关键词 → 调发布策略 → 审文章，三页同一个一级分组。
-  { label: '关键词过滤', path: '/content/keywords', icon: 'article' },
-  { label: '文章发布', path: '/content/publish', icon: 'article' },
-  { label: '文章审核', path: '/content/review', icon: 'article' },
-  // 审核分组只剩"不是文章生产"的两件：图片待审与关键词命中处置。
+  // 审核域（ADR-0032 决策 7 / ADR-0034）：处置队列。文章审核 2026-11-27 回到这里。
   { label: '图片审核', path: '/review/images', icon: 'shield' },
   { label: '关键词风险', path: '/review/content-filter', icon: 'shield' },
+  { label: '文章审核', path: '/review/article', icon: 'shield' },
   { label: '文章列表', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
   { label: '合集管理', path: '/articles/collections', icon: 'article' },
   { label: '项目管理', path: '/articles/projects', icon: 'article' },
   { label: '标签管理', path: '/articles/tags', icon: 'tag' },
   { label: '用户管理', path: '/users', icon: 'users' },
-  // 站点配置按"谁受影响"分组：站点（基础信息）/ 用户操作 / 验证码与通知 / 其余独立域。
+  // 站点配置（ADR-0029 第三版）：站点 / 用户操作 / 验证码与通知 / 内容修改与发布 /
+  // 文章审核设置 / 站点界面，加上裸挂的 AI / 存储 / 日志。
   { label: '站点基础', path: '/site', icon: 'settings' },
   { label: '登录设置', path: '/site/login', icon: 'settings' },
   { label: '私信设置', path: '/site/chat', icon: 'settings' },
@@ -78,11 +76,14 @@ const EXPECTED_ADMIN_NAV = [
   { label: '图形验证码', path: '/site/captcha', icon: 'settings' },
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '短信', path: '/site/sms', icon: 'settings' },
+  { label: '关键词过滤', path: '/content/keywords', icon: 'article' },
+  { label: '文章发布', path: '/content/publish', icon: 'article' },
+  { label: '文章审核设置', path: '/site/article-review', icon: 'shield' },
+  { label: '装饰', path: '/site/deco', icon: 'settings' },
+  { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
   { label: '对象存储', path: '/site/storage', icon: 'settings' },
   { label: '日志', path: '/site/log', icon: 'settings' },
-  { label: '装饰', path: '/site/deco', icon: 'settings' },
-  { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: '轮播运营', path: '/media/banners', icon: 'photo' },
   { label: '图片资源库', path: '/media/images', icon: 'photo' },
   { label: '申诉处置', path: '/moderation/appeals', icon: 'alert' },
@@ -123,22 +124,22 @@ describe('后台菜单拍平视图', () => {
       parentPath: null,
       depth: 1,
     })
+    // 2026-11-27：装饰与右栏卡片收进「站点界面」组（站点配置 → 站点界面 → 页面）。
     expect(FLAT_NAV.find(item => item.label === '装饰')).toMatchObject({
-      parentLabel: '站点配置',
+      parentLabel: '站点界面',
       parentPath: null,
-      depth: 1,
+      depth: 2,
     })
 
     // 站点配置是**纯分组**（父项没有自身页面，path 为 null），所以挂在它下面的
     // 「右栏卡片」同样拿不到 parentPath —— 判据是"父项有没有落地页"，不是"子项是谁"。
     expect(FLAT_NAV.find(item => item.label === '右栏卡片')).toMatchObject({
-      parentLabel: '站点配置',
+      parentLabel: '站点界面',
       parentPath: null,
-      depth: 1,
+      depth: 2,
     })
     expect(FLAT_NAV.filter(item => item.depth === 0).map(item => item.label)).toEqual([
       '数据概览',
-      '内容修改与发布',
       '审核',
       '文章管理',
       '用户管理',
@@ -149,12 +150,30 @@ describe('后台菜单拍平视图', () => {
       '日志中心',
     ])
 
-    // 内容生产链（ADR-0029 改写版）：父项只分组，改词表 / 调发布线 / 审文章下沉一级。
-    // 「文章审核」不再挂在「审核」下 —— 它属于生产链的最后一环，不是事后处置。
+    // 内容修改与发布（ADR-0029 第三版）：站点配置 → 内容修改与发布 → 页面。
     expect(FLAT_NAV.find(item => item.label === '内容修改与发布')!.path).toBeUndefined()
-    expect(FLAT_NAV.find(item => item.label === '文章审核')).toMatchObject({
-      path: '/content/review',
+    expect(FLAT_NAV.find(item => item.label === '内容修改与发布')).toMatchObject({
+      parentLabel: '站点配置',
+      parentPath: null,
+      depth: 1,
+    })
+    expect(FLAT_NAV.find(item => item.label === '文章发布')).toMatchObject({
+      path: '/content/publish',
       parentLabel: '内容修改与发布',
+      parentPath: null,
+      depth: 2,
+    })
+    // 文章审核回到「审核」组：处置队列，不是配置页。
+    expect(FLAT_NAV.find(item => item.label === '文章审核')).toMatchObject({
+      path: '/review/article',
+      parentLabel: '审核',
+      parentPath: null,
+      depth: 1,
+    })
+    // 文章审核设置是站点配置下的独立页（不在内容组里）。
+    expect(FLAT_NAV.find(item => item.label === '文章审核设置')).toMatchObject({
+      path: '/site/article-review',
+      parentLabel: '站点配置',
       parentPath: null,
       depth: 1,
     })
@@ -674,6 +693,8 @@ describe('pageFileCandidates', () => {
     expect(pageFileCandidates('logs/dead-letter')).toEqual(['logs/dead-letter', 'logs/dead-letter/index'])
   })
 })
+
+
 
 
 

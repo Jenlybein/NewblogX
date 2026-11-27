@@ -159,7 +159,8 @@ async function submit() {
             </template>
           </NInput>
 
-          <NInput v-model:value="form.password" type="password" show-password-on="click" size="large" placeholder="登录密码"
+          <NInput
+v-model:value="form.password" type="password" show-password-on="click" size="large" placeholder="登录密码"
             @keyup.enter="submit">
             <template #prefix>
               <IconLock :size="16" />
@@ -184,7 +185,7 @@ async function submit() {
               title="看不清？换一张"
               :disabled="captchaLoading"
               @click="refreshCaptcha">
-              <img v-if="captchaImage" :src="captchaImage" alt="图形验证码" />
+              <img v-if="captchaImage" :src="captchaImage" alt="图形验证码" >
               <IconRefresh v-else :size="18" />
             </button>
           </div>

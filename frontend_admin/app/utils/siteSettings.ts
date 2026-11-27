@@ -7,7 +7,7 @@
  *
  * 2026-11-27 起菜单按「配置 → 域 → 页」组织（ADR-0029 第三版）：
  *   - **站点配置** 下挂固定几组：站点（基础信息）、用户操作（登录/私信/第三方）、
- *     验证码与通知（图形码/邮件/短信）、内容修改与发布（关键词过滤/文章发布）、
+ *     验证码与通知（图形码/邮件/短信）、内容修改与发布（关键词过滤/关键词白名单/文章发布）、
  *     站点界面（装饰/右栏卡片），以及直接挂在这一层的 AI / 存储 / 日志；
  *   - **文章审核**从站点配置搬回「审核」组：它是处置队列，不是配置页；
  *   - 「文章审核设置」是新增的配置页（内容审核 / 投稿配额 / 质量闸门 / 自动放行 /
@@ -234,9 +234,13 @@ export const SITE_STANDALONE_SECTIONS: readonly SiteSettingsSection[] = [
 /**
  * 内容修改与发布（ADR-0029 第三版）：改词表 → 定发布线。
  *
- * 两页吃不同的数据源：关键词过滤是 content_filter 段，文章发布是 site 段的
- * article 块；所以这个分组**不出现在** `SiteSettingsSection` 清单里，
+ * 三页吃不同的数据源：关键词过滤与关键词白名单是 content_filter 段
+ * （词表页管 words + retain_days，白名单页管 whitelist + whitelist_phrases），
+ * 文章发布是 site 段的 article 块；所以这个分组**不出现在** `SiteSettingsSection` 清单里，
  * 页面也不复用那套域清单（它们在菜单里是一层分组，不是可路由的域）。
+ *
+ * 白名单是词表的例外清单（2026-11-27 从词表页拆出）：两者共写同一个段，
+ * 但保存时各只覆盖自己拥有的字段，拆开之后按钮语义才与"我的字段"一致。
  *
  * 「文章审核」已于 2026-11-27 移出这一组、回到「审核」：它是处置队列，
  * 不是"改完就生效"的配置。审核规则拆到了「文章审核设置」页。
@@ -250,6 +254,7 @@ export const CONTENT_PUBLISH_GROUP_LABEL = '内容修改与发布'
 
 export const CONTENT_PUBLISH_PAGES: readonly ContentPublishPage[] = [
   { label: '关键词过滤', path: '/content/keywords' },
+  { label: '关键词白名单', path: '/content/keywords/whitelist' },
   { label: '文章发布', path: '/content/publish' },
 ]
 

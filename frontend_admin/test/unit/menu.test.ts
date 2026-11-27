@@ -79,6 +79,8 @@ const EXPECTED_ADMIN_NAV = [
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '短信', path: '/site/sms', icon: 'settings' },
   { label: '关键词过滤', path: '/content/keywords', icon: 'article' },
+  // 2026-11-27：白名单从词表页拆出（两者共写 content_filter 段但各管各的字段）。
+  { label: '关键词白名单', path: '/content/keywords/whitelist', icon: 'article' },
   { label: '文章发布', path: '/content/publish', icon: 'article' },
   { label: '文章审核设置', path: '/site/article-review', icon: 'shield' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
@@ -165,6 +167,15 @@ describe('后台菜单拍平视图', () => {
       parentPath: null,
       depth: 2,
     })
+    // 关键词白名单紧跟关键词过滤（2026-11-27）：都是 content_filter 段，先词表后例外。
+    expect(FLAT_NAV.find(item => item.label === '关键词白名单')).toMatchObject({
+      path: '/content/keywords/whitelist',
+      parentLabel: '内容修改与发布',
+      parentPath: null,
+      depth: 2,
+    })
+    const keywordIndex = FLAT_NAV.findIndex(item => item.label === '关键词过滤')
+    expect(FLAT_NAV[keywordIndex + 1]?.label).toBe('关键词白名单')
     // 文章审核回到「审核」组：处置队列，不是配置页。
     expect(FLAT_NAV.find(item => item.label === '文章审核')).toMatchObject({
       path: '/review/article',

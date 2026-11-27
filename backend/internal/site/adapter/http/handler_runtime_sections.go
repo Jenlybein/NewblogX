@@ -83,11 +83,11 @@ func (h *Handler) UpdateSiteSection(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[SiteSectionSiteResponse]
 // @Router /site/article-review [put]
 func (h *Handler) UpdateArticleReviewSection(c *gin.Context) {
-	var body ArticleReviewSaveRequest
-	if err := c.ShouldBindJSON(&body); err != nil {
-		fail(c, apperr.NewWithMessage(apperr.CodeSiteArticleInvalid, err.Error()))
-		return
-	}
+	// 路由上挂了 mw.BindJson[...]：它已经 ShouldBindJSON 过一遍并把结果放进了
+	// 上下文。这里**必须**用 GetBindJson 取，不能再绑一次 —— 第二次读同一个
+	// Body 只会拿到 EOF，把每一次保存都变成 1001（这是本端点第一个 bug）。
+	body := middleware.GetBindJson[ArticleReviewSaveRequest](c)
+
 	if body.Article == nil && body.ContentFilter == nil {
 		fail(c, apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
 			"请求体里 article 与 content_filter 至少要有一段"))
@@ -101,17 +101,19 @@ func (h *Handler) UpdateArticleReviewSection(c *gin.Context) {
 		return
 	}
 
-	// site 段整段保存（与 PUT /site/site 同一条 read-modify-write 语义）：
-	// 只传 content_filter 时也要带上现值的完整 site，否则 UpdateSite 会把
-	// 没传的段写成零值。
+	// site 段整段写（与 PUT /site/site 同一条 read-modify-write 语义），
+	// 但**只覆盖 article 块**：请求体给的是那一个块，其余七块取现值。
+	//
+	// 只传 content_filter 时同样带上现值的完整 site —— 否则 UpdateSite 会把
+	// 没传的段写成零值（登录开关、SEO 全被清零）。
 	site := h.svc.AdminSite()
 	if body.Article != nil {
-		site = conf.Site(*body.Article)
+		site.Article = *body.Article
 	}
 
 	var filterPatch *conf.ContentFilter
 	if body.ContentFilter != nil {
-		// 字段级补丁：只覆盖 auto_dispose，其余键一律取现值 ——
+		// 字段级补丁：只覆盖 auto_dispose，其余键（词表 / 白名单 / 保留期）取现值 ——
 		// 词表页（PUT /site/content_filter）随时可能刚改过它们。
 		current := h.svc.AdminContentFilter()
 		current.AutoDispose = *body.ContentFilter.AutoDispose
@@ -122,15 +124,21 @@ func (h *Handler) UpdateArticleReviewSection(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	// 响应与 PUT /site/site 同一个形状（完整 site 快照）：前端一次保存之后
-	// 不必再发一个 GET 去对齐表单，也避免"保存成功但页面还是旧值"。
+	// 响应与 PUT /site/site 同一个形状（完整 site 快照）：保存之后前端不必再发
+	// 一个 GET 去对齐表单，也避免"保存成功但页面还是旧值"。
 	res.OkWithData(SiteSectionSiteResponse(h.svc.AdminSite()), c)
+	// 审计的 TargetID 必须是**段名**（configuration.md）：这个端点落在 site 段上，
+	// 顺手改的 content_filter 段写进 Message，仍是一条事件。
+	message := "更新运行时配置成功: site"
+	if filterPatch != nil {
+		message = "更新运行时配置成功: site + content_filter.auto_dispose"
+	}
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "runtime_config_update",
 		TargetType: "runtime_config",
-		TargetID:   "article_review",
+		TargetID:   "site",
 		Success:    true,
-		Message:    "更新运行时配置成功: article_review",
+		Message:    message,
 	})
 }
 

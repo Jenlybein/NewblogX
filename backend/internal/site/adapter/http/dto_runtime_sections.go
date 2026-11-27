@@ -2,6 +2,7 @@ package http
 
 import (
 	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 )
 
 // 运行时配置段的具名出入口（#283 / ADR-0020；第 11 段见 ADR-0032）。
@@ -86,8 +87,12 @@ type SiteSectionCaptchaRequest conf.Captcha
 // 且是字段级补丁：词表 / 白名单 / 保留期仍归 PUT /site/content_filter，
 // 传这一段时不能顺手动它们。
 type ArticleReviewSaveRequest struct {
-	// Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。
-	Article *SiteSectionSiteRequest `json:"article"`
+	// Article 是 site.article **块**的完整形状（不是整段 site）；nil 表示这次不改审核规则。
+	//
+	// 类型钉成 article 块而不是 `SiteSectionSiteRequest`（= conf.Site）是刻意的：
+	// 后者的零值会把 project / seo / about / login 等七个块一起清零 —— 那是一次
+	// 「审核规则保存」不该发生的事。
+	Article *siteconf.Article `json:"article"`
 	// ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。
 	ContentFilter *ArticleReviewContentFilterPatch `json:"content_filter"`
 }

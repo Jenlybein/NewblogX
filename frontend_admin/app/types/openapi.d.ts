@@ -9889,8 +9889,14 @@ export interface components {
             auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
         };
         "internal_site_adapter_http.ArticleReviewSaveRequest": {
-            /** @description Article 是 site.article 段的完整形状；nil 表示这次不改审核规则。 */
-            article?: components["schemas"]["internal_site_adapter_http.SiteSectionSiteRequest"];
+            /**
+             * @description Article 是 site.article **块**的完整形状（不是整段 site）；nil 表示这次不改审核规则。
+             *
+             *     类型钉成 article 块而不是 `SiteSectionSiteRequest`（= conf.Site）是刻意的：
+             *     后者的零值会把 project / seo / about / login 等七个块一起清零 —— 那是一次
+             *     「审核规则保存」不该发生的事。
+             */
+            article?: components["schemas"]["myblogx_conf_site.Article"];
             /** @description ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。 */
             content_filter?: components["schemas"]["internal_site_adapter_http.ArticleReviewContentFilterPatch"];
         };

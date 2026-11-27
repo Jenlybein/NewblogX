@@ -84,7 +84,7 @@ func TestUpdateArticleReview闸门开但AI不可用时报错(t *testing.T) {
 	}
 	// 这条拒绝来自「AI 可用性」校验，不是字段格式错误，所以不带 article 段的
 	// 格式错误码 —— 断言看文案，因为"为什么拒"才是这条校验存在的理由。
-	if !strings.Contains(err.Error(), "需要先启用 AI") {
+	if !strings.Contains(userMessage(err), "需要先启用 AI") {
 		t.Fatalf("拒绝理由应说清 AI 不可用，实际 %v", err)
 	}
 }

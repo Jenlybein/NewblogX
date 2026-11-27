@@ -11,6 +11,7 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NAlert,
   NEmpty,
   NInput,
   NModal,
@@ -98,10 +99,21 @@ const statusOptions = [
   { label: '已取消', value: 'canceled' },
 ]
 
-const sortOptions = [
+/**
+ * 排序项：评分关闭时**风险排序置灰**（spec §5.4）。
+ *
+ * 风险排序按分数派生标签排（低分 / 维度塌陷 / 篇幅异常），评分一停就没有
+ * 这个量纲可排 —— 留着可选项只会让人以为"按风险排好了"，而实际顺序仍是
+ * 提交时间。禁用它，比排序后加一句解释诚实。
+ */
+const sortOptions = computed(() => [
   { label: '提交时间（默认）', value: 'created_at' },
-  { label: '风险优先', value: 'risk' },
-]
+  {
+    label: scoreEnabled.value ? '风险优先' : '风险优先（评分已关闭，不可用）',
+    value: 'risk',
+    disabled: !scoreEnabled.value,
+  },
+])
 
 const columns = [
   // 勾选列：批量操作（spec 决策 32）的入口。行键是任务 ID。
@@ -472,6 +484,21 @@ onMounted(async () => {
 
 <template>
   <NSpace vertical :size="20">
+    <!-- 判据开关的状态提示（spec §5.4）：这两条不是操作入口，只是让审核员
+         别把"没检查"读成"检查过没问题"。 -->
+    <NAlert v-if="!scoreEnabled" type="warning" :bordered="false">
+      站点已关闭「文章质量评分」，风险列显示「未评估」且风险排序不可用：
+      风险标签全部由分数派生，没有评分就没有任何标签可显示。
+    </NAlert>
+    <NAlert v-if="!aiComplianceEnabled" type="warning" :bordered="false">
+      站点已关闭「AI 合规判定」，合规列显示「未判定（未开启 AI 合规判定）」：
+      这些文章没有模型结论，质量过线即已对读者可见。
+    </NAlert>
+    <NAlert v-else-if="aiReleaseFallback" type="warning" :bordered="false">
+      AI 不可用落点设为「直接放行」：判定的文章若显示「未判定」，可能是
+      <strong>调不到模型就放行</strong>的兜底结果，而不是"还没判"。
+    </NAlert>
+
     <NCard class="admin-card">
       <div class="admin-toolbar">
         <NSelect v-model:value="status" :options="statusOptions" clearable class="w-full md:w-56" />

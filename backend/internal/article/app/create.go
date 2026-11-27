@@ -28,6 +28,14 @@ const (
 	EventArticleDeleted = "article.deleted"
 	// EventArticleBackToDraft 作者退回草稿。
 	EventArticleBackToDraft = "article.back_to_draft"
+	// EventArticleFilterDrafted 命中关键词处置档位 = draft，文章被退回草稿
+	// （2026-11-28 / ADR-0037）。
+	//
+	// 独立的第四个事件是刻意的：EventArticleBackToDraft 也会在"作者自己改回草稿"
+	// 时发出，把它直接接到通知订阅者等于每次作者自己撤稿都会被通知一遍。
+	// 这个事件只表示"系统因命中词把它退回去了"，通知才有意义。
+	EventArticleFilterDrafted = "article.filter_drafted"
+
 	// EventArticleForceDemoted 管理员强制退回草稿（票 481）。
 	//
 	// 与 EventArticleBackToDraft 分开而不是合并：前者是作者自己改主意，后者是一次
@@ -125,13 +133,20 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 	//
 	// 错误里不带命中词 / 档位 / 类目，也不回显原文：那等于把词表送给作者。
 	//
-	// 三档（2026-11-28）：reject 立刻中止（一个字节都不落库）；draft 落草稿并
+	// 三档（2026-11-28）：reject 落「已拒绝」（落库、不可改，读者看不到）；draft 落草稿并
 	// **短路**后面所有机器判据（风险扫描、质量评分都不再跑 —— 结论已定，再评
 	// 只是白花额度）；release 照常往下走（文本已打星）。
 	hitDisposition := s.dispositionAfterFilter(hits)
-	if hitDisposition == HitReject {
-		return nil, domain.ErrContentBlocked
-	}
+	// reject 落「已拒绝」而不是"一个字节都不落库"（spec §5.1）。
+	//
+	// 两种做法都能让读者看不到，区别在作者端：不落库的话作者提交完什么都没发生，
+	// 也看不到"这篇被拒了"的痕迹（风险页只有一条命中记录，与文章无关）。落 REJECTED
+	// 之后审核列表能看到这一篇、作者知道这次提交的结局，而 REJECTED 本身不可改 ——
+	// 与"命中即拒"的语义一致。
+	//
+	// 落 REJECTED 用的是 decideSubmit 已有的"风险命中"分支（riskRejected=true），
+	// 不另写一条判定：多一条并行的"直接拒绝"路径，明天改规则就会只改一条。
+	filterReject := hitDisposition == HitReject
 	filterDraft := hitDisposition == HitDraft
 
 	// 命中落草稿时跳过后续全部机器判据：配额已预占（命中落草稿仍算一次提交动作），
@@ -139,7 +154,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 	if target == domain.StatusExamining {
 		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，
 		// 同步风险扫描也不拦（异步合规判定仍作事后兜底）。
-		if !cmd.SkipExamining && !filterDraft {
+		if !cmd.SkipExamining && !filterDraft && !filterReject {
 			risk, err := s.scanSubmitRisk(ctx, domain.ArticleID(""))
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
@@ -148,7 +163,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 			riskRejected = risk.Rejected
 		}
 
-		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected && !filterDraft {
+		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected && !filterDraft && !filterReject {
 			// 评分必须在数据库事务之外（票 306 / ADR-0023）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
@@ -184,11 +199,21 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		}
 
 		now := s.clock.Now()
-		outcome := decideSubmit(cmd.SkipExamining, cmd.ScoreEnabled, cmd.AIComplianceEnabled, gateRejected, riskRejected)
+		// 同步风险与关键词 reject 共用"落 REJECTED 不可改"这一条分支。
+		outcome := decideSubmit(
+			cmd.SkipExamining, cmd.ScoreEnabled, cmd.AIComplianceEnabled,
+			gateRejected, riskRejected || filterReject)
 		status := domain.StatusDraft
 		visibility := domain.NormalizeVisibility(cmd.Visibility)
 		var submittedAt *time.Time
-		if target == domain.StatusExamining && !filterDraft {
+		// reject 是终局：不论这次目标是草稿还是提交，都落「已拒绝」。
+		// 其余情形才由 outcome 决定（draft 命中固定落草稿）。
+		if filterReject {
+			status = outcome.Status
+			visibility = outcome.Visibility
+			t := now
+			submittedAt = &t
+		} else if target == domain.StatusExamining && !filterDraft {
 			status = outcome.Status
 			visibility = outcome.Visibility
 			t := now
@@ -240,7 +265,13 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		}
 
 		created = article
-		return emit(ctx, r, submitEventName(status, riskRejected, false, true), article.ID())
+		// 命中处置 = draft 时发专用事件，让通知订阅者能说清"是系统因命中词退回的"，
+		// 同时不触发发布判定（那一篇已经定了，不该再评质量 / 调模型）。
+		eventName := submitEventName(status, riskRejected, false, true)
+		if filterDraft {
+			eventName = EventArticleFilterDrafted
+		}
+		return emit(ctx, r, eventName, article.ID())
 	})
 
 	if err != nil {

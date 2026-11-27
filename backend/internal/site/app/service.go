@@ -501,6 +501,19 @@ func (s *Service) UpdateArticleReview(site conf.Site, contentFilter *conf.Conten
 		return err
 	}
 
+	// 归属白名单（spec §6.1）：这个端点只该改「审核规则」页拥有的字段。
+	//
+	// 请求体里 article 是**整段**结构（read-modify-write），所以它天然带着
+	// 「文章发布」页的四个字段（谁能发、谁能存草稿、过滤非管理员、标签上限）。
+	// 不校验的话，一次"审核规则页保存"就可能把兄弟页刚改的发布策略写回旧值 ——
+	// 前端确实只覆盖自己的字段，但后端不能靠前端守规矩（这条端点也对外开放）。
+	//
+	// 判据是"与现值逐字段比对"，不是"看请求里有没有出现"：整段结构永远带全字段，
+	// 区分不了"没传"与"传了同样的值"，而后者本来就该允许（幂等保存）。
+	if err := ensureArticleReviewOwnsOnlyOwnFields(s.runtime.Site().Article, site.Article); err != nil {
+		return err
+	}
+
 	var normalizedFilter conf.ContentFilter
 	if contentFilter != nil {
 		normalized, err := normalizeContentFilter(*contentFilter)
@@ -524,6 +537,30 @@ func (s *Service) UpdateArticleReview(site conf.Site, contentFilter *conf.Conten
 	}
 	if s.contentFilterChanged != nil {
 		s.contentFilterChanged(normalizedFilter)
+	}
+	return nil
+}
+
+// ensureArticleReviewOwnsOnlyOwnFields 拒绝改动「文章发布」页拥有的字段。
+//
+// 报错点名是哪个字段变了：只看"你越界了"没法排查，而改到发布策略的后果
+// （普通用户突然能发 / 站点突然不显示非管理员文章）比拒绝一次保存严重得多。
+func ensureArticleReviewOwnsOnlyOwnFields(current, incoming siteconf.Article) error {
+	if current.AllowNonAdminPublish != incoming.AllowNonAdminPublish {
+		return apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"allow_non_admin_publish 属于「文章发布」页，不在这里改")
+	}
+	if current.AllowNonAdminDraft != incoming.AllowNonAdminDraft {
+		return apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"allow_non_admin_draft 属于「文章发布」页，不在这里改")
+	}
+	if current.ShowNonAdminArticles != incoming.ShowNonAdminArticles {
+		return apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"show_non_admin_articles 属于「文章发布」页，不在这里改")
+	}
+	if current.MaxTagsPerArticle != incoming.MaxTagsPerArticle {
+		return apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"max_tags_per_article 属于「文章发布」页，不在这里改")
 	}
 	return nil
 }

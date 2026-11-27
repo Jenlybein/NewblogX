@@ -85,6 +85,12 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	// 通知：审核结果与旧链路一致（通过 / 拒绝各一条）。
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
 	relay.On(articleapp.EventArticleRejected, notifySubscriber(infra))
+	// 通知：命中词处置把文章退回草稿（2026-11-28 / ADR-0037 决策 D9）。
+	//
+	// 文案必须**不提命中的词 / 档位 / 类目**：告诉作者"哪个词被拦了"等于把词表
+	// 送出去（ADR-0032 决策 9）。它也不说"内容有问题请修改"之外的任何解释 ——
+	// 那是唯一能既让作者知道往哪改、又不泄露词表的话。
+	relay.On(articleapp.EventArticleFilterDrafted, notifySubscriber(infra))
 
 	// 通知：管理员强制退回草稿（票 481）。
 	//
@@ -523,6 +529,11 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			// 等内容检查"（pending_review），此时并没人工审核过。用中性文案，
 			// 不谎称"审核通过"；作者侧已有的"已发布"提示负责说明后续等待。
 			content = fmt.Sprintf("您的文章《%s》已发布!", article.Title)
+		case articleapp.EventArticleFilterDrafted:
+			// 命中处置 = 退回草稿：说清是"内容里包含不允许发布的词"，但不回显是哪个词。
+			content = fmt.Sprintf(
+				"您的文章《%s》已退回草稿：内容包含不允许发布的词，本次提交照常计入当日配额。请修改后重新提交。",
+				article.Title)
 		case articleapp.EventArticleRejected:
 			// 原因取自**审核任务记录**，不是重新查文章：驳回理由一直存在任务行上
 			// （review.Task.Reason），缺的只是"把它带到通知正文里"这一步。

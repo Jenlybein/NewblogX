@@ -53,6 +53,10 @@
 11. **`site.login` 只留两件事**：登录失败限流、`username_pwd_login`。
 
 12. **迁移用 CLI `-migrate-runtime-config`**：默认只读（打印将要发生什么），`-apply` 才写；迁移后**物理删除旧键，不保留任何回退读取**。
+    迁移是另一个进程直写数据库，**改不到运行中进程的配置缓存** —— 所以 `-apply` 之后必须
+    `docker compose restart blogx_server`。漏了这一步的现象是"库里已经搬好、接口还在按旧值
+    回答"（生产实测：迁移后 `login_capabilities` 仍报 `email=false`，重启才变 `true`）。
+    命令的 `-apply` 分支会打印这条提醒。
 
 13. **新增公开只读端点 `GET /api/site/login_capabilities`**，只暴露 `login_methods` 与 `captcha_required` 两组布尔。拆段之后 `site.login` 不再含这些开关，而 `mail` / `sms` / `oauth` / `captcha` 四段**含凭据或运营参数、不能公开读**，所以补一个只含布尔的能力面给读者站（决定画不画某个登录方式、画不画验证码框）。
 
@@ -100,3 +104,4 @@
 - 样式：[`admin.css`](../../frontend_admin/app/assets/css/admin.css)（`data-depth='2'`）
 - 配置段与迁移：[配置分层](../architecture/configuration.md) · [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0032](./0032-content-filter.md) · [ADR-0033](./0033-captcha-configurable-and-redis-store.md)
 - 术语：[GLOSSARY · 后台信息架构](../../GLOSSARY.md)（关键词过滤 / 关键词风险 / 内容修改与发布 / 验证码与通知 / 登录能力面）
+

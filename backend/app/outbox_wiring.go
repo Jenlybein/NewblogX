@@ -378,15 +378,15 @@ func settleAIFailure(
 	ctx context.Context, infra *Infra, articleSvc *articleapp.Service,
 	article noticeArticleRow, action string,
 ) error {
-	switch action {
-	case siteconf.AIFailureDraft:
+	switch aiFailureLandingFor(action) {
+	case aiFailureLandingDraft:
 		// 先退草稿，再发通知：退不了（文章已被别的路径处理）就不该再发一条误导性的通知。
 		if err := articleSvc.DemoteForComplianceFailure(ctx, article.ID,
 			"AI 合规判定不可用，已退回草稿"); err != nil {
 			return err
 		}
 		return notifyComplianceUnavailable(ctx, infra, article)
-	case siteconf.AIFailureHold:
+	case aiFailureLandingHold:
 		// 保持待可见、次日重投：与额度用完同一个落点（DeferForCompliance 幂等）。
 		if err := articleSvc.DeferForCompliance(ctx, article.ID); err != nil {
 			return err
@@ -395,7 +395,7 @@ func settleAIFailure(
 			At:     nextQuotaReviewTime(time.Now()),
 			Reason: "AI 合规判定不可用，次日自动重试",
 		}
-	case siteconf.AIFailureRelease:
+	case aiFailureLandingRelease:
 		// 临时兜底：放行但不留合规结论，并在日志里点名「这是兜底不是判过」。
 		infra.Logger.Warnf(
 			"AI 合规判定不可用，按站点配置直接放行（该文章没有合规结论）: article=%s", article.ID)
@@ -407,7 +407,38 @@ func settleAIFailure(
 	}
 }
 
-// notifyComplianceUnavailable 给作者发一条「审核服务暂时不可用，已退回草稿」的系统通知。
+// aiFailureLanding 是「AI 不可用落点」的四个分流结果。
+//
+// 拆成一个枚类型 + 一个纯函数是刻意的：分流表是这段代码唯一的决策点，
+// 把它埋在 settleAIFailure 的 switch 里就只能靠"装一套 DB + 通知服务"来验证，
+// 而那套装置验的是落点函数，不是选对落点。
+type aiFailureLanding int
+
+const (
+	aiFailureLandingManual aiFailureLanding = iota
+	aiFailureLandingHold
+	aiFailureLandingDraft
+	aiFailureLandingRelease
+)
+
+// aiFailureLandingFor 把配置取值映射到分流结果（纯函数）。
+//
+// 未知取值一律 manual：失败方向必须是「交给人」，绝不能是「放行」——
+// 一次手改库写错的值不该变成"文章不经合规判定就公开"。
+func aiFailureLandingFor(action string) aiFailureLanding {
+	switch action {
+	case siteconf.AIFailureDraft:
+		return aiFailureLandingDraft
+	case siteconf.AIFailureHold:
+		return aiFailureLandingHold
+	case siteconf.AIFailureRelease:
+		return aiFailureLandingRelease
+	default:
+		return aiFailureLandingManual
+	}
+}
+
+// notifyComplianceUnavailable 给作者发一条// notifyComplianceUnavailable 给作者发一条「审核服务暂时不可用，已退回草稿」的系统通知。
 //
 // 文案刻意**不提内容**：这不是内容问题，说成「你的文章有问题」会让作者反复改稿找原因。
 // 去重与 notifySubscriber 同一套（接收者 + 链接 + 正文判重）。

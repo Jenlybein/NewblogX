@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+
+	"myblogx/conf"
 	"strings"
 
 	"myblogx/internal/article/domain"
@@ -184,14 +186,18 @@ type FilterDisposition struct {
 	Watch string
 }
 
-// 命中处置的三个档位（与 conf 段的三个值同名，用例层不外传字符串字面量之外的判断）。
+// 命中处置的三个档位 —— 取值域由配置层定义（`conf.ContentFilterAction*`），
+// 这里只是给用例层一个短名字。
+//
+// 不在这里另写一份字面量：新增一档时如果三处各写一份，漏改一处就是静默的
+// 字符串比较失败（编译不报错、行为悄悄回落到 release）。
 const (
 	// HitRelease 命中只打星，照常继续后面的链路。
-	HitRelease = "release"
+	HitRelease = conf.ContentFilterActionRelease
 	// HitDraft 命中落草稿，作者改完可重投；配额不归还。
-	HitDraft = "draft"
+	HitDraft = conf.ContentFilterActionDraft
 	// HitReject 命中落已拒绝且不可改。
-	HitReject = "reject"
+	HitReject = conf.ContentFilterActionReject
 )
 
 // dispositionAfterFilter 把"命中了哪几档"与"站点配置的处置档位"合成本次的处置结论。

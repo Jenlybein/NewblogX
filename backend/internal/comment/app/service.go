@@ -3,6 +3,8 @@ package app
 
 import (
 	"context"
+
+	"myblogx/conf"
 	"strings"
 	"time"
 
@@ -103,9 +105,9 @@ func (s *Service) WithPublishGate(g domain.PublishGate) *Service {
 // 用可选项而不是往 New 上加参数：没接入的调用点（旧测试、尚未装配的进程角色）
 // 行为与接入前完全一致 —— 按原文落库。过滤是"多出来的一层"，不是评论模块的
 // 前置条件。
-// hitRelease 是"命中只打星、照常发布"这一档。评论与文章共用同一个取值域，
-// 但评论只区分"放行"与"其余（拒收）"两种落点。
-const hitRelease = "release"
+// hitRelease 是"命中只打星、照常发布"这一档。取值域由配置层定义（见
+// `conf.ContentFilterActionRelease`），评论只区分"放行"与"其余（拒收）"两种落点。
+const hitRelease = conf.ContentFilterActionRelease
 
 // WithFilterDisposition 注入命中处置档位的现读函数（2026-11-28）。
 //
@@ -202,7 +204,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	//
 	// 错误文案与文章面同一条固定话术，不带命中词 / 档位 / 类目：回显等于把词表送出去。
 	if blockHit && s.disposition != nil && s.disposition() != hitRelease {
-		return nil, apperr.New(apperr.CodeArticleContentBlocked)
+		return nil, apperr.New(apperr.CodeCommentContentBlocked)
 	}
 
 	display := s.display(ctx, viewer.ID.Uint64())
@@ -268,7 +270,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 //   - 过滤器返回空文本（不该发生，但不能把用户的话弄丢）→ 原文。
 //
 // 也就是说这条路径永远不返回错误：审计问题不该演变成用户发不出评论
-//（ADR-0032 决策 11）。
+// （ADR-0032 决策 11）。
 func (s *Service) filterContent(ctx context.Context, userID, commentID ctype.ID, text string) (string, int, bool) {
 	if s.filter == nil {
 		return text, 0, false

@@ -116,6 +116,13 @@ const (
 	//
 	// 文案刻意不含命中词 / 档位 / 类目：词表是敏感数据，回显命中词等于把词表
 	// 一条一条送给作者，绕过过滤的成本降到零（ADR-0032 决策 4）。
+	// CodeCommentContentBlocked 是"评论里命中了拦截词，本次不发布"（2026-11-28 / ADR-0037）。
+	//
+	// 与文章的 content_blocked 分开：两个面的处置不同（文章能落草稿 / 已拒绝，
+	// 评论只能拒收），文案也不同（评论没有"修改后重新提交"以外的出路）。共用
+	// 一个码会让前端无法区分"我的文章被拒"与"我的评论被拒"。
+	CodeCommentContentBlocked Code = "comment.content_blocked"
+
 	CodeArticleContentBlocked Code = "article.content_blocked"
 )
 
@@ -671,7 +678,8 @@ var messages = map[Code]string{
 	// 文案说清"本次没保存"与"改一改再发"：作者的动作是改措辞重试，
 	// 而不是去查自己的账号或等明天。命中词、档位、类目一律不出现。
 	CodeArticleContentBlocked: "内容包含不允许发布的词，本次未保存，请修改后重试",
-	CodeArticleScoreDisabled: "站点已关闭文章质量评分，评分相关功能暂不可用",
+	CodeCommentContentBlocked: "评论里包含不允许发布的内容，本次未发布，请修改后重试",
+	CodeArticleScoreDisabled:  "站点已关闭文章质量评分，评分相关功能暂不可用",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

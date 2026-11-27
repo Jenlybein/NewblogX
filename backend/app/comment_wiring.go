@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+
+	"myblogx/conf"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -417,14 +419,14 @@ func toCtypeIDs(ids []uint64) []ctype.ID {
 func commentHitDisposition(infra *Infra) func() string {
 	return func() string {
 		if infra == nil || infra.RuntimeSite == nil {
-			return "release"
+			return conf.ContentFilterActionRelease
 		}
 		action := infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.BlockAction
 		// 旧值 mask 读成 release（2026-11-28 三档化）：老配置里的 mask 表达的正是
 		// 「只打星照常发布」。若原样返回，它会被用例层当成「非 release ⇒ 拒收」，
 		// 一次发版就把评论区从打星变成全部拒收。
-		if action == "mask" {
-			return "release"
+		if action == conf.ContentFilterActionLegacyMask {
+			return conf.ContentFilterActionRelease
 		}
 		return action
 	}

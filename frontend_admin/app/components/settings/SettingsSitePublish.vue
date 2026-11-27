@@ -15,6 +15,7 @@ import {
   NCard,
   NForm,
   NFormItem,
+  NInputNumber,
   NSwitch,
   useMessage,
 } from "naive-ui";

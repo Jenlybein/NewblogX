@@ -102,7 +102,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
     label: '登录设置',
     path: '/site/login',
     component: 'SettingsSiteLogin',
-    // 拆段后这一页只剩「用户名密码登录」与登录失败限流（票 票 481）：
+    // 拆段后这一页只剩「用户名密码登录」与登录失败限流（票 481）：
     // 邮箱/手机号/QQ 开关跟着通道走了，验证码闸门跟着验证码段走了，
     // 发码限流跟着邮件/短信段走了。它仍然属于 site 段，所以 blocks 声明 login。
     blocks: ['login'],

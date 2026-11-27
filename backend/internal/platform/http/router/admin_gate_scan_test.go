@@ -230,7 +230,7 @@ var userRouteTemplates = []string{
 	"GET /api/site/seo",
 	"GET /api/site/sidebar_cards",
 	"GET /api/site/ai_info",
-	// 登录方式与验证码闸门的公开只读快照（票 票 481）：匿名可读，
+	// 登录方式与验证码闸门的公开只读快照（票 481）：匿名可读，
 	// 读者站靠它决定渲染哪几个登录入口、哪个表单画验证码框。
 	// 它只含布尔位，邮件/短信/第三方登录四段本身仍然只有管理员能读。
 	"GET /api/site/login_capabilities",

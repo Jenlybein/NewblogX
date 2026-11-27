@@ -30,7 +30,7 @@ type FlagOptions struct {
 	Apply bool
 	// EncryptConfig 把库里已存的明文密钥一次性加密（票 359）。
 	EncryptConfig bool
-	// MigrateRuntimeConfig 把 site.login 里按通道拆走的字段搬到各自段（票 票 481）。
+	// MigrateRuntimeConfig 把 site.login 里按通道拆走的字段搬到各自段（票 481）。
 	// 默认只报告；配合 -apply 才写库。
 	MigrateRuntimeConfig bool
 	// FilterImport 是初始词表导入文件（TSV/NDJSON，票 395）。
@@ -107,7 +107,7 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 	}
 
 	if op.MigrateRuntimeConfig {
-		// 运行时配置段的字段搬迁（票 票 481）：默认 dry-run，-apply 才写库。
+		// 运行时配置段的字段搬迁（票 481）：默认 dry-run，-apply 才写库。
 		// 复用 -apply 而不是新开一个 flag —— 它在本仓库已经是"对账/迁移类子命令
 		// 真正落库"的统一开关，运维不必记两套。
 		if err := FlagMigrateRuntimeConfig(deps.DB, deps.Logger, op.Apply); err != nil {

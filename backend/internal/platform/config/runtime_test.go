@@ -123,7 +123,7 @@ func TestDecodeSection_段缺失时整段用默认值(t *testing.T) {
 
 func TestDecodeSection_嵌套结构逐字段合并(t *testing.T) {
 	// conf.Site 是 8 段嵌套 + 数组，是最容易"整段退化成零值"的地方。
-	// 样本取 site.login 剩下的四个字段：通道开关已迁走（票 票 481），
+	// 样本取 site.login 剩下的四个字段：通道开关已迁走（票 481），
 	// 但只要"载荷里出现的字段覆盖、没出现的字段保留默认值"这条不变，
 	// 逐字段合并就是成立的。
 	defaults := conf.Site{Login: siteconf.Login{UsernamePwdLogin: true, LoginFailWindowMinute: 15}}

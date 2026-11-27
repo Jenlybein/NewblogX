@@ -20,7 +20,7 @@ export const useSiteStore = defineStore("site", () => {
   // deco 段（九段之一，装饰）：读者站必须先知道总开关，才知道要不要挂光标挂件。
   // 它和站点配置 / SEO / AI 信息同一批并发取回，不新增一轮串行往返。
   const deco = ref<SiteDecoConfig | null>(null);
-  // 登录能力面（票 票 481）：哪些登录方式可用、哪些入口要画验证码框。
+  // 登录能力面（票 481）：哪些登录方式可用、哪些入口要画验证码框。
   // 它与上面四项同一批并发取回：登录弹窗与四个发码表单都要在"第一帧"就拿到答案，
   // 晚一步就会出现"表单画好了、验证码框却半天后才出现"的跳动。
   const loginCapabilities = ref<LoginCapabilities | null>(null);

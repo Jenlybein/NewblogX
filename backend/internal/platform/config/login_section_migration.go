@@ -11,7 +11,7 @@ import (
 	"myblogx/internal/apperr"
 )
 
-// site.login 的字段按通道拆分（票 票 481）之后的一次性数据搬迁。
+// site.login 的字段按通道拆分（票 481）之后的一次性数据搬迁。
 //
 // # 为什么必须搬
 //

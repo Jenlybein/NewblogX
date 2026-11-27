@@ -10147,7 +10147,7 @@ export interface components {
             /** @description EmailCodeTimeout 是邮箱验证码有效期，单位：分钟。 */
             email_code_timeout?: number;
             /**
-             * @description ── 邮箱验证码通道的策略（票 票 481 从 site.login 迁入）──
+             * @description ── 邮箱验证码通道的策略（票 481 从 site.login 迁入）──
              *
              *     为什么跟着邮件段走，而不是留在 site.login：这几项描述的是**这条通道**的
              *     属性（开不开、验证码多久过期、发码限流多严），而 site 段有匿名可读的公开
@@ -10196,7 +10196,7 @@ export interface components {
             /** @description EmailCodeTimeout 是邮箱验证码有效期，单位：分钟。 */
             email_code_timeout?: number;
             /**
-             * @description ── 邮箱验证码通道的策略（票 票 481 从 site.login 迁入）──
+             * @description ── 邮箱验证码通道的策略（票 481 从 site.login 迁入）──
              *
              *     为什么跟着邮件段走，而不是留在 site.login：这几项描述的是**这条通道**的
              *     属性（开不开、验证码多久过期、发码限流多严），而 site 段有匿名可读的公开
@@ -10285,7 +10285,7 @@ export interface components {
             /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
             endpoint?: string;
             /**
-             * @description ── 手机号验证码通道的策略（票 票 481 从 site.login 迁入）──
+             * @description ── 手机号验证码通道的策略（票 481 从 site.login 迁入）──
              *
              *     与邮件段同一口径：这几项描述的是"这条通道"的属性，跟着本段走。
              *     「要不要允许发」「验证码多久过期」「发码限流多严」不再散在 site.login ——
@@ -10327,7 +10327,7 @@ export interface components {
             /** @description Endpoint 接入点；留空按 DefaultSMSEndpoint */
             endpoint?: string;
             /**
-             * @description ── 手机号验证码通道的策略（票 票 481 从 site.login 迁入）──
+             * @description ── 手机号验证码通道的策略（票 481 从 site.login 迁入）──
              *
              *     与邮件段同一口径：这几项描述的是"这条通道"的属性，跟着本段走。
              *     「要不要允许发」「验证码多久过期」「发码限流多严」不再散在 site.login ——

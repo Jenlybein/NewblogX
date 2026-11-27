@@ -111,7 +111,7 @@ func WireUser(infra *Infra) {
 	// ── auth 模块 ──
 	sessionRepo := authmysql.NewSessionRepo(infra.DB)
 	// loginConf 现在只服务「登录失败限流」：发码限流与验证码有效期都跟着各自的
-	// 通道段走（mail / sms），site.login 只剩密码登录开关与登录失败计数（票 票 481）。
+	// 通道段走（mail / sms），site.login 只剩密码登录开关与登录失败计数（票 481）。
 	loginConf := func() siteconf.Login { return infra.RuntimeSite.GetRuntimeLogin() }
 
 	authSvc = authapp.New(
@@ -317,7 +317,7 @@ func (b *directoryBridge) BindPhone(ctx context.Context, userID uint64, phone st
 // 读者站注册表单误传了 2=重置密码）。代价是这个公开接口能被用来探测某个邮箱
 // 是否已注册，这是刻意接受的取舍，见 docs/adr/0014。
 //
-// 开关、验证码有效期、发码限流全部取自邮件段（conf.Mail，票 票 481）：
+// 开关、验证码有效期、发码限流全部取自邮件段（conf.Mail，票 481）：
 // 它们与"怎么把信发出去"服务同一条通道，所以只有一个来源。
 type emailCodeBridge struct {
 	users        userdomain.Repository
@@ -407,7 +407,7 @@ func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, e
 // 所以这里同时提供 Send 与 Check 两个动作。
 //
 // 发送参数（密钥、签名、模板、验证码有效期、发码限流）全部取自短信段
-// （conf.SMS，票 票 481）：同一条通道只认一个来源。
+// （conf.SMS，票 481）：同一条通道只认一个来源。
 type smsCodeBridge struct {
 	sender sms.Sender
 	conf   func() conf.SMS
@@ -463,7 +463,7 @@ func (b *smsCodeBridge) Check(ctx context.Context, phone, code string) (bool, er
 
 // policyBridge 实现 authhttp.LoginPolicy。
 //
-// 每个开关都取自它所属的那一段（票 票 481）：密码登录在 site.login，
+// 每个开关都取自它所属的那一段（票 481）：密码登录在 site.login，
 // 邮箱登录/注册在 mail，手机号登录在 sms，QQ 登录在 oauth ——
 // 一次登录方式是否可用，只由那条通道自己的段说了算。
 type policyBridge struct {

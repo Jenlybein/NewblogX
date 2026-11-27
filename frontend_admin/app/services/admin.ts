@@ -166,7 +166,7 @@ export function reviewArticleTask(id: string, payload: ArticleReviewHandleReques
  * 结局**——某条任务可能已被别人处理，不该让整批失败。
  */
 /**
- * 管理员强制退回草稿（运营纠错，票 票 481）。
+ * 管理员强制退回草稿（运营纠错，票 481）。
  *
  * 与「改可见性」是两件事：后者只改 visibility、文章仍是已发布，作者拿不回可编辑的落点；
  * 这里把文章复位成草稿、作废待办任务、通知作者并留一条审核日志。

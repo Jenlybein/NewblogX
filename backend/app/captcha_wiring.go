@@ -29,7 +29,7 @@ type captchaSettings struct {
 	site *sitecfg.RuntimeConfigService
 }
 
-// CaptchaEnabled 读总开关（captcha 段的 captcha 键，票 票 481 从 site.login 迁入）。
+// CaptchaEnabled 读总开关（captcha 段的 captcha 键，票 481 从 site.login 迁入）。
 // 配置服务缺失时按"关闭"处理，与旧实现的 nil 判断一致。
 func (s captchaSettings) CaptchaEnabled() bool {
 	if s.site == nil {

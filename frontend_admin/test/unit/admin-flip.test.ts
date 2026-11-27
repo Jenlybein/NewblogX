@@ -216,7 +216,7 @@ describe("每页都有可见且可用的主题开关", () => {
     // 媒体运营拆出 banners / images（/media 保留为跳转页），共 29 个（另加站点「短信」配置页）；ADR-0032 新增「内容过滤」页后 30 个；票 396 新增「关键词风险」页后 31 个；ADR-0033 新增「图形验证码」页后 32 个；ADR-0034 新增「图片审核」页后 33 个。
     // 票 418 后 upload 段退场，「上传策略」页随之删除：32 → 31。
     // 票 417 新增「申诉处置」页：31 → 32。
-    // 票 票 481 内容生产链三页搬到 /content/* 并各留一个旧地址跳转页：33 → 36。
+    // 票 481 内容生产链三页搬到 /content/* 并各留一个旧地址跳转页：33 → 36。
   expect(pages.length).toBe(36);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");

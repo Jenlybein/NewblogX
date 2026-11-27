@@ -138,7 +138,7 @@ func newMiddlewareEngine(t *testing.T) *gin.Engine {
 //
 // 站点配置与验证码开关都已经在运行时配置里（不再来自 conf.Config），
 // 所以"验证码开着"这类场景只能从默认值注入。参数是整包默认值而不是单个段：
-// 验证码的五个开关在 captcha 段（票 票 481 从 site.login 迁入），站点段里没有它们了。
+// 验证码的五个开关在 captcha 段（票 481 从 site.login 迁入），站点段里没有它们了。
 func newMiddlewareEngineWithSite(t *testing.T, defaults conf.RuntimeDefaults) *gin.Engine {
 	t.Helper()
 	runtimeMw := newMiddlewareRuntime(t, defaults)

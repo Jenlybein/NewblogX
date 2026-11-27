@@ -53,7 +53,11 @@
   NODE_OPTIONS=--max-old-space-size=1024 docker compose build blogx_admin
   docker compose up -d                      # 先起服务（含 mysql / redis）
   docker compose ps                         # 等全部 healthy
-  # 有新表 / 改了 schema.sql 才需要，语句都是 CREATE TABLE IF NOT EXISTS，可重复跑。
+  # 新增表、**新增列**、任何 schema.sql 改动都要跑这一步，可重复跑。
+  # CREATE TABLE IF NOT EXISTS 对**已存在的表**无效 —— 加列靠 ddl.columnAdditions
+  # 在 -db 里 ALTER TABLE 补齐（启动路径不跑它）。漏了的症状是接口报
+  # `Error 1054 (42S22): Unknown column '<新列>' in 'field list'`（2026-11-27 踩过：
+  # 迁移与新列都做完、服务也重启了，一点「强制退回草稿」就 1054）。
   # 必须在**新镜像构建之后**：schema.sql 是 go:embed 进二进制的，旧镜像里没有新表。
   # 用 exec 而不是 `run --rm --no-deps`：这条命令会先初始化整条基础设施（Redis 也在内），
   # 栈停着的时候 run 会以 `lookup redis on 127.0.0.11:53: server misbehaving` 退出
@@ -79,3 +83,4 @@ Issues 在 GitHub Issues（`Jenlybein/NewblogX`），用 `gh` CLI 读写。见 `
 ### Domain docs
 
 单上下文（single-context）：根目录 `GLOSSARY.md` + `docs/adr/`。见 `docs/agents/domain.md`。
+

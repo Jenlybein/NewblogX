@@ -201,6 +201,30 @@ func TestJudgePublish_只管待可见的文章(t *testing.T) {
 	}
 }
 
+// 文章已经不在了（被删了）：这条链路该安静退出，不能报错。
+//
+// 为什么必须钉住：2026-11 的 8 条死信里有 4 条就是"创建事件晚到、文章已被删"，
+// 当时的评分订阅者把 gorm.ErrRecordNotFound 当失败 → 重试 5 次 → 死信告警常亮。
+// 删除是幂等的终点：文章都没了，还判什么发布？重试再多次也不会有不同的答案。
+func TestJudgePublish_文章已被删时安静退出(t *testing.T) {
+	infra := &Infra{DB: testutil.SetupSQLite(t, &schema.ArticleRow{}, &schema.ArticleMessageRow{}), Logger: testutil.Logger()}
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: true, PassScore: 50, GrayBandWidth: 2})
+	deps.ensureScore = func(context.Context, ctype.ID) error {
+		t.Fatal("文章不存在时不该去补评分")
+		return nil
+	}
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		t.Fatal("文章不存在时不该进合规判定")
+		return nil
+	}
+
+	// 不预置文章行 —— 这就是"事件到了、文章已经没了"。
+	missing := ctype.NewID(304000000000000031)
+	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: missing}, deps); err != nil {
+		t.Fatalf("文章不存在不该返回错误（会让中继重试到死信）: %v", err)
+	}
+}
+
 // ── 用例脚手架 ─────────────────────────────────────────────
 
 // errTestScoreUnavailable 是"评分通道不可用"的替身错误。

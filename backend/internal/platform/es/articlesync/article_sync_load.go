@@ -18,8 +18,19 @@ import (
 // 并挑出"update 时文档已不存在"的那批 —— 后者不是错误，是需要补建。
 //
 // 解析由 es_service.IndexBulk 统一做了（BulkResult）；这里只做业务判断：
-//   - 删除时命中 document_missing_exception → 目的已达成，不算失败；
+//   - 删除时"文档本来就不在" → 目的已达成，不算失败；
 //   - 更新时命中 document_missing_exception → 文档没了，交给调用方按 id 重建。
+//
+// "文档本来就不在"有**两种** ES 响应形状，必须都认：
+//   - `error.type = document_missing_exception`（update 打不存在的文档）；
+//   - `status=404` + `result=not_found` 且**没有 error 对象**（delete 打不存在的文档）。
+//
+// 只认前者是 2026-11 死信的真实来源：删一篇 ES 里从没进过索引的文章（创建后 70ms
+// 就被删掉、索引还没写好），响应里拿到的是后者，于是被判成"删除失败、原因 unknown"，
+// 重试 5 次后进死信。删已删过的文档本来就该是幂等成功 —— 这不是错误，是目标已达成。
+// bulkResultNotFound 是 ES 对"删除不存在的文档"给出的 result 值。
+const bulkResultNotFound = "not_found"
+
 func collectArticleBulkFailures(result es_service.BulkResult, reqs []*es_service.BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
 	if !result.HasFailure() {
 		return nil, nil
@@ -46,7 +57,7 @@ func collectArticleBulkFailures(result es_service.BulkResult, reqs []*es_service
 			reason = "unknown"
 		}
 
-		if action == es_service.ActionDelete && item.Type == "document_missing_exception" {
+		if action == es_service.ActionDelete && (item.Type == "document_missing_exception" || item.Result == bulkResultNotFound) {
 			continue
 		}
 		if action == es_service.ActionUpdate && item.Type == "document_missing_exception" {
@@ -60,6 +71,8 @@ func collectArticleBulkFailures(result es_service.BulkResult, reqs []*es_service
 			}
 		}
 
+		// 兜底：reason 为空说明 ES 连 error 对象都没给（例如上面那种软 404 的其它变体），
+		// 此时仅凭 status 无法判断语义，仍按失败上报，不猜。
 		failures = append(failures, articleBulkFailure{
 			Action:    action,
 			ID:        docID,
@@ -564,3 +577,4 @@ func loadAuthorSnapshotMap(db *gorm.DB, authorIDs []ctype.ID) (map[ctype.ID]auth
 	}
 	return result, nil
 }
+

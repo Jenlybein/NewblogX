@@ -40,6 +40,11 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group.GET("ai_info", app.AIInfo)
 	group.GET("sidebar_cards", app.SidebarCards)
 
+	// 登录方式与验证码闸门的公开只读快照（票 票 481）：这几个布尔位以前搭着
+	// 公开的 site 段一起发；拆段之后由它单独给出，免得 mail / sms / oauth / captcha
+	// 四段（含密钥）被顺手公开出去。
+	group.GET("login_capabilities", app.LoginCapabilities)
+
 	// 公开读：site 与 deco 是唯二对读者开放的段。content_filter 不在其中 ——
 	// 词表匿名可读等于把"该绕开哪些词"提前告诉所有人（ADR-0032）。
 	group.GET("site", app.PublicSiteSection)

@@ -43,56 +43,18 @@ site:
     # GitHub 主页地址
     github: ""
   login:
-    # 是否启用手机号 + 短信验证码登录（首次登录即注册）
-    phone_login: false
-    # 是否启用 QQ 登录；启用前还需要在「第三方登录」里填好 AppID / AppKey / 回调地址
-    qq_login: false
     # 是否启用用户名密码登录
     username_pwd_login: true
-    # 是否启用邮箱验证码登录；启用前需要先在「邮件」里配好腾讯云 SES，
-    # 否则用户点「获取验证码」会直接报错
-    email_login: false
-    # 是否启用邮箱注册。
-    # 与 email_login 分开：绑定邮箱要用发码接口，混成一个开关会连带把
-    # 「给已注册用户发绑定验证码」一起关掉。本站点默认注册只走手机号。
-    email_register: false
-    # 登录和发送邮箱验证码接口是否启用图形验证码中间件
-    captcha: false
-    # 下面三个是图形验证码的**入口闸门**：在总开关打开的前提下，逐个决定哪条路由
-    # 真的校验（登录 / 发邮箱验证码 / 发短信验证码）。默认全开 = 与旧行为一致：
-    # 一开总开关，三条入口都校验。
-    #
-    # 它们必须留在 site 段并保持公开可读：读者站要靠它们决定每个表单渲染不渲染
-    # 验证码框（渲染参数在 captcha 段，见文件末尾）。
-    captcha_login: true
-    captcha_email_verify: true
-    captcha_phone_verify: true
-    # 注册专用入口（只有 POST /api/users/email/register 挂它）。
-    # 手机号注册与登录共用 POST /api/users/phone，请求体分不出注册还是登录，
-    # 所以那条通道的验证码在发码那一步（上面的 captcha_phone_verify）。
-    captcha_register: true
-    # 邮箱验证码有效期，单位：分钟
-    email_code_timeout: 5
-    # 短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行
-    sms_code_timeout: 5
     # 登录失败统计窗口，单位：分钟
     login_fail_window_minute: 15
     # 单个账号在统计窗口内允许的最大失败次数
     login_fail_user_max: 5
     # 单个 IP 在统计窗口内允许的最大失败次数
     login_fail_ip_max: 20
-    # 邮件发送限流窗口，单位：秒
-    email_send_window_second: 60
-    # 单个邮箱在限流窗口内允许的最大发送次数
-    email_send_per_email_max: 1
-    # 单个 IP 在限流窗口内允许的最大发送次数
-    email_send_per_ip_max: 10
-    # 短信发送限流窗口，单位：秒（与邮件分开计数：短信成本更高、滥用方式不同）
-    sms_send_window_second: 60
-    # 单个手机号在限流窗口内允许的最大发送次数
-    sms_send_per_phone_max: 1
-    # 单个 IP 在限流窗口内允许的最大发送次数
-    sms_send_per_ip_max: 10
+    #
+    # 这里曾经还放着邮箱/短信/QQ 登录开关、验证码有效期、发码限流与四个验证码闸门
+    # （票 票 481 拆走）。现在它们跟着各自的通道段走：mail / sms / oauth / captcha。
+    # 留在 site.login 的这四项描述的是"登录尝试"本身，与走哪条通道无关。
   article:
     # 是否允许文章发布后直接跳过审核
     skip_examining: true
@@ -206,9 +168,12 @@ ai:
     scoring:
       - scoring
 
-# 邮件发送（腾讯云 SES）。
-# 后台「邮件」页填的就是这一段；默认全空 + 模板 ID 为 0，
-# 此时邮箱登录必须保持关闭（见 site.login.email_login）。
+# 邮件通道（腾讯云 SES）。
+# 后台「邮件」页填的就是这一段；默认凭据全空 + 模板 ID 为 0，
+# 此时邮箱登录必须保持关闭（见本段的 email_login）。
+#
+# 这一段同时是「邮箱验证码通道」的唯一事实源（票 票 481）：开关、验证码有效期、
+# 发码限流都在这里，不再散落在 site.login。
 mail:
   # 腾讯云 API 密钥（敏感，后台回显时为占位符）
   secret_id: ""
@@ -225,6 +190,21 @@ mail:
   template_id: 0
   # 单次调用超时（秒）；<=0 按 10 秒处理
   timeout_sec: 10
+  # 是否启用邮箱验证码登录；启用前需要先配好上面的腾讯云 SES，
+  # 否则用户点「获取验证码」会直接报错
+  email_login: false
+  # 是否启用邮箱注册。
+  # 与 email_login 分开：绑定邮箱要用发码接口，混成一个开关会连带把
+  # 「给已注册用户发绑定验证码」一起关掉。本站点默认注册只走手机号。
+  email_register: false
+  # 邮箱验证码有效期，单位：分钟
+  email_code_timeout: 5
+  # 邮件发送限流窗口，单位：秒
+  email_send_window_second: 60
+  # 单个邮箱在限流窗口内允许的最大发送次数
+  email_send_per_email_max: 1
+  # 单个 IP 在限流窗口内允许的最大发送次数
+  email_send_per_ip_max: 10
 
 # 对象存储（七牛云）。
 # 这是图片上传的唯一落地方式：关掉之后上传接口直接返回「站点未启用图片上传」，
@@ -285,11 +265,14 @@ oauth:
   app_id: ""
   app_key: ""
   redirect: ""
+  # 是否启用 QQ 登录（票 票 481 从 site.login 迁入）；
+  # 启用前还需要填好上面三项
+  qq_login: false
 
 # 短信通道（阿里云号码认证服务 PNVS 的「短信认证」）。
 #
-# 这里只放"怎么把短信发出去"：密钥、接入点、签名、模板、超时。
-# 「要不要允许发」「验证码多久过期」在 site.login 里，与邮件那几项并排。
+# 这里放两件事：怎么把短信发出去（密钥、接入点、签名、模板、超时），
+# 以及这条通道允不允许用、验证码多久过期、发码限流多严（票 票 481 从 site.login 迁入）。
 #
 # 单独一段而不是塞进 site 段：site 段有匿名可读的公开端点
 # （GET /site/site 直接返回整个 site 段），密钥放进去等于公开。
@@ -307,6 +290,16 @@ sms:
   template_code: ""
   # 单次发码调用的超时秒数；<=0 按 10
   timeout_sec: 10
+  # 是否启用手机号 + 短信验证码登录（首次登录即注册）
+  phone_login: false
+  # 短信验证码有效期，单位：分钟；由阿里云按 ValidTime 执行
+  sms_code_timeout: 5
+  # 短信发送限流窗口，单位：秒（与邮件分开计数：短信成本更高、滥用方式不同）
+  sms_send_window_second: 60
+  # 单个手机号在限流窗口内允许的最大发送次数
+  sms_send_per_phone_max: 1
+  # 单个 IP 在限流窗口内允许的最大发送次数
+  sms_send_per_ip_max: 10
 
 # 孤儿图回收的运行配置（issue #139 只读清单 / issue #140 真删）。
 # 清单（`-t imagegc`）只读，始终可用；enabled 只控制真删（带 -apply）。
@@ -380,15 +373,28 @@ content_filter:
   # 命中记录的保留天数（1–3650）。记录里存着 ±20 字上下文，留多久是运营对
   # "审计价值 vs 数据量"的取舍；清理任务每天读一次现值，改这里不需要重启。
   retain_days: 90
-# 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数。
+# 第 12 段 captcha（ADR-0033）：图形验证码的开关、入口闸门、图形与时效参数。
 #
 # 只有后台具名端点（GET /site/admin/captcha、PUT /site/captcha），没有公开读：
 # 图片尺寸/字符集/有效期属于运营参数，读者没必要知道。
 #
-# 「哪些入口要验证码」不在这里 —— 那是登录策略，见上面 site.login 的 captcha 与
-# captcha_login / captcha_email_verify / captcha_phone_verify 三个闸门（那些必须公开可读，
-# 前端要靠它们决定渲染不渲染输入框）。
+# 「哪些入口要验证码」也在本段（票 票 481 从 site.login 迁入）：它属于验证码这个
+# 机制自己。读者站渲染表单需要这几个布尔位，但不再靠公开 site 段拿到 ——
+# 公开只读端点 GET /api/site/login_capabilities 的 captcha_required 是
+# 它们的合成值（已与总开关合取），本段的渲染参数仍然只给后台读写。
 captcha:
+  # 图形验证码总开关。关掉时四个入口一律不校验。
+  captcha: false
+  # 下面三个是**入口闸门**：在总开关打开的前提下，逐个决定哪条路由真的校验
+  # （登录 / 发邮箱验证码 / 发短信验证码）。默认全开 = 与旧行为一致：
+  # 一开总开关，三条入口都校验。
+  captcha_login: true
+  captcha_email_verify: true
+  captcha_phone_verify: true
+  # 注册专用入口（只有 POST /api/users/email/register 挂它）。
+  # 手机号注册与登录共用 POST /api/users/phone，请求体分不出注册还是登录，
+  # 所以那条通道的验证码在发码那一步（上面的 captcha_phone_verify）。
+  captcha_register: true
   # 类型：string（字符型）/ math（算术型）/ digit（纯数字）。
   driver: string
   # 字符数：字符型 2–8、纯数字 3–8；算术型不适用（题目固定两位运算）。

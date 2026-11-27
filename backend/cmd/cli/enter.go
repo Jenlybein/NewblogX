@@ -30,6 +30,9 @@ type FlagOptions struct {
 	Apply bool
 	// EncryptConfig 把库里已存的明文密钥一次性加密（票 359）。
 	EncryptConfig bool
+	// MigrateRuntimeConfig 把 site.login 里按通道拆走的字段搬到各自段（票 票 481）。
+	// 默认只报告；配合 -apply 才写库。
+	MigrateRuntimeConfig bool
 	// FilterImport 是初始词表导入文件（TSV/NDJSON，票 395）。
 	FilterImport string
 	// FilterImportApply 才真正写库；默认 dry-run 只报告。
@@ -74,6 +77,7 @@ func Parse() *FlagOptions {
 	flag.BoolVar(&Flags.UserNoPrompt, "user-no-prompt", false, "创建用户时禁用交互输入(参数不完整则直接失败)")
 	flag.BoolVar(&Flags.Apply, "apply", false, "对账类子命令真正落库(默认只读，只统计不改)")
 	flag.BoolVar(&Flags.EncryptConfig, "encrypt-config", false, "把已存的明文密钥加密(需要环境变量 BLOGX_CONFIG_SECRET_KEY)")
+	flag.BoolVar(&Flags.MigrateRuntimeConfig, "migrate-runtime-config", false, "把 site.login 里迁出的字段搬到 mail/sms/oauth/captcha 段(默认只报告，需配合 -apply 才写库)")
 	flag.StringVar(&Flags.FilterImport, "filter-import", "", "从文件导入初始词表(TSV: 词<TAB>档位<TAB>类目，或 NDJSON)，默认只报告不写库")
 	flag.BoolVar(&Flags.FilterImportApply, "filter-import-apply", false, "初始词表导入真正写库(默认 dry-run)")
 	flag.BoolVar(&Flags.FilterCoverage, "filter-coverage", false, "词表覆盖体检: 打印总量与七类分布，缺必需类目时告警(只读，不打印词条)")
@@ -97,6 +101,16 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 
 	if op.EncryptConfig {
 		if err := FlagEncryptConfig(deps.DB, deps.Logger); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
+	}
+
+	if op.MigrateRuntimeConfig {
+		// 运行时配置段的字段搬迁（票 票 481）：默认 dry-run，-apply 才写库。
+		// 复用 -apply 而不是新开一个 flag —— 它在本仓库已经是"对账/迁移类子命令
+		// 真正落库"的统一开关，运维不必记两套。
+		if err := FlagMigrateRuntimeConfig(deps.DB, deps.Logger, op.Apply); err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{ContinueStartup: false}, nil

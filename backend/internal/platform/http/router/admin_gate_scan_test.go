@@ -144,6 +144,8 @@ var adminRouteTemplates = []string{
 	"DELETE /api/articles/:id/admin/hot-top",
 	"POST /api/articles/:id/admin/hot-top",
 	"POST /api/articles/:id/admin/:visibility",
+	// 强制退回草稿（运营纠错）：把已放行的文章撤下来，必须只有管理员能调。
+	"POST /api/articles/:id/force-demote",
 	"DELETE /api/articles",
 	"DELETE /api/articles/tags",
 	"PATCH /api/articles/tags/order",
@@ -228,6 +230,10 @@ var userRouteTemplates = []string{
 	"GET /api/site/seo",
 	"GET /api/site/sidebar_cards",
 	"GET /api/site/ai_info",
+	// 登录方式与验证码闸门的公开只读快照（票 票 481）：匿名可读，
+	// 读者站靠它决定渲染哪几个登录入口、哪个表单画验证码框。
+	// 它只含布尔位，邮件/短信/第三方登录四段本身仍然只有管理员能读。
+	"GET /api/site/login_capabilities",
 	// 站内信 / 通知
 	"GET /api/sitemsg",
 	"GET /api/sitemsg/conf",
@@ -431,3 +437,4 @@ func TestClassificationGateIsNotAlwaysGreen(t *testing.T) {
 		t.Fatal("canary 失效：未归类判定恒为假，门禁永远不会红")
 	}
 }
+

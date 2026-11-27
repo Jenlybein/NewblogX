@@ -124,6 +124,34 @@ func (h *Handler) AIInfo(c *gin.Context) {
 	}, c)
 }
 
+// LoginCapabilities 返回读者站可用的登录方式与需要图形验证码的入口。
+//
+// 匿名可读：读者站要靠它决定登录表单渲染哪几个入口、哪个表单画验证码框。
+// 每一档都从所属的段现读（site.login / mail / sms / oauth / captcha），
+// 不缓存、不落库 —— 后台改完开关，下一次请求就是新值。
+// @Summary 获取登录方式与验证码闸门（公开）
+// @Tags site
+// @Produce json
+// @Success 200 {object} kernel.Envelope[LoginCapabilitiesResponse]
+// @Router /site/login_capabilities [get]
+func (h *Handler) LoginCapabilities(c *gin.Context) {
+	caps := h.svc.LoginCapabilities()
+	res.OkWithData(LoginCapabilitiesResponse{
+		LoginMethods: LoginMethodsResponse{
+			UsernamePwd: caps.LoginMethods.UsernamePwd,
+			Email:       caps.LoginMethods.Email,
+			Phone:       caps.LoginMethods.Phone,
+			QQ:          caps.LoginMethods.QQ,
+		},
+		CaptchaRequired: CaptchaRequiredResponse{
+			Login:       caps.CaptchaRequired.Login,
+			EmailVerify: caps.CaptchaRequired.EmailVerify,
+			PhoneVerify: caps.CaptchaRequired.PhoneVerify,
+			Register:    caps.CaptchaRequired.Register,
+		},
+	}, c)
+}
+
 // ── 轮播图 ─────────────────────────────────────────────────────
 
 // BannerList 轮播图列表。

@@ -114,6 +114,12 @@ var adminRouteTemplates = []string{
 	"POST /api/content-filter/hits/:id/handle",
 	"POST /api/content-filter/hits/handle-batch",
 	"GET /api/content-filter/word-stats",
+	// 管理端评论管理（后台「文章管理 → 评论管理」第一期）：列表含已删除评论，
+	// 三个写接口是删除 / 禁言 / 封禁 —— 全段只给管理员。
+	"GET /api/comments/admin/list",
+	"DELETE /api/comments/admin",
+	"POST /api/comments/admin/mute",
+	"POST /api/comments/admin/ban",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",

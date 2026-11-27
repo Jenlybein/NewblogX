@@ -196,6 +196,63 @@ describe("CommentThread：子评论互动（不再落到根楼层）", () => {
   });
 });
 
+describe("CommentThread：删除按钮（只对有权限的人渲染）", () => {
+  /** 按页面注入的判据挂载（与文章页同一接线形状：`:can-delete="canDeleteComment"`）。 */
+  function mountWithDelete(
+    canDelete?: (comment: { user_id?: string | null }) => boolean,
+    replies: CommentReplyItem[] = [makeReply()],
+  ) {
+    return mount(CommentThread, {
+      props: { comments: [{ ...makeComment({ reply_count: 1 }), replies }] as CommentRootItem[], canDelete },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("没注入判据 / 判据为假：整条评论没有删除按钮，操作区结构不变（点赞 + 回复）", () => {
+    const withoutJudge = mountWithDelete(undefined);
+    expect(withoutJudge.findAll('button[aria-label="删除这条评论"]')).toHaveLength(0);
+
+    const notAllowed = mountWithDelete(() => false);
+    expect(notAllowed.findAll('button[aria-label="删除这条评论"]')).toHaveLength(0);
+    // 根评论自己的操作区仍是两个按钮：删除是加出来的一项，不是替换掉谁。
+    expect(notAllowed.get(".comment__actions").findAll(".comment-action")).toHaveLength(2);
+  });
+
+  it("有权限：根评论出现删除按钮（图标 + aria-label，样式沿用 .comment-action），点了发根评论 id（不带 rootId）", async () => {
+    const wrapper = mountWithDelete(() => true);
+    const button = wrapper.get('button[aria-label="删除这条评论"]');
+
+    expect(button.element.tagName).toBe("BUTTON");
+    expect(button.attributes("type")).toBe("button");
+    expect(button.find("svg").exists()).toBe(true);
+    // 视觉沿用既有的 .comment-action：不新造一套删除专属样式。
+    expect(button.classes()).toContain("comment-action");
+
+    await button.trigger("click");
+    expect(wrapper.emitted("delete")?.[0]).toEqual(["c1"]);
+  });
+
+  it("有权限：子评论也能删，且把所属根评论 id 一起发出（页面据此只重取该楼层）", async () => {
+    const wrapper = mountWithDelete(() => true);
+
+    const replyRow = wrapper.get(".comment--reply");
+    const button = replyRow.get('button[aria-label="删除这条评论"]');
+    expect(button.classes()).toContain("comment-action");
+    expect(button.find("svg").exists()).toBe(true);
+
+    await button.trigger("click");
+    expect(wrapper.emitted("delete")?.[0]).toEqual(["r1", "c1"]);
+  });
+
+  it("判据逐条生效：只为返回 true 的那条渲染（不是整片一起显示）", () => {
+    // 根评论作者 u1、子评论作者 u2：判据只放行 u2。
+    const wrapper = mountWithDelete((comment) => comment.user_id === "u2");
+
+    expect(wrapper.get(".comment__actions").find('button[aria-label="删除这条评论"]').exists()).toBe(false);
+    expect(wrapper.get(".comment--reply").find('button[aria-label="删除这条评论"]').exists()).toBe(true);
+  });
+});
+
 describe("CommentThread：作者区进个人主页（票 292）", () => {
   it("根评论：头像与昵称在**同一个**链接里，指向 /users/{user_id}", () => {
     const wrapper = mountThread([makeComment({ user_id: "u1" })]);

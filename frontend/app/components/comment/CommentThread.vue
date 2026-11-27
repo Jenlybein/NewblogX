@@ -6,6 +6,7 @@ import {
   IconChevronDown,
   IconThumbUp,
   IconThumbUpFilled,
+  IconTrash,
 } from "@tabler/icons-vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import CommentAuthor from "~/components/comment/CommentAuthor.vue";
@@ -25,15 +26,33 @@ const props = defineProps<{
   replyHasPrevious?: Record<string, boolean>;
   replyHasNext?: Record<string, boolean>;
   replyLoadedPages?: Record<string, number>;
+  /**
+   * 这条评论能不能删：由页面注入（管理员 / 评论作者 / 该文章作者三类人，与后端
+   * `domain.CanDelete` 同口径）。组件不碰登录态与文章作者，只按判据决定渲不渲染。
+   */
+  canDelete?: (comment: { user_id?: string | null }) => boolean;
 }>();
 
 const emit = defineEmits<{
   reply: [commentId: string];
   digg: [commentId: string, isDigg: boolean];
+  /** 删一条评论：根评论只传自己的 id，子评论把所属根评论 id 作为第二参数带上。 */
+  delete: [commentId: string, rootId?: string];
   loadReplies: [rootId: string];
   nextReplies: [rootId: string];
   previousReplies: [rootId: string];
 }>();
+
+/**
+ * 删除按钮的可见性判据。
+ *
+ * 判据是注入的函数而不是组件内自己算：组件拿不到登录态与文章作者，
+ * 把判定留在页面能避免"每个用到楼层的地方各写一份"。后端仍会再判一次，
+ * 这里藏按钮只是体验，不是鉴权。
+ */
+function canDeleteComment(comment: { user_id?: string | null }): boolean {
+  return Boolean(props.canDelete?.(comment));
+}
 
 const expanded = ref<Record<string, boolean>>({});
 
@@ -208,6 +227,17 @@ function showFallback(comment: CommentNode): boolean {
             <IconArrowBackUp :size="16" aria-hidden="true" />
             <span>回复</span>
           </button>
+          <!-- 删除：只对管理员 / 评论作者 / 该文章作者渲染，样式沿用 `.comment-action`
+               （不新造一套视觉）。根评论不传 rootId，子评论把所属根评论 id 带上。 -->
+          <button
+            v-if="canDeleteComment(comment)"
+            type="button"
+            class="comment-action"
+            aria-label="删除这条评论"
+            @click="emit('delete', comment.id)"
+          >
+            <IconTrash :size="16" aria-hidden="true" />
+          </button>
           <!-- 「展开 N 条回复」是胶囊按钮（票 238 范围 5）：浅底 + 主题色文字 + chevron。 -->
           <button
             v-if="comment.reply_count > 0"
@@ -289,6 +319,17 @@ function showFallback(comment: CommentNode): boolean {
                       >
                         <IconArrowBackUp :size="15" aria-hidden="true" />
                         <span>回复</span>
+                      </button>
+                      <!-- 子评论的删除同样只按注入的判据渲染；rootId 取所属根评论 id，
+                           删完只重取这个楼层的回复页。 -->
+                      <button
+                        v-if="canDeleteComment(reply)"
+                        type="button"
+                        class="comment-action"
+                        aria-label="删除这条评论"
+                        @click="emit('delete', reply.id, comment.id)"
+                      >
+                        <IconTrash :size="15" aria-hidden="true" />
                       </button>
                     </div>
                   </div>

@@ -2894,6 +2894,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/comments/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 批量删除评论（管理员） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 要删除的评论 ID（1–100 条） */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_comment_adapter_http.AdminRemoveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_AdminRemoveManyResult"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/admin/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 封禁评论发布人（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 用户 ID 与可选理由 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_comment_adapter_http.AdminBanRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/admin/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理端评论列表（管理员） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码（默认 1） */
+                    page?: number;
+                    /** @description 每页条数（默认 20，上限 100） */
+                    limit?: number;
+                    /** @description 评论内容关键词（子串） */
+                    keyword?: string;
+                    /** @description 评论发布人 ID */
+                    user_id?: string;
+                    /** @description 评论发布人昵称关键词（子串） */
+                    user_keyword?: string;
+                    /** @description 文章 ID */
+                    article_id?: string;
+                    /** @description 起始日期（YYYY-MM-DD，按 created_at） */
+                    from?: string;
+                    /** @description 结束日期（YYYY-MM-DD，含当天，按 created_at） */
+                    to?: string;
+                    /** @description 状态筛选 */
+                    status?: "all" | "published" | "deleted";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_AdminCommentItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/admin/mute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 禁言评论发布人（管理员） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 用户 ID、禁言天数与理由 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_comment_adapter_http.AdminMuteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_comment_adapter_http_AdminMuteResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/comments/replies": {
         parameters: {
             query?: never;
@@ -9237,6 +9415,29 @@ export interface components {
         "internal_chat_adapter_http.WsTicketResponse": {
             ticket?: string;
         };
+        "internal_comment_adapter_http.AdminBanRequest": {
+            /** @description Reason 是可选理由（≤200 字）：封禁没有到期日要向用户解释，留空也允许。 */
+            reason?: string;
+            user_id?: string;
+        };
+        "internal_comment_adapter_http.AdminMuteRequest": {
+            /**
+             * @description Days 是禁言档位：1 / 7 / 30 天，0 表示永久；其它取值被拒绝。
+             * @enum {integer}
+             */
+            days?: 1 | 7 | 30 | 0;
+            /** @description Reason 是处置理由（必填、≤200 字）。 */
+            reason?: string;
+            user_id?: string;
+        };
+        "internal_comment_adapter_http.AdminMuteResponse": {
+            /** @description MutedUntil 是禁言到期时间（RFC3339）；"永久"时是远期时间点。 */
+            muted_until?: string;
+        };
+        "internal_comment_adapter_http.AdminRemoveRequest": {
+            /** @description IDList 是 1–100 条评论 ID；条数、零值 ID 在用例层校验。 */
+            id_list?: string[];
+        };
         "internal_comment_adapter_http.CreateRequest": {
             article_id: string;
             content: string;
@@ -10958,6 +11159,38 @@ export interface components {
             session_id?: string;
             unread_count?: number;
         };
+        "myblogx_internal_comment_app.AdminCommentItem": {
+            article_id?: string;
+            /** @description ArticleTitle 由 domain.ArticleInfo 端口批量读；读不到的保持空串。 */
+            article_title?: string;
+            content?: string;
+            created_at?: string;
+            /** @description Deleted 表示这条评论是否已被删除（软删标记或状态为已删除）。 */
+            deleted?: boolean;
+            digg_count?: number;
+            id?: string;
+            reply_count?: number;
+            /**
+             * @description Status 是对外状态：2 已发布 / 3 已删除。软删过的行（deleted_at 非空但
+             *     status 列仍是 2）也一律报 3，见 EffectiveStatus。
+             */
+            status?: number;
+            user_avatar?: string;
+            user_id?: string;
+            user_nickname?: string;
+        };
+        "myblogx_internal_comment_app.AdminRemoveFailure": {
+            id?: string;
+            /**
+             * @description Message 是失败原因的中文文案（来自错误码文案表；没有错误码的内部错误
+             *     折成通用服务异常文案，不把 SQL 报错原文透给后台）。
+             */
+            message?: string;
+        };
+        "myblogx_internal_comment_app.AdminRemoveManyResult": {
+            failed?: components["schemas"]["myblogx_internal_comment_app.AdminRemoveFailure"][];
+            succeeded?: number;
+        };
         "myblogx_internal_comment_app.CreateResult": {
             article_id?: string;
             content?: string;
@@ -11155,6 +11388,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_chat_adapter_http_WsTicketResponse": {
             code?: number;
             data?: components["schemas"]["internal_chat_adapter_http.WsTicketResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_AdminMuteResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_comment_adapter_http.AdminMuteResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
@@ -11387,6 +11625,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_chat_domain.MessageListData"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_AdminRemoveManyResult": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_comment_app.AdminRemoveManyResult"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
@@ -11425,6 +11668,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_AdminCommentItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_AdminCommentItem"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_RootItem": {
@@ -11610,6 +11858,10 @@ export interface components {
         "myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
             has_more?: boolean;
             list?: components["schemas"]["internal_user_adapter_http.UserSearchItemResponse"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_AdminCommentItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_comment_app.AdminCommentItem"][];
         };
         "myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem": {
             has_more?: boolean;

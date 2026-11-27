@@ -24,6 +24,8 @@ type Repository interface {
 	ListReplies(ctx context.Context, articleID, rootID uint64, page Page) ([]Comment, bool, error)
 	// ListFamily 查一条一级评论及其全部回复（删除级联用）。
 	ListFamily(ctx context.Context, rootID CommentID) ([]Comment, error)
+	// ListAdmin 分页查管理端评论列表（含已删除行，created_at 倒序）。
+	ListAdmin(ctx context.Context, filter AdminFilter, page AdminPage) ([]Comment, bool, error)
 	// SoftDeleteMany 批量软删。
 	SoftDeleteMany(ctx context.Context, ids []CommentID) error
 }
@@ -85,6 +87,32 @@ type Article struct {
 // ArticleInfo 读文章信息（评论创建时的开关与标题、回复通知用）。
 type ArticleInfo interface {
 	ByID(ctx context.Context, id uint64) (Article, error)
+	// TitlesByIDs 批量取文章标题（管理端评论列表要展示"这条评论在哪篇文章下"）。
+	//
+	// 单独一个批量方法而不是逐条 ByID：一页评论可能来自几十篇文章，逐条查会把
+	// 一次列表变成 N 次查询。实现方仍然只在装配层（app/comment_wiring.go），
+	// 评论模块不因此认识 article 模块的仓储。
+	//
+	// 找不到的 ID 不进返回的 map（文章被删 / ID 拼错），这不算错误：一条评论
+	// 挂着已经消失的文章，列表仍应该能打开。实现出错才返回 error。
+	TitlesByIDs(ctx context.Context, ids []ctype.ID) (map[ctype.ID]string, error)
+}
+
+// AccountDisposer 是管理端评论页的账号处置端口（禁言 / 封禁）。
+//
+// 评论模块刻意不认识 user 模块：禁言与封禁的落库口径（mute_until、令牌版本 +1、
+// 吊销会话、不能操作自己）全部归 user 模块所有，这里只声明"两个动作"的形状，
+// 由装配层把调用翻成 user 用例（见 backend/app/comment_wiring.go）。这样评论
+// 模块不必感知账号状态机，user 侧改口径也不会牵动评论代码。
+type AccountDisposer interface {
+	// Mute 给 target 设一次禁言，返回到期时间。
+	//
+	// days = 0 表示永久（管理端下拉框的"永久"档）。实现方负责把"永久"换成
+	// 一个不带到期日的远期时间：调用方拿它原样回显给前端，不该再由调用方
+	// 自己编造一个"3650 天后"的时间。
+	Mute(ctx context.Context, actor, target ctype.ID, days int) (time.Time, error)
+	// Ban 封禁 target（账号状态置"封禁"，不可自助恢复）。
+	Ban(ctx context.Context, actor, target ctype.ID) error
 }
 
 // CacheWriter 回写评论相关的计数缓存。

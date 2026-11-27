@@ -91,6 +91,8 @@ describe('旧排列页与收录弹窗已退役', () => {
       '/articles/projects',
       // 标签管理是文章域的新维护页（#322），不是旧的排列 / 编排入口。
       '/articles/tags',
+      // 评论管理（2026-11-27）：评论处置入口，同样不是旧编排。
+      '/articles/comments',
     ])
     // 编排不再是菜单项：它是合集 / 项目卡片上的「编排目录树」按钮。
     expect(FLAT_NAV.filter(item => item.label.includes('编排'))).toEqual([])
@@ -114,7 +116,7 @@ describe('旧排列页与收录弹窗已退役', () => {
   // 票 417 新增「申诉处置」页：31 → 32。
   // 票 481 内容生产链三页搬到 /content/* 并各留跳转页：33 → 36。
   // 2026-11-27 菜单重构：新增「文章审核设置」页 + 文章审核换路由（旧地址留跳转页）：36 → 38。
-  expect(pages.length).toBe(38)
+  expect(pages.length).toBe(39)
   })
 
   /**

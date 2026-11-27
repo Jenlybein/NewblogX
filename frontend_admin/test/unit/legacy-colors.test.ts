@@ -143,7 +143,7 @@ describe("静态断言：后台不得残留旧青绿色（canary 保证扫描器
   // 票 417 新增「申诉处置」页：31 → 32。
   // 票 481 内容生产链三页搬到 /content/* 并各留跳转页：33 → 36。
   // 2026-11-27 菜单重构：新增「文章审核设置」页 + 文章审核换路由：36 → 38。
-  expect(pageFiles.length).toBe(38);
+  expect(pageFiles.length).toBe(39);
 
     const sources = readAppSources();
     const problems = sources.flatMap(({ file, text }) => [

@@ -1,4 +1,10 @@
 import type {
+  AdminCommentBanRequest,
+  AdminCommentListData,
+  AdminCommentMuteRequest,
+  AdminCommentMuteResult,
+  AdminCommentRemoveRequest,
+  AdminCommentRemoveResult,
   AICallRecord,
   AIUsageResponseData,
   AIRuntimeConfig,
@@ -883,11 +889,56 @@ export function handleModerationAppeal(id: string, payload: { approve: boolean; 
     body: payload,
   })
 }
+// ── 评论管理（2026-11-27）────────────────────────────────────
 
+/**
+ * 评论管理列表（管理员）。
+ *
+ * 五维筛选全部由后端做：关键词（内容子串）、用户（ID 或昵称子串）、文章 ID、
+ * 时间范围、状态（全部 / 已发布 / 已删除）。分页用 `page + limit`，
+ * 返回 `has_more` 而不是总数 —— 运营只需要"还能不能往下翻"。
+ */
+export function getAdminComments(query: {
+  page?: number
+  limit?: number
+  keyword?: string
+  user_id?: string
+  user_keyword?: string
+  article_id?: string
+  from?: string
+  to?: string
+  status?: "all" | "published" | "deleted"
+}) {
+  return api().request<AdminCommentListData>("/comments/admin/list", { query })
+}
 
+/**
+ * 批量删除评论（管理员）。
+ *
+ * 部分失败会逐条回报：一次选中"一级评论 + 它下面的回复"时，一级的级联已经把回复
+ * 删掉，重复项按成功算 —— 所以 `succeeded` 是"目标状态已达成"的条数，不是"本次动了
+ * 几条"。
+ */
+export function removeAdminComments(idList: string[]) {
+  return api().request<AdminCommentRemoveResult, AdminCommentRemoveRequest>("/comments/admin", {
+    method: "DELETE",
+    body: { id_list: idList },
+  })
+}
 
+/** 禁言评论发布人（管理员）。days=0 是永久。 */
+export function muteCommentUser(payload: AdminCommentMuteRequest) {
+  return api().request<AdminCommentMuteResult, AdminCommentMuteRequest>("/comments/admin/mute", {
+    method: "POST",
+    body: payload,
+  })
+}
 
-
-
-
+/** 封禁评论发布人（管理员）：等价于账号状态置「封禁」并踢下线。 */
+export function banCommentUser(payload: AdminCommentBanRequest) {
+  return api().request<unknown, AdminCommentBanRequest>("/comments/admin/ban", {
+    method: "POST",
+    body: payload,
+  })
+}
 

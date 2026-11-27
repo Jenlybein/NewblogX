@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
+	"myblogx/internal/apperr"
 	commenthttp "myblogx/internal/comment/adapter/http"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
@@ -21,6 +23,8 @@ import (
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
 	socialdomain "myblogx/internal/social/domain"
+	userapp "myblogx/internal/user/app"
+	userdomain "myblogx/internal/user/domain"
 )
 
 // WireComment 装配评论模块并注入路由处理器。
@@ -42,7 +46,10 @@ func WireComment(infra *Infra) {
 		notifierBridge{},
 		commentIDs{},
 		infra.Logger,
-	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter})
+	).WithContentFilter(commentContentFilterBridge{svc: infra.Filter}).
+		// 管理端「评论管理」的禁言 / 封禁：接 user 模块那一份用例服务。
+		// WireUser 在 WireComment 之前跑（见 app/wiring_http.go），所以这里拿得到。
+		WithAccountDisposer(commentAccountDisposerBridge{users: infra.UserService})
 	// 挂到 Infra：关键词风险页的处置动作要复用**这一份**装配（票 398）。
 	infra.CommentService = svc
 	router.SetCommentHandler(commenthttp.NewHandler(svc))
@@ -199,6 +206,41 @@ func (b *articleBridge) ByID(_ context.Context, id uint64) (domain.Article, erro
 	return toArticle(row), nil
 }
 
+// articleTitleRow 是批量读标题时的最小形状（只 select 两列，不建整行）。
+type articleTitleRow struct {
+	ID    ctype.ID
+	Title string
+}
+
+// TitlesByIDs 批量查文章标题（管理端评论列表用）。
+//
+// 用 Table(...) 而不是过 gorm 的模型作用域：管理端要显示"这条评论挂在哪篇文章下"，
+// 文章被软删之后标题仍然该显示 —— 否则列表里会莫名其妙地少一列，而评论本身
+// 明明还在（评论不会因为文章下架就被删除）。
+func (b *articleBridge) TitlesByIDs(_ context.Context, ids []ctype.ID) (map[ctype.ID]string, error) {
+	raw := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if !id.IsZero() {
+			raw = append(raw, id.Uint64())
+		}
+	}
+	if len(raw) == 0 {
+		return map[ctype.ID]string{}, nil
+	}
+	var rows []articleTitleRow
+	if err := b.db.Table(articleRow{}.TableName()).
+		Select("id, title").
+		Where("id IN ?", raw).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[ctype.ID]string, len(rows))
+	for _, row := range rows {
+		out[row.ID] = row.Title
+	}
+	return out, nil
+}
+
 // cacheBridge 回写计数缓存。
 type cacheBridge struct {
 	deps redis_service.Options
@@ -279,6 +321,63 @@ func (notifierBridge) DiggCreated(ctx context.Context, in domain.DiggNotice) err
 		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
+}
+
+// commentAccountDisposerBridge 把账号处置（禁言 / 封禁）翻成 user 模块的用例。
+//
+// 后台「评论管理」的禁言 / 封禁按钮走这里（票 399 的账号处置在评论侧的入口）。
+// 两个动作都走 user 模块已有权限判定与会话处理的用例，而不是直接写 SQL：
+//   - 禁言 = Mute(days)：只写 mute_until，不动会话（禁言不拦登录）；
+//     永久档（days=0）走 MuteForever —— user 侧的天数归一化上限是 365 天，
+//     把"永久"塞成 3650 天会被直接拒绝，压成 365 天又会对管理员撒谎。
+//   - 封禁 = AdminUpdate(status=3)：与后台账号页的「封禁」同一口径，
+//     会把令牌版本 +1 并吊销全部会话（被封的人手里那张未过期令牌立即失效）。
+//
+// 管理员身份在这里用 RoleAdmin 钉死：评论模块只交出"动作发起人 ID"，
+// 不负责证明他是不是管理员（用例层已经判过），user 侧仍会再判一次。
+type commentAccountDisposerBridge struct {
+	users *userapp.Service
+}
+
+var _ domain.AccountDisposer = commentAccountDisposerBridge{}
+
+// adminViewer 把动作发起人折成 user 模块的管理员 Viewer。
+func (b commentAccountDisposerBridge) adminViewer(actor ctype.ID) userdomain.Viewer {
+	return userdomain.Viewer{ID: userdomain.UserID(actor), Role: userdomain.RoleAdmin}
+}
+
+// Mute 禁言目标用户，返回到期时间（永久档返回远期时间点）。
+func (b commentAccountDisposerBridge) Mute(ctx context.Context, actor, target ctype.ID, days int) (time.Time, error) {
+	if b.users == nil {
+		return time.Time{}, apperr.New(apperr.CodeCommentAdminUnavailable)
+	}
+	var (
+		updated userdomain.User
+		err     error
+	)
+	if days == 0 {
+		updated, err = b.users.MuteForever(ctx, b.adminViewer(actor), userdomain.UserID(target))
+	} else {
+		updated, err = b.users.Mute(ctx, b.adminViewer(actor), userdomain.UserID(target), days)
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	if updated.MuteUntil == nil {
+		// 设了禁言却没回填到期时间：说明 user 侧的写法变了，别静默返回零时间。
+		return time.Time{}, apperr.New(apperr.CodeCommentAdminUnavailable)
+	}
+	return *updated.MuteUntil, nil
+}
+
+// Ban 封禁目标账号（账号禁用，不可自助恢复）。
+func (b commentAccountDisposerBridge) Ban(ctx context.Context, actor, target ctype.ID) error {
+	if b.users == nil {
+		return apperr.New(apperr.CodeCommentAdminUnavailable)
+	}
+	banned := userdomain.StatusBanned
+	return b.users.AdminUpdate(ctx, b.adminViewer(actor), userdomain.UserID(target),
+		userapp.AdminPatchInput{Status: &banned})
 }
 
 func toArticle(row articleRow) domain.Article {

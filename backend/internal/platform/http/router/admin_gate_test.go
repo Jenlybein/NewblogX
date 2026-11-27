@@ -138,6 +138,12 @@ var adminOnly = []struct {
 	{"GET", "/api/content-filter/word-stats"},
 	{"POST", "/api/content-filter/hits/handle-batch"},
 	{"POST", "/api/content-filter/hits/:id/handle"},
+	// 管理端评论管理（后台「文章管理 → 评论管理」第一期）：列表能翻到已删除评论
+	// 与"谁说了什么"，删除 / 禁言 / 封禁都是账号级处置 —— 普通用户一个都不该碰到。
+	{"GET", "/api/comments/admin/list"},
+	{"DELETE", "/api/comments/admin"},
+	{"POST", "/api/comments/admin/mute"},
+	{"POST", "/api/comments/admin/ban"},
 	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
 	// 却从未被行为探针覆盖。补上后，普通用户令牌会被真的挡一次；漏挂中间件立即变红。
 	{"POST", "/api/banners"},

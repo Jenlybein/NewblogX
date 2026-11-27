@@ -2,7 +2,7 @@
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconMessageCirclePlus, IconThumbUp } from "@tabler/icons-vue";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
@@ -27,13 +27,14 @@ import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
 import { markArticleViewed, setArticleDigg } from "~/services/article";
-import { createComment, diggComment, getReplyComments } from "~/services/comment";
+import { createComment, deleteComment, diggComment, getReplyComments } from "~/services/comment";
 import type { ArticleFavoriteResult } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandAbsoluteAssetUrl, brandDescription, brandFullName } from "~/utils/brand";
+import { confirmDestructive } from "~/utils/confirmDestructive";
 import { articleJsonLd, breadcrumbJsonLd, canonicalArticleUrl, siteOrigin } from "~/utils/seo";
 import { errorMessage } from "~/utils/errorMessage";
 import katexCssUrl from "katex/dist/katex.min.css?url";
@@ -45,6 +46,9 @@ const articleId = computed(() => route.params.id as string);
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const message = useMessage();
+// 删除评论的二次确认走全站统一的 `dialog.warning`（`confirmDestructive`），
+// 与消息中心 / 历史记录等删除动作同一口径。
+const dialog = useDialog();
 const shadowPreviewRef = ref<{
   scrollToHeading: (id: string) => boolean;
   getHeadingElement: (id: string) => HTMLElement | null;
@@ -180,6 +184,7 @@ const {
   handleLoadReplies,
   handleNextReplies,
   handlePreviousReplies,
+  handleDeleteComment: performDeleteComment,
 } = useArticleComments({
   articleId: () => String(articleId.value),
   pager: commentsPager,
@@ -187,10 +192,50 @@ const {
   fetchReplies: (id, rootId, page, limit) => getReplyComments(id, rootId, page, limit),
   createComment,
   diggComment,
+  deleteComment,
   refreshArticle: () => refreshArticle(),
   openComposer: () => openCommentSheet(),
   notify: message,
 });
+
+/**
+ * 谁能看到「删除」（与后端 `domain.CanDelete` 同口径）：
+ * **管理员 / 这条评论的作者 / 这篇文章的作者**。
+ *
+ * 判定收在页面里而不是组件里：组件拿不到登录态与文章作者。管理员标识也不在这里
+ * 复写"角色取值 = 管理员"这条映射 —— `useArticleWritePolicy` 已经从
+ * `authStore.currentUser` 推出了 `isAdmin`，读者站只该有那一份映射。
+ *
+ * 藏按钮只是体验：真正的拦截在后端，界面不给别人看入口即可。
+ */
+function canDeleteComment(comment: { user_id?: string | null }): boolean {
+  const profileId = authStore.profileId;
+  if (!profileId) {
+    return false;
+  }
+
+  if (isAdminUser.value) {
+    return true;
+  }
+
+  return profileId === comment.user_id || profileId === authorId.value;
+}
+
+/**
+ * 点「删除」：先弹二次确认，确认之后才交给 composable 发请求。
+ *
+ * 确认文案必须说清后果：删一级评论会**连同它下面的全部回复一起删掉** ——
+ * 读者点的是"一条"，实际会消失一串，这句话不能省。子评论只删自己，但仍不可恢复。
+ */
+function handleDeleteComment(commentId: string, rootId?: string) {
+  confirmDestructive(dialog, {
+    title: rootId ? "删除回复" : "删除评论",
+    content: rootId
+      ? "删掉这条回复后不可恢复。"
+      : "删除这条评论会连同它下面的全部回复一起删除，且不可恢复。",
+    onConfirm: () => performDeleteComment(commentId, rootId),
+  });
+}
 
 // 正文主题由 MarkdownShadowPreview 内置（token 驱动，明暗自动跟随站点根类）；
 // katex 只保留基线布局样式（分数/根号/字体），配色由自有主题覆盖。
@@ -221,7 +266,7 @@ const authorProfileLink = computed(() => (authorId.value ? `/users/${authorId.va
 // 「编辑」入口（票 213 / 决定清单 C4）：只给作者本人，且与页头「创作」共用同一个
 // 站点发布开关（`entryVisible`）。判定收在纯函数里（`utils/articleEdit.ts`），
 // 页面只负责把两个既有信号喂给它 —— 别人 / 游客 / 未登录都拿不到入口。
-const { entryVisible: writeEntryVisible } = useArticleWritePolicy();
+const { entryVisible: writeEntryVisible, isAdmin: isAdminUser } = useArticleWritePolicy();
 const articleEditEntry = computed(() =>
   resolveArticleEditEntry({
     articleId: articleId.value,
@@ -686,8 +731,10 @@ useHead(() => {
                 :reply-has-previous="replyHasPrevious"
                 :reply-has-next="replyHasNext"
                 :reply-loaded-pages="replyLoadedPages"
+                :can-delete="canDeleteComment"
                 @reply="handleReply"
                 @digg="handleCommentDigg"
+                @delete="handleDeleteComment"
                 @load-replies="handleLoadReplies"
                 @next-replies="handleNextReplies"
                 @previous-replies="handlePreviousReplies"

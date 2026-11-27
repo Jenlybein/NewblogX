@@ -53,10 +53,38 @@ type Comment struct {
 	DiggCount         int
 	ReplyCount        int
 	Status            Status
+	// DeletedAt 是软删时间；nil 表示这条评论还活着。
+	//
+	// 必须单独有这一格：删除动作（Repository.SoftDeleteMany）写的是 deleted_at，
+	// **不改 status**，所以只看 Status 会把"已经删掉的评论"当成已发布。读者侧
+	// 列表靠查询作用域天然排除了已删行，只有管理端（要翻已删除评论）才依赖它。
+	DeletedAt *time.Time
 }
 
 // IsRoot 判断是否一级评论。
 func (c Comment) IsRoot() bool { return c.ReplyID.IsZero() && c.RootID.IsZero() }
+
+// IsDeleted 判断这条评论是否已被删除。
+//
+// 两个判据缺一不可：
+//   - deleted_at 非空：正常删除路径（SoftDeleteMany）写的就是它；
+//   - status = 已删除：存量「审核中」评论在启动迁移里只改了状态、没有写
+//     deleted_at（见 RetireExamining），它们同样不该出现在"已发布"视图里。
+//
+// 管理端列表用 EffectiveStatus 出对外状态，就是为了让这两个来源在 API 上
+// 收敛成同一个"已删除"。
+func (c Comment) IsDeleted() bool { return c.Status == StatusDeleted || c.DeletedAt != nil }
+
+// EffectiveStatus 返回对外展示的状态：被软删过的评论一律报告"已删除"。
+//
+// 直接回 Status 会把"deleted_at 非空、status=2"的行显示成已发布 —— 那正是
+// 删除路径只写软删标记留下的形状。状态是给界面读的，界面不该看到这种错位。
+func (c Comment) EffectiveStatus() Status {
+	if c.IsDeleted() {
+		return StatusDeleted
+	}
+	return c.Status
+}
 
 // CanDelete 判断操作者能否删除这条评论。
 //

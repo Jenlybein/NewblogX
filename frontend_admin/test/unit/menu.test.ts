@@ -66,6 +66,8 @@ const EXPECTED_ADMIN_NAV = [
   { label: '合集管理', path: '/articles/collections', icon: 'article' },
   { label: '项目管理', path: '/articles/projects', icon: 'article' },
   { label: '标签管理', path: '/articles/tags', icon: 'tag' },
+  // 评论管理（2026-11-27）：管理端处置读者站评论（删除 / 禁言 / 封禁）。
+  { label: '评论管理', path: '/articles/comments', icon: 'article' },
   { label: '用户管理', path: '/users', icon: 'users' },
   // 站点配置（ADR-0029 第三版）：站点 / 用户操作 / 验证码与通知 / 内容修改与发布 /
   // 文章审核设置 / 站点界面，加上裸挂的 AI / 存储 / 日志。
@@ -375,6 +377,15 @@ describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () =
         key: '/articles/tags',
         label: '标签管理',
         path: '/articles/tags',
+        depth: 1,
+        active: false,
+      }),
+      // 评论管理（2026-11-27）：文章管理的最后一个子项。
+      expect.objectContaining({
+        kind: 'link',
+        key: '/articles/comments',
+        label: '评论管理',
+        path: '/articles/comments',
         depth: 1,
         active: false,
       }),

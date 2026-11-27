@@ -3,7 +3,7 @@
  * 文章发布（`/content/publish`）：只改 site 段 `article` 块的**发布与展示**字段。
  *
  * 2026-11-27 拆页（ADR-0029 第三版）：这一页只剩"谁能发、发出来对谁可见"三个开关；
- * 内容审核 / 投稿配额 / 发布质量闸门搬到了「站点配置 → 文章审核设置」
+ * 内容审核 / 投稿配额 / 发布质量闸门搬到了「站点配置 → 内容修改与发布 → 文章审核设置」
  * （`/site/article-review`）。两页共写同一个 `article` 块，保存走**字段级补丁**，
  * 兄弟页的字段原样保留。
  *
@@ -111,7 +111,7 @@ onMounted(load);
   <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       这一页管「谁能发布、发出来对谁可见」。审核规则（免审核、投稿配额、质量闸门）
-      在「站点配置 → 文章审核设置」，两页互不覆盖。
+      在「站点配置 → 内容修改与发布 → 文章审核设置」，两页互不覆盖。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">

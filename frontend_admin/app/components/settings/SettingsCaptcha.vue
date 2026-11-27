@@ -5,11 +5,12 @@
  * 这一页管第 12 段运行时配置 `captcha`：图形与时效参数，也就是"那张图长什么样、
  * 多久失效"。三件事必须一起说清楚，否则运营会在错误的位置找开关：
  *
- *   1. **这里没有总开关**：开/关在「站点 → 登录与发码」里（`site.login.captcha`），
- *      那一位必须对读者公开，前端要靠它决定渲染不渲染验证码框；
- *   2. **哪些入口要验证码也不在这里**：同样在「登录与安全」的三个闸门里
- *      （登录 / 发邮箱验证码 / 发短信验证码），理由同上 —— 前端要知道每个表单要不要画图。
- *      本页只管"画出来是什么样"；
+ *   1. **总开关与四个入口闸门都在本页**（票 票 481 把它们从 `site.login` 拆进 `captcha`
+ *      段）：图形码开关与"图片长什么样"是同一件事的两面，住在两页时想只给发码加
+ *      验证码要翻半页表；
+ *   2. **读者站不再读这一段**：它有凭据以外的运营参数，也不公开；读者站改读
+ *      公开只读端点 `GET /api/site/login_capabilities`（它把总开关与四个闸门合取后
+ *      只回布尔位，不含任何参数）；
  *   3. **保存即生效**：生成请求每次都按现值构建驱动、按现值写有效期，不需要重启。
  *
  * 字段与驱动的适用关系一栏由前端标出来：不适用项直接禁用输入框，并在旁边写明
@@ -94,12 +95,9 @@ onMounted(load)
 <template>
   <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
-      这一页只管<strong>图片长什么样、多久失效</strong>。
-      验证码的开关与「哪些入口需要验证码」在
-      <NuxtLink to="/site/login" class="admin-link">
-        「站点 → 登录与发码」
-      </NuxtLink>
-      里 —— 那几项必须对读者公开，前端要靠它们决定每个表单画不画验证码框。
+      本页管<strong>总开关、哪些入口要验证码、图片长什么样</strong>。
+      读者站不读这里，它读公开只读端点 <code>GET /api/site/login_capabilities</code> ——
+      那个端点把总开关与四个闸门合取后只回布尔位，不带任何图片参数。
     </NAlert>
     <NAlert type="warning" :bordered="false" class="mb-4">
       修改<strong>有效期</strong>只影响之后新生成的图：已经发到用户浏览器里的那张，
@@ -107,6 +105,47 @@ onMounted(load)
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
+      <NCard class="admin-card mb-4" title="开关与入口" size="small">
+        <NFormItem label="启用图形验证码（总开关）">
+          <NSwitch v-model:value="config.captcha" data-role="captcha-master-switch" />
+        </NFormItem>
+        <!--
+          四个入口闸门：总开关打开后，逐个决定哪条路由真的校验。
+          登录与发码被滥用的方式不同（发码烧钱、登录被撞库），一刀切会让
+          「只想给发码加验证码」做不到。
+        -->
+        <NFormItem label="登录接口要求图形验证码">
+          <NSwitch
+            v-model:value="config.captcha_login"
+            :disabled="!config.captcha"
+            data-role="captcha-gate-login"
+          />
+          <span v-if="!config.captcha" class="admin-hint">总开关关闭时不生效</span>
+        </NFormItem>
+        <NFormItem label="发邮箱验证码要求图形验证码">
+          <NSwitch
+            v-model:value="config.captcha_email_verify"
+            :disabled="!config.captcha"
+            data-role="captcha-gate-email"
+          />
+        </NFormItem>
+        <NFormItem label="发短信验证码要求图形验证码">
+          <NSwitch
+            v-model:value="config.captcha_phone_verify"
+            :disabled="!config.captcha"
+            data-role="captcha-gate-phone"
+          />
+        </NFormItem>
+        <NFormItem label="注册接口要求图形验证码">
+          <NSwitch
+            v-model:value="config.captcha_register"
+            :disabled="!config.captcha"
+            data-role="captcha-gate-register"
+          />
+          <span class="admin-hint">只作用于专门的注册路由；手机号注册的验证码在发码那一步</span>
+        </NFormItem>
+      </NCard>
+
       <NFormItem label="验证码类型">
         <NRadioGroup v-model:value="config.driver">
           <NRadioButton
@@ -274,3 +313,4 @@ onMounted(load)
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
   </div>
 </template>
+

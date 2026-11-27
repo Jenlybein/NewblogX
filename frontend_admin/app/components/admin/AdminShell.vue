@@ -112,7 +112,12 @@ async function handleUserCommand(key: string) {
       <AdminNavTree :entries="menuEntries" @toggle="toggleGroup" />
     </NLayoutSider>
 
-    <NLayout>
+    <!--
+      右侧内容区是**自己的滚动容器**（票 票 481）：后台外壳固定一屏高，左栏与内容区
+      各自滚动。以前两者共用文档滚动，于是「切页时 window.scrollTo(0,0)」会把左栏
+      一起带回顶部 —— 菜单长的时候每点一次都要重新滚一遍。
+    -->
+    <NLayout class="admin-main-layout">
       <NLayoutHeader class="admin-main pb-0">
         <header class="admin-header">
           <div>
@@ -136,9 +141,11 @@ async function handleUserCommand(key: string) {
         </header>
       </NLayoutHeader>
 
-      <NLayoutContent class="admin-main">
+      <NLayoutContent id="admin-content-scroll" class="admin-main">
         <slot />
       </NLayoutContent>
     </NLayout>
   </NLayout>
 </template>
+
+

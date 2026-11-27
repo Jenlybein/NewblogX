@@ -19,7 +19,17 @@
  * icon 用字符串而不是组件：utils 层不该 import Vue 组件，
  * 组件层再把它映射成具体图标（见 AdminNavTree.vue 的 ICONS）。
  */
-import { SITE_SETTINGS_GROUP_LABEL, SITE_SETTINGS_PAGES, SITE_SETTINGS_SECTIONS } from './siteSettings'
+import {
+  CONTENT_PUBLISH_GROUP_LABEL,
+  CONTENT_PUBLISH_PAGES,
+  SITE_SETTINGS_GROUP_LABEL,
+  SITE_SETTINGS_PAGES,
+  SITE_STANDALONE_SECTIONS,
+  SITE_USER_ACTIONS_GROUP_LABEL,
+  SITE_USER_ACTION_SECTIONS,
+  SITE_VERIFICATION_GROUP_LABEL,
+  SITE_VERIFICATION_SECTIONS,
+} from './siteSettings'
 
 export type AdminNavIcon =
   | 'chart'
@@ -71,13 +81,31 @@ export interface AdminNavFlatItem {
 export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
   {
-    // 审核域（ADR-0032 决策 7）：文章审核是人工队列，关键词风险是内容过滤的
-    // 命中记录。父项只分组、没有自身页面 —— 否则「审核」会多出一个空落地页，
-    // 而它真正的两块内容都在子项里。
+    // 内容生产链（ADR-0029 改写版）：改关键词 → 调发布策略 → 审文章。
+    //
+    // 这三页以前散在两处 —— 关键词过滤与发布策略在「站点配置」（配置面），
+    // 文章审核在「审核」（队列面）。它们其实是同一条链上的上下游：运营调完词表
+    // 就想看发布线，发布线上出了争议就要进队列处置。拆到两个一级分组里，
+    // 每次都要在两个分组之间来回找，这正是本次重组的起因。
+    //
+    // 父项只分组、没有自身页面：一条链没有一个"总览页"可看。
+    label: CONTENT_PUBLISH_GROUP_LABEL,
+    icon: 'article',
+    children: CONTENT_PUBLISH_PAGES.map((page): AdminNavNode => ({
+      label: page.label,
+      path: page.path,
+      icon: 'article',
+    })),
+  },
+  {
+    // 审核域（ADR-0032 决策 7 / ADR-0034）：文章审核已随内容生产链搬到
+    // 「内容修改与发布」，这里只剩两件"不是文章生产"的审核 ——
+    // 图片待审与关键词命中处置。
+    //
+    // 父项只分组、没有自身页面 —— 否则「审核」会多出一个空落地页。
     label: '审核',
     icon: 'shield',
     children: [
-      { label: '文章审核', path: '/review', icon: 'shield' },
       // 图片审核（ADR-0034）：待审队列与图片资源库是两件事 —— 资源库只列已过审的
       // 成品图，审核要处理的是 pending / review。混在一页会让运营分不清"该处理的"
       // 和"已经能用的"。
@@ -106,10 +134,14 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   },
   { label: '用户管理', path: '/users', icon: 'users' },
   {
-    // 站点配置：站点段拆成四页后，菜单是三级（ADR-0029）。
+    // 站点配置（ADR-0029 改写版）：按「谁受影响」分组，而不是按段编号排。
     //
-    // 站点配置（纯分组）→ 站点（纯分组）→ 基础 / 登录与发码 / 发布与审核 / 私信，
-    // 其余七个编辑域与「右栏卡片」仍直接挂在站点配置下。
+    //   站点配置 → 站点（基础信息）/ 用户操作（登录·私信·第三方登录）/
+    //              验证码与通知（图形码·邮件·短信）/ AI / 对象存储 / 日志 / 装饰
+    //
+    // 三级有两处，都是"消费者视角的分类"而不是实现分类：一个读者能主动触发的动作
+    // 只有登录、私信、第三方登录三件；为了证明"你是你"而发出去的东西只有图形码、
+    // 邮件、短信三件。这两组以前平铺在站点配置下面，找一项要在九个同名条目里数。
     label: '站点配置',
     icon: 'settings',
     children: [
@@ -122,7 +154,25 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
           icon: 'settings',
         })),
       },
-      ...SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
+      {
+        label: SITE_USER_ACTIONS_GROUP_LABEL,
+        icon: 'users',
+        children: SITE_USER_ACTION_SECTIONS.map((section): AdminNavNode => ({
+          label: section.label,
+          path: section.path,
+          icon: 'settings',
+        })),
+      },
+      {
+        label: SITE_VERIFICATION_GROUP_LABEL,
+        icon: 'bell',
+        children: SITE_VERIFICATION_SECTIONS.map((section): AdminNavNode => ({
+          label: section.label,
+          path: section.path,
+          icon: 'settings',
+        })),
+      },
+      ...SITE_STANDALONE_SECTIONS.map((section): AdminNavNode => ({
         label: section.label,
         path: section.path,
         icon: 'settings',
@@ -518,10 +568,23 @@ export function reconcileAdminNav(
 /**
  * 不挂在菜单里、但确实存在的页面（旧地址的跳转页）。
  *
- * `/media` 是「媒体运营」拆成两页后留下的旧地址（ADR-0029）：它只做 `navigateTo`
- * 跳转到轮播运营，所以不该出现在侧栏，但对账时也不能被当成"忘了加菜单"的孤儿页。
+ * 每一个都是"页面搬了家、旧地址还活着"的产物（ADR-0029 改写版）：
+ *   - `/media`：媒体运营拆两页后的旧地址；
+ *   - `/site/content-filter` → `/content/keywords`（词表搬进内容生产链）；
+ *   - `/site/publish` → `/content/publish`（发布策略搬进内容生产链）；
+ *   - `/review` → `/content/review`（审核队列搬进内容生产链）。
+ *
+ * 为什么不把旧地址写进菜单：菜单是"去哪儿"的清单，同一个页面出现两次
+ * 只会让人怀疑哪一个是新的。留着文件只为不让旧书签 404。
  */
-export const ADMIN_REDIRECT_PAGES: ReadonlySet<string> = new Set(['media/index', 'media'])
+export const ADMIN_REDIRECT_PAGES: ReadonlySet<string> = new Set([
+  'media/index',
+  'media',
+  'site/content-filter',
+  'site/publish',
+  'review/index',
+  'review',
+])
 
 /**
  * 把菜单 path 映射成"页面文件的相对路径候选"（相对 app/pages，不含 .vue 后缀）。

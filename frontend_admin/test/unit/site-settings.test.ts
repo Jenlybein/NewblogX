@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
 import {
   ADMIN_NAV_TREE,
@@ -10,116 +10,147 @@ import {
   navItemByPath,
   navTrail,
   pageFileCandidates,
-} from "../../app/utils/menu";
+} from '../../app/utils/menu'
 import {
   ALL_SITE_SETTINGS_SECTIONS,
+  CONTENT_PUBLISH_PAGES,
   SITE_SETTINGS_PAGES,
   SITE_SETTINGS_SECTIONS,
+  SITE_STANDALONE_SECTIONS,
+  SITE_USER_ACTION_SECTIONS,
+  SITE_VERIFICATION_SECTIONS,
   siteSettingsSectionByPath,
-} from "../../app/utils/siteSettings";
+} from '../../app/utils/siteSettings'
 
 /**
- * 站点配置编辑域 → 独立路由的结构对账（ADR-0029）。
- *
- * 2026-11 之前「站点」是一个页面（8 张卡、32 个控件），现在拆成四页：
- * 站点基础 / 登录与发码 / 发布与审核 / 私信，挂在「站点配置 → 站点」这个三层菜单下。
- * 其余七个编辑域仍是直接挂「站点配置」的二级子项。
+ * 站点配置编辑域 → 独立路由的结构对账（ADR-0029 改写版）。
  *
  * 要守住的事：
  *
- *   1. 十四个编辑域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
+ *   1. 十一个编辑域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
  *   2. 每个页面只渲染自己那一个配置组件（不再有页内 tab，也不能顺手改兄弟页的字段）；
- *   3. 左侧菜单的归属与层级与路由一致：站点四页深度 2、其余域深度 1；
- *   4. 站点四页共用同一个 `site` 段端点，所以保存必须走读-改-写（见 siteSectionSave 的用例）。
+ *   3. 左侧菜单的归属与层级与路由一致：三个分组下的域深度 2、独立域深度 1；
+ *   4. 共用 `site` 段端点的域（站点基础 / 登录设置 / 私信设置）保存必须走读-改-写。
+ *
+ * 分组本身是这次重组的核心断言：**按"谁受影响"分**（用户操作 / 验证码与通知 /
+ * 站点），而不是按后端段编号排。分组一旦泄漏（例如把「邮件」放回站点配置平铺那一层），
+ * 运营就会在两处看到同名条目。
  *
  * 为什么按源码断言：后台没有 e2e，naive-ui 的表单交互要 mock 一整套。
  * 与 `menu.test.ts` 的页面文件对账、`site-config.test.ts` 的文案断言同一套做法。
  * vitest 以 project root（frontend_admin/）为 cwd。
  */
-const projectDir = process.cwd();
-const pagesDir = join(projectDir, "app", "pages");
-const settingsDir = join(projectDir, "app", "components", "settings");
+const projectDir = process.cwd()
+const pagesDir = join(projectDir, 'app', 'pages')
+const settingsDir = join(projectDir, 'app', 'components', 'settings')
 
-/** 期望值来自票面与拆页方案，不复用被测模块的数据（避免自证）。 */
+/** 期望值来自拆段方案，不复用被测模块的数据（避免自证）。 */
 interface ExpectedSection {
-  key: string;
-  label: string;
-  path: string;
+  key: string
+  label: string
+  path: string
   /** 相对 app/pages，不含 .vue。 */
-  page: string;
+  page: string
   /** components/settings 下的配置组件。 */
-  component: string;
-  /** 菜单层级：站点四页在「站点」分组下，深度 2。 */
-  depth: number;
+  component: string
+  /** 所属三级分组名；独立域为 null（直接挂在「站点配置」下）。 */
+  group: string | null
+  /** 菜单层级：分组下 depth 2，独立域 depth 1。 */
+  depth: number
 }
 
 const EXPECTED_SECTIONS: ExpectedSection[] = [
-  { key: "site-basics", label: "站点基础", path: "/site", page: "site/index", component: "SettingsSiteBasics", depth: 2 },
-  { key: "site-login", label: "登录与发码", path: "/site/login", page: "site/login", component: "SettingsSiteLogin", depth: 2 },
   {
-    key: "site-publish",
-    label: "发布与审核",
-    path: "/site/publish",
-    page: "site/publish",
-    component: "SettingsSitePublish",
+    key: 'site-basics',
+    label: '站点基础',
+    path: '/site',
+    page: 'site/index',
+    component: 'SettingsSiteBasics',
+    group: '站点',
     depth: 2,
   },
-  { key: "site-chat", label: "私信", path: "/site/chat", page: "site/chat", component: "SettingsSiteChat", depth: 2 },
-  // 第 11 段 content_filter（ADR-0032）是独立的一段：编辑域排在其它域之前，
-  // 但它仍挂在「站点配置」下、深度 1（不属于 site 段的四页）。
   {
-    key: "content-filter",
-    label: "内容过滤",
-    path: "/site/content-filter",
-    page: "site/content-filter",
-    component: "SettingsContentFilter",
-    depth: 1,
-  },
-  // 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，独立整段端点。
-  {
-    key: "captcha",
-    label: "图形验证码",
-    path: "/site/captcha",
-    page: "site/captcha",
-    component: "SettingsCaptcha",
-    depth: 1,
-  },
-  { key: "ai", label: "AI 助手", path: "/site/ai", page: "site/ai", component: "SettingsAi", depth: 1 },
-  { key: "mail", label: "邮件", path: "/site/mail", page: "site/mail", component: "SettingsMail", depth: 1 },
-  {
-    key: "storage",
-    label: "对象存储",
-    path: "/site/storage",
-    page: "site/storage",
-    component: "SettingsStorage",
-    depth: 1,
+    key: 'site-login',
+    label: '登录设置',
+    path: '/site/login',
+    page: 'site/login',
+    component: 'SettingsSiteLogin',
+    group: '用户操作',
+    depth: 2,
   },
   {
-    key: "oauth",
-    label: "第三方登录",
-    path: "/site/oauth",
-    page: "site/oauth",
-    component: "SettingsOAuth",
+    key: 'site-chat',
+    label: '私信设置',
+    path: '/site/chat',
+    page: 'site/chat',
+    component: 'SettingsSiteChat',
+    group: '用户操作',
+    depth: 2,
+  },
+  {
+    key: 'oauth',
+    label: '第三方登录',
+    path: '/site/oauth',
+    page: 'site/oauth',
+    component: 'SettingsOAuth',
+    group: '用户操作',
+    depth: 2,
+  },
+  {
+    key: 'captcha',
+    label: '图形验证码',
+    path: '/site/captcha',
+    page: 'site/captcha',
+    component: 'SettingsCaptcha',
+    group: '验证码与通知',
+    depth: 2,
+  },
+  {
+    key: 'mail',
+    label: '邮件',
+    path: '/site/mail',
+    page: 'site/mail',
+    component: 'SettingsMail',
+    group: '验证码与通知',
+    depth: 2,
+  },
+  {
+    key: 'sms',
+    label: '短信',
+    path: '/site/sms',
+    page: 'site/sms',
+    component: 'SettingsSMS',
+    group: '验证码与通知',
+    depth: 2,
+  },
+  // 独立域：既不属于"读者能主动触发的动作"，也不属于"为了证明你是你而发出去的消息"。
+  { key: 'ai', label: 'AI 助手', path: '/site/ai', page: 'site/ai', component: 'SettingsAi', group: null, depth: 1 },
+  {
+    key: 'storage',
+    label: '对象存储',
+    path: '/site/storage',
+    page: 'site/storage',
+    component: 'SettingsStorage',
+    group: null,
     depth: 1,
   },
-  { key: "sms", label: "短信", path: "/site/sms", page: "site/sms", component: "SettingsSMS", depth: 1 },
-  { key: "log", label: "日志", path: "/site/log", page: "site/log", component: "SettingsLog", depth: 1 },
-  { key: "deco", label: "装饰", path: "/site/deco", page: "site/deco", component: "SettingsDeco", depth: 1 },
-];
+  { key: 'log', label: '日志', path: '/site/log', page: 'site/log', component: 'SettingsLog', group: null, depth: 1 },
+  { key: 'deco', label: '装饰', path: '/site/deco', page: 'site/deco', component: 'SettingsDeco', group: null, depth: 1 },
+]
 
 function sitePageFiles(): string[] {
-  return readdirSync(join(pagesDir, "site"), { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".vue"))
-    .map((entry) => `site/${entry.name.slice(0, -".vue".length)}`)
-    .sort();
+  return readdirSync(join(pagesDir, 'site'), { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.vue'))
+    .map(entry => `site/${entry.name.slice(0, -'.vue'.length)}`)
+    .sort()
 }
 
 function pageSource(page: string): string {
-  return readFileSync(join(pagesDir, `${page}.vue`), "utf8");
+  return readFileSync(join(pagesDir, `${page}.vue`), 'utf8')
 }
 
-describe("站点配置编辑域清单（路由与组件映射的唯一来源）", () => {
-  it("十四个编辑域的顺序、标题、路由与组件名固定", () => {
+describe('站点配置编辑域清单（路由与组件映射的唯一来源）', () => {
+  it('十一个编辑域的顺序、标题、路由与组件名固定', () => {
     expect(
       ALL_SITE_SETTINGS_SECTIONS.map(({ key, label, path, component }) => ({
         key,
@@ -134,209 +165,261 @@ describe("站点配置编辑域清单（路由与组件映射的唯一来源）"
         path,
         component,
       })),
-    );
-    // 票 418：upload 段退场，「上传策略」编辑域随之删除：14 → 13。
-  expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(13);
-    // 站点四页与其余八域在清单里的切分也是固定口径。
-    expect(SITE_SETTINGS_PAGES.map((section) => section.key)).toEqual([
-      "site-basics",
-      "site-login",
-      "site-publish",
-      "site-chat",
-    ]);
-    // 票 418：upload 段退场，站点配置编辑域 10 → 9。
-  expect(SITE_SETTINGS_SECTIONS).toHaveLength(9);
-  });
+    )
+    expect(ALL_SITE_SETTINGS_SECTIONS).toHaveLength(11)
+    // 只有「站点基础」是「站点」分组的成员；登录/私信/第三方登录与图形码/邮件/短信
+    // 各自归到「用户操作」与「验证码与通知」。
+    expect(SITE_SETTINGS_PAGES.map(section => section.key)).toEqual(['site-basics'])
+    expect(SITE_SETTINGS_SECTIONS).toHaveLength(10)
+  })
 
-  it("站点四页各自声明自己拥有的 site 段顶层块，且互不重叠", () => {
-    const owned = SITE_SETTINGS_PAGES.flatMap((section) => section.blocks);
-    expect(new Set(owned).size).toBe(owned.length);
-    expect(owned.sort()).toEqual(["article", "chat", "login", "seo", "site_info"]);
+  it('三个分组的成员固定，且互不重叠、覆盖全部域', () => {
+    expect(SITE_USER_ACTION_SECTIONS.map(section => section.key)).toEqual([
+      'site-login',
+      'site-chat',
+      'oauth',
+    ])
+    expect(SITE_VERIFICATION_SECTIONS.map(section => section.key)).toEqual(['captcha', 'mail', 'sms'])
+    expect(SITE_STANDALONE_SECTIONS.map(section => section.key)).toEqual(['ai', 'storage', 'log', 'deco'])
 
-    for (const section of SITE_SETTINGS_PAGES) {
-      expect(section.blocks.length, section.key).toBeGreaterThan(0);
+    const grouped = [
+      ...SITE_SETTINGS_PAGES,
+      ...SITE_USER_ACTION_SECTIONS,
+      ...SITE_VERIFICATION_SECTIONS,
+      ...SITE_STANDALONE_SECTIONS,
+    ].map(section => section.key)
+    expect(new Set(grouped).size).toBe(grouped.length)
+    expect(grouped).toEqual(ALL_SITE_SETTINGS_SECTIONS.map(section => section.key))
+  })
+
+  it('共用 site 段端点的域各自声明拥有的顶层块，且互不重叠', () => {
+    const owners = ALL_SITE_SETTINGS_SECTIONS.filter(section => section.blocks.length > 0)
+    expect(owners.map(section => section.key)).toEqual(['site-basics', 'site-login', 'site-chat'])
+
+    const owned = owners.flatMap(section => section.blocks)
+    expect(new Set(owned).size).toBe(owned.length)
+    expect([...owned].sort()).toEqual(['chat', 'login', 'seo', 'site_info'])
+
+    // 其余各域用自己整段端点，不参与 site 段的读-改-写。
+    for (const section of ALL_SITE_SETTINGS_SECTIONS) {
+      if (owners.includes(section)) continue
+      expect(section.blocks, section.key).toEqual([])
     }
-    // 其余八域各用自己整段端点，不参与 site 段的读-改-写。
-    for (const section of SITE_SETTINGS_SECTIONS) {
-      expect(section.blocks, section.key).toEqual([]);
-    }
-  });
+  })
 
-  it("路由唯一、都是绝对路径，且全部挂在 /site 之下", () => {
-    const paths = ALL_SITE_SETTINGS_SECTIONS.map((section) => section.path);
-    expect(new Set(paths).size).toBe(paths.length);
+  it('路由唯一、都是绝对路径，且全部挂在 /site 之下', () => {
+    const paths = ALL_SITE_SETTINGS_SECTIONS.map(section => section.path)
+    expect(new Set(paths).size).toBe(paths.length)
     for (const path of paths) {
-      expect(path.startsWith("/site")).toBe(true);
+      expect(path.startsWith('/site')).toBe(true)
       // 域必须靠路径区分，而不是查询参数或页面内状态。
-      expect(path).not.toContain("?");
+      expect(path).not.toContain('?')
     }
-  });
+  })
 
-  it("siteSettingsSectionByPath 按路由反查；未知路由返回 undefined", () => {
+  it('siteSettingsSectionByPath 按路由反查；未知路由返回 undefined', () => {
     for (const section of EXPECTED_SECTIONS) {
       expect(siteSettingsSectionByPath(section.path)).toMatchObject({
         label: section.label,
         component: section.component,
-      });
+      })
     }
-    expect(siteSettingsSectionByPath("/site/missing")).toBeUndefined();
-    expect(siteSettingsSectionByPath("")).toBeUndefined();
-  });
-});
+    expect(siteSettingsSectionByPath('/site/missing')).toBeUndefined()
+    expect(siteSettingsSectionByPath('')).toBeUndefined()
+    // 搬到内容生产链之后，旧路由不再是站点配置域（它们只剩跳转页）。
+    expect(siteSettingsSectionByPath('/site/content-filter')).toBeUndefined()
+    expect(siteSettingsSectionByPath('/site/publish')).toBeUndefined()
+  })
+})
 
-describe("站点配置菜单层级（三级）", () => {
-  // 站点配置下：1 个「站点」分组 + 7 个编辑域 + 1 个运营位。
-  const OPERATIONAL_CHILDREN = [{ label: "右栏卡片", path: "/site/sidebar-cards" }];
+describe('站点配置菜单层级（三级）', () => {
+  /** 「站点配置」下不属于三个分组、也不在编辑域清单里的运营位。 */
+  const OPERATIONAL_CHILDREN = [{ label: '右栏卡片', path: '/site/sidebar-cards' }]
 
-  it("「站点配置」是纯分组，子项 = 站点分组 + 八个域 + 右栏卡片", () => {
-    const group = ADMIN_NAV_TREE.find((node) => node.label === "站点配置");
-    expect(group).toBeDefined();
-    expect(group!.path).toBeUndefined();
+  it('「站点配置」是纯分组，子项 = 三个分组 + 四个独立域 + 右栏卡片', () => {
+    const group = ADMIN_NAV_TREE.find(node => node.label === '站点配置')
+    expect(group).toBeDefined()
+    expect(group!.path).toBeUndefined()
 
-    const children = group!.children ?? [];
-    const siteGroup = children.find((child) => child.label === "站点");
-    expect(siteGroup).toBeDefined();
-    // 「站点」自身也是纯分组：没有 landing page，`/site` 归「站点基础」。
-    expect(siteGroup!.path).toBeUndefined();
+    const children = group!.children ?? []
+    const groupNames = children.filter(child => child.path === undefined).map(child => child.label)
+    expect(groupNames).toEqual(['站点', '用户操作', '验证码与通知'])
 
-    expect((siteGroup!.children ?? []).map(({ label, path }) => ({ label, path }))).toEqual(
-      SITE_SETTINGS_PAGES.map(({ label, path }) => ({ label, path })),
-    );
+    for (const name of groupNames) {
+      const sub = children.find(child => child.label === name)!
+      // 分组自身没有 landing page：点标题只展开/收起。
+      expect(sub.path).toBeUndefined()
+    }
 
-    const domainChildren = children.filter(
-      (child) => child.label !== "站点" && !OPERATIONAL_CHILDREN.some((extra) => extra.path === child.path),
-    );
-    expect(domainChildren.map(({ label, path }) => ({ label, path }))).toEqual(
-      SITE_SETTINGS_SECTIONS.map(({ label, path }) => ({ label, path })),
-    );
+    const standalone = children
+      .filter(child => child.path !== undefined)
+      .filter(child => !OPERATIONAL_CHILDREN.some(extra => extra.path === child.path))
+    expect(standalone.map(({ label, path }) => ({ label, path }))).toEqual(
+      SITE_STANDALONE_SECTIONS.map(({ label, path }) => ({ label, path })),
+    )
 
     for (const extra of OPERATIONAL_CHILDREN) {
-      expect(children.map(({ label, path }) => ({ label, path }))).toContainEqual(extra);
+      expect(children.map(({ label, path }) => ({ label, path }))).toContainEqual(extra)
     }
-    expect(children.length).toBe(1 + SITE_SETTINGS_SECTIONS.length + OPERATIONAL_CHILDREN.length);
-  });
+    expect(children.length).toBe(3 + SITE_STANDALONE_SECTIONS.length + OPERATIONAL_CHILDREN.length)
+  })
 
-  it("十四个编辑域都能在菜单里查到，层级与父级归属正确", () => {
+  it('三个分组各自挂上正确的域，且分组之间不重复', () => {
+    const group = ADMIN_NAV_TREE.find(node => node.label === '站点配置')!
+    const byName = (name: string) => group.children!.find(child => child.label === name)!
+
+    expect(byName('站点').children!.map(({ label, path }) => ({ label, path }))).toEqual(
+      SITE_SETTINGS_PAGES.map(({ label, path }) => ({ label, path })),
+    )
+    expect(byName('用户操作').children!.map(({ label, path }) => ({ label, path }))).toEqual(
+      SITE_USER_ACTION_SECTIONS.map(({ label, path }) => ({ label, path })),
+    )
+    expect(byName('验证码与通知').children!.map(({ label, path }) => ({ label, path }))).toEqual(
+      SITE_VERIFICATION_SECTIONS.map(({ label, path }) => ({ label, path })),
+    )
+
+    // 「邮件」「短信」只能出现在「验证码与通知」下 —— 双入口会让运营改错页。
+    const allPaths = group.children!.flatMap(child => (child.children ?? []).map(grand => grand.path))
+    expect(new Set(allPaths).size).toBe(allPaths.length)
+  })
+
+  it('十一个编辑域都能在菜单里查到，层级与父级归属正确', () => {
     for (const section of EXPECTED_SECTIONS) {
-      const item = navItemByPath(section.path);
-      expect(item).toMatchObject({ label: section.label, depth: section.depth });
-      if (section.depth === 2) {
-        // 站点四页的父级是「站点」分组（父分组没有自身 path）。
-        expect(item!.parentLabel).toBe("站点");
-        expect(item!.parentPath).toBeNull();
-      } else {
-        expect(item!.parentLabel).toBe("站点配置");
-        expect(item!.parentPath).toBeNull();
-      }
+      const item = navItemByPath(section.path)
+      expect(item).toMatchObject({ label: section.label, depth: section.depth })
+      // 父分组都没有自身 path，所以子项拿不到 parentPath。
+      expect(item!.parentPath).toBeNull()
+      expect(item!.parentLabel).toBe(section.group ?? '站点配置')
     }
-  });
+  })
 
-  it("深链接到站点四页：面包屑三层，两层分组都展开并高亮", () => {
-    for (const section of SITE_SETTINGS_PAGES) {
-      expect(navTrail(section.path).map((item) => item.label)).toEqual(["站点配置", "站点"]);
-      expect(activeGroupKeys(section.path)).toEqual(["group:站点配置", "group:站点配置 / 站点"]);
+  it('深链接到分组下的域：面包屑三层，两层分组都展开并高亮', () => {
+    for (const section of EXPECTED_SECTIONS.filter(s => s.group !== null)) {
+      expect(navTrail(section.path).map(item => item.label)).toEqual(['站点配置', section.group])
+      expect(activeGroupKeys(section.path)).toEqual([
+        'group:站点配置',
+        `group:站点配置 / ${section.group}`,
+      ])
 
-      const entries = buildAdminNavMenu(ADMIN_NAV_TREE, section.path, activeGroupKeys(section.path));
-      const siteConfig = entries.find((entry) => entry.label === "站点配置");
-      if (siteConfig?.kind !== "group") throw new Error("「站点配置」应渲染成分组");
-      expect(siteConfig.active).toBe(true);
-      expect(siteConfig.expanded).toBe(true);
+      const entries = buildAdminNavMenu(ADMIN_NAV_TREE, section.path, activeGroupKeys(section.path))
+      const siteConfig = entries.find(entry => entry.label === '站点配置')
+      if (siteConfig?.kind !== 'group') throw new Error('「站点配置」应渲染成分组')
+      expect(siteConfig.active).toBe(true)
+      expect(siteConfig.expanded).toBe(true)
 
-      const siteGroup = siteConfig.children.find((child) => child.label === "站点");
-      if (siteGroup?.kind !== "group") throw new Error("「站点」应渲染成分组");
-      expect(siteGroup.active).toBe(true);
-      expect(siteGroup.expanded).toBe(true);
+      const subGroup = siteConfig.children.find(child => child.label === section.group)
+      if (subGroup?.kind !== 'group') throw new Error(`「${section.group}」应渲染成分组`)
+      expect(subGroup.active).toBe(true)
+      expect(subGroup.expanded).toBe(true)
       // 只亮当前页，兄弟页不亮。
-      expect(siteGroup.children.filter((child) => child.active).map((child) => child.label)).toEqual([
+      expect(subGroup.children.filter(child => child.active).map(child => child.label)).toEqual([
         section.label,
-      ]);
+      ])
     }
-  });
+  })
 
-  it("深链接到其它域：仍是一层面包屑，只有「站点配置」展开", () => {
-    for (const section of SITE_SETTINGS_SECTIONS) {
-      expect(navTrail(section.path).map((item) => item.label)).toEqual(["站点配置"]);
-      expect(activeGroupKeys(section.path)).toEqual(["group:站点配置"]);
+  it('深链接到独立域：仍是一层面包屑，只有「站点配置」展开', () => {
+    for (const section of SITE_STANDALONE_SECTIONS) {
+      expect(navTrail(section.path).map(item => item.label)).toEqual(['站点配置'])
+      expect(activeGroupKeys(section.path)).toEqual(['group:站点配置'])
     }
-  });
+  })
 
-  it("两层同名分组的展开态互不串味（key 带层级链）", () => {
-    const expanded = activeGroupKeys("/site/chat");
-    // 只展开两层自己，不把别的分组一起打开。
-    expect(expanded).not.toContain("group:站点");
-    expect(reconcile(expanded, "/site/deco")).toEqual([
-      "group:站点配置",
-      "group:站点配置 / 站点",
-      // 切换到二级页面后，「站点」分组保持原状（它已经在列表里）。
-    ]);
-  });
-});
+  it('分组展开态互不串味（key 带层级链）', () => {
+    const expanded = activeGroupKeys('/site/chat')
+    // 只展开自己那条链，不把兄弟分组一起打开。
+    expect(expanded).not.toContain('group:站点配置 / 验证码与通知')
+    expect(activeGroupKeys('/site/deco')).toEqual(['group:站点配置'])
+  })
+})
 
-/** 小工具：把导航到另一个路由后的展开态结算一次，避免测试里重复手写。 */
-function reconcile(expanded: string[], path: string): string[] {
-  return [...new Set([...expanded, ...activeGroupKeys(path)])];
-}
+describe('内容生产链（一级分组，与站点配置解耦）', () => {
+  it('三页同属「内容修改与发布」，且都不再挂在站点配置或审核下', () => {
+    const group = ADMIN_NAV_TREE.find(node => node.label === '内容修改与发布')
+    expect(group).toBeDefined()
+    // 一条链没有"总览页"可看，所以父项只分组。
+    expect(group!.path).toBeUndefined()
+    expect(group!.children!.map(({ label, path }) => ({ label, path }))).toEqual(
+      CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
+    )
 
-describe("站点配置编辑域页面文件（刷新保持当前域）", () => {
-  it("app/pages/site 下十四个编辑域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
-    const domainPages = EXPECTED_SECTIONS.map((section) => section.page).sort();
-    const actual = sitePageFiles();
-    expect(actual.filter((page) => domainPages.includes(page))).toEqual(domainPages);
+    for (const page of CONTENT_PUBLISH_PAGES) {
+      const item = navItemByPath(page.path)
+      expect(item).toMatchObject({ label: page.label, depth: 1 })
+      expect(item!.parentLabel).toBe('内容修改与发布')
+      expect(item!.parentPath).toBeNull()
+    }
 
-    expect(actual).toContain("site/sidebar-cards");
-    expect(actual.length).toBe(domainPages.length + 1);
-  });
+    // 旧位置不再有这些页面入口（旧地址只剩跳转页）。
+    expect(navItemByPath('/review')).toBeUndefined()
+    expect(navItemByPath('/site/content-filter')).toBeUndefined()
+    expect(navItemByPath('/site/publish')).toBeUndefined()
+  })
 
-  it("每个路由都能解析到一个真实页面文件", () => {
+  it('审核分组只剩"不是文章生产"的两件', () => {
+    const group = ADMIN_NAV_TREE.find(node => node.label === '审核')!
+    expect(group.children!.map(({ label }) => label)).toEqual(['图片审核', '关键词风险'])
+  })
+})
+
+describe('站点配置编辑域页面文件（刷新保持当前域）', () => {
+  it('app/pages/site 下每个编辑域各一个页面文件，另有两个旧地址跳转页与「右栏卡片」', () => {
+    const actual = sitePageFiles()
+    const domainPages = EXPECTED_SECTIONS.map(section => section.page).sort()
+    for (const page of domainPages) {
+      expect(actual).toContain(page)
+    }
+    expect(actual).toContain('site/sidebar-cards')
+    // 旧地址跳转页：搬走的两页仍活着，只是只做跳转（页面数量断言在
+    // outline-retirement.test.ts 里另有总账）。
+    expect(actual).toContain('site/content-filter')
+    expect(actual).toContain('site/publish')
+  })
+
+  it('每个路由都能解析到一个真实页面文件', () => {
     for (const section of EXPECTED_SECTIONS) {
       const candidates = pageFileCandidates(section.path)
-        .map((candidate) => `${candidate}.vue`)
-        .filter((file) => existsSync(join(pagesDir, file)));
-      expect(candidates, section.path).toEqual([`${section.page}.vue`]);
+        .map(candidate => `${candidate}.vue`)
+        .filter(file => existsSync(join(pagesDir, file)))
+      expect(candidates, section.path).toEqual([`${section.page}.vue`])
     }
-  });
+  })
 
-  it("每个页面只渲染自己那一个配置组件，不再有页内 tab 切换", () => {
+  it('每个页面只渲染自己那一个配置组件，不再有页内 tab 切换', () => {
     for (const section of EXPECTED_SECTIONS) {
-      const source = pageSource(section.page);
+      const source = pageSource(section.page)
 
       expect(source).toContain(
         `import ${section.component} from '~/components/settings/${section.component}.vue'`,
-      );
-      expect(source).toMatch(new RegExp(`<${section.component}(\\s|/|>)`, "u"));
+      )
+      expect(source).toMatch(new RegExp(`<${section.component}(\\s|/|>)`, 'u'))
 
       const importedSettings = [...source.matchAll(/~\/components\/settings\/(\w+)\.vue/gu)].map(
-        (match) => match[1],
-      );
-      expect(importedSettings).toEqual([section.component]);
+        match => match[1],
+      )
+      expect(importedSettings).toEqual([section.component])
 
       // 域由 URL 决定：页面里不应再出现 tab 容器或活动态内存变量。
-      expect(source).not.toMatch(/NTabs|NTabPane|useState/u);
+      expect(source).not.toMatch(/NTabs|NTabPane|useState/u)
     }
-  });
+  })
 
-  it("十四个编辑域的配置组件都在原位置", () => {
+  it('十一个编辑域的配置组件都在原位置', () => {
     for (const section of EXPECTED_SECTIONS) {
-      expect(
-        existsSync(join(settingsDir, `${section.component}.vue`)),
-        section.component,
-      ).toBe(true);
+      expect(existsSync(join(settingsDir, `${section.component}.vue`)), section.component).toBe(true)
     }
-  });
+  })
 
-  it("站点四页的保存都走读-改-写，只覆盖自己拥有的块", () => {
-    for (const section of SITE_SETTINGS_PAGES) {
-      const source = readFileSync(join(settingsDir, `${section.component}.vue`), "utf8");
+  it('共用 site 段端点的三页保存都走读-改-写，只覆盖自己拥有的块', () => {
+    for (const section of ALL_SITE_SETTINGS_SECTIONS.filter(section => section.blocks.length > 0)) {
+      const source = readFileSync(join(settingsDir, `${section.component}.vue`), 'utf8')
       // 保存前必须重新取一次最新整段（否则会覆盖其它页/无 UI 块）。
-      expect(source, section.component).toContain("applySiteSectionPatch");
-      const blocks = [...source.matchAll(/OWNED_BLOCKS\s*=\s*\[([^\]]*)\]/gu)].map((match) =>
-        match[1]!.split(",").map((raw) => raw.trim().replace(/^["']|["']$/gu, "")).filter(Boolean),
-      );
-      expect(blocks, section.component).toHaveLength(1);
-      expect(blocks[0], section.component).toEqual([...section.blocks]);
+      expect(source, section.component).toContain('applySiteSectionPatch')
+      const blocks = [...source.matchAll(/OWNED_BLOCKS\s*=\s*\[([^\]]*)\]/gu)].map(match =>
+        match[1]!.split(',').map(raw => raw.trim().replace(/^["']|["']$/gu, '')).filter(Boolean),
+      )
+      expect(blocks, section.component).toHaveLength(1)
+      expect(blocks[0], section.component).toEqual([...section.blocks])
     }
-  });
-});
-
-
-
+  })
+})

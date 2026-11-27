@@ -62,6 +62,16 @@ export type ArticleReviewReasonItem = RequiredSchema<"internal_article_adapter_h
 
 export type ArticleReviewHandleRequest = Schema<"internal_article_adapter_http.ArticleReviewHandleRequest">;
 
+/**
+ * 强制退回草稿的请求体与回执（票 票 481）。
+ *
+ * 原因是必填项：它会原样出现在作者的站内信里，也是这次处置唯一的审计依据。
+ * 契约里标成可选是 swag 对 string 的默认，后端遇到空串直接拒绝 ——
+ * 前端这里收成必填，让漏传原因变成编译错误而不是运行时 400。
+ */
+export type ArticleForceDemoteRequest = Required<Schema<"internal_article_adapter_http.ArticleForceDemoteRequest">>;
+export type ArticleForceDemoteResponse = RequiredSchema<"internal_article_adapter_http.ArticleForceDemoteResponse">;
+
 export type ArticleReviewBatchRequest = Schema<"internal_article_adapter_http.ArticleReviewBatchRequest">;
 
 export type ArticleReviewBatchResponse = RequiredSchema<"internal_article_adapter_http.ArticleReviewBatchResponse">;
@@ -461,3 +471,4 @@ export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_h
 export type ImageAuditStatus =
   | CreateImageUploadTaskResponseData['audit_status']
   | UploadTaskStatusResponseData['audit_status'];
+

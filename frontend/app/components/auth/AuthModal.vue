@@ -36,9 +36,11 @@ const { handlePointerMove } = usePointerSpecular();
  * 站点配置还没取回来时按「密码登录优先」兜底：它在本项目的默认配置里是开的，
  * 而且任何时刻都不会因为缺配置而报「未启用」。
  */
-const phoneLoginEnabled = computed(() => siteStore.runtimeConfig?.login?.phone_login === true);
-const passwordLoginEnabled = computed(() => siteStore.runtimeConfig?.login?.username_pwd_login !== false);
-const emailLoginEnabled = computed(() => siteStore.runtimeConfig?.login?.email_login === true);
+// 四条通道的开关来自公开的「登录能力面」（票 票 481）：邮箱与手机号开关跟着各自通道
+// 搬进了含凭据的段，读者站只能通过这个端点读布尔位。
+const phoneLoginEnabled = computed(() => siteStore.loginCapabilities?.login_methods?.phone === true);
+const passwordLoginEnabled = computed(() => siteStore.loginCapabilities?.login_methods?.username_pwd !== false);
+const emailLoginEnabled = computed(() => siteStore.loginCapabilities?.login_methods?.email === true);
 
 function preferredTab(): AuthTabName {
   if (phoneLoginEnabled.value) return "phone";
@@ -132,3 +134,4 @@ function closeModal() {
     </div>
   </NModal>
 </template>
+

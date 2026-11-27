@@ -13,6 +13,15 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
 /** 站点运行时配置（GET /api/site/site 的 data）：整段从九段具名契约派生。 */
 export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">;
 
+/**
+ * 登录能力面（票 票 481），从契约派生。
+ *
+ * 只含布尔位：哪些登录方式可用、哪些入口要画验证码框。总开关与入口闸门已经
+ * 在后端合取过，前端不需要再 `&&` 一次 —— 每个调用点自己与一次，漏一处就会
+ * 渲染出一个永远不被校验的输入框。
+ */
+export type LoginCapabilities = RequiredSchema<"internal_site_adapter_http.LoginCapabilitiesResponse">;
+
 export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;
 
 /**
@@ -422,3 +431,4 @@ export type ModerationAppealItem = RequiredSchema<"internal_moderation_adapter_h
 export type ImageAuditStatus =
   | CreateImageUploadTaskResponseData["audit_status"]
   | UploadTaskStatusResponseData["audit_status"];
+

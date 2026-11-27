@@ -7,7 +7,12 @@ const authModalState = vi.hoisted(() => ({
   closeAuthModal: vi.fn(),
 }));
 
-/** 站点登录开关：默认 tab 由它决定，所以测试要能改。 */
+/**
+ * 登录能力面（票 票 481）：默认 tab 由它决定，所以测试要能改。
+ *
+ * 这些布尔位现在来自公开只读端点 `GET /api/site/login_capabilities`，
+ * 而不是公开 `site` 段的 `login` 块 —— 拆段后开关跟着各自通道搬进了含凭据的段。
+ */
 const siteState = vi.hoisted(() => ({
   phoneLogin: true,
 }));
@@ -69,11 +74,18 @@ vi.mock("~/stores/ui", () => ({
 
 vi.mock("~/stores/site", () => ({
   useSiteStore: () => ({
-    runtimeConfig: {
-      login: {
-        phone_login: siteState.phoneLogin,
-        username_pwd_login: true,
-        email_login: true,
+    loginCapabilities: {
+      login_methods: {
+        phone: siteState.phoneLogin,
+        username_pwd: true,
+        email: true,
+        qq: false,
+      },
+      captcha_required: {
+        login: false,
+        email_verify: false,
+        phone_verify: false,
+        register: false,
       },
     },
   }),
@@ -190,3 +202,4 @@ describe("AuthModal", () => {
     expect(authModalState.closeAuthModal).toHaveBeenCalledTimes(1);
   });
 });
+

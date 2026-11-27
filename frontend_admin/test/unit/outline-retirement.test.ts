@@ -112,7 +112,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     // 媒体运营拆出 banners / images 两页（/media 保留为跳转页）。
     // 票 418：upload 段退场，「上传策略」页随之删除，32 → 31。
   // 票 417 新增「申诉处置」页：31 → 32。
-  expect(pages.length).toBe(33)
+  expect(pages.length).toBe(36)
   })
 
   /**
@@ -150,6 +150,8 @@ describe('后台不再有任何路径写旧扁平收录表', () => {
     }
   })
 })
+
+
 
 
 

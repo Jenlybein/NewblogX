@@ -14,7 +14,7 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
 export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">;
 
 /**
- * 登录能力面（票 票 481），从契约派生。
+ * 登录能力面（票 481），从契约派生。
  *
  * 只含布尔位：哪些登录方式可用、哪些入口要画验证码框。总开关与入口闸门已经
  * 在后端合取过，前端不需要再 `&&` 一次 —— 每个调用点自己与一次，漏一处就会

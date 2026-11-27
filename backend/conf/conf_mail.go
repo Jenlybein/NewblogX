@@ -10,7 +10,7 @@
 package conf
 
 // Mail 是邮件通道配置：前半段是"怎么把信发出去"（腾讯云 SES 的凭据与模板），
-// 后半段是"这条通道允不允许用、验证码多久过期、发码限流多严"（票 票 481 从
+// 后半段是"这条通道允不允许用、验证码多久过期、发码限流多严"（票 481 从
 // site.login 迁入）。两半放在同一段，是因为它们都只服务邮箱验证码这一条通道。
 //
 // JSON tag 与 yaml tag 保持一致：这份结构既要从 site_default_settings.yaml
@@ -33,7 +33,7 @@ type Mail struct {
 	// TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理
 	TimeoutSec int `yaml:"timeout_sec" json:"timeout_sec"`
 
-	// ── 邮箱验证码通道的策略（票 票 481 从 site.login 迁入）──
+	// ── 邮箱验证码通道的策略（票 481 从 site.login 迁入）──
 	//
 	// 为什么跟着邮件段走，而不是留在 site.login：这几项描述的是**这条通道**的
 	// 属性（开不开、验证码多久过期、发码限流多严），而 site 段有匿名可读的公开

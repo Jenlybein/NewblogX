@@ -19,7 +19,7 @@ import ForceDemoteModal from '~/components/articles/ForceDemoteModal.vue'
 const message = useMessage()
 const dialog = useDialog()
 
-// 「强制退回草稿」（票 票 481）：运营纠错用的那一个动作。列表里放入口是因为
+// 「强制退回草稿」（票 481）：运营纠错用的那一个动作。列表里放入口是因为
 // 出问题的时候运营就在这张表里找文章 —— 让他在别处改状态是把动作藏起来。
 const demoteTarget = ref<{ id: string, title: string } | null>(null)
 const demoteVisible = ref(false)

@@ -8,7 +8,7 @@ const authModalState = vi.hoisted(() => ({
 }));
 
 /**
- * 登录能力面（票 票 481）：默认 tab 由它决定，所以测试要能改。
+ * 登录能力面（票 481）：默认 tab 由它决定，所以测试要能改。
  *
  * 这些布尔位现在来自公开只读端点 `GET /api/site/login_capabilities`，
  * 而不是公开 `site` 段的 `login` 块 —— 拆段后开关跟着各自通道搬进了含凭据的段。

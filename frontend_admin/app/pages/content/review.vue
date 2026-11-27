@@ -135,7 +135,7 @@ const columns = [
             { size: 'small', tertiary: true, type: 'error', disabled: row.status !== 'pending', onClick: () => openReject(row) },
             { default: () => '驳回' },
           ),
-          // 「强制退回草稿」（票 票 481）也放在这里：审核任务的作用是把一篇稿子
+          // 「强制退回草稿」（票 481）也放在这里：审核任务的作用是把一篇稿子
           // 推向或拦下，而这条动作是"已经放行了、但事后判断不该放"。
           // 它不走审核状态机（不通过/不驳回），直接把文章复位成草稿并通知作者。
           row.article_id
@@ -237,7 +237,7 @@ function openReject(row: ArticleReviewTaskItem) {
   rejectReason.value = ''
 }
 
-/** 「强制退回草稿」的目标（票 票 481）。 */
+/** 「强制退回草稿」的目标（票 481）。 */
 const demoteTarget = ref<{ id: string, title: string } | null>(null)
 const demoteVisible = ref(false)
 

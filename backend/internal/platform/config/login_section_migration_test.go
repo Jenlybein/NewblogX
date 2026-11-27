@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// site.login 按通道拆分（票 票 481）之后的一次性搬迁：`-migrate-runtime-config`。
+// site.login 按通道拆分（票 481）之后的一次性搬迁：`-migrate-runtime-config`。
 //
 // 这组用例要守住四件事：
 //  1. 搬迁表覆盖全部十七个键（漏一个 = 升级时那个值静默丢失）；

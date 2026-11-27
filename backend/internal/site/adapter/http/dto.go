@@ -93,7 +93,7 @@ type SEOResponse struct {
 	Description  string `json:"description"`
 }
 
-// LoginCapabilitiesResponse 是公开的「登录能力」形状（票 票 481）。
+// LoginCapabilitiesResponse 是公开的「登录能力」形状（票 481）。
 //
 // 它替代了"读者站读公开 site 段拿登录开关"这条老路：那一段现在只剩密码登录开关
 // 与登录失败限流，邮箱/短信/QQ 开关与验证码闸门分散到各自带密钥的段里，

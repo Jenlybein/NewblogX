@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// FlagMigrateRuntimeConfig 把 site.login 里按通道拆走的字段搬到各自段（票 票 481）。
+// FlagMigrateRuntimeConfig 把 site.login 里按通道拆走的字段搬到各自段（票 481）。
 //
 // 为什么需要一次性迁移：那些键已从 site.Login 结构体里删除，而读取路径只把库里
 // 载荷合并到当前结构体上 —— 结构体里没有的键会被当成未知键忽略，管理员当年填的

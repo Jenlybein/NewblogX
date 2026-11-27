@@ -1,7 +1,7 @@
 import type { RouterConfig } from '@nuxt/schema'
 
 /**
- * 后台的路由滚动策略（票 票 481）。
+ * 后台的路由滚动策略（票 481）。
  *
  * 后台外壳是"左栏 + 内容区"各自滚动的固定一屏布局（见 assets/css/admin.css 的
  * `.admin-shell`）：窗口本身不滚，所以**窗口级的滚动复位在这里没有意义**，

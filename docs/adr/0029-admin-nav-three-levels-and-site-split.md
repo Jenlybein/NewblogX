@@ -2,7 +2,7 @@
 
 - 状态：已接受
 - 日期：2026-11-27
-- 来源：后台信息架构重组（2026-11-27，票 票 481）· 关联 [ADR-0020](./0020-config-section-registry-and-named-sections.md)（配置段注册表与具名端点：拆段与迁移都走它）· [ADR-0032](./0032-content-filter.md)（`content_filter` 段与关键词风险）· [ADR-0033](./0033-captcha-configurable-and-redis-store.md)（验证码闸门原归 `site.login`）
+- 来源：后台信息架构重组（2026-11-27，票 481）· 关联 [ADR-0020](./0020-config-section-registry-and-named-sections.md)（配置段注册表与具名端点：拆段与迁移都走它）· [ADR-0032](./0032-content-filter.md)（`content_filter` 段与关键词风险）· [ADR-0033](./0033-captcha-configurable-and-redis-store.md)（验证码闸门原归 `site.login`）
 - 术语：[GLOSSARY · 后台信息架构](../../GLOSSARY.md)
 
 ## 背景与问题

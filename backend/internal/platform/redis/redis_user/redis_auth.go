@@ -50,7 +50,7 @@ func ResetLoginFailures(deps redis_service.Options, account, ip string) {
 
 // AllowEmailSend 检查邮箱发送是否在频率限制范围内。
 //
-// 频控参数跟着**邮件段**走（mail.email_send_*，票 票 481 从 site.login 迁入）：
+// 频控参数跟着**邮件段**走（mail.email_send_*，票 481 从 site.login 迁入）：
 // 它们是这条通道自己的配额，与"登录失败限流"那种跨通道的策略无关，
 // 混在一处会让"改邮件配额"变成"改站点登录策略"。
 func AllowEmailSend(deps redis_service.Options, mailConf conf.Mail, email, ip string, sendType int8) bool {

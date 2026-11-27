@@ -38,7 +38,7 @@ type CaptchaMiddlewareRequest struct {
 // 闸门打开。总开关关掉时所有入口都不校验（与旧行为一致），这样"先整体关、再逐条开"
 // 的迁移路径是通的。
 //
-// 五个开关都在 captcha 段（票 票 481 从 site.login 迁入）：验证码要不要拦、拦哪条
+// 五个开关都在 captcha 段（票 481 从 site.login 迁入）：验证码要不要拦、拦哪条
 // 入口，是验证码这个机制自己的属性。读者站仍然能知道这些闸门的**合成结果**
 // （GET /api/site/login_capabilities 的 captcha_required），只是不再靠公开整个
 // site 段拿到 —— 那一段现在只剩密码登录开关与登录失败限流。

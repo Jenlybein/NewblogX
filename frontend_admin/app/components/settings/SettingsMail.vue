@@ -56,13 +56,13 @@ onMounted(load)
     </NAlert>
     <NAlert type="info" :bordered="false" class="mb-4">
       本页的「邮箱验证码登录」开关决定读者站显示不显示这个入口：密钥没填完就打开，
-      用户点「获取验证码」会直接报错。发码频率也在本页（票 票 481 把这三类策略按通道拆开）。
+      用户点「获取验证码」会直接报错。发码频率也在本页（票 481 把这三类策略按通道拆开）。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="邮箱登录" size="small">
         <!--
-          开关跟着通道走（票 票 481）：以前它们住在 site.login，改一个邮箱入口要先跑到
+          开关跟着通道走（票 481）：以前它们住在 site.login，改一个邮箱入口要先跑到
           「站点配置 → 登录与发码」，而发码限流又在同一页的另一张卡里 —— 改邮件通道
           要横跨两个配置段、两个页面。
         -->

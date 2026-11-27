@@ -42,7 +42,7 @@ func newTestEmailCodeBridge(users userdomain.Repository, sender *recordingSender
 	return &emailCodeBridge{
 		users:  users,
 		mailer: mail.NewWithSender(sender),
-		// 开关、验证码有效期与发码限流都来自邮件段（票 票 481 从 site.login 迁入）。
+		// 开关、验证码有效期与发码限流都来自邮件段（票 481 从 site.login 迁入）。
 		mailConf: func() conf.Mail {
 			return conf.Mail{
 				SecretID:    "id",

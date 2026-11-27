@@ -41,7 +41,21 @@
 - **顺序固定：先 `compose down`，再逐个容器串行重构建，最后 `up -d`。**
   一次性 `up -d --build` 会并行构建三个镜像；生产机内存小（3.6G），两个 Nuxt 构建同时跑
   会把机器压进换页抖动，连 sshd 都起不来（`#302` 就此让线上停了近 40 分钟）。
-  串行构建 + `NODE_OPTIONS=--max-old-space-size=1024` 才稳。
+  串行构建 + `NODE_OPTIONS=--max-old-space-size=1024` 才稳。**串行不是万能的**：
+  2026-11-27 单独构建 `blogx_web`（server 已建完）仍把机器压到 OOM 重启 ——
+  `up 0 min`、SSH 断、站点 502、`/tmp` 里的构建日志消失，容器按 restart policy 爬起来
+  继续用旧镜像。所以构建 Web 前先腾内存：
+
+  ```bash
+  docker compose stop es clickhouse         # 约省 1.5G；两者不在健康检查关键路径
+  NODE_OPTIONS=--max-old-space-size=768 docker compose build blogx_web
+  docker compose start es clickhouse
+  docker compose up -d                      # 让新镜像生效
+  ```
+
+  判断"构建到底完成没有"看镜像时间戳而不是日志（`docker images` 的 `CREATED`）：
+  重启会把 `/tmp` 清空，日志没了不代表构建没做完。`ps` 里容器全是 `Up <分钟>` 且
+  uptime 归零 = 机器重启过，此时旧镜像可能仍在跑。
   先 `down` 的意义是：不留旧容器，`up` 时 nginx 重新解析 upstream，避免它握着旧容器 IP
   导致 502。
 
@@ -83,4 +97,5 @@ Issues 在 GitHub Issues（`Jenlybein/NewblogX`），用 `gh` CLI 读写。见 `
 ### Domain docs
 
 单上下文（single-context）：根目录 `GLOSSARY.md` + `docs/adr/`。见 `docs/agents/domain.md`。
+
 

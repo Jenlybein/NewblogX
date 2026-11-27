@@ -91,10 +91,15 @@ const (
 	CodeArticleQualityNotApproved Code = "article.quality_not_approved"
 	// CodeArticleTagLimitExceeded 是一篇文章选了超过上限的标签数。
 	//
-	// 上限值是 domain.MaxArticleTags（5）。这里**不能**引用它：apperr 是最底层包、
-	// 被 domain 引用，反向 import 会成环（与 CodeHotTopLimitExceeded 同一条约束）。
-	// 两边数字的一致性由 domain 包的一条测试盯着（TestTagLimitMessageMatchesConstant），
-	// 不是靠这条注释。
+	// 上限现在是站点运行时配置的可改值（conf.Site.Article.MaxTagsPerArticle），
+	// 所以文案**不抄死任何数字**：服务端抄一个数字就是第二份会漂的副本 ——
+	// 管理员把上限改成 8、文案还写着 5，作者照着提示取消到 5 个仍然被拒。
+	// 具体数字由前端按站点配置显示（`GET /api/site/site` 会带上这个字段）；
+	// 这与 CodeChatDailyLimit 同一条口径（额度是后台可改的运行值，文案不抄死）。
+	//
+	// 这里**不能**引用 domain.MaxArticleTags：apperr 是最底层包、被 domain 引用，
+	// 反向 import 会成环。文案里别再出现数字这件事由 domain 包的一条反向守卫
+	// 测试盯着（TestTagLimitMessageHasNoHardcodedNumber），不是靠这条注释。
 	CodeArticleTagLimitExceeded Code = "article.tag_limit_exceeded"
 )
 
@@ -641,7 +646,7 @@ var messages = map[Code]string{
 	// 作者的站内信里，管理员必须写清楚"为什么退回"，而不是糊一个空格。
 	CodeArticleForceDemoteReasonRequired: "强制退回草稿必须填写原因（这句话会发给作者，也是处置记录）",
 	CodeArticleQualityNotApproved:        "内部状态不一致：缺少质量放行结论，已阻止本次放行（请联系管理员）",
-	CodeArticleTagLimitExceeded:          "一篇文章最多只能选 5 个标签，请取消一些再保存",
+	CodeArticleTagLimitExceeded:          "标签数量超出上限，请取消一些再保存",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

@@ -321,7 +321,7 @@ onMounted(refresh)
           <NInput v-model:value="articleInput" placeholder="文章 ID" clearable style="width: 140px" data-role="comment-admin-article" />
           <NDatePicker v-model:value="range" type="daterange" clearable style="width: 260px" data-role="comment-admin-range" />
           <NSelect v-model:value="status" :options="STATUS_OPTIONS" style="width: 140px" data-role="comment-admin-status" />
-          <NButton type="primary" @click="search" data-role="comment-admin-search">查询</NButton>
+          <NButton type="primary" data-role="comment-admin-search" @click="search">查询</NButton>
           <NButton quaternary @click="reset">重置</NButton>
         </NSpace>
 

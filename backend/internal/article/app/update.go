@@ -136,7 +136,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		var tagIDs []domain.TagID
 		if cmd.TagIDs != nil {
-			tags, err := loadUsableTags(ctx, r, *cmd.TagIDs)
+			tags, err := loadUsableTags(ctx, r, *cmd.TagIDs, cmd.TagLimit)
 			if err != nil {
 				return err
 			}

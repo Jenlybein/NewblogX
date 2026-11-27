@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import ChipSelect from "~/components/common/ChipSelect.vue";
-import {
-  MAX_ARTICLE_TAGS,
-  MAX_ARTICLE_TAGS_HINT,
-} from "~/constants/articleTags";
+import { MAX_ARTICLE_TAGS } from "~/constants/articleTags";
 import { computed, ref } from "vue";
 import { NAlert, NButton, NCard, NInput, NModal, NSwitch } from "naive-ui";
 
@@ -49,6 +46,13 @@ const props = defineProps<{
   coverUploading: boolean;
   /** 封面预览（本地定形产物优先，上传成功后是线上地址）。 */
   coverPreviewUrl: string;
+  /**
+   * 一篇文章最多可选几个标签（站点配置 `site.article.max_tags_per_article`）。
+   *
+   * 可选 + 默认兜底：老库合并默认值之前该键可能缺席，而写稿页不该因为
+   * 一次配置读不到就选不了标签。真正拦人的是后端（`article.tag_limit_exceeded`）。
+   */
+  maxTags?: number;
   /** 上传阶段 / 留在面板里的错误文案。 */
   coverStage: string;
   coverError: string;
@@ -101,6 +105,20 @@ const props = defineProps<{
   /** 移除已选封面。 */
   onClear: () => void;
 }>();
+
+/**
+ * 当前生效的标签上限：站点配置（`site.article.max_tags_per_article`）优先，
+ * 读不到才回落 constants 里的兜底值（老库合并默认值之前该键可能缺席）。
+ */
+const tagLimit = computed(() => props.maxTags ?? MAX_ARTICLE_TAGS);
+
+/**
+ * 提示串自己说数字，而不是复用 constants 里写死"5"的那一句 ——
+ * 上限可配之后，硬编码的提示会与真实拦截数不一致。
+ */
+const tagLimitHint = computed(
+  () => `一篇文章最多可选 ${tagLimit.value} 个标签，选满后需要先取消一个`,
+);
 
 const emit = defineEmits<{
   submit: [status: 1 | 2];
@@ -241,13 +259,13 @@ async function submitCategory() {
                 multiple
                 :options="props.tagOptions || []"
                 :max-tag-count="4"
-                :max-selected="MAX_ARTICLE_TAGS"
+                :max-selected="tagLimit"
                 placeholder="请选择已有标签"
                 data-role="publish-tags"
               />
               <!-- 上限先写在脸上：选满之后选项会置灰，但"为什么"要提前说清楚。 -->
               <p class="publish-tags__hint" data-role="tag-limit-hint">
-                {{ MAX_ARTICLE_TAGS_HINT }}（已选 {{ tagIds.length }} 个）
+                {{ tagLimitHint }}（已选 {{ tagIds.length }} 个）
               </p>
 
               <!-- 标签下拉的故障态（与分类同款）：接口挂了不能装成"还没有标签"。 -->

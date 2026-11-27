@@ -121,6 +121,16 @@ func (h *Handler) qualityGate() app.QualityGatePolicy {
 	}
 }
 
+// tagLimit 取一篇文章的标签数上限（后台可改的站点配置，默认 5）。
+//
+// 与上面几个方法同一条口径：每请求现读，后台改完下一次提交即生效。
+// 这里只负责**取值**，不做归一化 —— 合法区间与默认回落都在
+// domain.NormalizeTagLimit 一处定义（创建与编辑共用同一份校验路径），
+// 在 adapter 再判一次只会造出第二个"越界时算几"的答案。
+func (h *Handler) tagLimit() int {
+	return h.effective.Article().MaxTagsPerArticle
+}
+
 // fail 统一错误出口：把领域错误码翻成 HTTP 响应。
 //
 // 不区分"不存在"与"无权"：两者在 domain 里本来就合并成 ErrArticleNotFound，
@@ -206,6 +216,7 @@ func (h *Handler) Create(c *gin.Context) {
 		SkipExamining:  h.skipExamining(),
 		Policy:         h.writePolicy(),
 		QualityGate:    h.qualityGate(),
+		TagLimit:       h.tagLimit(),
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -296,6 +307,7 @@ func (h *Handler) Update(c *gin.Context) {
 		SkipExamining:  h.skipExamining(),
 		Policy:         h.writePolicy(),
 		QualityGate:    h.qualityGate(),
+		TagLimit:       h.tagLimit(),
 	})
 	if err != nil {
 		h.fail(c, err)

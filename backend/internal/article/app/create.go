@@ -152,7 +152,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 				return err
 			}
 		}
-		tags, err := loadUsableTags(ctx, r, cmd.TagIDs)
+		tags, err := loadUsableTags(ctx, r, cmd.TagIDs, cmd.TagLimit)
 		if err != nil {
 			return err
 		}
@@ -254,12 +254,15 @@ func ensureCategoryOwned(ctx context.Context, r Repos, userID domain.UserID, id 
 // loadUsableTags 读取并校验标签；超上限或带停用标签整单失败。
 //
 // 上限在这里校验而不是在各个用例里：Create 与 Update 都从这里过，一处管住
-// "存草稿 / 直接发布 / 编辑重投"三个入口。归一化（去重、去零值）也在这一步做 ——
-// 否则同一个标签传两次会被算成两个（5 个里有重复就判超限），而且
-// FindMany 对重复 ID 只会回来一份，"请求 6 个回来 5 个"会掉进下面那条
-// 数量检查、报成"标签不存在或已停用"，与真实原因完全无关。
-func loadUsableTags(ctx context.Context, r Repos, ids []domain.TagID) ([]*taxonomy.Tag, error) {
-	normalized, err := domain.ValidateArticleTags(ids)
+// "存草稿 / 直接发布 / 编辑重投"三个入口。limit 是 adapter 现读的站点配置
+// （0 表示没填），合法区间与默认回落统一交给 domain.NormalizeTagLimit，
+// 不在每个用例里再判一次"配置写坏了该算几"。
+// 归一化（去重、去零值）也在这一步做 —— 否则同一个标签传两次会被算成两个
+// （5 个里有重复就判超限），而且 FindMany 对重复 ID 只会回来一份，
+// "请求 6 个回来 5 个"会掉进下面那条数量检查、报成"标签不存在或已停用"，
+// 与真实原因完全无关。
+func loadUsableTags(ctx context.Context, r Repos, ids []domain.TagID, limit int) ([]*taxonomy.Tag, error) {
+	normalized, err := domain.ValidateArticleTags(ids, limit)
 	if err != nil {
 		return nil, err
 	}

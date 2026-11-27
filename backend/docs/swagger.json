@@ -5796,6 +5796,14 @@
                         "description": "「发布与展示」三个开关（ADR-0015 决策 2）。\n它们只表达\"允许什么\"，判定点在 app 层与读过滤处，不靠前端隐藏；\n默认值只写在 site_default_settings.yaml（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。",
                         "type": "boolean"
                     },
+                    "max_tags_per_article": {
+                        "description": "MaxTagsPerArticle 是一篇文章最多可选的标签数（默认 5，后台可改）。\n\n为什么要有上限：标签在读者站是浏览入口（标签云、按标签搜索），一篇文章挂\n二十个标签等于告诉读者\"它什么都算\"，反而搜不出来。默认 5 覆盖\"语言 + 框架\n+ 领域 + 类型 + 场景\"这种典型组合仍有余量。\n\n0 或越界按默认上限处理（见 domain.NormalizeTagLimit）：把这一项填成 0\n不该让全站都存不了草稿 —— 归一化放在 domain 的那一处，不在 HTTP 层与用例层\n各抄一份默认值。\n\n缺省值由 site_default_settings.yaml 显式写成 5（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。",
+                        "type": "integer"
+                    },
+                    "quality_auto_release": {
+                        "description": "QualityAutoRelease 是「质量达标自动放行」开关（默认 false）。\n\n开启后：发布质量闸门判定通过 → 不再等第③层 AI 合规判定，直接转 visible。\n它跳过的是\"等 AI 判定\"这一步，不是\"判定失败也放行\" —— 判定点在\napp/publish_judge.go 里只出现在\"质量已过\"之后，\"拿不到分数\"与\"质量不过\"\n两条分支照旧不让文章可见。\n\n与上面几项同一条口径：缺省值由 site_default_settings.yaml 显式给出，\n零值就是默认的关闭。",
+                        "type": "boolean"
+                    },
                     "quality_gate": {
                         "$ref": "#/components/schemas/myblogx_conf_site.QualityGate",
                         "description": "QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。\n\n它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部\n自由可配、**不做交叉校验**（spec 决策 11）——允许保存\"及格线 50 而\n31–59 叫不合格文章\"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。\n\n缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective\n一处收敛，不在用例层与 adapter 各抄一份。"

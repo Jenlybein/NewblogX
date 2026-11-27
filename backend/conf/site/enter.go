@@ -91,6 +91,31 @@ type Article struct {
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
 
+	// MaxTagsPerArticle 是一篇文章最多可选的标签数（默认 5，后台可改）。
+	//
+	// 为什么要有上限：标签在读者站是浏览入口（标签云、按标签搜索），一篇文章挂
+	// 二十个标签等于告诉读者"它什么都算"，反而搜不出来。默认 5 覆盖"语言 + 框架
+	// + 领域 + 类型 + 场景"这种典型组合仍有余量。
+	//
+	// 0 或越界按默认上限处理（见 domain.NormalizeTagLimit）：把这一项填成 0
+	// 不该让全站都存不了草稿 —— 归一化放在 domain 的那一处，不在 HTTP 层与用例层
+	// 各抄一份默认值。
+	//
+	// 缺省值由 site_default_settings.yaml 显式写成 5（这一段是自由键值块，
+	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
+	MaxTagsPerArticle int `yaml:"max_tags_per_article" json:"max_tags_per_article"`
+
+	// QualityAutoRelease 是「质量达标自动放行」开关（默认 false）。
+	//
+	// 开启后：发布质量闸门判定通过 → 不再等第③层 AI 合规判定，直接转 visible。
+	// 它跳过的是"等 AI 判定"这一步，不是"判定失败也放行" —— 判定点在
+	// app/publish_judge.go 里只出现在"质量已过"之后，"拿不到分数"与"质量不过"
+	// 两条分支照旧不让文章可见。
+	//
+	// 与上面几项同一条口径：缺省值由 site_default_settings.yaml 显式给出，
+	// 零值就是默认的关闭。
+	QualityAutoRelease bool `yaml:"quality_auto_release" json:"quality_auto_release"`
+
 	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
 	//
 	// 它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部

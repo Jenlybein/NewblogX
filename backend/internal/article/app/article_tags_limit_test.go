@@ -11,7 +11,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 一篇文章最多选 5 个标签（产品决定，domain.MaxArticleTags）。
+// 一篇文章默认最多选 5 个标签（domain.MaxArticleTags），上限本身是站点运行时配置。
 //
 // 上限由 app 层的 loadUsableTags 统一校验 —— 创建与编辑都过那里，所以这里
 // 两条路径各钉一次：作者在编辑器里多勾一个，不管走"存草稿"还是"编辑重投"
@@ -138,5 +138,60 @@ func TestUpdateRejectsMoreTagsThanLimit(t *testing.T) {
 	}
 	if len(stored.Tags()) != 0 {
 		t.Fatalf("超限失败不该改动标签，实际 %v", stored.Tags())
+	}
+}
+
+// ── 上限可配（站点配置 max_tags_per_article）──────────────
+//
+// 上限不再是一个写死的产品数字，而是 adapter 每请求现读、经 cmd 传进来的运行值。
+// 这两条钉住"传进来的值真的生效"，以及"没传值时回落默认值"：
+//   - TagLimit=3：4 个标签被拒（若仍按默认 5 判，这条会绿，说明配置没接线）；
+//   - TagLimit=0：5 个标签通过（0 表示调用方没给出上限，不能把全站锁死）。
+//
+// 判定都落在 app 层的 loadUsableTags，所以创建与编辑走的是同一条归一化。
+
+func TestCreateRejectsTagsOverConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	const limit = 3
+	ids := seedUsableTags(t, repos, limit+1)
+
+	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
+		Title:        "配置上限 3",
+		Content:      "正文",
+		TagIDs:       ids,
+		TargetStatus: domain.StatusDraft,
+		TagLimit:     limit,
+	})
+	if !apperr.IsCode(err, apperr.CodeArticleTagLimitExceeded) {
+		t.Fatalf("配置上限 %d 时第 %d 个标签应返回 tag_limit_exceeded，实际 %v", limit, limit+1, err)
+	}
+}
+
+func TestCreateFallsBackToDefaultLimitWhenZero(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	// TagLimit 留 0 = 调用方没给出上限：必须按默认值 5 判，而不是"一个都不许选"。
+	ids := seedUsableTags(t, repos, domain.MaxArticleTags)
+
+	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
+		Title:        "TagLimit 为零",
+		Content:      "正文",
+		TagIDs:       ids,
+		TargetStatus: domain.StatusDraft,
+	})
+	if err != nil {
+		t.Fatalf("TagLimit=0 应回落默认上限 %d 并通过，实际 %v", domain.MaxArticleTags, err)
+	}
+	if got := res.Article.Tags(); len(got) != domain.MaxArticleTags {
+		t.Fatalf("应写入 %d 个标签，实际 %d（%v）", domain.MaxArticleTags, len(got), got)
 	}
 }

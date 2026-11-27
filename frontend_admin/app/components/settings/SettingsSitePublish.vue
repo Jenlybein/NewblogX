@@ -37,12 +37,21 @@ const OWNED_ARTICLE_FIELDS = [
   "allow_non_admin_publish",
   "allow_non_admin_draft",
   "show_non_admin_articles",
+  "max_tags_per_article",
 ] as const;
+
+/** 标签上限的兜底值与后端 site_default_settings.yaml 的默认值一致。 */
+const DEFAULT_MAX_TAGS = 5;
+
+/** 老库合并默认值之前这一段可能缺键，表单不能因为 undefined 整页炸掉。 */
+const maxTags = ref(DEFAULT_MAX_TAGS);
 
 async function load() {
   loading.value = true;
   try {
     config.value = await getSiteRuntimeConfig();
+    // 上限是后加的字段：老库合并默认值之前可能是 undefined。
+    maxTags.value = config.value.article?.max_tags_per_article ?? DEFAULT_MAX_TAGS;
     loaded.value = true;
   } catch {
     message.error("文章发布配置加载失败");
@@ -59,6 +68,8 @@ async function save() {
       return;
     }
     // 读-改-写：取最新整段 → 只覆盖本页字段 → 写回。
+    // 本地 ref 在提交前写回配置：读出来的兜底值不能只活在前端。
+    config.value.article.max_tags_per_article = maxTags.value;
     const latest = await getSiteRuntimeConfig();
     const merged = applySiteBlockFieldPatch(
       latest,
@@ -97,6 +108,28 @@ onMounted(load);
         </NFormItem>
         <NFormItem label="显示非管理员发布文章">
           <NSwitch v-model:value="config.article.show_non_admin_articles" />
+        </NFormItem>
+      </NCard>
+
+      <!-- 发布约束（2026-11-27）：标签上限从"代码里写死 5"改成站点配置可调。 -->
+      <NCard class="admin-card mb-4" title="发布约束" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          作者在写稿页选标签时，超过这个数量会被拦住；这与「标签管理」里的词库是两件事
+          —— 那里管"有哪些标签"，这里管"一篇能用几个"。
+        </NAlert>
+        <NFormItem label="一篇文章最多可选标签数">
+          <NInputNumber v-model:value="maxTags" class="admin-field--number" :min="1" :max="20" />
+        </NFormItem>
+      </NCard>
+
+      <!-- 发布约束（2026-11-27）：标签上限从"代码里写死 5"改成站点配置可调。 -->
+      <NCard class="admin-card mb-4" title="发布约束" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          作者在写稿页选标签时，超过这个数量会被拦住；这与「标签管理」里的词库是两件事
+          —— 那里管"有哪些标签"，这里管"一篇能用几个"。
+        </NAlert>
+        <NFormItem label="一篇文章最多可选标签数">
+          <NInputNumber v-model:value="maxTags" class="admin-field--number" :min="1" :max="20" />
         </NFormItem>
       </NCard>
 

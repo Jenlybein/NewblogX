@@ -50,6 +50,12 @@ type CreateArticleCmd struct {
 	// 零值 = 闸门关闭，提交路径与引入闸门之前完全一致。由 adapter 每请求
 	// 从运行时配置现读，收紧 / 放宽在下一次提交即生效，不需要重启。
 	QualityGate QualityGatePolicy
+	// TagLimit 是一篇文章允许的标签数上限（站点配置，0 = 用默认上限）。
+	//
+	// 由 adapter 每请求现读站点配置传进来（后台改完下一次提交即生效）。
+	// 0 表示"调用方没给出上限"，由 domain.NormalizeTagLimit 回落到默认值 ——
+	// 用例层不替调用方猜"没配置时算几个"，也不把默认值抄第二份。
+	TagLimit int
 }
 
 // UpdateArticleCmd 是更新文章的输入；nil 表示该字段不修改。
@@ -79,6 +85,11 @@ type UpdateArticleCmd struct {
 	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0023）。
 	// 零值 = 闸门关闭，更新路径与引入闸门之前完全一致。
 	QualityGate QualityGatePolicy
+	// TagLimit 是一篇文章允许的标签数上限（站点配置，0 = 用默认上限）。
+	//
+	// 与 CreateArticleCmd.TagLimit 同义：编辑不能靠"建的时候在旧上限内、重投时
+	// 上限调小了再编辑"绕过校验，所以更新路径拿的是同一份现读取值、走同一份归一化。
+	TagLimit int
 }
 
 // CreateResult 是创建结果。

@@ -11,9 +11,9 @@
  * 它们与「文章发布」页（谁能发、发出来对谁可见）写同一个 site 段的 `article` 块，
  * 所以保存必须走**字段级补丁**：块级替换会把兄弟页的改动覆盖回旧值。
  *
- * 后续在这里加的两项（2026-11-27 待做）：
- *   - 质量达标自动放行：机器判定 clean 且质量过线时直接转 visible，跳过人工；
- *   - 命中词自动处置档位：拦截档命中即拒、观察档命中只打星。
+ * 2026-11-27 起这里还有「质量达标自动放行」开关（quality_auto_release）：
+ * 质量闸门过线后不再等 AI 合规判定，直接转 visible。命中词的自动处置档位
+ * 在同一页后续批次接入（词表页的「自动处置」卡）。
  */
 import {
   NAlert,
@@ -44,6 +44,7 @@ const OWNED_ARTICLE_FIELDS = [
   "skip_examining",
   "submit_daily_max",
   "quality_gate",
+  "quality_auto_release",
 ] as const;
 
 // 闸门默认值与后端 site_default_settings.yaml 一致：管理后台只负责改，
@@ -215,6 +216,20 @@ onMounted(load);
             :min="0"
             :max="100"
           />
+        </NFormItem>
+      </NCard>
+
+      <!-- 质量达标自动放行（2026-11-27）：质量闸门判定通过后，不再等 AI 合规判定，
+           直接转 visible。它跳过的是"等 AI 判定"这一步，不是"判定失败也放行"。 -->
+      <NCard class="admin-card mb-4" title="质量达标自动放行" size="small">
+        <NAlert type="warning" :bordered="false" class="mb-4">
+          开启后，质量闸门判定通过的文章<strong>不再等待 AI 合规判定</strong>，直接放开可见。
+          代价是这篇文章不会留下 AI 合规结论（审核页「合规」列显示「未判定」），
+          事后「AI 判违规自动撤下」的兜底对它不生效。文章仍已通过同步机审（词表替换 +
+          风险扫描），「质量不达标」「拿不到分数」两条路径<strong>都不受影响</strong>，照旧不放行。
+        </NAlert>
+        <NFormItem label="质量过线后自动放行">
+          <NSwitch v-model:value="config.article.quality_auto_release" />
         </NFormItem>
       </NCard>
 

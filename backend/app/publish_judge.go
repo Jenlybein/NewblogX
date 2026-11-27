@@ -34,9 +34,12 @@ import (
 // # 对外承诺
 //
 // 任何会把文章推向「对读者可见」的新逻辑都必须加进本函数内部，不要另注册一个
-// 订阅者 —— 那等于把这条保证又退回成约定。状态机那一侧另有一道保险：
-// `domain.Article.PublishForCompliance` 要求调用方显式传入「质量结论已通过」，
-// 不传就转换失败，所以即使将来有人绕过本函数也无法把文章推成可见。
+// 订阅者 —— 那等于把这条保证又退回成约定。「质量达标自动放行」开关（站点配置，
+// conf.Site.Article.QualityAutoRelease）也是照这条做的：它只在质量判定通过之后、
+// 在**本函数里**直接放开可见，跳过的是"等 AI 合规判定"这一步，不是跳过质量判定。
+// 状态机那一侧另有一道保险：`domain.Article.PublishForCompliance` 要求调用方显式
+// 传入「质量结论已通过」，不传就转换失败，所以即使将来有人绕过本函数也无法把
+// 文章推成可见。
 func publishJudgeSubscriber(infra *Infra) outboxrelay.Subscriber {
 	return func(ctx context.Context, e outboxrelay.Event) error {
 		return judgePublish(ctx, infra, e, productionPublishJudgeHooks(infra))
@@ -69,8 +72,20 @@ type publishJudgeHooks struct {
 	demote func(ctx context.Context, article noticeArticleRow, verdict articleapp.QualityAssessment) error
 	// escalate 把等不到质量结论的文章转人工。
 	escalate func(ctx context.Context, article noticeArticleRow) error
-	// compliance 是合规判定（它是「可见」的唯一出口）。
+	// compliance 是合规判定（默认路径下的「可见」出口）。
 	compliance outboxrelay.Subscriber
+	// autoReleaseQualityPassed 是「质量达标自动放行」开关的现读取值
+	// （conf.Site.Article.QualityAutoRelease）。
+	//
+	// 为什么放在依赖里而不是包级变量：后台改完要下一次投递即生效，所以
+	// productionPublishJudgeHooks 每次投递从站点生效值现读；用例则自己给值，
+	// 不去碰全局状态（与 policy 同一条注入口径）。
+	//
+	// 它跳过的是"等第③层 AI 判定"这一步，不是"判定失败也放行" —— 分支只挂在
+	// verdict.Passed 之后，详见 judgePublish 的 ②。
+	autoReleaseQualityPassed bool
+	// publishVisible 是自动放行的落点：质量已过时直接把文章放开可见。
+	publishVisible func(ctx context.Context, articleID ctype.ID) error
 	// warnf 记录"降级但继续"的路径，便于线上复盘（闸门关闭时评分失败就是这一类）。
 	warnf func(format string, args ...any)
 }
@@ -98,6 +113,16 @@ func productionPublishJudgeHooks(infra *Infra) publishJudgeHooks {
 				ctx, article.ID, article_review_enum.SourceModelFailure)
 		},
 		compliance: complianceSubscriber(infra, true),
+		// 每次投递现读：后台把「质量达标自动放行」打开 / 关掉，下一条发布事件即按新值判。
+		//
+		// 配置服务缺失时按关闭处理（Effective 为 nil），与闸门那一路"没配置就不拦、
+		// 但也不越权放行"同一条口径：自动放行跳过的是合规判定，装配缺失时更不该跳。
+		autoReleaseQualityPassed: infra.Effective != nil && infra.Effective.Article().QualityAutoRelease,
+		publishVisible: func(ctx context.Context, articleID ctype.ID) error {
+			// qualityPassed 照样传 true：这里是"质量闸门已判通过"之后的放行，
+			// 可见性转换要求调用方显式给出凭据，跳过合规判定不等于放弃这道门槛。
+			return newArticleService(infra).PublishForCompliance(ctx, articleID, true)
+		},
 		warnf: func(format string, args ...any) {
 			if infra.Logger != nil {
 				infra.Logger.Warnf(format, args...)
@@ -167,7 +192,18 @@ func judgePublish(ctx context.Context, infra *Infra, e outboxrelay.Event, deps p
 
 	_ = deps.clearFailures(ctx, articleID)
 
-	// ② 质量已过，才允许合规判定去决定可见性（它是 visible 的唯一出口）。
+	// ② 质量已过。开启「质量达标自动放行」时不再等第③层 AI 合规判定，直接放开
+	//    可见；否则交给合规判定（它是「可见」的唯一出口）。
+	//
+	// 开关只跳"等 AI 判定"这一步，不是"判定失败也放行"：所以分支只出现在
+	// verdict.Passed 之后 —— 上面「拿不到分数」（settleQualityUnavailable）与
+	// 「质量不过」（demote）两条路径绝不走到这里。把分支放在它们之后而不是
+	// 放在 assess 之前，是这条语义唯一的实现方式：放进前面就变成"评分故障也放行"。
+	if deps.autoReleaseQualityPassed {
+		return deps.publishVisible(ctx, articleID)
+	}
+
+	// ③ 质量已过，才允许合规判定去决定可见性（自动放行关闭时它是 visible 的唯一出口）。
 	return deps.compliance(ctx, e)
 }
 

@@ -143,12 +143,157 @@ func TestJudgePublish_质量已过才交给合规判定(t *testing.T) {
 		called++
 		return nil
 	}
+	// 开关关闭（默认）：自动放行不得插手，这条是"现状不变"的守卫。
+	deps.publishVisible = func(context.Context, ctype.ID) error {
+		t.Fatal("「质量达标自动放行」关闭时不该直接放开可见")
+		return nil
+	}
 
 	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps); err != nil {
 		t.Fatalf("质量已过应成功: %v", err)
 	}
 	if called != 1 {
 		t.Fatalf("质量已过应交给合规判定一次，实际 %d", called)
+	}
+}
+
+// ── 「质量达标自动放行」（站点开关，默认 false）─────────────
+//
+// 语义：质量闸门判定通过之后，不再等第③层 AI 合规判定，直接转 visible。
+// 下面五条一起钉住边界 —— 跳过的是"等 AI 判定"这一步，不是"判定失败也放行"：
+//  1. 开 + 质量过 → 直接放开可见、不调合规判定；
+//  2. 开 + 质量不过 → 照旧退回草稿，绝不放开；
+//  3. 开 + 拿不到分数 → 照旧重试 / 转人工，绝不放开；
+//  4. 关 → 维持现状（交给合规判定）；
+//  5. 闸门关 + 开 → 仍走合规判定（没有质量结论，就没有可依据的放行凭据）。
+
+func TestJudgePublish_自动放行开启且质量已过时跳过合规判定(t *testing.T) {
+	infra, articleID := pendingArticle(t, 304000000000000071)
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: true, PassScore: 50, GrayBandWidth: 2})
+	deps.autoReleaseQualityPassed = true
+	deps.assess = func(context.Context, ctype.ID, articleapp.QualityGatePolicy) (articleapp.QualityAssessment, error) {
+		return articleapp.QualityAssessment{Score: 80, Required: 52, Passed: true}, nil
+	}
+	var published []ctype.ID
+	deps.publishVisible = func(_ context.Context, id ctype.ID) error {
+		published = append(published, id)
+		return nil
+	}
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		t.Fatal("自动放行开启且质量已过时，不该再等 AI 合规判定")
+		return nil
+	}
+
+	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps); err != nil {
+		t.Fatalf("自动放行应成功: %v", err)
+	}
+	if len(published) != 1 || published[0].Uint64() != articleID.Uint64() {
+		t.Fatalf("应直接把该文章放开可见一次，实际 %v", published)
+	}
+}
+
+func TestJudgePublish_自动放行开启但质量不过时仍退回草稿(t *testing.T) {
+	infra, articleID := pendingArticle(t, 304000000000000081)
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: true, PassScore: 50, GrayBandWidth: 2})
+	deps.autoReleaseQualityPassed = true
+	var demoted []ctype.ID
+	deps.demote = func(_ context.Context, article noticeArticleRow, _ articleapp.QualityAssessment) error {
+		demoted = append(demoted, article.ID)
+		return nil
+	}
+	deps.assess = func(context.Context, ctype.ID, articleapp.QualityGatePolicy) (articleapp.QualityAssessment, error) {
+		return articleapp.QualityAssessment{Score: 6, Required: 52}, nil
+	}
+	deps.publishVisible = func(context.Context, ctype.ID) error {
+		t.Fatal("质量不过时绝不能因为自动放行开关就直接放开可见")
+		return nil
+	}
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		t.Fatal("质量不过时不该走到合规判定")
+		return nil
+	}
+
+	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps); err != nil {
+		t.Fatalf("退回草稿应成功: %v", err)
+	}
+	if len(demoted) != 1 {
+		t.Fatalf("应退回草稿一次，实际 %v", demoted)
+	}
+	// 可见性没被这条判定路径推进：deps.demote 是替身、不写库，所以这里只能证明
+	// "判定路径自己没有放开可见"，退回草稿本身由 demote 的真实实现负责。
+	if got := readArticle(t, infra, articleID); got.VisibilityStatus != enum.ArticleVisibilityPendingReview {
+		t.Fatalf("质量不过时判定路径不得推进可见性，实际 %s", got.VisibilityStatus)
+	}
+}
+
+func TestJudgePublish_自动放行开启但拿不到分数时绝不放行(t *testing.T) {
+	infra, articleID := pendingArticle(t, 304000000000000091)
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: true, PassScore: 50, GrayBandWidth: 2})
+	deps.autoReleaseQualityPassed = true
+	deps.ensureScore = func(context.Context, ctype.ID) error { return errTestScoreUnavailable }
+	deps.publishVisible = func(context.Context, ctype.ID) error {
+		t.Fatal("拿不到分数时自动放行绝不能放开可见")
+		return nil
+	}
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		t.Fatal("拿不到分数时不该走到合规判定")
+		return nil
+	}
+
+	err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps)
+	if err == nil {
+		t.Fatal("拿不到分数时必须报错让事件重试，绝不因为自动放行开关就静默放行")
+	}
+	if got := readArticle(t, infra, articleID); got.VisibilityStatus != enum.ArticleVisibilityPendingReview {
+		t.Fatalf("拿不到分数时可见性必须保持 pending_review，实际 %s", got.VisibilityStatus)
+	}
+}
+
+func TestJudgePublish_自动放行关闭时仍交给合规判定(t *testing.T) {
+	infra, articleID := pendingArticle(t, 304000000000000101)
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: true, PassScore: 50, GrayBandWidth: 2})
+	deps.autoReleaseQualityPassed = false
+	deps.assess = func(context.Context, ctype.ID, articleapp.QualityGatePolicy) (articleapp.QualityAssessment, error) {
+		return articleapp.QualityAssessment{Score: 80, Required: 52, Passed: true}, nil
+	}
+	called := 0
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		called++
+		return nil
+	}
+	deps.publishVisible = func(context.Context, ctype.ID) error {
+		t.Fatal("开关关闭时不该直接放开可见（这条是现状守卫）")
+		return nil
+	}
+
+	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps); err != nil {
+		t.Fatalf("开关关闭时应走合规判定: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("开关关闭时合规判定应被调用一次，实际 %d", called)
+	}
+}
+
+func TestJudgePublish_闸门关闭时自动放行开关不生效(t *testing.T) {
+	infra, articleID := pendingArticle(t, 304000000000000111)
+	// 闸门关闭：这一路根本没有质量结论，开关再开也拿不到"质量已过"这个凭据。
+	deps := fakeDeps(t, articleapp.QualityGatePolicy{Enabled: false})
+	deps.autoReleaseQualityPassed = true
+	called := 0
+	deps.compliance = func(context.Context, outboxrelay.Event) error {
+		called++
+		return nil
+	}
+	deps.publishVisible = func(context.Context, ctype.ID) error {
+		t.Fatal("没有质量结论时不该直接放开可见：自动放行跳过的是等 AI 判定，不是质量闸门本身")
+		return nil
+	}
+
+	if err := judgePublish(context.Background(), infra, outboxrelay.Event{AggregateID: articleID}, deps); err != nil {
+		t.Fatalf("闸门关闭时仍应走合规判定: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("闸门关闭时合规判定应被调用一次，实际 %d", called)
 	}
 }
 
@@ -281,6 +426,10 @@ func fakeDeps(t *testing.T, policy articleapp.QualityGatePolicy) publishJudgeHoo
 		compliance: func(context.Context, outboxrelay.Event) error {
 			return nil
 		},
-		warnf: func(string, ...any) {},
+		// 默认关闭「质量达标自动放行」：既有用例的语义保持不变（质量已过 → 合规判定）。
+		autoReleaseQualityPassed: false,
+		// 默认实现让"开关开"的用例不必都自己给一个空实现；要断言调用次数时覆盖它。
+		publishVisible: func(context.Context, ctype.ID) error { return nil },
+		warnf:          func(string, ...any) {},
 	}
 }

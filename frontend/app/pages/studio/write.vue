@@ -25,6 +25,8 @@ import { regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_TARGET } from "~/utils/imageShaping";
 import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
+import { MAX_ARTICLE_TAGS } from "~/constants/articleTags";
+import { useSiteStore } from "~/stores/site";
 
 import katexCssUrl from "katex/dist/katex.min.css?url";
 import { errorMessage } from "~/utils/errorMessage";
@@ -45,6 +47,18 @@ const {
   readOnly: writeReadOnly,
   notices: writePolicyNotices,
 } = useArticleWritePolicy();
+
+const siteStore = useSiteStore();
+
+/**
+ * 一篇文章最多可选几个标签：真值来自站点配置（`site.article.max_tags_per_article`），
+ * 读不到才回落 constants 的兜底值。真正拦人的仍是后端 —— 这里只负责把"上限是多少"
+ * 提前写在脸上，别让作者选到第 6 个才被拒。
+ */
+const maxArticleTags = computed(
+  () =>
+    siteStore.runtimeConfig?.article?.max_tags_per_article ?? MAX_ARTICLE_TAGS,
+);
 const editorTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const shadowPreviewRef = ref<{ scrollToHeading: (id: string) => boolean } | null>(null);
 const previewHeadings = ref<ArticleHeadingAnchor[]>([]);
@@ -419,6 +433,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       v-model:abstract-text="form.abstract"
       v-model:comments-toggle="form.comments_toggle"
       v-model:visibility="form.visibility_status"
+      :max-tags="maxArticleTags"
       :locked="isPublishingLocked"
       :draft-pending="pendingState.draft"
       :publish-pending="pendingState.publish"

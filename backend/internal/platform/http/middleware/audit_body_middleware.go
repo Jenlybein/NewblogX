@@ -14,27 +14,58 @@ import (
 // 注意它大于 PrepareCapturedBody 的 16KB 输出上限——先限量读，再脱敏/截断。
 const maxCaptureBytes = 1 << 20 // 1MB
 
+// multiReadCloser 把"已读前缀 + 未读剩余"拼成一个可关闭的 Reader。
+//
+// 单独写类型而不是 io.NopCloser：必须保留原始 body 的 Close，
+// 否则连接上的请求体不会被释放（Keep-Alive / 客户端提前断开时尤其明显）。
+type multiReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
 // CaptureLog 在请求进入业务前采集请求体，并在响应结束后采集响应体。
 //
 // L.10 起不再采集 header：原始报文默认不入库（见 docs/architecture/governance.md §4.2）。
-// 请求体用 io.LimitReader 限量读取，再交给 PrepareCapturedBody 做脱敏 + ≤16KB 截断；
-// 采集结果只会在**失败请求**时被写进审计日志。
+// 请求体只读前 maxCaptureBytes+1 字节做**采集样本**，再交给 PrepareCapturedBody 做脱敏
+// + ≤16KB 截断；采集结果只会在**失败请求**时被写进审计日志。
+//
+// # 请求体必须完整还给业务（2026-11-27）
+//
+// 旧实现把 `c.Request.Body` 换成"只含前 1MB 的 buffer"，并在注释里写明
+// "业务拿到的是被 1MB 截断后的部分"。这条注释描述的就是缺陷本身：任何超过
+// 1MB 的 JSON 请求体都会变成半截，`ShouldBindJSON` 拿到 `unexpected EOF`，
+// 用户看到「JSON 格式不完整，请检查请求体」。
+//
+// 实际踩到的场景：后台「关键词过滤」保存词表把整张词表随请求体下发，
+// 6 万条约 4MB —— 保存**必失败**，而且失败发生在业务之前，
+// 库里一行都没写（词表本身一直没坏，所以更难判断）。
+//
+// 现在的做法：读样本后把"已读前缀 + 尚未读取的剩余部分"重新接成 Reader，
+// 内存只多占 1MB，请求体对业务保持逐字节完整；采集侧仍然只看前 1MB。
 func CaptureLog(mode writer.CaptureLogMode) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 采集请求体（如果开启）
 		if mode.NeedRequestBody() && c.Request != nil && c.Request.Body != nil {
-			limited := io.LimitReader(c.Request.Body, maxCaptureBytes+1)
-			rawRequestBody, err := io.ReadAll(limited)
+			originalBody := c.Request.Body
+			prefix, err := io.ReadAll(io.LimitReader(originalBody, maxCaptureBytes+1))
 			if err != nil {
 				logrus.Warnf("采集请求体失败: %v", err)
-			} else {
-				truncated := int64(len(rawRequestBody)) > maxCaptureBytes
-				if truncated {
-					rawRequestBody = rawRequestBody[:maxCaptureBytes]
+				// 读失败时 body 已被部分消费，只能把前缀尽量接回去，让业务自己报体读取错误。
+				c.Request.Body = &multiReadCloser{
+					Reader: io.MultiReader(bytes.NewReader(prefix), originalBody),
+					Closer: originalBody,
 				}
-				writer.SetCapturedRequestBody(c, writer.PrepareCapturedBody(rawRequestBody, c.GetHeader("Content-Type")))
-				// 重新封装请求体，不影响后续业务读取（业务拿到的是被 1MB 截断后的部分）。
-				c.Request.Body = io.NopCloser(bytes.NewBuffer(rawRequestBody))
+			} else {
+				captured := prefix
+				if len(captured) > maxCaptureBytes {
+					captured = captured[:maxCaptureBytes]
+				}
+				writer.SetCapturedRequestBody(c, writer.PrepareCapturedBody(captured, c.GetHeader("Content-Type")))
+				// 关键：完整恢复。超过采集上限时，未读的剩余部分仍在 originalBody 里。
+				c.Request.Body = &multiReadCloser{
+					Reader: io.MultiReader(bytes.NewReader(prefix), originalBody),
+					Closer: originalBody,
+				}
 			}
 		}
 
@@ -107,3 +138,4 @@ func (w *auditBodyWriter) syncCapturedResponseBody() {
 	}
 	writer.SetCapturedResponseBody(w.ctx, writer.PrepareCapturedBody(w.body.Bytes(), w.Header().Get("Content-Type")))
 }
+

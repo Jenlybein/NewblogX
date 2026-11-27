@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ADMIN_NAV_TREE,
+  FLAT_NAV,
   activeGroupKeys,
   buildAdminNavMenu,
   navItemByPath,
@@ -365,7 +366,7 @@ describe('站点配置菜单层级（三级）', () => {
 })
 
 describe('内容修改与发布（站点配置下的三级分组）', () => {
-  it('两页同属「内容修改与发布」，挂在「站点配置」下、深度 3', () => {
+  it('三页同属「内容修改与发布」，挂在「站点配置」下、深度 3', () => {
     const siteConfig = ADMIN_NAV_TREE.find(node => node.label === '站点配置')!
     const group = (siteConfig.children ?? []).find(node => node.label === '内容修改与发布')
     expect(group).toBeDefined()
@@ -382,6 +383,16 @@ describe('内容修改与发布（站点配置下的三级分组）', () => {
       expect(item!.parentLabel).toBe('内容修改与发布')
       expect(item!.parentPath).toBeNull()
     }
+
+    // 关键词白名单（2026-11-27 拆页）：与关键词过滤同组、紧跟其后。
+    expect(CONTENT_PUBLISH_PAGES.map(page => page.label)).toEqual([
+      '关键词过滤',
+      '关键词白名单',
+      '文章发布',
+    ])
+    const keywordIndex = FLAT_NAV.findIndex(item => item.label === '关键词过滤')
+    expect(FLAT_NAV[keywordIndex + 1]?.label).toBe('关键词白名单')
+    expect(FLAT_NAV[keywordIndex + 1]?.path).toBe('/content/keywords/whitelist')
 
     // 旧位置不再有这些页面入口（旧地址只剩跳转页）。
     expect(navItemByPath('/review')).toBeUndefined()

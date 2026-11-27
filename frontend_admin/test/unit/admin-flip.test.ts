@@ -206,7 +206,7 @@ describe("每页都有可见且可用的主题开关", () => {
     expect(toggle).toMatch(/IconSun|IconMoon/u);
   });
 
-  it("38 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
+  it("40 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
     const pages = pageFiles();
 
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
@@ -219,7 +219,8 @@ describe("每页都有可见且可用的主题开关", () => {
     // 票 481 内容生产链三页搬到 /content/* 并各留一个旧地址跳转页：33 → 36。
     // 2026-11-27 菜单重构：新增「文章审核设置」页（/site/article-review）；
     // 「文章审核」换路由（/content/review → /review/article，旧地址留跳转页）：36 → 38。
-  expect(pages.length).toBe(39);
+    // 2026-11-27 关键词白名单拆独立页（/content/keywords/whitelist）：39 → 40。
+  expect(pages.length).toBe(40);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);

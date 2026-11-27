@@ -1,0 +1,626 @@
+/* ==========================================================================
+ * 关键词过滤 / 关键词白名单（`content_filter` 段）
+ *
+ * 视觉唯一来源：design/jellybin-replica/admin-content-filter.html、
+ * admin-content-filter-whitelist.html，以及同目录 app.css 里
+ * 「审核 · 关键词风险 / 站点配置 · 内容过滤」区块的 `.cf-*` 段（2026-11-27 重排）。
+ *
+ * 移植规则：
+ *   - 设计稿里 `.cf-*` 的版式数值原样抄过来（间距、栅格、断点都不改），
+ *     这样和设计稿对齐时差异只剩主题色；
+ *   - 颜色**全部**映射到后台既有语义 token（--color-* / --radius-* / --shadow-*），
+ *     不新增 token：`scripts/check-design-tokens.mjs` 会卡住任何裸色值；
+ *   - 设计稿里借用的 `.admin-tabs` / `.admin-toolbar` / `.admin-tag` / `.btn`
+ *     在后台并不存在（后台用 naive-ui 组件 + Tailwind），所以对应样式在这里
+ *     以 `.cf-tabs` / `.cf-toolbar` / `.cf-count` 落成，避免给全站加一层与
+ *     naive 主题打架的通用类；
+ *   - 后台不做玻璃（ADR-0011 约束 6：密集信息面以对比度为先），吸顶条用不透明
+ *     纸面 + 卡片阴影，不用 backdrop-filter。
+ * ========================================================================== */
+
+/* ---- 两页的页面骨架：区块之间固定 20px（设计稿 .page-stack 的同款节奏） ---- */
+
+.cf-page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 弹窗（编辑词条 / 批量导入）里的字段行：标签在上、控件在下（窄弹窗里比左右排更稳）。 */
+.cf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cf-field--actions {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+
+/* ---- 吸顶工具栏：内容在下面滚，保存按钮与脏标记始终在手边 ---- */
+
+.cf-head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  /* 内容区 .admin-main 有 20px 内边距：左右 -20px 让吸顶条横贯整宽不露出接缝。 */
+  margin: 0 -20px;
+  padding: 12px 20px 10px;
+  border-bottom: 1px solid var(--color-line-faint);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.cf-head__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.cf-head__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: var(--type-tracking-dense);
+}
+
+.cf-head__note {
+  max-width: 52rem;
+  margin: 4px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.cf-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- 分页 tabs（词表 / 白名单 / 保留期；白名单是跨页链接） ---- */
+
+.cf-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 10px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.cf-tab {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cf-tab:hover {
+  color: var(--color-ink);
+}
+
+.cf-tab.is-active {
+  border-bottom-color: var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* ---- 工具栏与筛选行 ---- */
+
+.cf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-top: 12px;
+}
+
+.cf-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cf-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* 搜索框 / 筛选下拉的语义宽度（设计稿 240 / 140 / 140）。
+ * 表单控件本身仍带 `.admin-field--*`（settings-field-widths 门禁要求），
+ * 这里用更小的上限把它收窄到设计稿的宽度。 */
+.cf-search {
+  width: 240px;
+  max-width: 240px;
+}
+
+.cf-filter-select {
+  width: 140px;
+  max-width: 140px;
+}
+
+/* 设计稿的 `.admin-tag--error/--warning` 在后台没有对应类：这里用 cf 前缀落成
+ * 计数标签，视觉与设计稿一致（档位计数 与 白名单条目数 都会用到）。 */
+.cf-count {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cf-count--block {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+  color: color-mix(in srgb, var(--color-danger-ink) 76%, var(--color-ink));
+}
+
+.cf-count--watch {
+  border-color: var(--color-line-strong);
+  background: var(--color-highlight);
+  color: var(--color-ink);
+}
+
+/* ---- 过滤示例：两条真实文本代替三条规则说明 ---- */
+
+.cf-sample {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.cf-sample__row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .cf-sample__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+.cf-sample__key {
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.cf-sample__text {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.cf-sample__text code {
+  padding: 1px 5px;
+  border: 1px solid var(--color-line);
+  border-radius: 5px;
+  background: var(--color-bg-subtle);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cf-sample__text mark,
+.cf-diff mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* 打星后的原文：等宽 + 低对比，读起来就是"这里被抹掉了"（同设计稿 mark.is-masked）。 */
+.cf-sample__text mark.is-masked,
+.cf-diff mark.is-masked {
+  background: var(--color-bg-subtle);
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* ---- 缺类目数据条 ---- */
+
+.cf-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 10px 16px;
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.cf-strip__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-muted);
+}
+
+.cf-strip__item data {
+  color: color-mix(in srgb, var(--color-danger-ink) 76%, var(--color-ink));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cf-strip__link {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 4px;
+  color: color-mix(in srgb, var(--color-danger-ink) 76%, var(--color-ink));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- 词表主体：≥1100px 才出右栏 ---- */
+
+.cf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+@media (min-width: 1100px) {
+  .cf-layout {
+    grid-template-columns: minmax(0, 1fr) 268px;
+    align-items: start;
+  }
+}
+
+.cf-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 4px 2px 2px;
+}
+
+.cf-word {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 2px 11px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  line-height: 1.3;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.cf-word:hover {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+.cf-word--block {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+  color: color-mix(in srgb, var(--color-danger-ink) 76%, var(--color-ink));
+}
+
+.cf-word--watch {
+  border-color: var(--color-line-strong);
+  background: var(--color-highlight);
+  color: var(--color-ink);
+}
+
+.cf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.cf-legend__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: var(--radius-pill);
+  vertical-align: -1px;
+}
+
+.cf-legend__dot--block {
+  border: 1px solid var(--color-danger-line);
+  background: var(--color-danger-soft);
+}
+
+.cf-legend__dot--watch {
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-highlight);
+}
+
+.cf-empty {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.cf-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 未保存标记：一个圆点 + 「未保存 N」，只在真有改动时出现 ---- */
+
+.cf-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cf-dirty::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}
+
+/* ---- 右栏面板与比例条 ---- */
+
+.cf-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cf-panel {
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.cf-panel__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: var(--type-tracking-dense);
+}
+
+.cf-meter {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+}
+
+.cf-meter + .cf-meter {
+  margin-top: 8px;
+}
+
+.cf-meter__track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-line-faint);
+}
+
+.cf-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+}
+
+.cf-meter__fill--block {
+  background: var(--color-danger);
+}
+
+.cf-meter__fill--watch {
+  background: var(--color-ink-faint);
+}
+
+.cf-meter__fill--empty {
+  background: var(--color-danger-line);
+}
+
+.cf-meter__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cf-meter__value--zero {
+  color: color-mix(in srgb, var(--color-danger-ink) 76%, var(--color-ink));
+  font-weight: 700;
+}
+
+.cf-note {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 白名单：两种粒度的「输入 → 发布后」对照 ---- */
+
+.cf-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 960px) {
+  .cf-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cf-tagbox {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.cf-tag {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+/* 标签上的 ×：设计稿是 span，这里必须是可点的按钮（增删是既有功能，不能只画上去）。 */
+.cf-tag__x {
+  padding: 0 0 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cf-tag__x:hover {
+  color: var(--color-ink);
+}
+
+.cf-scope {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.cf-input {
+  flex: 1 1 160px;
+  max-width: 320px;
+}
+
+.cf-diff {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cf-diff th {
+  padding: 0 0 6px;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.cf-diff td {
+  padding: 7px 0;
+  border-top: 1px dashed var(--color-line-faint);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.cf-diff th:first-child,
+.cf-diff td:first-child {
+  width: 50%;
+}
+
+.cf-diff td:last-child {
+  color: var(--color-ink-muted);
+}
+
+.cf-diff tr.is-hit td:last-child {
+  color: var(--color-ink);
+}
+
+/* 窄屏（后台侧栏收起后的手机宽度）：吸顶条跟随 16px 内边距，不留负边距接缝。 */
+@media (max-width: 720px) {
+  .cf-head {
+    margin: 0 -16px;
+    padding: 10px 16px 8px;
+  }
+
+  .cf-search,
+  .cf-filter-select {
+    width: 100%;
+    max-width: 100%;
+  }
+}

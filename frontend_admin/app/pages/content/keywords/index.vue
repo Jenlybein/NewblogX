@@ -9,8 +9,15 @@
  * 名字从「内容过滤」改成「关键词过滤」：后台另有一个「审核 → 关键词风险」
  * （命中记录与处置），两个叫"内容过滤"的名字并存时，第一次就会走错页。
  * 现在：过滤是**配置**（改词表），风险是**结果**（看命中）。
+ *
+ * 2026-11-27 重排：本页只留词表与保留期，白名单拆到
+ * `pages/content/keywords/whitelist.vue`（`/content/keywords/whitelist`）。
+ * 文件从 `pages/content/keywords.vue` 挪进 `keywords/index.vue`：路由 URL 不变，
+ * 但这样 `/content/keywords/whitelist` 才能作为同级路由生成 ——
+ * `keywords.vue` + `keywords/whitelist.vue` 会变成父子嵌套路由，父页没有
+ * `<NuxtPage>` 时子页根本渲染不出来。
  */
-import SettingsContentFilter from '~/components/settings/SettingsContentFilter.vue'
+import SettingsContentFilter from "~/components/settings/SettingsContentFilter.vue";
 </script>
 
 <template>

@@ -185,7 +185,14 @@ export default defineNuxtConfig({
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
   // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 admin.css 之前，
   // 否则 admin.css 里旧样式的 var(--bg-page) 之类的过渡层变量会拿不到值。
-  css: ["~/assets/css/fonts.css", "~/assets/css/tokens.css", "~/assets/css/admin.css"],
+  // content-filter.css 排在 admin.css 之后：它只收关键词过滤两页的 `.cf-*` 版式，
+  // 需要覆盖 admin.css 里语义宽度类（`.admin-field--*`）的默认上限。
+  css: [
+    "~/assets/css/fonts.css",
+    "~/assets/css/tokens.css",
+    "~/assets/css/admin.css",
+    "~/assets/css/content-filter.css",
+  ],
   build: {
     transpile: ["naive-ui", "vueuc", "date-fns"],
   },

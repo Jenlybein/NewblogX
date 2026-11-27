@@ -176,20 +176,20 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
         // 它也是"调一下就好"的开关。配置侧拆出「文章审核设置」承接审核规则。
         label: CONTENT_PUBLISH_GROUP_LABEL,
         icon: 'article',
-        children: CONTENT_PUBLISH_PAGES.map((page): AdminNavNode => ({
-          label: page.label,
-          path: page.path,
-          icon: 'article',
-        })),
-      },
-      {
-        // 文章审核设置（2026-11-27）：审核规则的唯一配置入口。
-        //
-        // 内容审核（免审核开关）、投稿配额、质量闸门、自动放行与命中词处置
-        // 都写 site 段的 article 块，（与「文章发布」共用一个 site 段端点、保存走字段级补丁）。
-        label: '文章审核设置',
-        path: '/site/article-review' as const,
-        icon: 'shield' as const,
+        children: [
+          ...CONTENT_PUBLISH_PAGES.map((page): AdminNavNode => ({
+            label: page.label,
+            path: page.path,
+            icon: 'article',
+          })),
+          // 文章审核设置（2026-11-27，第二次调整）：审核规则跟"改词表 / 定发布线"
+          // 是同一条内容生产链上的第三步，所以它是**这一组的子项**，不是站点配置
+          // 的裸挂页面。它写的是 site 段的 article 块（与「文章发布」共用一个端点、
+          // 保存走字段级补丁），但"住哪个配置段"与"归哪个分组"是两件事。
+          //
+          // 与「审核 → 文章审核」分工：那一页是队列（这一篇批不批），这一页是规则。
+          { label: '文章审核设置', path: '/site/article-review', icon: 'shield' },
+        ],
       },
       {
         // 站点界面（2026-11-27）：改读者站长什么样，与"谁能做什么"分开。

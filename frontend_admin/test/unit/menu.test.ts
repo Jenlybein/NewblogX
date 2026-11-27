@@ -69,8 +69,8 @@ const EXPECTED_ADMIN_NAV = [
   // 评论管理（2026-11-27）：管理端处置读者站评论（删除 / 禁言 / 封禁）。
   { label: '评论管理', path: '/articles/comments', icon: 'article' },
   { label: '用户管理', path: '/users', icon: 'users' },
-  // 站点配置（ADR-0029 第三版）：站点 / 用户操作 / 验证码与通知 / 内容修改与发布 /
-  // 文章审核设置 / 站点界面，加上裸挂的 AI / 存储 / 日志。
+  // 站点配置（ADR-0029 第三版）：站点 / 用户操作 / 验证码与通知 /
+  // 内容修改与发布（含文章审核设置）/ 站点界面，加上裸挂的 AI / 存储 / 日志。
   { label: '站点基础', path: '/site', icon: 'settings' },
   { label: '登录设置', path: '/site/login', icon: 'settings' },
   { label: '私信设置', path: '/site/chat', icon: 'settings' },
@@ -183,12 +183,13 @@ describe('后台菜单拍平视图', () => {
       parentPath: null,
       depth: 1,
     })
-    // 文章审核设置是站点配置下的独立页（不在内容组里）。
+    // 文章审核设置是内容组的**第 4 项**（2026-11-27 第二次调整）：审核规则与
+    // "改词表 / 定发布线"是同一条内容生产链上的第三步。
     expect(FLAT_NAV.find(item => item.label === '文章审核设置')).toMatchObject({
       path: '/site/article-review',
-      parentLabel: '站点配置',
+      parentLabel: '内容修改与发布',
       parentPath: null,
-      depth: 1,
+      depth: 2,
     })
     // 审核域（ADR-0032 决策 7 / ADR-0034）：父项只分组，图片待审与命中处置下沉一级。
     expect(FLAT_NAV.find(item => item.label === '审核')!.path).toBeUndefined()

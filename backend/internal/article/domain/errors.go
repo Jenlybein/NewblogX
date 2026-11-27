@@ -68,6 +68,9 @@ var (
 	// 文案刻意写成"内部不一致"而不是"用户操作失败"：正常路径不该出现它，
 	// 出现就是代码 bug（少传/漏传凭据），而不是用户做错了什么。
 	ErrQualityNotApproved = apperr.New(apperr.CodeArticleQualityNotApproved)
+	// ErrTooManyTags 一篇文章选的标签数超过上限（domain.MaxArticleTags）。
+	//
+	// 与 taxonomy.ErrTagDisabled 分开：那个是"这条标签不存在或已停用"（换一个就能过），
+	// 这个是"你选得太多了"（少选几个）。作者下一步的动作不同，前端提示也不同。
+	ErrTooManyTags = apperr.New(apperr.CodeArticleTagLimitExceeded)
 )
-
-

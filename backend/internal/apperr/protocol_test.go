@@ -110,6 +110,10 @@ var serviceFallbackCodes = []apperr.Code{
 	// 配置给出了"不够好"的结论，作者能改，但它的下一步动作是改稿而不是修参数。
 	// quality_gate_requires_ai 是管理员保存配置时撞上的前提缺失，同样不是参数错误。
 	apperr.CodeArticleScoreUnavailable,
+	// 标签上限（一篇文章最多 5 个）：与置顶/热门置顶的 "limit_exceeded" 同一类别 ——
+	// 不是"你传错了字段"，而是业务规则给出的上限。作者的动作是取消几个，
+	// 与校验失败（1001）区分开，前端只读文案。
+	apperr.CodeArticleTagLimitExceeded,
 
 	// 分类与标签。
 	apperr.CodeTaxonomyTitleRequired,

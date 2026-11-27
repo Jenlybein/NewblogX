@@ -89,6 +89,13 @@ const (
 	// 订阅者内部按顺序执行（见 app/publish_judge.go）。出现它说明有人绕过那条链路
 	// 直接调了可见性转换 —— 这是代码 bug，文案也按 bug 写，不要误导用户去重试。
 	CodeArticleQualityNotApproved Code = "article.quality_not_approved"
+	// CodeArticleTagLimitExceeded 是一篇文章选了超过上限的标签数。
+	//
+	// 上限值是 domain.MaxArticleTags（5）。这里**不能**引用它：apperr 是最底层包、
+	// 被 domain 引用，反向 import 会成环（与 CodeHotTopLimitExceeded 同一条约束）。
+	// 两边数字的一致性由 domain 包的一条测试盯着（TestTagLimitMessageMatchesConstant），
+	// 不是靠这条注释。
+	CodeArticleTagLimitExceeded Code = "article.tag_limit_exceeded"
 )
 
 // 分类与标签。
@@ -619,6 +626,7 @@ var messages = map[Code]string{
 	// 作者的站内信里，管理员必须写清楚"为什么退回"，而不是糊一个空格。
 	CodeArticleForceDemoteReasonRequired: "强制退回草稿必须填写原因（这句话会发给作者，也是处置记录）",
 	CodeArticleQualityNotApproved:        "内部状态不一致：缺少质量放行结论，已阻止本次放行（请联系管理员）",
+	CodeArticleTagLimitExceeded:          "一篇文章最多只能选 5 个标签，请取消一些再保存",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

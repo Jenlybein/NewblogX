@@ -272,6 +272,13 @@ type BulkFailure struct {
 	Status int    // 400 / 409 / 429 / 503 ...
 	Type   string // error.type，例如 mapper_parsing_exception
 	Reason string // 人看的原因（已拼上 caused_by）
+	// Result 是 ES 的 `result` 字段（只有 delete 这类"语义 404"会用到）。
+	//
+	// 删除一个**不存在**的文档时，ES 回 `status=404` + `result=not_found`，
+	// 而且**没有 `error` 对象** —— 所以 Type / Reason 都是空串。以前只看 error，
+	// 于是这条响应被当成"删除失败、原因 unknown"，删已删过的文档永远失败。
+	// 调用方要判断"目的已达成"就必须能读到它（见 articlesync 的豁免条件）。
+	Result string
 }
 
 // BulkResult 是一次 bulk 的逐条结果，放在 ESResponse.Data 里。
@@ -343,6 +350,7 @@ func parseBulkResult(root map[string]any, requested int) BulkResult {
 			}
 			failure := BulkFailure{Index: index, Action: action, Status: status}
 			failure.ID, _ = detail["_id"].(string)
+			failure.Result, _ = detail["result"].(string)
 			if errObj, ok := detail["error"].(map[string]any); ok {
 				failure.Type, _ = errObj["type"].(string)
 				failure.Reason, _ = errObj["reason"].(string)

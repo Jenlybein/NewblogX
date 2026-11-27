@@ -124,18 +124,18 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；十二段 `site/ai/mail/storage/oauth/sms/log/upload/deco/image_gc/content_filter/captcha`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0020](./docs/adr/0020-config-section-registry-and-named-sections.md)）。`sms` 段只放短信通道的传输层凭证与模板；登录开关与发码限流在 `site.login`，与邮件那几项并排。`content_filter` 与 `captcha` 两段都没有公开读，只给后台具名端点读写。
+位置：表 `runtime_config_models`；十二段 `site/ai/mail/storage/oauth/sms/log/upload/deco/image_gc/content_filter/captcha`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0020](./docs/adr/0020-config-section-registry-and-named-sections.md)）。`mail` / `sms` 两段各自收住**一条通道**的凭据与它的登录开关、发码限流、码有效期；`captcha` 段收住图形验证码的渲染参数与总开关、入口闸门（[ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md) 按通道拆开，`site.login` 只剩登录失败限流与 `username_pwd_login`）。`content_filter` 与 `captcha` 两段都没有公开读，只给后台具名端点读写；拆出去的那些开关改由公开只读的 `GET /api/site/login_capabilities` 提供布尔（见 十五、登录能力面）。
 _Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，十二段各有具名响应/请求形状）。
 
 **图形验证码（image captcha）**：
 登录 / 发码 / 注册表单上那张要人读的小图，用来挡脚本撞库与短信刷量（短信按条计费，刷量是真花钱）。它由三块拼成，位置各不相同：
 - **渲染、时效与文案参数**在第 12 段运行时配置 `captcha`（`GET /site/admin/captcha` / `PUT /site/captcha`，**没有公开读**）：驱动（`string` 字符型 / `math` 算术型 / `digit` 纯数字）、图片宽高、字符数、字符集、噪点、三种干扰线三个布尔、背景色、有效期 `expire_seconds`、失败文案 `fail_message`（≤80 字符，空串用默认「图形验证码错误」）；纯数字型另有 `max_skew` / `dot_count`。归一化把该驱动用不上的字段清零（`length` 算术型 / `source` / `bg_color` / `noise_count` / 三个干扰线开关），但 `max_skew` / `dot_count` **保留原值**（清零会让 GET→PUT 往返把 0.5 变成 0）。
-- **入口策略**在 `site.login`：总开关 `captcha`，外加**四个**入口闸门 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`（默认全开）。它们**必须公开可读**（`GET /api/site/site`），读者站靠它们决定每个表单渲染不渲染验证码框。是否校验 = 总开关 && 该入口闸门，四条入口各挂自己的 `CaptchaGate(scope)`；`register` 只挂专门的注册路由 `POST /users/email/register`（图形码在前、邮箱码在后）。手机号注册没有独立闸门：它与登录共用 `POST /users/phone`，请求体分不出注册还是登录，验证码只能挂发码那一步（`captcha_phone_verify`）。
+- **入口策略也在 `captcha` 段**：总开关加**四个**入口闸门 `captcha_login` / `captcha_email_verify` / `captcha_phone_verify` / `captcha_register`（默认全开）。它们不随段公开（该段无公开读），读者站要的那几个布尔由公开只读的 `GET /api/site/login_capabilities` 给出（见 十五、登录能力面）。是否校验 = 总开关 && 该入口闸门，四条入口各挂自己的 `CaptchaGate(scope)`；`register` 只挂专门的注册路由 `POST /users/email/register`（图形码在前、邮箱码在后）。手机号注册没有独立闸门：它与登录共用 `POST /users/phone`，请求体分不出注册还是登录，验证码只能挂发码那一步（`captcha_phone_verify`）。
 - **答案存储**在 Redis（键前缀 `blogx:captcha:`，TTL 取当前 `expire_seconds`、每次生成现读），校验忽略大小写 + 去首尾空白、`GETDEL` 原子取删（一次性，不可重放）。降级只在**装配期**：`infra.Redis == nil` 时用带 TTL 的 `TtlMemoryStore`（同样现读 TTL、同样一次性）并打一条 warn；运行期 Redis 抖动不自动降级，生成接口只回「验证码生成失败，请刷新重试」并记日志。`GET /api/imagecaptcha` 回显 `expire_seconds`，前端按「有效期 − 5s（下限 10s）」定时换图。
 默认字符集 `23456789ABCDEFGHJKMNPQRSTUVWXYZ` 去掉了易混的 `0/O/1/I/L`；保存时会去空白、去重复字符（旧默认值里 `H` / `I` / `J` / `K` / `L` 各有两处，重复 5 个字符让 40 个字符只剩 35 个可用）。归一化口径是「`0` / 空串回落默认、越界直接报错（`site.captcha_invalid`）」——例外是 `noise_count` / `max_skew` / `dot_count` 的 `0` 为合法值（不放噪点 / 不倾斜 / 不放点），不静默夹取（与 `deco.charm` 的「越界钳回边界」不同，验证码的坏值是安全参数而不是手感参数）。
 位置：`backend/conf/conf_captcha.go`、`backend/internal/site/app/captcha.go`（归一化）、`backend/internal/platform/captcha/{driver.go,color.go,store_redis.go,store_memory.go}`（三驱动、背景色、Redis 与降级内存存储）、`backend/internal/platform/http/middleware/captcha_middleware.go`（闸门与失败文案现读）、`backend/app/wiring_http.go`（装配期选定存储）；决定见 [ADR-0033](./docs/adr/0033-captcha-configurable-and-redis-store.md)。
 易混：它与「邮箱验证码 / 短信验证码」不是一回事——那两个是发到邮箱 / 手机的一次性数字（错误口径是 `user.captcha_invalid`），图形验证码是提交前要填的那道图片题；它与「内容过滤」也没有关系（过滤改文本，验证码拦脚本）。
-_Avoid_: 把 `captcha` 段当成开关（开关与四个闸门在 `site.login`）；说"验证码图片参数写死在代码里"（已可配）；把四个闸门挪进 `captcha` 段（读者站拿不到就没法渲染，表单会画出永远填不对的框）；再说「手机号注册漏了闸门」（它是设计约束，见 ADR-0033 决策 11）。
+_Avoid_: 把 `captcha` 段当成只有渲染参数（总开关与四个入口闸门也在这一段）；说"验证码图片参数写死在代码里"（已可配）；让读者站为了画验证码去读 `captcha` / `mail` / `sms` 段（那是含凭据的段，布尔一律走「登录能力面」）；再说「手机号注册漏了闸门」（它是设计约束，见 ADR-0033 决策 11）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。
@@ -734,7 +734,7 @@ _Avoid_: 说"已发布就一定公开可见"；把它当成第五个文章状态
 **内容过滤（content filter）**：
 在**落库之前**跑的一层文本清洗（ADR-0032）：七个文本面（文章标题/正文、评论、昵称、**用户名**、个人简介、私信、合集标题/描述）命中词**默认**按 rune 等长替换成 `*` —— 唯一例外是昵称与用户名：它们改成**命中即拒绝**（改名请求不落库，返回 `user.name_blocked`），因为名字是身份标识，存成 `**` 既不告诉用户违规、又让他下次换个词继续试，替换后的文本才是唯一入库、入 ES、进通知、推 WS 的版本。公开面因此不可能出现命中词原文。
 它**不是**审核：命中不拦人、不改变「能不能发」，只改写文本 + 记一条「关键词风险」交后台处置。过滤引擎在启动时按词表构建一次，词表保存后原子重建（请求路径不构建）；构建失败让进程启动失败 —— 无过滤上线等于裸奔。
-位置：`backend/internal/platform/contentfilter`（引擎与归一化）· `backend/internal/filter`（命中记录与风险页读面）· 配置段 `content_filter`（第 11 段，只给后台读写，匿名端点不返回）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
+位置：`backend/internal/platform/contentfilter`（引擎与归一化）· `backend/internal/filter`（命中记录与风险页读面）· 配置段 `content_filter`（第 11 段，只给后台读写，匿名端点不返回）；它的**配置面**（词表与白名单的编辑页）叫「关键词过滤」，见 十五、后台信息架构；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
 易混：它与「机审」分工不同——过滤改文本、机审判放行；与「运行时策略文本」也不同（词表是数据、走运行期配置热改；策略文本是规则、走代码版本）。
 _Avoid_: 说「命中即拒」（那是已退场的旧口径）；把过滤放在前端（前端代码公开，等于把词表送人）；说「原文还能恢复」（**不存原文快照**，误报只能删除或忽略）。
 
@@ -753,10 +753,10 @@ _Avoid_: 说「命中即拒」（那是已退场的旧口径）；把过滤放�
 _Avoid_: 把高危词（`炸弹`、`安全套`）放进词级白名单（真内容就再也不打星了）；拿整句话当短语；以为白名单能让"跨词粘出来的碎片"（`告长期`）自动消失。
 **必需类目（required category）**：
 词库里**必须非空**的类目，当前是 `politics` 与 `violence` 两类 —— 它们按 ADR-0032 决策 8 只进数据库、不进仓库，所以"仓库全绿 + CI 全绿 + 后台显示几万条"完全可能是这两类各 0 条（2026-11-22 生产就是这样，六个文本面当时对涉政内容完全不拦，没有任何环节报错）。
-判据只有一处：`contentfilter.RequiredCategories`。启动与保存词表时打 `Warn`、`-filter-coverage` 体检命令、后台「站点 → 内容过滤」页的红条（由后端下发 `missing_required_categories`）都读它。
+判据只有一处：`contentfilter.RequiredCategories`。启动与保存词表时打 `Warn`、`-filter-coverage` 体检命令、后台「内容修改与发布 → 关键词过滤」页的红条（由后端下发 `missing_required_categories`）都读它。
 易混：它不是"七个类目都要检查"—— 只有这两类被硬性要求；其余五类缺了会在导入报告里体现，不单列红灯。
 _Avoid_: 说"七个必需类目"（错，判据只有两类）；让前端自己再抄一份类目清单（同一件事两个真相，红条会在一台机器上安静、在另一台上尖叫）。
-位置：`backend/config/site_default_settings.yaml`（非涉政种子）· `backend/internal/platform/contentfilter`（匹配与归一化）· 后台「站点 → 内容过滤」（词云维护）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
+位置：`backend/config/site_default_settings.yaml`（非涉政种子）· `backend/internal/platform/contentfilter`（匹配与归一化）· 后台「内容修改与发布 → 关键词过滤」（词云维护）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
 易混：它不是「敏感词库」这种单一清单（两档是两个不同档位）；也不是代码常量（它在运行期配置里）。
 _Avoid_: 把两档说成「阻断级 / 观察级」（旧名，已随词表机审退场）；以为观察词「只标红不替换」；把词表提交进仓库（尤其涉政类）。
 
@@ -821,6 +821,48 @@ _Avoid_: 把样式当成"生成新文件"（它只是 URL 后缀）；上传时�
 上传前在浏览器里把图裁成目标比例并降采样（头像 1:1 → 256×256，封面 16:9），**只上传定形后的新文件**，原图不入库；比例不合规时弹裁剪窗由作者自选露出区域，不存任何取景参数。
 位置：`frontend/app/composables/useImageCropFlow.ts`（以及两端同一份拷贝）；决策见 [ADR-0013](./docs/adr/0013-banner-framing-as-parameters.md)。
 _Avoid_: 说"裁剪参数存库里"（不存；读侧固定居中）；把原图也传上去事后裁。
+
+---
+
+## 十五、后台信息架构
+
+> 后台菜单的三级分组、路由与配置段的对应关系只在本文定义一次；"为什么这样分、否决了什么"见 [ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md)。
+
+**关键词过滤（keyword filter）**：
+后台那份"哪些词要被替换成星号"的**配置**：词表（拦截 / 观察两档）+ 两层白名单（词级 / 短语级）。它管的是"这个词还该不该拦"；命中了谁、要不要处置，那是**关键词风险**（下一条）。把命中词按等长 `*` 替换掉的那套运行期行为叫「内容过滤」（十二、），两者是同一个能力的"配置面"与"运行面"。
+位置：运行期配置 `content_filter` 段（自己的具名端点，匿名不可读）；后台「内容修改与发布 → 关键词过滤」（`/content/keywords`，原名「站点配置 → 内容过滤」，旧地址重定向过来）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
+易混：它与**关键词风险**只差两个字——一个是你要去改的词表，一个是系统替你记下的命中与处置；两者都不是审核（都不拦人、不改变"能不能发"）。
+_Avoid_: 把菜单或页面叫「内容过滤」（菜单已改名关键词过滤；段名 `content_filter` 与 ADR-0032 的标题仍用旧词，那是配置段与历史命名，不是页面名）；把它当审核队列（它没有队列，也不处置任何人）。
+
+**关键词风险（keyword risk）**：
+后台「审核 → 关键词风险」这一页与它背后那组记录：内容过滤命中之后留下的**命中与处置台账**（谁、在什么内容里、命中哪个词、处置了什么）。它**不是**词表——词表在**关键词过滤**。记录里都有哪些字段、四个处置动作分别意味着什么，见十二、发布治理的「关键词风险」词条；这里只钉菜单归属与两者的分界。
+位置：后台「审核 → 关键词风险」（`/review/content-filter`，重组后仍留在这个组）；决定见 [ADR-0032](./docs/adr/0032-content-filter.md)。
+易混：与**关键词过滤**互为里外——问"这词要不要拦"去关键词过滤，问"谁命中了、怎么处置"来这里。
+_Avoid_: 把两者说成同一个页面或同一个功能；以为能在这里改词表；把「关键词风险」叫成「内容过滤」（后者是配置面 + 运行面，不是这页）。
+
+**内容修改与发布（content editing & publishing）**：
+后台侧栏的一级分组，把内容生产链上的三步放在一起：**关键词过滤**（改：文本被怎么改写）、**文章发布**（发：发布策略、质量闸门、投稿配额、人工审核开关）、**文章审核**（审：人工队列放不放行）。三项此前分散在「站点配置 → 内容过滤」「站点配置 → 站点 → 发布与审核」「审核 → 文章审核」三处。
+位置：`frontend_admin/app/utils/menu.ts` 的菜单树；路由 `/content/keywords`、`/content/publish`、`/content/review`；决定见 [ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md)。
+易混：它不是「文章管理」（那组管内容本体：文章列表、合集、项目、标签）；也不含「审核」组里的图片审核与关键词风险——那两项不在内容生产链上。
+_Avoid_: 把它叫「内容管理」或「文章管理」；把「审核」整组都算进来；说"这组里的页面属于某个 `content` 配置段"（页面在哪个分组，与它编辑哪个配置段是两件事）。
+
+**验证码与通知（captcha & notification）**：
+「站点配置」下的三级分组，放"消息发得出去的那条通道 + 它的人机验证"三页：**图形验证码**（渲染参数 + 总开关 + 各入口闸门）、**邮件**（凭据 + 邮箱登录 / 注册开关 + 发码限流与码有效期）、**短信**（与邮件同构：凭据 + 手机号登录 + 发码限流与码有效期）。三页各读写自己的配置段；「邮件」「短信」从站点配置的原位置移走后，这里是它们的**唯一入口**。
+位置：后台「站点配置 → 验证码与通知」：`/site/captcha`、`/site/mail`、`/site/sms`；对应配置段 `captcha` / `mail` / `sms`（均无公开读），读者站要的布尔走「登录能力面」；决定见 [ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md)。
+易混：它不是「全局通知」（那是给用户发运营公告的页面）；也不是「用户操作」那一组（那组管用户能不能登录 / 能不能私信，这组管消息走哪条通道、要不要人机验证）。
+_Avoid_: 再把「邮件」「短信」挂回站点配置的原位置（唯一入口就是这一组）；把它叫「消息通知」；以为通道的登录开关还留在登录设置页（已按通道拆进各自的段）。
+
+**登录能力面（login capabilities）**：
+一个**公开只读**的小端点，只回答两件事：哪种登录方式现在可用、各入口要不要验证码。它是给读者站用的——表单该不该画"邮箱登录"按钮、该不该画验证码框，全靠它；它**只含布尔**，不含凭据、阈值、通道配置状态，所以 `mail` / `sms` / `oauth` / `captcha` 那几个含机密的段可以继续不公开。它是按通道拆段之后补上的那一小块公开面：这些开关不再住在可公开读的站点段里了。
+位置：`GET /api/site/login_capabilities`（契约里是 `login_methods` 与 `captcha_required` 两组）；决定见 [ADR-0029](./docs/adr/0029-admin-nav-three-levels-and-site-split.md)。
+易混：它不是站点段（`site`）的公开读——那是整段视图；也不是后台页面的数据源（后台读各段自己的具名端点）。
+_Avoid_: 往里加"通道有没有配好""限流阈值""密钥掩码"（能力面一旦承载信息就变成泄漏面）；让读者站为了画验证码去读 `mail` / `sms` / `captcha` 段。
+
+**发布判定（publish judge）**：
+把文章推向"对读者可见"的那道**唯一**关口：评分 → 质量闸门 → 合规判定，按这个顺序在**一处**跑完，前一步没有结论就轮不到下一步。因此任何"把文章推向可见"的新逻辑都必须加进它内部，不能另起一个订阅者——否则"先闸门后放行"就只有约定、没有保障。
+位置：`backend/app/publish_judge.go`（合成根里的 outbox 订阅者）；相邻概念见十二、的「发布质量闸门」「机审」「待可见」；决定见 [ADR-0030](./docs/adr/0030-async-quality-gate.md) 与 [ADR-0023](./docs/adr/0023-quality-gate.md)。
+易混：它不是「发布质量闸门」（闸门只是其中一步，评分与合规判定不归闸门管）；也不是"提交时的同步扫描"（那判断文章一开始该进队列还是直接拒）。
+_Avoid_: 把它叫「质量闸门」或「合规判定」；说"闸门过了就会自动可见"（还差合规判定）；用"订阅者注册顺序"解释它的顺序（顺序必须是代码事实，不能只是注释里的承诺）。
 
 ---
 

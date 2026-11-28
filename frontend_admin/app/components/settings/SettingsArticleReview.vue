@@ -1,3 +1,4 @@
+<script setup lang="ts">
 /**
  * 文章审核设置 · 审核规则（`/site/article-review`）：机器判据的唯一配置入口。
  *
@@ -338,19 +339,8 @@ onMounted(load);
         </NFormItem>
       </NCard>
 
-      <!-- 质量达标自动放行（2026-11-27）：质量闸门判定通过后，不再等 AI 合规判定，
-           直接转 visible。它跳过的是"等 AI 判定"这一步，不是"判定失败也放行"。 -->
-      <NCard class="admin-card mb-4" title="质量达标自动放行" size="small">
-        <NAlert type="warning" :bordered="false" class="mb-4">
-          开启后，质量闸门判定通过的文章<strong>不再等待 AI 合规判定</strong>，直接放开可见。
-          代价是这篇文章不会留下 AI 合规结论（审核页「合规」列显示「未判定」），
-          事后「AI 判违规自动撤下」的兜底对它不生效。文章仍已通过同步机审（词表替换 +
-          风险扫描），「质量不达标」「拿不到分数」两条路径<strong>都不受影响</strong>，照旧不放行。
-        </NAlert>
-        <NFormItem label="质量过线后自动放行">
-          <NSwitch v-model:value="config.article.quality_auto_release" />
-        </NFormItem>
-      </NCard>
+      <!-- 「质量达标自动放行」已废弃（2026-11-28 / ADR-0037 D14）：它的语义
+           正好就是上一条「AI 合规判定」关掉的效果，留着等于同一件事两个开关。 -->
 
       <NButton type="primary" :loading="saving" @click="save"
         >保存文章审核设置</NButton

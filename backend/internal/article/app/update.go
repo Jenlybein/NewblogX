@@ -345,6 +345,13 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	// 或者这次改动没有任何字段变化）：预占还在，但没有任何提交动作对应它。
 	// 不在这里归还，就是"一次没提交也扣掉一天额度"——而这个窗口恰恰是评分
 	// 那 5–30 秒，最容易有并发的第二个人在改同一篇。
+	// 命中处置=禁用（线上验收补）：文章已落「已拒绝」，这次更新必须有结论地失败。
+	// 放在配额归还判定之前：它不需要归还（禁用与同步风险命中同一条口径 ——
+	// 这是作者自己换措辞就能避免的失败）。
+	if filterReject {
+		return result, newRiskRejection()
+	}
+
 	if reservation != nil && !result.Resubmitted {
 		s.releaseSubmitQuota(ctx, reservation)
 	}

@@ -58,7 +58,8 @@ func TestCreateRejectsMaskedBlockTier(t *testing.T) {
 	filter := &fakeTextFilter{words: []string{"代开发票"}, maskedBlockTier: true}
 	svc, repos := newFilteredService(t, filter)
 
-	// 2026-11-28 起不返回错误：处置是落点（落成已拒绝），不是一次失败的保存。
+	// 处置是**落点 + 结论**：文章落成已拒绝，同时这次提交必须有结论地失败 ——
+	// 只落库不报错会让作者以为发出去了（线上验收就是这么发现的）。
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
 		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
@@ -68,16 +69,18 @@ func TestCreateRejectsMaskedBlockTier(t *testing.T) {
 		TargetStatus:  domain.StatusExamining,
 		SkipExamining: false,
 	})
-	if err != nil {
-		t.Fatalf("命中 reject 是一次有结论的提交，不该报错: %v", err)
+	// 1) 报错（固定文案，不回显命中词），且文章已落「已拒绝」。
+	if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
+		t.Fatalf("命中 reject 必须报内容检查未通过，实际 %v", err)
 	}
 
-	// 1) 落库，且落点是「已拒绝」。
-	stored := assertLandingRejected(t, repos)
-	if created == nil || created.Article.ID() != stored.ID() {
-		t.Fatalf("创建结果应指向那一篇被拒的文章，实际 %+v", created)
+	// 2) 落库，且落点是「已拒绝」。
+	assertLandingRejected(t, repos)
+	// 失败时不该带回创建结果：作者拿到的只有"内容检查未通过"这句结论。
+	if created != nil {
+		t.Fatalf("被拒的提交不该带回创建结果，实际 %+v", created)
 	}
-	// 2) 不发 article.published：下游评分 / 合规 / 通知都不该被惊动。
+	// 3) 不发 article.published：下游评分 / 合规 / 通知都不该被惊动。
 	// 只允许"写过库"的事实事件；不该发 article.published（那会惊动评分 /
 	// 合规判定 / 订阅通知整条下游，而这一篇已经被处置掉了）。
 	if names := repos.FakeOutbox().Names(); len(names) != 0 && (len(names) != 1 || names[0] == app.EventArticlePublished) {
@@ -111,8 +114,8 @@ func TestCreateRejectsMaskedBlockTierOnDraft(t *testing.T) {
 		TargetStatus:  domain.StatusDraft,
 		SkipExamining: true,
 	})
-	if err != nil {
-		t.Fatalf("命中 reject 的草稿保存同样不报错: %v", err)
+	if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
+		t.Fatalf("命中 reject 的草稿保存同样要报错，实际 %v", err)
 	}
 	// 目标是草稿也一样落「已拒绝」：草稿可改，等于给试探留了后门。
 	assertLandingRejected(t, repos)
@@ -182,8 +185,8 @@ func TestUpdateRejectsMaskedBlockTier(t *testing.T) {
 		ArticleID: ctype.NewID(1),
 		Content:   &blockedText,
 	})
-	if err != nil {
-		t.Fatalf("命中 reject 是一次有结论的更新，不该报错: %v", err)
+	if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
+		t.Fatalf("命中 reject 的更新必须有结论地失败，实际 %v", err)
 	}
 
 	stored, err := repos.FakeArticles().Find(context.Background(), ctype.NewID(1))
@@ -296,8 +299,8 @@ func TestCreateRejectsMaskedBlockTierWithoutRefundingQuota(t *testing.T) {
 		Content:      "代开发票是违法行为",
 		TargetStatus: domain.StatusExamining,
 	})
-	if err != nil {
-		t.Fatalf("命中 reject 是有结论的提交，不该报错: %v", err)
+	if !apperr.IsCode(err, apperr.CodeArticleRiskRejected) {
+		t.Fatalf("命中 reject 必须报内容检查未通过，实际 %v", err)
 	}
 
 	if got := quota.Used(author); got != 1 {

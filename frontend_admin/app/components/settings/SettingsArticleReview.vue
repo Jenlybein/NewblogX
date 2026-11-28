@@ -19,7 +19,6 @@
  * 命中处理只传 auto_dispose。
  */
 import {
-  NAlert,
   NButton,
   NCard,
   NForm,
@@ -115,6 +114,13 @@ const AI_FAILURE_OPTIONS: Array<{
 /** 平均评分关掉时闸门必然关（后端强写），所以这里置灰而不是隐藏。 */
 const gateEditable = computed(() => scoreEnabled.value);
 
+// 落点那一行的说明：只解释选中的这一档，不再把四档的代价都摊在页面上。
+const aiFailureHint = computed(
+  () =>
+    AI_FAILURE_OPTIONS.find((o) => o.value === aiFailureAction.value)?.description ??
+    "",
+);
+
 // 实际放行线在界面上直接算给运营看：只写"及格线"会让人以为 50 分就能过。
 const publishLine = computed(
   () => qualityGate.value.pass_score + qualityGate.value.gray_band_width,
@@ -186,41 +192,25 @@ onMounted(load);
 
 <template>
   <div class="admin-settings-panel">
-    <NAlert type="info" :bordered="false" class="mb-4">
-      这一页管「审不审、审多严、一天能交几篇」，是机器判据的总闸。它与「文章发布」页
-      写同一段配置，改完点一次保存即可；两边同时开着也不会互相覆盖。命中词的处置
-      在旁边的「关键词命中处理」子页。
-    </NAlert>
-
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="内容审核" size="small">
         <NFormItem label="文章免审核">
           <NSwitch v-model:value="config.article.skip_examining" />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">
-          评论不再有独立审核（票
-          400）：评论一律发布，命中词由全站内容过滤替换成星号 并进「审核 →
-          关键词风险」。文章那条链路的判定顺序保持不变。
-        </NAlert>
+        <div class="admin-field-help">
+          跳过全部机器判据，直接真发布（临时放行手段）。评论不再有独立审核。
+        </div>
       </NCard>
 
-      <!-- 文章质量评分（2026-11-28）：它是闸门的父开关，关掉后连闸门一起失效。 -->
+      <!-- 文章质量评分（2026-11-28）：闸门的父开关，关掉后连闸门一起失效。 -->
       <NCard class="admin-card mb-4" title="文章质量评分" size="small">
         <NFormItem label="开启质量评分">
           <NSwitch v-model:value="scoreEnabled" />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">
-          关掉之后<strong>三条产生路径一起停</strong>：提交时同步评分、后台重评、发布判定补算。
-          读者站与写稿页不再显示任何分数，评分接口统一返回「站点已关闭文章质量评分」。
-          历史评分仍在库中，重新打开即恢复显示。
-        </NAlert>
-        <NAlert type="warning" :bordered="false" class="mb-4">
-          代价：审核队列的「风险」列由分数派生（低分 / 维度塌陷 / 篇幅异常都看分），
-          评分一停，同步风险扫描不再产生结论，风险列只能显示「未评估」。
-        </NAlert>
-        <NFormItem label="关闭后闸门同步失效">
-          <NSwitch :value="!scoreEnabled" disabled />
-        </NFormItem>
+        <div class="admin-field-help">
+          关掉后不再打分：读者站与写稿页不显示分数，审核队列的「风险」列只能显示
+          「未评估」，发布质量闸门随之失效。历史评分仍在库中。
+        </div>
       </NCard>
 
       <!-- AI 合规判定（2026-11-28）：第③层模型判定的总闸 + 失败落点。 -->
@@ -228,15 +218,9 @@ onMounted(load);
         <NFormItem label="启用 AI 合规判定">
           <NSwitch v-model:value="aiComplianceEnabled" />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">
-          关掉之后文章不再走第③层模型判定：质量关过线即可见。它跳过的是「等 AI 判定」
-          这一步，不是「判定失败也放行」—— 拿不到分数与质量不过两条路径照旧不放行。
-          与「文章免审核」的区别是：那是临时放行，这是常态配置。
-        </NAlert>
-        <NAlert v-if="!aiComplianceEnabled" type="warning" :bordered="false" class="mb-4">
-          AI 合规判定已关闭：质量过线的文章会直接对读者可见，且不留合规结论
-          （审核页「合规」列显示「未判定」），事后「AI 判违规自动撤下」对它不生效。
-        </NAlert>
+        <div class="admin-field-help">
+          关掉后质量过线即可见，但本篇不留合规结论（审核页「合规」列显示「未判定」）。
+        </div>
         <NFormItem label="判定不可用 / 失败时的落点">
           <NSelect
             v-model:value="aiFailureAction"
@@ -245,18 +229,12 @@ onMounted(load);
             :disabled="!aiComplianceEnabled"
           />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">
-          只支配「这次调用失败」（AI 未装配、接口报错重试后仍失败）。模型判「存疑」或
-          「低风险违规」是<strong>结论</strong>不是失败，仍转人工；额度用完固定等次日重投，也不看这一项。
-          {{ AI_FAILURE_OPTIONS.find((o) => o.value === aiFailureAction)?.description }}
-        </NAlert>
+        <div class="admin-field-help">
+          {{ aiFailureHint }}
+        </div>
       </NCard>
 
       <NCard class="admin-card mb-4" title="投稿配额" size="small">
-        <NAlert type="info" :bordered="false" class="mb-4">
-          每个普通用户每自然日可提交多少次。计量的是<strong>提交动作</strong>：被打回也计一次
-          （每次都真的产生一条审核任务）；因系统不可用而失败的提交不占额度；管理员不受此上限约束。
-        </NAlert>
         <NFormItem label="每日投稿上限">
           <NInputNumber
             v-model:value="submitDailyMax"
@@ -265,30 +243,25 @@ onMounted(load);
             :max="9999"
           />
         </NFormItem>
+        <div class="admin-field-help">
+          每个普通用户每自然日可提交的次数。被打回也计一次；系统故障不计；管理员不受限。
+        </div>
       </NCard>
 
-      <!-- 发布质量闸门（票 306）：开启后提交前先评分，不达标不放行。
-           ADR-0023 起是<strong>木桶</strong>判定：总分与六个维度都要过线。 -->
+      <!-- 发布质量闸门（票 306）：提交前先评分，木桶判定（ADR-0023）。 -->
       <NCard class="admin-card mb-4" title="发布质量闸门" size="small">
-        <NAlert type="warning" :bordered="false" class="mb-4">
-          开启前必须先让 AI
-          可用（总闸打开且至少配置了一条启用模型），否则保存会被拒绝——
-          闸门失败关闭，叠上 AI 不可用就等于"所有投稿都被拒"。
-        </NAlert>
-        <NAlert type="info" :bordered="false" class="mb-4">
-          判定是<strong>木桶</strong>：总分要达到 {{ publishLine }} 分（及格线 + 灰带宽度），
-          并且六个维度（清晰度 / 结构性 / 完整度 / 可读性 / 说服力 / 语言规范）
-          <strong>每一项</strong>都要达到及格线 {{ qualityGate.pass_score }} 分。
-          任何一项不够都不能发布，总分再高也不行——否则长板会把短板抵消掉，
-          两行话也能凑出及格的加权分。
-        </NAlert>
         <NFormItem label="开启质量闸门">
           <NSwitch v-model:value="qualityGate.enabled" :disabled="!gateEditable" />
         </NFormItem>
-        <NAlert v-if="!gateEditable" type="warning" :bordered="false" class="mb-4">
-          文章质量评分已关闭，闸门没有判据可用，因此保存时会随评分一起被关闭。
-          要重新开闸门，请先打开上面的「开启质量评分」，再回来打开它。
-        </NAlert>
+        <div class="admin-field-help">
+          <template v-if="gateEditable">
+            木桶判定：总分要到 {{ publishLine }} 分（及格线 + 灰带宽度），且六个维度各自不低于
+            {{ qualityGate.pass_score }} 分。开启前必须先让 AI 可用。
+          </template>
+          <template v-else>
+            文章质量评分已关闭，闸门没有判据可用，保存时会随评分一起关闭。要重开请先打开「开启质量评分」。
+          </template>
+        </div>
         <NFormItem label="及格线（同时是每个维度的下限）">
           <NInputNumber
             v-model:value="qualityGate.pass_score"
@@ -338,9 +311,6 @@ onMounted(load);
           />
         </NFormItem>
       </NCard>
-
-      <!-- 「质量达标自动放行」已废弃（2026-11-28 / ADR-0037 D14）：它的语义
-           正好就是上一条「AI 合规判定」关掉的效果，留着等于同一件事两个开关。 -->
 
       <NButton type="primary" :loading="saving" @click="save"
         >保存文章审核设置</NButton

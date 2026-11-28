@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 
 	"myblogx/conf"
 	"time"
@@ -421,11 +422,16 @@ func commentHitDisposition(infra *Infra) func() string {
 		if infra == nil || infra.RuntimeSite == nil {
 			return conf.ContentFilterActionRelease
 		}
-		action := infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.BlockAction
-		// 旧值 mask 读成 release（2026-11-28 三档化）：老配置里的 mask 表达的正是
-		// 「只打星照常发布」。若原样返回，它会被用例层当成「非 release ⇒ 拒收」，
-		// 一次发版就把评论区从打星变成全部拒收。
-		if action == conf.ContentFilterActionLegacyMask {
+		// 评论用**自己的**一档（comment_action），不跟 block_action 联动：
+		// 文章能退回草稿让作者重投，评论没有这条路（见 CommentAction 的注释）。
+		action := infra.RuntimeSite.GetRuntimeContentFilter().AutoDispose.CommentAction
+		// 空串（这一栏是 2026-12-01 才加的，老库/老请求体里没有这个键）必须读成
+		// release；旧值 mask 同理（它表达的正是「只打星照常发布」）。
+		//
+		// 这两个兜底都是发版安全阀：用例层把「非 release」一律当拒收，
+		// 只要漏一个兜底，一次上线就能把评论区整片关掉。
+		switch strings.TrimSpace(action) {
+		case "", conf.ContentFilterActionLegacyMask:
 			return conf.ContentFilterActionRelease
 		}
 		return action

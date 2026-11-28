@@ -424,6 +424,7 @@ content_filter:
   auto_dispose:
     block_action: release
     watch_action: release
+    comment_action: release
 # 第 12 段 captcha（ADR-0033）：图形验证码的开关、入口闸门、图形与时效参数。
 #
 # 只有后台具名端点（GET /site/admin/captcha、PUT /site/captcha），没有公开读：

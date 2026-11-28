@@ -24,7 +24,11 @@ import {
   getContentFilterRuntimeConfig,
   updateArticleReviewConfig,
 } from "~/services/admin";
-import type { HitDisposition, WatchHitDisposition } from "~/types/api";
+import type {
+  CommentHitDisposition,
+  HitDisposition,
+  WatchHitDisposition,
+} from "~/types/api";
 
 const message = useMessage();
 const loading = ref(false);
@@ -32,6 +36,8 @@ const saving = ref(false);
 
 const blockAction = ref<HitDisposition>("release");
 const watchAction = ref<WatchHitDisposition>("release");
+/** 评论命中拦截词时的处置：放行（打星照发）/ 拒收。 */
+const commentAction = ref<CommentHitDisposition>("release");
 const loaded = ref(false);
 
 /** 拦截词三档。每档的落点必须写清，否则"退回草稿"与"禁用"没人分得清。 */
@@ -75,8 +81,29 @@ const WATCH_OPTIONS: Array<{
   },
 ];
 
+/** 评论只有两档语义：评论没有草稿态，也没有申诉通道 ——「退回草稿」对它等于拒收。 */
+const COMMENT_OPTIONS: Array<{
+  label: string;
+  value: CommentHitDisposition;
+  description: string;
+}> = [
+  {
+    label: "放行（打星后照常发布）",
+    value: "release",
+    description: "命中词替换成等长 *，评论照常入库并通知对方。",
+  },
+  {
+    label: "拒收（提示作者修改）",
+    value: "reject",
+    description: "评论不入库、不发通知，作者看到「评论里包含不允许发布的内容」。",
+  },
+];
+
 const blockDescription = computed(
   () => BLOCK_OPTIONS.find((o) => o.value === blockAction.value)?.description ?? "",
+);
+const commentDescription = computed(
+  () => COMMENT_OPTIONS.find((o) => o.value === commentAction.value)?.description ?? "",
 );
 const watchDescription = computed(
   () => WATCH_OPTIONS.find((o) => o.value === watchAction.value)?.description ?? "",
@@ -108,6 +135,7 @@ async function save() {
         auto_dispose: {
           block_action: blockAction.value,
           watch_action: watchAction.value,
+          comment_action: commentAction.value,
         },
       },
     });
@@ -151,11 +179,16 @@ onMounted(load);
         <div class="admin-field-help">{{ watchDescription }}</div>
       </NCard>
 
-      <NCard class="admin-card mb-4" title="评论怎么落地" size="small">
-        <div class="admin-field-help">
-          只有两档语义：选「放行」打星照发；「退回草稿」与「禁用」都等价于拒收（不入库）。
-          评论没有草稿态，昵称 / 简介 / 私信 / 合集仍只打星。
-        </div>
+      <NCard class="admin-card mb-4" title="评论命中" size="small">
+        <NFormItem label="评论命中拦截词时">
+          <NSelect
+            v-model:value="commentAction"
+            class="admin-field--select"
+            :options="COMMENT_OPTIONS"
+            data-role="hit-disposition-comment"
+          />
+        </NFormItem>
+        <div class="admin-field-help">{{ commentDescription }}</div>
       </NCard>
 
       <NButton type="primary" :loading="saving" @click="save"

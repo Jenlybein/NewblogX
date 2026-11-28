@@ -672,7 +672,32 @@ func normalizeAutoDispose(in conf.ContentFilterAutoDispose) (conf.ContentFilterA
 	if err != nil {
 		return conf.ContentFilterAutoDispose{}, err
 	}
-	return conf.ContentFilterAutoDispose{BlockAction: block, WatchAction: watch}, nil
+	// 评论命中处置（2026-12-01）：两档，空串按 release（改造前的行为）。
+	//
+	// 单列一项而不是复用 block_action：文章能退回草稿让作者改了重投，评论没有
+	// 草稿态也没有申诉通道，两者共用一个取值会把运营逼成二选一。
+	comment, err := normalizeCommentAction(in.CommentAction)
+	if err != nil {
+		return conf.ContentFilterAutoDispose{}, err
+	}
+	return conf.ContentFilterAutoDispose{BlockAction: block, WatchAction: watch, CommentAction: comment}, nil
+}
+
+// normalizeCommentAction 校验评论命中处置：只认 release / reject，空串与旧值 mask 按 release。
+func normalizeCommentAction(action string) (string, error) {
+	switch strings.TrimSpace(action) {
+	case "":
+		return ContentFilterActionRelease, nil
+	case contentFilterActionLegacyMask:
+		return ContentFilterActionRelease, nil
+	case ContentFilterActionRelease:
+		return ContentFilterActionRelease, nil
+	case ContentFilterActionReject:
+		return ContentFilterActionReject, nil
+	default:
+		return "", apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+			"命中处理口径不合法：comment_action 只支持 release（打星照发）或 reject（拒收）")
+	}
 }
 
 // normalizeDisposeAction 校验单个处置取值：空串与旧值 mask 按 release，

@@ -90,7 +90,8 @@ func TestPlanArticleReviewMigration_已迁移后不需要再改(t *testing.T) {
 		string(SectionSite): `{"article":{"skip_examining":false,"submit_daily_max":15,` +
 			`"score_enabled":true,"ai_compliance_enabled":true,"ai_failure_action":"manual",` +
 			`"quality_gate":{"enabled":true,"pass_score":50,"gray_band_width":2}}}`,
-		string(SectionContentFilter): `{"auto_dispose":{"block_action":"release","watch_action":"release"}}`,
+		// 迁移后的形态：三项都显式在场（comment_action 是 2026-12-01 新增的）。
+		string(SectionContentFilter): `{"auto_dispose":{"block_action":"release","comment_action":"release","watch_action":"release"}}`,
 	}
 	_, _, plan, err := planArticleReviewMigration(payloads)
 	if err != nil {

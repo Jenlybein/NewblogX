@@ -199,7 +199,7 @@ func planSiteArticle(payloads map[string]string, plan *articleReviewPlan) (strin
 	return string(out), true, nil
 }
 
-// planContentFilterDispose 把 auto_dispose 里的旧值 mask 改写为 release。
+// planContentFilterDispose 把 auto_dispose 里的旧值 mask 改写为 release，并补齐 comment_action。
 func planContentFilterDispose(payloads map[string]string, plan *articleReviewPlan) (string, bool, error) {
 	raw, ok := payloads[string(SectionContentFilter)]
 	if !ok {
@@ -219,15 +219,23 @@ func planContentFilterDispose(payloads map[string]string, plan *articleReviewPla
 	}
 
 	changed := false
-	for _, key := range []string{"block_action", "watch_action"} {
+	for _, key := range []string{"block_action", "watch_action", "comment_action"} {
 		valueRaw, exists := dispose[key]
 		if !exists {
+			// 评论档是 2026-12-01 新增的：老 payload 没有这个键，缺键补 release
+			// 是刻意的 —— 零值（空串）在评论侧同样是"打星照发"，但显式写进去之后
+			// 后台那一页才有值可回显，不必等运营先保存一次。
+			if key == "comment_action" {
+				dispose[key] = jsonString(conf.ContentFilterActionRelease)
+				changed = true
+			}
 			continue
 		}
 		var action string
 		if err := json.Unmarshal(valueRaw, &action); err != nil {
 			continue
 		}
+		// 旧值 mask 一律读成 release（评论档同理：老库只有 block/watch 两个键）。
 		if action == legacyDisposeMask {
 			dispose[key] = jsonString(conf.ContentFilterActionRelease)
 			changed = true

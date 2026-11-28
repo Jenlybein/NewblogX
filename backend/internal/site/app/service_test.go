@@ -425,9 +425,12 @@ func TestUpdateContentFilterDefaultsAutoDisposeWhenBodyOmitsIt(t *testing.T) {
 		t.Fatalf("保存词表失败: %v", err)
 	}
 	got := env.Runtime.ContentFilter().AutoDispose
+	// 评论档不跟 block/watch 联动（文章能退回草稿，评论没有这条路），
+	// 所以缺省时它也得是独立的 release。
 	want := conf.ContentFilterAutoDispose{
-		BlockAction: siteapp.ContentFilterActionRelease,
-		WatchAction: siteapp.ContentFilterActionRelease,
+		BlockAction:   siteapp.ContentFilterActionRelease,
+		WatchAction:   siteapp.ContentFilterActionRelease,
+		CommentAction: siteapp.ContentFilterActionRelease,
 	}
 	if got != want {
 		t.Fatalf("请求体缺 auto_dispose 时应落库 release/release，实际 %+v", got)

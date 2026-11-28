@@ -210,7 +210,7 @@ onMounted(load);
           <NSwitch v-model:value="scoreEnabled" />
         </NFormItem>
         <NAlert type="info" :bordered="false" class="mb-4">
-          关掉之后**三条产生路径一起停**：提交时同步评分、后台重评、发布判定补算。
+          关掉之后<strong>三条产生路径一起停</strong>：提交时同步评分、后台重评、发布判定补算。
           读者站与写稿页不再显示任何分数，评分接口统一返回「站点已关闭文章质量评分」。
           历史评分仍在库中，重新打开即恢复显示。
         </NAlert>
@@ -247,14 +247,14 @@ onMounted(load);
         </NFormItem>
         <NAlert type="info" :bordered="false" class="mb-4">
           只支配「这次调用失败」（AI 未装配、接口报错重试后仍失败）。模型判「存疑」或
-          「低风险违规」是**结论**不是失败，仍转人工；额度用完固定等次日重投，也不看这一项。
+          「低风险违规」是<strong>结论</strong>不是失败，仍转人工；额度用完固定等次日重投，也不看这一项。
           {{ AI_FAILURE_OPTIONS.find((o) => o.value === aiFailureAction)?.description }}
         </NAlert>
       </NCard>
 
       <NCard class="admin-card mb-4" title="投稿配额" size="small">
         <NAlert type="info" :bordered="false" class="mb-4">
-          每个普通用户每自然日可提交多少次。计量的是**提交动作**：被打回也计一次
+          每个普通用户每自然日可提交多少次。计量的是<strong>提交动作</strong>：被打回也计一次
           （每次都真的产生一条审核任务）；因系统不可用而失败的提交不占额度；管理员不受此上限约束。
         </NAlert>
         <NFormItem label="每日投稿上限">
@@ -268,7 +268,7 @@ onMounted(load);
       </NCard>
 
       <!-- 发布质量闸门（票 306）：开启后提交前先评分，不达标不放行。
-           ADR-0023 起是**木桶**判定：总分与六个维度都要过线。 -->
+           ADR-0023 起是<strong>木桶</strong>判定：总分与六个维度都要过线。 -->
       <NCard class="admin-card mb-4" title="发布质量闸门" size="small">
         <NAlert type="warning" :bordered="false" class="mb-4">
           开启前必须先让 AI
@@ -276,9 +276,9 @@ onMounted(load);
           闸门失败关闭，叠上 AI 不可用就等于"所有投稿都被拒"。
         </NAlert>
         <NAlert type="info" :bordered="false" class="mb-4">
-          判定是**木桶**：总分要达到 {{ publishLine }} 分（及格线 + 灰带宽度），
+          判定是<strong>木桶</strong>：总分要达到 {{ publishLine }} 分（及格线 + 灰带宽度），
           并且六个维度（清晰度 / 结构性 / 完整度 / 可读性 / 说服力 / 语言规范）
-          **每一项**都要达到及格线 {{ qualityGate.pass_score }} 分。
+          <strong>每一项</strong>都要达到及格线 {{ qualityGate.pass_score }} 分。
           任何一项不够都不能发布，总分再高也不行——否则长板会把短板抵消掉，
           两行话也能凑出及格的加权分。
         </NAlert>

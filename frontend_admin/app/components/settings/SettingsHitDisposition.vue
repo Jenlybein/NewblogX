@@ -12,13 +12,11 @@
  * **全部短路**，不再花钱 —— 结论已经定了。
  */
 import {
-  NAlert,
   NButton,
   NCard,
   NForm,
   NFormItem,
   NSelect,
-  NSpace,
   useMessage,
 } from "naive-ui";
 
@@ -128,12 +126,6 @@ onMounted(load);
 
 <template>
   <div class="admin-settings-panel">
-    <NAlert type="info" :bordered="false" class="mb-4">
-      命中之后文章去哪，由这里决定。它是发布链路的<strong>第一环</strong>：
-      命中且不是「放行」时，后面的<strong>质量评分</strong>与
-      <strong>AI 合规判定</strong>立即短路，不再调用模型、不再花额度。
-    </NAlert>
-
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="拦截词命中" size="small">
         <NFormItem label="拦截词（明确违法 / 高危）命中时">
@@ -144,7 +136,7 @@ onMounted(load);
             data-role="hit-disposition-block"
           />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">{{ blockDescription }}</NAlert>
+        <div class="admin-field-help">{{ blockDescription }}</div>
       </NCard>
 
       <NCard class="admin-card mb-4" title="观察词命中" size="small">
@@ -156,27 +148,23 @@ onMounted(load);
             data-role="hit-disposition-watch"
           />
         </NFormItem>
-        <NAlert type="info" :bordered="false" class="mb-4">{{ watchDescription }}</NAlert>
-        <NAlert type="warning" :bordered="false">
-          观察档没有「禁用」：观察词是误报代价低的词（推广话术、口头语），
-          拒发它们等于把「加微信」三个字写成违规内容。
-        </NAlert>
+        <div class="admin-field-help">{{ watchDescription }}</div>
       </NCard>
 
       <NCard class="admin-card mb-4" title="评论怎么落地" size="small">
-        <NAlert type="info" :bordered="false">
-          评论只有<strong>两档语义</strong>：选「放行」就打星照常发布；选「退回草稿」或
-          「禁用」都等价于<strong>拒收</strong>（不入库、提示作者修改）。
-          评论没有草稿态，也没有申诉通道 —— 把它放进待审队列等于让作者以为发出去了
-          却永远看不到。昵称 / 简介 / 私信 / 合集仍然只打星。
-        </NAlert>
+        <div class="admin-field-help">
+          只有两档语义：选「放行」打星照发；「退回草稿」与「禁用」都等价于拒收（不入库）。
+          评论没有草稿态，昵称 / 简介 / 私信 / 合集仍只打星。
+        </div>
       </NCard>
 
-      <NSpace>
-        <NButton type="primary" :loading="saving" @click="save">
-          保存命中处理
-        </NButton>
-      </NSpace>
+      <NButton type="primary" :loading="saving" @click="save"
+        >保存命中处理</NButton
+      >
     </NForm>
+    <div v-else class="admin-empty">
+      {{ loading ? "配置加载中" : "配置加载失败，刷新页面重试" }}
+    </div>
   </div>
 </template>
+

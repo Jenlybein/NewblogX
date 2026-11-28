@@ -103,9 +103,12 @@
     color: var(--color-ink-muted);
   }
 
+  /* 父分组"已展开 / 命中后代"：只加重字色与字重，**不给底色** ——
+     底色留给真正选中的叶子，否则两者看起来一模一样。 */
   .admin-nav__group--active {
     color: var(--color-ink);
-    background: var(--color-bg-subtle);
+    background: transparent;
+    font-weight: 500;
   }
 
   /* 父项是展开/收起的按钮而不是链接：要显式清掉按钮默认的边框/底色/居中。 */
@@ -166,15 +169,29 @@
     padding-left: 3.5rem;
   }
 
+  /* depth=3：四级菜单（站点配置 → 内容修改与发布 → 文章审核设置 → 审核规则）。
+     之前只写到 depth=2，第三级子项落回默认 px-3，比父分组还靠左 ——
+     看起来像"子项挂在了上一级下面"。步长固定 1.25rem，与上面两级同一条线。 */
+  .admin-nav__item[data-depth='3'] > .admin-nav__group {
+    padding-left: 4.5rem;
+  }
+
+  .admin-nav__item[data-depth='3'] > .admin-nav__link {
+    padding-left: 4.75rem;
+  }
+
   .admin-nav__link:hover {
     color: var(--color-ink);
     background: var(--color-bg-subtle);
   }
 
+  /* 选中叶子：底色 + 左侧竖条 + 加重。竖条用 inset shadow 而不是 border-left，
+     这样切换层级时不被 1px 边框推动布局。 */
   .admin-nav__link--active {
     color: var(--color-ink);
     background: var(--color-bg-subtle);
     font-weight: 600;
+    box-shadow: inset 2px 0 0 0 var(--color-link);
   }
 
   .admin-nav__icon {
@@ -701,6 +718,14 @@
       padding-left: 2.25rem;
     }
 
+    .admin-nav__item[data-depth='3'] > .admin-nav__link {
+      padding-left: 3.75rem;
+    }
+
+    .admin-nav__item[data-depth='3'] > .admin-nav__group {
+      padding-left: 3.5rem;
+    }
+
     .admin-nav__group-title {
       @apply py-1.5;
     }
@@ -734,6 +759,13 @@
 
   .admin-field--number {
     max-width: 180px;
+  }
+
+  /* 控件下面那行说明：弱化到"读得到但不抢"，和标签区分开。
+     用它替代原来整段 NAlert —— 一屏能扫完，改哪项看哪行。 */
+  .admin-field-help {
+    @apply -mt-2 mb-4 text-xs leading-relaxed;
+    color: var(--color-ink-faint);
   }
 
   .admin-field--select {

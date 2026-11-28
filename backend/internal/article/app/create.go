@@ -284,9 +284,15 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*CreateResu
 		// 业务拒绝"而不是 "什么都没发生"：错误码 + 分数 / 差额 / 问题列表。
 		return nil, newQualityRejection(created.ID(), verdict, cmd.QualityGate.PassScore)
 	}
-	if riskRejected {
+	if riskRejected || filterReject {
 		// 文章已以 REJECTED 落库（不给改），返回固定文案的业务拒绝。
 		// 命中词、维度、等级都不带给作者。
+		//
+		// filterReject 与"同步风险命中"共用这一句：两者对作者的效果一样
+		// （终局、不可改、读者看不到），差别只在原因（命中词 vs 风险扫描）。
+		//
+		// 这条分支是**线上验收补上的**：之前 reject 只是把文章落成已拒绝、
+		// 接口却回成功，作者看到"已提交"而不知道这一篇已经被否决了。
 		return nil, newRiskRejection()
 	}
 	// FilteredCount 只回答"这次写入被替换了几处"：前端据此提示「已过滤 N 处」，

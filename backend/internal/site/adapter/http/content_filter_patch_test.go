@@ -85,6 +85,40 @@ func TestMergeContentFilterPatch只传处置时词表不动(t *testing.T) {
 	}
 }
 
+// 2026-12-01：评论命中处置也走这条字段级补丁（`auto_dispose.comment_action`）。
+//
+// 单独一条用例是因为它是**新增键**：聚合端点只接受 auto_dispose 这一段，
+// 运营在「关键词命中处理」页只改评论档、别的两个键不传时，既不能把已有的
+// block/watch 抹掉，也不能把词表带进来。
+func TestMergeContentFilterPatch评论档单独可写(t *testing.T) {
+	t.Parallel()
+
+	current := decodeCurrentFilter(t)
+	// 现值：文章侧 reject、观察侧 release，评论侧还没有这一键（老数据）。
+	current.AutoDispose = conf.ContentFilterAutoDispose{
+		BlockAction: conf.ContentFilterActionReject,
+		WatchAction: conf.ContentFilterActionRelease,
+	}
+	raw := map[string]json.RawMessage{
+		"auto_dispose": json.RawMessage(`{"comment_action":"reject"}`),
+	}
+	merged, err := mergeContentFilterPatch(current, raw)
+	if err != nil {
+		t.Fatalf("合并失败: %v", err)
+	}
+	if merged.AutoDispose.CommentAction != conf.ContentFilterActionReject {
+		t.Fatalf("评论档应被写入，实际 %+v", merged.AutoDispose)
+	}
+	// 另外两个键没传，必须保持现值（否则"只改评论"会顺手把文章侧改回默认）。
+	if merged.AutoDispose.BlockAction != conf.ContentFilterActionReject ||
+		merged.AutoDispose.WatchAction != conf.ContentFilterActionRelease {
+		t.Fatalf("没传的 block/watch 应保持现值，实际 %+v", merged.AutoDispose)
+	}
+	if len(merged.Words) != 1 || merged.RetainDays != 180 {
+		t.Fatalf("词表 / 保留期应原样保留，实际 %+v", merged)
+	}
+}
+
 // TestMergeContentFilterPatch非法JSON报段错误码 钉住错误码归属。
 func TestMergeContentFilterPatch非法JSON报段错误码(t *testing.T) {
 	t.Parallel()

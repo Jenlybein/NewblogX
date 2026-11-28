@@ -8501,6 +8501,18 @@ export interface components {
              */
             block_action?: "release" | "draft" | "reject";
             /**
+             * @description CommentAction 是**评论**命中拦截词时的处置：release（打星照发，默认）/ reject（拒收）。
+             *
+             *     为什么评论单独一档而不是跟着 BlockAction：文章能"退回草稿、作者改完重投"，
+             *     评论没有草稿态、也没有申诉通道（票 400 之后更没有待审队列）。两者共用一个
+             *     取值会把运营逼到"要么文章只能放行、要么评论全拒"的二选一 —— 评论命中
+             *     一条推广话术就整条不发，代价远大于打星。
+             *
+             *     观察词命中在评论里**永远只打星**：没有 reject 这一档（理由同上，误报代价低）。
+             * @enum {string}
+             */
+            comment_action?: "release" | "reject";
+            /**
              * @description WatchAction 是 watch（观察词）命中的处置：release（默认）/ draft。
              *
              *     **没有 reject**：观察档是误报代价低的词（推广话术、口头语），拒发它们等于把

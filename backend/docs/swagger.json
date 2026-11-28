@@ -105,6 +105,14 @@
                         ],
                         "type": "string"
                     },
+                    "comment_action": {
+                        "description": "CommentAction 是**评论**命中拦截词时的处置：release（打星照发，默认）/ reject（拒收）。\n\n为什么评论单独一档而不是跟着 BlockAction：文章能\"退回草稿、作者改完重投\"，\n评论没有草稿态、也没有申诉通道（票 400 之后更没有待审队列）。两者共用一个\n取值会把运营逼到\"要么文章只能放行、要么评论全拒\"的二选一 —— 评论命中\n一条推广话术就整条不发，代价远大于打星。\n\n观察词命中在评论里**永远只打星**：没有 reject 这一档（理由同上，误报代价低）。",
+                        "enum": [
+                            "release",
+                            "reject"
+                        ],
+                        "type": "string"
+                    },
                     "watch_action": {
                         "description": "WatchAction 是 watch（观察词）命中的处置：release（默认）/ draft。\n\n**没有 reject**：观察档是误报代价低的词（推广话术、口头语），拒发它们等于把\n\"加微信\"三个字写成违规内容。保存侧把 reject 当非法值拒绝（见 site/app 的归一化）。",
                         "enum": [

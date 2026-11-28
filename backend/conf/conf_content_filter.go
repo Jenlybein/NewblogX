@@ -74,9 +74,9 @@ type ContentFilter struct {
 const (
 	// ContentFilterActionRelease 只把命中替换成等长星号，文本照常入库并继续后续链路。
 	ContentFilterActionRelease = "release"
-	// ContentFilterActionDraft 命中落草稿（文章）/ 拒收（评论），提交配额不归还。
+	// ContentFilterActionDraft 命中落草稿（文章），提交配额不归还。
 	ContentFilterActionDraft = "draft"
-	// ContentFilterActionReject 文章落「已拒绝」且不可改 / 评论拒收。
+	// ContentFilterActionReject 文章落「已拒绝」且不可改 / 评论拒收（见 CommentAction）。
 	ContentFilterActionReject = "reject"
 )
 
@@ -90,6 +90,16 @@ type ContentFilterAutoDispose struct {
 	//
 	// 判据是"真被打星"：白名单豁免的命中文本原样返回，不该触发处置。
 	BlockAction string `yaml:"block_action" json:"block_action" enums:"release,draft,reject"`
+	// CommentAction 是**评论**命中拦截词时的处置：release（打星照发，默认）/ reject（拒收）。
+	//
+	// 为什么评论单独一档而不是跟着 BlockAction：文章能"退回草稿、作者改完重投"，
+	// 评论没有草稿态、也没有申诉通道（票 400 之后更没有待审队列）。两者共用一个
+	// 取值会把运营逼到"要么文章只能放行、要么评论全拒"的二选一 —— 评论命中
+	// 一条推广话术就整条不发，代价远大于打星。
+	//
+	// 观察词命中在评论里**永远只打星**：没有 reject 这一档（理由同上，误报代价低）。
+	CommentAction string `yaml:"comment_action" json:"comment_action" enums:"release,reject"`
+
 	// WatchAction 是 watch（观察词）命中的处置：release（默认）/ draft。
 	//
 	// **没有 reject**：观察档是误报代价低的词（推广话术、口头语），拒发它们等于把

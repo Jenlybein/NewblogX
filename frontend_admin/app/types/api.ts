@@ -342,6 +342,14 @@ export type HitDisposition = "release" | "draft" | "reject";
 /** 观察档可选的两档（没有 reject）。 */
 export type WatchHitDisposition = "release" | "draft";
 
+/**
+ * 评论命中的两档（2026-12-01）。
+ *
+ * 评论没有草稿态、也没有申诉通道，「退回草稿」对它等价于拒收 ——
+ * 这一栏单独配置，不跟文章的 block_action 联动。
+ */
+export type CommentHitDisposition = "release" | "reject";
+
 export type ContentFilterRuntimeConfig =
   RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterResponse">
 

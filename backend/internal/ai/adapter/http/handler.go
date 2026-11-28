@@ -157,6 +157,12 @@ func (h *Handler) Scoring(c *gin.Context) {
 // failScore 把评分读取错误翻译成旧文案。
 func failScore(c *gin.Context, err error) {
 	switch {
+	// 站点关了「文章质量评分」（2026-11-28 / ADR-0037）：三个评分 type 一律被拒，
+	// 文案必须是「站点已关闭文章质量评分」——落到下面的 default 会让读者看到
+	// 「读取文章评分失败」，像是服务出错而不是功能被关掉。
+	case apperr.IsCode(err, apperr.CodeArticleScoreDisabled):
+		// 用 1001（参数 / 请求类）而不是 1002（服务异常）：功能被关掉不是后端坏了。
+		res.FailWithValidError(err, c)
 	case apperr.IsCode(err, apperr.CodeAuthRequired):
 		res.FailWithMsg("请先登录", c)
 	case apperr.IsCode(err, apperr.CodeAIPermissionDenied):

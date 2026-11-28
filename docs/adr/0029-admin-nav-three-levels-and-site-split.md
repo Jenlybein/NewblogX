@@ -124,3 +124,11 @@
 - 配置段与迁移：[配置分层](../architecture/configuration.md) · [ADR-0020](./0020-config-section-registry-and-named-sections.md) · [ADR-0032](./0032-content-filter.md) · [ADR-0033](./0033-captcha-configurable-and-redis-store.md)
 - 术语：[GLOSSARY · 后台信息架构](../../GLOSSARY.md)（关键词过滤 / 关键词风险 / 内容修改与发布 / 验证码与通知 / 登录能力面）
 
+## 修订记录
+
+- **2026-11-28（ADR-0037）**：菜单再深一层 ——「文章审核设置」自己成为**四级分组**，下挂
+  「审核规则」(`/site/article-review`) 与「关键词命中处理」(`/site/article-review/keywords`)。
+  原因：这一页要同时写 `site.article`（审核规则）与 `content_filter.auto_dispose`（命中处置）
+  两段配置，与本条"一个页面只碰一个配置段"的原则冲突；拆成两子页后每页只传自己那一段，
+  两页共用一个聚合端点 `PUT /site/article-review`（先校验后写）。本条的三级化与按受影响方
+  分组结论继续成立，只是"文章审核设置"从叶子节点升级成中间节点。

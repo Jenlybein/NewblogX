@@ -56,7 +56,22 @@ type CreateArticleCmd struct {
 	// 0 表示"调用方没给出上限"，由 domain.NormalizeTagLimit 回落到默认值 ——
 	// 用例层不替调用方猜"没配置时算几个"，也不把默认值抄第二份。
 	TagLimit int
+	// ScoreEnabled 是「文章质量评分」开关的现读取值（2026-11-28）。
+	//
+	// 它决定提交时要不要跑同步质量评分：关掉之后连闸门都必然是关的
+	// （保存侧强制联动），所以"评分关"等价于"没有质量判据"。
+	//
+	// 零值（false）不等于"默认关"：adapter 必须显式给出站点生效值，
+	// 与 QualityGate / SkipExamining 同一条注入口径。
+	ScoreEnabled bool
+	// AIComplianceEnabled 是「AI 合规判定」开关的现读取值（2026-11-28）。
+	//
+	// 它与 ScoreEnabled 一起决定提交落点：**两个都关** ⇒ 没有任何机器判据
+	// ⇒ 直接落"已发布 + 可见"（与「文章免审核」同一条分支）。
+	AIComplianceEnabled bool
 }
+
+// SubmitGates 是一次提交里"有没有机器判据"的两项事实（2026-11-28）。
 
 // UpdateArticleCmd 是更新文章的输入；nil 表示该字段不修改。
 type UpdateArticleCmd struct {
@@ -85,6 +100,11 @@ type UpdateArticleCmd struct {
 	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0023）。
 	// 零值 = 闸门关闭，更新路径与引入闸门之前完全一致。
 	QualityGate QualityGatePolicy
+	// ScoreEnabled / AIComplianceEnabled 与 CreateArticleCmd 同义：
+	// 编辑重投也要按同一份开关决定落点，否则"新建直接可见、编辑后却进人工"
+	// 这种不对称会让人以为开关时灵时不灵。
+	ScoreEnabled        bool
+	AIComplianceEnabled bool
 	// TagLimit 是一篇文章允许的标签数上限（站点配置，0 = 用默认上限）。
 	//
 	// 与 CreateArticleCmd.TagLimit 同义：编辑不能靠"建的时候在旧上限内、重投时

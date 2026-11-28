@@ -50,6 +50,7 @@ func TestCreateDraft(t *testing.T) {
 	ctx := context.Background()
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "第一篇",
@@ -87,6 +88,7 @@ func TestCreateCleanSubmitIsPublishedButPendingReview(t *testing.T) {
 	ctx := context.Background()
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "干净稿",
@@ -131,6 +133,7 @@ func TestCreateSkipExaminingPublishes(t *testing.T) {
 	ctx := context.Background()
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "直发",
@@ -162,6 +165,7 @@ func TestCreateRejectsForeignCategory(t *testing.T) {
 	repos.FakeCategories().Seed(apptest.NewCategoryForTest(cid, other, "别人的分类"))
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
@@ -184,6 +188,7 @@ func TestCreateRejectsDisabledTag(t *testing.T) {
 	repos.FakeTags().Seed(tag)
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
@@ -213,6 +218,7 @@ func TestCreateRollsBackOnAuthorStatsFailure(t *testing.T) {
 	repos.FakeAuthorStats().FailNext("ApplyArticleDelta", boom)
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
@@ -244,6 +250,7 @@ func TestUpdateForbiddenForStranger(t *testing.T) {
 
 	title := "改标题"
 	_, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     strangerViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -263,6 +270,7 @@ func TestUpdateNoopDoesNotWrite(t *testing.T) {
 
 	same := "测试文章"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -292,6 +300,7 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -330,6 +339,7 @@ func TestUpdatePublishedWithoutReviewKeepsPublished(t *testing.T) {
 	content := "跳过审核站点上的正文改动"
 	target := domain.StatusExamining
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		ArticleID:     ctype.NewID(1),
@@ -369,6 +379,7 @@ func TestUpdateVisibilityOnlyDoesNotReReview(t *testing.T) {
 
 	hidden := domain.VisibilityUserHidden
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:      authorViewer(),
 		Policy:     domain.OpenWritePolicy(),
 		ArticleID:  ctype.NewID(1),
@@ -395,6 +406,7 @@ func TestUpdateBackToDraftCancelsTask(t *testing.T) {
 
 	draft := domain.StatusDraft
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		ArticleID:    ctype.NewID(1),

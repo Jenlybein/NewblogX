@@ -59,6 +59,16 @@ const maxArticleTags = computed(
   () =>
     siteStore.runtimeConfig?.article?.max_tags_per_article ?? MAX_ARTICLE_TAGS,
 );
+
+/**
+ * 站点是否开着「文章质量评分」（2026-11-28）。
+ *
+ * 关掉之后写稿页不显示任何分数痕迹：评分面板、维度分、以及"质量驳回维度"
+ * 整块隐藏（闸门关闭后也不可能出现质量驳回）。
+ */
+const scoreEnabled = computed(
+  () => siteStore.runtimeConfig?.article?.score_enabled !== false,
+);
 const editorTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const shadowPreviewRef = ref<{ scrollToHeading: (id: string) => boolean } | null>(null);
 const previewHeadings = ref<ArticleHeadingAnchor[]>([]);
@@ -199,13 +209,26 @@ const {
 });
 
 // 评分弹窗的数据加载见 composable（三个入口共用一套 loading 状态）。
-const { handleOpenArticleScore } = useStudioScore({
+const { handleOpenArticleScore: openScoreRaw } = useStudioScore({
   modalOpen: articleScoreModalOpen,
   loading: articleScoreLoading,
   data: articleScoreData,
   articleId: editArticleId,
   message,
 });
+
+/**
+ * 评分入口（2026-11-28）：站点关掉「文章质量评分」时**整块不生效**。
+ *
+ * 按钮在 StudioWriteHeader 里按 canOpenScore && scoreEnabled 置灰，这里再守一道：
+ * 热键、未来的新入口都可能绕过按钮直接调进来。
+ */
+function handleOpenArticleScore() {
+  if (!scoreEnabled.value) {
+    return;
+  }
+  openScoreRaw();
+}
 
 // handleRefreshArticleScore 留在页面而不是 composable：它跨两个域 ——
 // 先"必要时把当前内容存成草稿"（文章域 + 发布域），再请求重新评分（评分域）。
@@ -319,7 +342,7 @@ useNoIndexPage();
       :publish-disabled="!writePolicy.allowPublish"
       :title-readonly="writeReadOnly"
       :is-edit-mode="isEditMode"
-      :can-open-score="canOpenArticleScore"
+      :can-open-score="canOpenArticleScore && scoreEnabled"
       :show-toc="showToc"
       :view-mode="viewMode"
       :profile-id="authStore.profileId || ''"
@@ -416,6 +439,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       @copy="handleAiCopyResult" />
 
     <ArticleScoreModal
+      v-if="scoreEnabled"
       v-model:show="articleScoreModalOpen"
       title="文章质量评分"
       :loading="articleScoreLoading"

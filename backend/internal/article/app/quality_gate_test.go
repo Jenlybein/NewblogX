@@ -75,6 +75,7 @@ func newGateService(t *testing.T, gate app.QualityGatePort) (*app.Service, *appt
 // submitCmd 返回一次"提交"命令（普通作者 + 站点跳过审核）。
 func gateSubmitCmd(gate app.QualityGatePolicy) app.CreateArticleCmd {
 	return app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Title:         "标题",
 		Content:       "正文",

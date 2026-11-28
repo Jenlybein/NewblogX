@@ -3,7 +3,9 @@ package cli
 import (
 	"fmt"
 
+	"myblogx/conf"
 	articlemysql "myblogx/internal/article/adapter/mysql"
+	"myblogx/internal/platform/config"
 	mysqlddl "myblogx/internal/platform/mysql/ddl"
 
 	"github.com/sirupsen/logrus"
@@ -47,6 +49,30 @@ func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 			logger.Error("收藏夹计数回填失败: ", err)
 		}
 		return err
+	}
+
+	// 「文章审核设置」的数据迁移（2026-11-28 / ADR-0037）：删 quality_auto_release、
+	// 补 score_enabled / ai_compliance_enabled / ai_failure_action、旧值 mask → release。
+	//
+	// 放在 -db 里而不是只给一条手动命令：这是**新代码配旧数据**最容易出事的一批键 ——
+	// 结构体零值恰好都是"关"，缺键会静默把线上行为翻成"评分关闭 + 落点未知"。
+	// 三个改动全部幂等，重复执行结果一致（有单测逐字验证）。
+	//
+	// 用不带默认值文件的服务实例：这条迁移只看库里已有的原始 payload，
+	// 不该因为默认值文件缺失或改过而决定"要搬什么"。
+	if db.Migrator().HasTable("runtime_config_models") {
+		svc := config.NewRuntimeConfigService(conf.RuntimeDefaults{}, logger, db)
+		result, err := svc.MigrateArticleReview(true)
+		if err != nil {
+			if logger != nil {
+				logger.Error("文章审核设置迁移失败: ", err)
+			}
+			return err
+		}
+		if logger != nil && result.Changed() {
+			logger.Infof("文章审核设置迁移完成: site=%v content_filter=%v",
+				result.SiteChanged, result.ContentFilterChanged)
+		}
 	}
 
 	if logger != nil {

@@ -26,12 +26,28 @@ type submitOutcome struct {
 	Rejected bool
 }
 
-// decideSubmit 把「免审核开关 / 质量闸门 / 同步风险扫描」合成一个落点。
+// decideSubmit 把「免审核 / 同步风险 / 质量闸门 / 两个机器判据开关」合成一个落点。
 //
 // 入参都是事务外已经算好的结论；本函数是纯函数，不读配置、不碰库。
-// 顺序固定：风险命中 > 质量不达标 > 正常放行。风险命中优先于闸门，
-// 因为前者落 REJECTED 不给改，后者落草稿可改可重投。
-func decideSubmit(skipExamining bool, gateRejected bool, riskRejected bool) submitOutcome {
+//
+// 优先级固定：风险命中 > 质量不达标 > 没有机器判据 ⇒ 直接可见 > 待模型判定。
+// 风险命中优先于闸门，因为前者落 REJECTED 不给改，后者落草稿可改可重投。
+//
+// "没有机器判据"是 2026-11-28 新增的一条分支，它与「文章免审核」**共用同一行代码**：
+//
+//	!scoreEnabled || !aiComplianceEnabled  ⇒  落 Published + visible
+//
+// 免审核（skipExamining）之所以也走这里，是因为它表达的是同一件事 ——
+// "这次提交没有任何机器判据要等"。两件事合成一条分支而不是各写一条，是因为
+// 两条并行的"无门槛放行"路径迟早会漂（一条加了关键词处置检查、另一条忘了），
+// 而它们本来就该完全一致。
+//
+// 注意**关键词处置不在这条链里**：命中即拒 / 退回草稿在过滤那一步就已经短路
+// （见 create.go / update.go 的 hitDisposition），根本走不到这里。
+// 「文章免审核」也不绕过它 —— 那是作者侧最不能接受的绕过。
+func decideSubmit(
+	skipExamining, scoreEnabled, aiComplianceEnabled, gateRejected, riskRejected bool,
+) submitOutcome {
 	if riskRejected {
 		return submitOutcome{
 			Status:     domain.StatusRejected,
@@ -43,8 +59,9 @@ func decideSubmit(skipExamining bool, gateRejected bool, riskRejected bool) subm
 		// 质量不达标：即使免审核开启也不放行，文章落草稿，作者改完可立刻重投。
 		return submitOutcome{Status: domain.StatusDraft, Visibility: domain.VisibilityVisible}
 	}
-	if skipExamining {
-		// 免审核：直接真发布，不等模型。
+	// 没有任何机器判据可等（免审核，或评分与 AI 合规两个开关都关 / 关掉其一）：
+	// 直接真发布，读者立刻可见。
+	if skipExamining || !scoreEnabled || !aiComplianceEnabled {
 		return submitOutcome{Status: domain.StatusPublished, Visibility: domain.VisibilityVisible}
 	}
 	// 干净文章：立刻"已发布"，但先对读者隐藏，等模型判定。

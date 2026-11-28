@@ -1,10 +1,13 @@
 package http
 
 import (
+	"encoding/json"
+
 	"myblogx/conf"
 
 	"github.com/gin-gonic/gin"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/contentfilter"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
@@ -61,6 +64,81 @@ func (h *Handler) UpdateSiteSection(c *gin.Context) {
 		TargetID:   "site",
 		Success:    true,
 		Message:    "更新运行时配置成功: site",
+	})
+}
+
+// UpdateArticleReviewSection 是「文章审核设置」两个子页的聚合写入口（2026-11-28）。
+//
+// 一次请求最多写两段：site.article（审核规则页）与 content_filter 的 auto_dispose
+// （关键词命中处理页）。两段都先校验后写，任何一段不合法就一个字节都不写。
+//
+// 两段都不传时报 1001：一次"什么都没改"的保存不该变成一次写库，也不该回
+// "保存成功"让前端以为真的存了。
+// @Summary 保存文章审核设置（审核规则 / 关键词命中处理）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ArticleReviewSaveRequest true "两段任一或都传"
+// @Success 200 {object} kernel.Envelope[SiteSectionSiteResponse]
+// @Router /site/article-review [put]
+func (h *Handler) UpdateArticleReviewSection(c *gin.Context) {
+	// 路由上挂了 mw.BindJson[...]：它已经 ShouldBindJSON 过一遍并把结果放进了
+	// 上下文。这里**必须**用 GetBindJson 取，不能再绑一次 —— 第二次读同一个
+	// Body 只会拿到 EOF，把每一次保存都变成 1001（这是本端点第一个 bug）。
+	body := middleware.GetBindJson[ArticleReviewSaveRequest](c)
+
+	if body.Article == nil && body.ContentFilter == nil {
+		fail(c, apperr.NewWithMessage(apperr.CodeSiteArticleInvalid,
+			"请求体里 article 与 content_filter 至少要有一段"))
+		return
+	}
+	if body.ContentFilter != nil && body.ContentFilter.AutoDispose == nil {
+		// content_filter 这一段只开 auto_dispose 一个键：传了空对象就是"什么都没改"，
+		// 与两段都不传同义 —— 一样按 1001 拒绝，而不是静默成功。
+		fail(c, apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+			"content_filter 里只有 auto_dispose 可写，且不能为空"))
+		return
+	}
+
+	// site 段整段写（与 PUT /site/site 同一条 read-modify-write 语义），
+	// 但**只覆盖 article 块**：请求体给的是那一个块，其余七块取现值。
+	//
+	// 只传 content_filter 时同样带上现值的完整 site —— 否则 UpdateSite 会把
+	// 没传的段写成零值（登录开关、SEO 全被清零）。
+	site := h.svc.AdminSite()
+	if body.Article != nil {
+		site.Article = *body.Article
+	}
+
+	var filterPatch *conf.ContentFilter
+	if body.ContentFilter != nil {
+		// 字段级补丁：只覆盖 auto_dispose，其余键（词表 / 白名单 / 保留期）取现值 ——
+		// 词表页（PUT /site/content_filter）随时可能刚改过它们。
+		current := h.svc.AdminContentFilter()
+		current.AutoDispose = *body.ContentFilter.AutoDispose
+		filterPatch = &current
+	}
+
+	if err := h.svc.UpdateArticleReview(site, filterPatch); err != nil {
+		fail(c, err)
+		return
+	}
+	// 响应与 PUT /site/site 同一个形状（完整 site 快照）：保存之后前端不必再发
+	// 一个 GET 去对齐表单，也避免"保存成功但页面还是旧值"。
+	res.OkWithData(SiteSectionSiteResponse(h.svc.AdminSite()), c)
+	// 审计的 TargetID 必须是**段名**（configuration.md）：这个端点落在 site 段上，
+	// 顺手改的 content_filter 段写进 Message，仍是一条事件。
+	message := "更新运行时配置成功: site"
+	if filterPatch != nil {
+		message = "更新运行时配置成功: site + content_filter.auto_dispose"
+	}
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   "site",
+		Success:    true,
+		Message:    message,
 	})
 }
 
@@ -495,9 +573,7 @@ func (h *Handler) UpdateCaptchaSection(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /site/content_filter [put]
 func (h *Handler) UpdateContentFilterSection(c *gin.Context) {
-	if err := updateNamedSection(c, func(v SiteSectionContentFilterRequest) error {
-		return h.svc.UpdateContentFilter(conf.ContentFilter(v))
-	}); err != nil {
+	if err := h.updateContentFilterPatch(c); err != nil {
 		fail(c, err)
 		return
 	}
@@ -509,4 +585,63 @@ func (h *Handler) UpdateContentFilterSection(c *gin.Context) {
 		Success:    true,
 		Message:    "更新运行时配置成功: content_filter",
 	})
+}
+
+// updateContentFilterPatch 是 content_filter 段的**字段级补丁**（2026-11-28）。
+//
+// 为什么必须打补丁而不是整段覆盖：这一段的字段分给两个页面写 —— 词表页管
+// words / whitelist / whitelist_phrases / retain_days，文章审核设置的
+// 关键词命中处理子页管 auto_dispose。整段覆盖会让"在词表页点一次保存"
+// 把命中处置静默恢复默认值（反过来也一样）。
+//
+// 实现方式：先按 raw JSON 记住**这次真的传了哪些键**，再把现值叠上去。
+// 不能用结构体零值判断"没传"，因为 false / 0 / 空数组都是合法现值。
+func (h *Handler) updateContentFilterPatch(c *gin.Context) error {
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		return apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid, err.Error())
+	}
+	merged, err := mergeContentFilterPatch(h.svc.AdminContentFilter(), raw)
+	if err != nil {
+		return err
+	}
+	return h.svc.UpdateContentFilter(merged)
+}
+
+// contentFilterPatchKeys 是本端点可写的键（白名单）。
+//
+// 白名单而不是"传什么写什么"：词表段里还有后端算出来的只读字段
+// （required_categories / missing_required_categories），让它们可写等于让前端
+// 能伪造类目覆盖结论。
+var contentFilterPatchKeys = []string{"words", "whitelist", "whitelist_phrases", "retain_days", "auto_dispose"}
+
+// mergeContentFilterPatch 把一段 raw JSON 叠到现值上（纯函数，便于断言）。
+//
+// 语义是**字段级补丁**：只覆盖真的出现在请求体里的键，缺键保留现值。
+// 不能用结构体零值判断"没传"，因为 false / 0 / 空数组都是合法现值。
+func mergeContentFilterPatch(current conf.ContentFilter, raw map[string]json.RawMessage) (conf.ContentFilter, error) {
+	for _, key := range contentFilterPatchKeys {
+		value, ok := raw[key]
+		if !ok {
+			continue
+		}
+		var target any
+		switch key {
+		case "words":
+			target = &current.Words
+		case "whitelist":
+			target = &current.Whitelist
+		case "whitelist_phrases":
+			target = &current.WhitelistPhrases
+		case "retain_days":
+			target = &current.RetainDays
+		case "auto_dispose":
+			target = &current.AutoDispose
+		}
+		if err := json.Unmarshal(value, target); err != nil {
+			return conf.ContentFilter{}, apperr.NewWithMessage(apperr.CodeSiteContentFilterInvalid,
+				key+" 格式不合法")
+		}
+	}
+	return current, nil
 }

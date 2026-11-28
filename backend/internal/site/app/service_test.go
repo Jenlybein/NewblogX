@@ -426,11 +426,11 @@ func TestUpdateContentFilterDefaultsAutoDisposeWhenBodyOmitsIt(t *testing.T) {
 	}
 	got := env.Runtime.ContentFilter().AutoDispose
 	want := conf.ContentFilterAutoDispose{
-		BlockAction: siteapp.ContentFilterActionMask,
-		WatchAction: siteapp.ContentFilterActionMask,
+		BlockAction: siteapp.ContentFilterActionRelease,
+		WatchAction: siteapp.ContentFilterActionRelease,
 	}
 	if got != want {
-		t.Fatalf("请求体缺 auto_dispose 时应落库 mask/mask，实际 %+v", got)
+		t.Fatalf("请求体缺 auto_dispose 时应落库 release/release，实际 %+v", got)
 	}
 }
 
@@ -443,13 +443,13 @@ func TestUpdateContentFilterKeepsExplicitReject(t *testing.T) {
 		Words: []conf.ContentFilterWord{{Word: "冰毒", Tier: "block", Category: "drugs"}},
 		AutoDispose: conf.ContentFilterAutoDispose{
 			BlockAction: siteapp.ContentFilterActionReject,
-			WatchAction: siteapp.ContentFilterActionMask,
+			WatchAction: siteapp.ContentFilterActionRelease,
 		},
 	}); err != nil {
 		t.Fatalf("保存词表失败: %v", err)
 	}
 	got := env.Runtime.ContentFilter().AutoDispose
-	if got.BlockAction != siteapp.ContentFilterActionReject || got.WatchAction != siteapp.ContentFilterActionMask {
+	if got.BlockAction != siteapp.ContentFilterActionReject || got.WatchAction != siteapp.ContentFilterActionRelease {
 		t.Fatalf("reject 应原样落库，实际 %+v", got)
 	}
 

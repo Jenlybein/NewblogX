@@ -6526,6 +6526,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/article-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 保存文章审核设置（审核规则 / 关键词命中处理） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 两段任一或都传 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.ArticleReviewSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/captcha": {
         parameters: {
             query?: never;
@@ -8453,17 +8494,20 @@ export interface components {
         };
         "conf.ContentFilterAutoDispose": {
             /**
-             * @description BlockAction 是 block（拦截词）命中且**真被打星**时的处置：mask（默认）/ reject。
+             * @description BlockAction 是 block（拦截词）命中且**真被打星**时的处置：release（默认）/ draft / reject。
              *
-             *     判据是"真被打星"：白名单豁免的命中文本原样返回，不该触发拒发。
+             *     判据是"真被打星"：白名单豁免的命中文本原样返回，不该触发处置。
              * @enum {string}
              */
-            block_action?: "mask" | "reject";
+            block_action?: "release" | "draft" | "reject";
             /**
-             * @description WatchAction 是 watch（观察词）命中的处置：本期只有 mask。
+             * @description WatchAction 是 watch（观察词）命中的处置：release（默认）/ draft。
+             *
+             *     **没有 reject**：观察档是误报代价低的词（推广话术、口头语），拒发它们等于把
+             *     "加微信"三个字写成违规内容。保存侧把 reject 当非法值拒绝（见 site/app 的归一化）。
              * @enum {string}
              */
-            watch_action?: "mask" | "reject";
+            watch_action?: "release" | "draft";
         };
         "conf.ContentFilterWord": {
             /**
@@ -9822,7 +9866,10 @@ export interface components {
         };
         "internal_site_adapter_http.AIResponse": {
             abstract?: string;
+            /** @description AssistantEnabled 是「右下角 AI 助手浮窗」开关：只管入口，不影响任何后端能力。 */
+            assistant_enabled?: boolean;
             avatar?: string;
+            /** @description Enable 是 AI 总闸（服务端能不能调模型），2026-11-28 起与浮窗解耦。 */
             enable?: boolean;
             nickname?: string;
         };
@@ -9837,6 +9884,21 @@ export interface components {
         };
         "internal_site_adapter_http.AdminSidebarCardsResponse": {
             list?: components["schemas"]["internal_site_adapter_http.AdminSidebarCardItem"][];
+        };
+        "internal_site_adapter_http.ArticleReviewContentFilterPatch": {
+            auto_dispose?: components["schemas"]["conf.ContentFilterAutoDispose"];
+        };
+        "internal_site_adapter_http.ArticleReviewSaveRequest": {
+            /**
+             * @description Article 是 site.article **块**的完整形状（不是整段 site）；nil 表示这次不改审核规则。
+             *
+             *     类型钉成 article 块而不是 `SiteSectionSiteRequest`（= conf.Site）是刻意的：
+             *     后者的零值会把 project / seo / about / login 等七个块一起清零 —— 那是一次
+             *     「审核规则保存」不该发生的事。
+             */
+            article?: components["schemas"]["myblogx_conf_site.Article"];
+            /** @description ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。 */
+            content_filter?: components["schemas"]["internal_site_adapter_http.ArticleReviewContentFilterPatch"];
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
@@ -9961,6 +10023,13 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionAiRequest": {
             abstract?: string;
+            /**
+             * @description AssistantEnabled 是「右下角 AI 助手浮窗」开关（默认 true）。
+             *
+             *     只管读者站右下角那个浮窗要不要出现；关掉它不影响任何后端 AI 能力
+             *     （评分、合规判定照旧跑）。读者站通过 GET /api/site/ai_info 读它。
+             */
+            assistant_enabled?: boolean;
             avatar?: string;
             /**
              * @description DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。
@@ -9970,6 +10039,18 @@ export interface components {
              *     0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。
              */
             daily_limits?: components["schemas"]["conf.DailyLimits"];
+            /**
+             * @description Enable 是「AI 总闸」：**服务端能不能调模型**。
+             *
+             *     它管的是能力本身 —— 评分、合规判定、摘要、搜索向量、图片审核全部经过
+             *     llm 层的前置检查（internal/ai/llm.go 的 Ready），关掉之后这些能力一律不可用。
+             *
+             *     2026-11-28 语义澄清：它**不再**表示"右下角要不要显示 AI 助手"。那个是
+             *     AssistantEnabled。两个开关各管一层：一个是能力、一个是入口，互不改值。
+             *
+             *     UI 位置同时从「站点配置 → AI 助手」迁到「站点配置 → 站点」：它管的是全站能力，
+             *     放在某个功能的设置页里会让人以为只影响那个功能。
+             */
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;
@@ -9989,6 +10070,13 @@ export interface components {
         };
         "internal_site_adapter_http.SiteSectionAiResponse": {
             abstract?: string;
+            /**
+             * @description AssistantEnabled 是「右下角 AI 助手浮窗」开关（默认 true）。
+             *
+             *     只管读者站右下角那个浮窗要不要出现；关掉它不影响任何后端 AI 能力
+             *     （评分、合规判定照旧跑）。读者站通过 GET /api/site/ai_info 读它。
+             */
+            assistant_enabled?: boolean;
             avatar?: string;
             /**
              * @description DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。
@@ -9998,6 +10086,18 @@ export interface components {
              *     0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。
              */
             daily_limits?: components["schemas"]["conf.DailyLimits"];
+            /**
+             * @description Enable 是「AI 总闸」：**服务端能不能调模型**。
+             *
+             *     它管的是能力本身 —— 评分、合规判定、摘要、搜索向量、图片审核全部经过
+             *     llm 层的前置检查（internal/ai/llm.go 的 Ready），关掉之后这些能力一律不可用。
+             *
+             *     2026-11-28 语义澄清：它**不再**表示"右下角要不要显示 AI 助手"。那个是
+             *     AssistantEnabled。两个开关各管一层：一个是能力、一个是入口，互不改值。
+             *
+             *     UI 位置同时从「站点配置 → AI 助手」迁到「站点配置 → 站点」：它管的是全站能力，
+             *     放在某个功能的设置页里会让人以为只影响那个功能。
+             */
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;
@@ -10860,6 +10960,30 @@ export interface components {
             wechat?: string;
         };
         "myblogx_conf_site.Article": {
+            /**
+             * @description AIComplianceEnabled 是「AI 合规判定」（第③层）开关（默认 true）。
+             *
+             *     关掉之后文章不再走模型判定：质量已过即可见。它跳过的是"等 AI 判定+等人复核"
+             *     这一步，不是"判定失败也放行" —— 分支只出现在质量判定通过之后
+             *     （app/publish_judge.go），拿不到分数与质量不过两条路径照旧不放行。
+             *
+             *     与「文章免审核」（skip_examining）的关系：两者最终都走到同一条"没有机器判据
+             *     ⇒ 提交即可见"的分支，区别是免审核是**临时放行**（一次性跳过质量与 AI），
+             *     这个开关是**常态配置**（长期不调模型）。免审核不改名，但它不绕过关键词处置。
+             */
+            ai_compliance_enabled?: boolean;
+            /**
+             * @description AIFailureAction 是「AI 合规判定不可用 / 失败时文章落到哪里」（默认 manual）。
+             *
+             *     取值：manual（转人工，现状）| hold（保持待可见，次日重投）| draft（退回草稿）|
+             *     release（直接放行，落「未判定」并记警告日志）。
+             *
+             *     **只有"这次调用失败"受它支配**：模型判 suspect、判低风险 violation 都是**结论**
+             *     不是失败，仍按结论转人工；额度用完也固定走 hold（重试注定再被拒、还会白扣一次），
+             *     同样不看这个值。三种语义分开的理由见 app/outbox_wiring.go 的失败分支注释。
+             * @enum {string}
+             */
+            ai_failure_action?: "manual" | "hold" | "draft" | "release";
             /** @description 允许非管理员创建草稿 */
             allow_non_admin_draft?: boolean;
             /**
@@ -10885,18 +11009,6 @@ export interface components {
              */
             max_tags_per_article?: number;
             /**
-             * @description QualityAutoRelease 是「质量达标自动放行」开关（默认 false）。
-             *
-             *     开启后：发布质量闸门判定通过 → 不再等第③层 AI 合规判定，直接转 visible。
-             *     它跳过的是"等 AI 判定"这一步，不是"判定失败也放行" —— 判定点在
-             *     app/publish_judge.go 里只出现在"质量已过"之后，"拿不到分数"与"质量不过"
-             *     两条分支照旧不让文章可见。
-             *
-             *     与上面几项同一条口径：缺省值由 site_default_settings.yaml 显式给出，
-             *     零值就是默认的关闭。
-             */
-            quality_auto_release?: boolean;
-            /**
              * @description QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0023）。
              *
              *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
@@ -10907,6 +11019,24 @@ export interface components {
              *     一处收敛，不在用例层与 adapter 各抄一份。
              */
             quality_gate?: components["schemas"]["myblogx_conf_site.QualityGate"];
+            /**
+             * @description ScoreEnabled 是「文章质量评分」总开关（默认 true）。
+             *
+             *     关掉之后**三条产生路径全部停摆**（提交时同步评分、后台重评、发布判定补算），
+             *     读者站与写稿页不再显示任何分数，评分接口统一返回 article.score_disabled。
+             *
+             *     它与闸门是**父子关系**：评分关了，闸门就没有判据，因此归一化会强制把
+             *     quality_gate.enabled 写成 false（见 internal/site/app 的 normalizeArticle）。
+             *     这条联动写在保存侧而不是读取侧 —— 读取侧取 and 会在库里留下一个"开着却
+             *     永远不生效"的值，排查时极难看出它是死的。
+             *
+             *     关掉评分的**真实代价**：审核队列的风险列由分数派生（moderation.Evaluate 只吃
+             *     ScoreFacts），评分一停，同步风险扫描不再产生结论、风险列只能显示「未评估」。
+             *     这是有意接受的取舍，不是缺陷。
+             *
+             *     缺省值由 site_default_settings.yaml 显式写成 true。
+             */
+            score_enabled?: boolean;
             /** @description 显示非管理员发布的文章 */
             show_non_admin_articles?: boolean;
             /** @description 免审核 */

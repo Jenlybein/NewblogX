@@ -69,6 +69,11 @@ type FilterOutput struct {
 	// 也会出现在 Hits 里（那是为了统计误伤），可那些位置一个字符都没变 ——
 	// 把它们算进来就等于白名单失效。
 	BlockTierMasked bool
+	// WatchTierMasked 表示"这段文本里确实有 watch 档的命中被替换成了星号"。
+	//
+	// 与 BlockTierMasked 同构、同一个判据（真被打星，白名单豁免不算）：两档各有
+	// 自己的处置档位，所以调用方必须分得清命中的是哪一档，不能只报"有命中"。
+	WatchTierMasked bool
 }
 
 // Filter 过滤文本并记录命中（写入口）。
@@ -87,7 +92,8 @@ func (s *Service) Filter(ctx context.Context, in FilterInput) (FilterOutput, err
 	if len(result.Hits) == 0 {
 		return out, nil
 	}
-	out.BlockTierMasked = hasMaskedBlockTier(result.Hits)
+	out.BlockTierMasked = hasMaskedTier(result.Hits, contentfilter.TierBlock)
+	out.WatchTierMasked = hasMaskedTier(result.Hits, contentfilter.TierWatch)
 	s.Record(ctx, domain.Hit{
 		CreatedAt: time.Now(),
 		Surface:   in.Surface,
@@ -104,9 +110,14 @@ func (s *Service) Filter(ctx context.Context, in FilterInput) (FilterOutput, err
 //
 // 两条都看：档位是 block，且该命中确实被替换过（白名单覆盖时为 false）。
 // 只看档位会把"冰毒科普"这种被短语白名单豁免的说法算成命中，进而误拒正常内容。
-func hasMaskedBlockTier(hits []contentfilter.Hit) bool {
+// hasMaskedTier 报告"该档位里是否有命中真的被打成了星号"。
+//
+// 判据必须是 Masked 而不是只看 Tier：白名单覆盖的命中也会出现在 Hits 里
+// （那是为了统计误伤），可那些位置一个字符都没变 —— 把它们算进来就等于
+// 让白名单对处置档位失效。
+func hasMaskedTier(hits []contentfilter.Hit, tier contentfilter.Tier) bool {
 	for _, hit := range hits {
-		if hit.Tier == contentfilter.TierBlock && hit.Masked {
+		if hit.Tier == tier && hit.Masked {
 			return true
 		}
 	}

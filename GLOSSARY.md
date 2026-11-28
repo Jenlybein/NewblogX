@@ -738,6 +738,78 @@ _Avoid_: 说"已发布就一定公开可见"；把它当成第五个文章状态
 易混：它与「机审」分工不同——过滤改文本、机审判放行；与「运行时策略文本」也不同（词表是数据、走运行期配置热改；策略文本是规则、走代码版本）。
 _Avoid_: 说「命中即拒」（那是已退场的旧口径）；把过滤放在前端（前端代码公开，等于把词表送人）；说「原文还能恢复」（**不存原文快照**，误报只能删除或忽略）。
 
+**发布链路（publish chain）**：
+文章从"提交"到"读者可见"之间，机器判据按顺序跑的三环：**关键词 → 质量 → AI 合规判定**。
+**串行且短路**（ADR-0037）：任一环给出「不由机器放行」的结论，后面几环**根本不跑** ——
+不再评质量、不再调模型、不再扣额度。短路不只是省钱：它让「这篇为什么没过」只剩一个
+原因，作者不会收到三条并行判定互相矛盾的理由。
+三环的开关分别在两个运行期配置段：关键词在 `content_filter.auto_dispose`，另两环在
+`site.article`（`score_enabled` / `ai_compliance_enabled` / `ai_failure_action`）。
+位置：`backend/internal/article/app/filter.go`（第①环的事实与档位）、`create.go` /
+`update.go`（落点）、`backend/app/publish_judge.go`（②③环）。
+易混：它不是「机审」的同义词——机审是历史口径下的三层自动筛查，第①环已从"拦人"改成
+"改文本 + 定处置"；也不是「人工审核」（那是队列，不是链路）。
+_Avoid_: 说三道闸门"并行判定"；在短路之后"顺便补个分数"；把命中处置当成链路之外的设置。
+
+**命中处置（hit disposition）**：
+关键词命中之后文章去哪的三档（ADR-0037）：`release` 打星照常发布、`draft` 退回草稿、
+`reject` 落「已拒绝」。拦截档三档全开，观察档只有 `release` / `draft`（观察词是误报代价
+低的词，拒发它们等于把"加微信"写成违规内容）。
+三档都**不泄露命中词**：作者看到的是一句固定话术，理由里不带词、不带档位、不带类目。
+`draft` 与 `reject` 的差别是**能不能改**：草稿可改可重投（但提交配额不归还），已拒绝
+是终局。改造前的 `mask` 与 `release` 同义，读面就地映射、保存时升级。
+评论面只有两档语义：`release` 打星，其余**一律拒收**（评论没有草稿态，也没有申诉通道）。
+位置：`backend/internal/article/app/filter.go`（`dispositionAfterFilter` / `maxDisposition`）、
+`backend/internal/comment/app/service.go`、`backend/conf/conf_content_filter.go`。
+易混：它与「内容过滤」不是一回事——过滤改文本，处置定"这篇去哪"；「打星」是 `release`
+的结果，不是处置本身。
+_Avoid_: 说"命中即拒"（那是 `reject` 一档）；把 `draft` 说成"进待审队列"（它是草稿，不进
+队列）；用处置值当素材分类（档位是数据，处置是决策）。
+
+**质量评分开关（score switch / `score_enabled`）**：
+`site.article.score_enabled`，控制"全站要不要产生与显示文章评分"。它是**总开关**：
+关掉之后三条产生路径全停（提交时同步评分、后台重评、发布判定补算），读者站文章页 /
+写稿页 / 审核队列不再显示任何分数，评分接口统一定 `article.score_disabled`。
+它与「发布质量闸门」是父子关系：**关掉评分必然关掉闸门**（没有判据的闸门只会把
+所有投稿拒掉），后端在归一化时强写 `quality_gate.enabled=false`，不依赖前端置灰。
+历史分数**不删**：重新打开即恢复显示——开关管的是"产生与显示"，不是"销毁"。
+位置：`backend/internal/site/app/service.go`（`normalizeArticle`）、
+`backend/internal/ai/adapter/http/handler.go`（三个 type 统一关）、
+`frontend/app/pages/article/[id].vue`、`frontend/app/pages/studio/write.vue`。
+易混：它不等于「质量闸门」（闸门是"拿分数拦人"，它是"要不要有分数"）；也不等于
+「AI 总闸」（那管服务端能不能调模型，含摘要 / 搜索向量 / 合规判定）。
+_Avoid_: 关掉评分后把闸门留着开；只隐藏界面不改接口；把历史分数一并删库。
+
+**AI 合规判定（AI compliance check）**：
+发布链路的第③环：把文章交给模型判 `clean` / `suspect` / `violation`，结论落一条风险
+记录，只有 `clean` 才转 `visible`。开关 `site.article.ai_compliance_enabled` 关掉之后，
+**质量过线的文章直接对读者可见**，不留合规结论（审核列表「合规」列显示「未判定」），
+事后「AI 判违规自动撤下」对它不生效。
+它与「文章免审核」（`skip_examining`）落点相同（提交即可见）但语义不同：前者是**常态
+配置**，后者是**临时放行**；两者合并到同一个代码分支，避免两份几乎相同的判定散落两处。
+它也与「AI 总闸」（`site.ai.enable`）不同：总闸管"服务端能不能调模型"，关掉之后这一环
+根本无从谈起（装配层按 `aiService == nil` 走「AI 不可用落点」）。
+位置：`backend/internal/article/app/compliance_transition.go`、
+`backend/internal/article/app/submit_outcome.go`（`decideSubmit`）、
+`backend/app/publish_judge.go`（`continueAfterQuality`）。
+易混：它与「质量闸门」不是一回事（闸门判"文章够不够好"，它判"文章合不合规"）。
+_Avoid_: 把"关掉合规判定"说成"判定失败也放行"；把总闸与这一项混成一个开关。
+
+**AI 不可用落点（AI failure action / `ai_failure_action`）**：
+AI 合规判定**调用失败**（未装配 / 报错且重试一次仍失败）时文章去哪，四档：`manual`
+转人工（默认）、`hold` 保持审核中次日重投、`draft` 退回草稿并通知作者、`release` 直接
+放行并落「未判定」+ 警告日志。
+边界是这条概念的全部难点：它**只支配"调用失败"**。模型给出结论（哪怕 `suspect` 或低
+风险 `violation`）是**结论**不是失败 → 仍转人工；当日额度用尽是另一种原因 → 固定
+`hold`（重试注定再被拒、还会白扣一次）；连续三次拿不到分数 → 仍转人工。
+`release` 是临时兜底：放行的文章没有合规结论，"事后自动撤下"对它不生效，所以日志必须
+点名"这是兜底不是判过"。
+位置：`backend/app/outbox_wiring.go`（`settleAIFailure` / `aiFailureAction`）、
+`backend/conf/site/enter.go`（四档常量 `AIFailureManual/Hold/Draft/Release`）。
+易混：它与「评分失败」不是一回事（评分失败走转人工，不看这一项）；也不是"重试策略"
+（重试次数固定一次，这一项决定的是重试之后）。
+_Avoid_: 让它支配模型结论或额度用尽；把 `release` 当成"判过了"；给额度用尽也配放行。
+
 **拦截词 / 观察词（block word / watch word）**：
 内容过滤词表的两档：**拦截词**命中在风险页标红，**观察词**命中标黄。两档都是**运行期数据**（运营在后台热改，改完下一次读取立即生效）；两档**都替换**成 `*`，颜色只用于风险页的轻重区分与排序。档位按类目默认：毒品/枪支、涉政、暴恐、假证发票、诈骗 → 拦截；赌博与色情里的宽泛推广词 → 观察。
 词表默认是 Apache-2.0 开源词库的类目子集（**双字起**：单字词与纯拉丁串不入表，但**有类目证据时例外**——`k粉` 这种 1 个中文字 + 拉丁的完整词要保留），配**两层白名单**（两层命中都仍记一条风险，只是不替换；见下条）。**默认不按条数截断**：全量导入（2026-11-22 实测 6 万条时引擎构建 0.7s、RSS 135MiB，截断只会砍掉主干、留下变体）。**涉政与暴恐类只进数据库**，不进仓库、不进默认配置、不进日志。

@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"myblogx/internal/apperr"
@@ -13,8 +14,14 @@ import (
 
 // 「命中即拒」是文章面的 opt-in 处置（content_filter.auto_dispose.block_action=reject）。
 //
+// 2026-11-28（ADR-0037 / spec §5.1）改口径：从"一个字节都不落库"改成**落「已拒绝」**。
+// 两种做法读者都看不到这篇，区别在作者端 —— 不落库时作者提交完什么都看不到，
+// 审核列表里也没有这一篇；落 REJECTED 之后这次提交有痕迹、结局明确，而且
+// REJECTED 本身不可改，语义与"禁用"一致。
+//
 // 本文件钉住四条口径，缺一条都会让这个开关出岔子：
-//   - 端口报"命中即拒"时**一个字节都不落库**，也不建审核任务、不发 article.published；
+//   - 端口报"命中即拒"时落**已拒绝**（落库、不可改、读者看不到），不发
+//     article.published（下游评分 / 合规 / 通知都不该被惊动）；
 //   - 拒绝 ≠ 不记录：过滤（含写命中记录）确实跑过了，证据留在风险页；
 //   - 端口报 false（默认，或命中落在白名单里）时行为与今天逐字节一致；
 //   - Update 与 Create 同一口径，否则"存草稿时被替换成星号、提交时不再命中"
@@ -24,25 +31,36 @@ import (
 // （见 app/article_wiring.go 的 articleTextFilterBridge）；这里只验用例层
 // 拿到这个事实之后怎么处理。
 
-// 错误文案必须是固定那句，且不带命中词 / 档位 / 类目 —— 回显等于把词表送出去。
-func assertContentBlockedError(t *testing.T, err error) {
+// assertLandingRejected 断言这一篇真的落成了「已拒绝」。
+//
+// 报错不带命中词 / 档位 / 类目这条约束仍在，只是现在**没有报错**了：处置是
+// 落点而不是错误码。作者在列表里看到"已拒绝"，读者看不到，两者都不泄露词表。
+func assertLandingRejected(t *testing.T, repos *apptest.Repos) *domain.Article {
 	t.Helper()
-	if !apperr.IsCode(err, apperr.CodeArticleContentBlocked) {
-		t.Fatalf("应返回 article.content_blocked，实际 %v", err)
+	ids := repos.FakeArticles().IDs()
+	if len(ids) != 1 {
+		t.Fatalf("命中 reject 的文章应当落库（只是落成已拒绝），实际 %d 篇", len(ids))
 	}
-	if got, want := err.Error(), apperr.Message(apperr.CodeArticleContentBlocked); got != want {
-		t.Fatalf("错误文案应为固定那句，实际 %q", got)
+	stored, err := repos.FakeArticles().Find(context.Background(), ids[0])
+	if err != nil {
+		t.Fatalf("读文章失败: %v", err)
 	}
+	if stored.Status() != domain.StatusRejected {
+		t.Fatalf("应落 StatusRejected，实际 %s", stored.Status())
+	}
+	return stored
 }
 
-// TestCreateRejectsMaskedBlockTier 提交路径：命中即拒，什么都不落库。
+// TestCreateRejectsMaskedBlockTier 提交路径：命中即拒 ⇒ 落「已拒绝」。
 func TestCreateRejectsMaskedBlockTier(t *testing.T) {
 	t.Parallel()
 
 	filter := &fakeTextFilter{words: []string{"代开发票"}, maskedBlockTier: true}
 	svc, repos := newFilteredService(t, filter)
 
+	// 2026-11-28 起不返回错误：处置是落点（落成已拒绝），不是一次失败的保存。
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于代开发票的科普",
@@ -50,36 +68,34 @@ func TestCreateRejectsMaskedBlockTier(t *testing.T) {
 		TargetStatus:  domain.StatusExamining,
 		SkipExamining: false,
 	})
-	assertContentBlockedError(t, err)
-	if created != nil {
-		t.Fatalf("被拒的提交不该带回任何创建结果，实际 %+v", created)
+	if err != nil {
+		t.Fatalf("命中 reject 是一次有结论的提交，不该报错: %v", err)
 	}
 
-	// 1) 一个字节都没落库。
-	if calls := repos.FakeArticles().Calls("Create"); calls != 0 {
-		t.Fatalf("被拒的提交不该写文章，实际 Create 调用了 %d 次", calls)
+	// 1) 落库，且落点是「已拒绝」。
+	stored := assertLandingRejected(t, repos)
+	if created == nil || created.Article.ID() != stored.ID() {
+		t.Fatalf("创建结果应指向那一篇被拒的文章，实际 %+v", created)
 	}
-	if ids := repos.FakeArticles().IDs(); len(ids) != 0 {
-		t.Fatalf("被拒的提交不该留下文章，实际 %v", ids)
+	// 2) 不发 article.published：下游评分 / 合规 / 通知都不该被惊动。
+	// 只允许"写过库"的事实事件；不该发 article.published（那会惊动评分 /
+	// 合规判定 / 订阅通知整条下游，而这一篇已经被处置掉了）。
+	if names := repos.FakeOutbox().Names(); len(names) != 0 && (len(names) != 1 || names[0] == app.EventArticlePublished) {
+		t.Fatalf("被拒的文章不该发发布类事件，实际 %v", names)
 	}
-	// 2) 不建审核任务（否则人工队列里会多一条永远查不到文章的孤儿任务）。
-	if calls := repos.FakeReviews().Calls("Save"); calls != 0 {
-		t.Fatalf("被拒的提交不该建审核任务，实际 Save 调用了 %d 次", calls)
-	}
-	// 3) 不发 article.published（下游评分 / 合规 / 通知都不该被惊动）。
-	if names := repos.FakeOutbox().Names(); len(names) != 0 {
-		t.Fatalf("被拒的提交不该发领域事件，实际 %v", names)
-	}
-	// 4) 拒绝 ≠ 不记录：过滤这一步确实跑过（命中记录在真实实现里就是这里写下的）。
+	// 3) 拒绝 ≠ 不记录：过滤这一步确实跑过（命中记录在真实实现里就是这里写下的）。
 	if len(filter.calls) == 0 {
 		t.Fatal("过滤端口应被调用过（拒发不等于不做过滤与留痕）")
 	}
 }
 
-// TestCreateRejectsMaskedBlockTierOnDraft 草稿也拦。
+// TestCreateRejectsMaskedBlockTierOnDraft 草稿同样落「已拒绝」。
 //
 // 只拦提交的话，作者可以把命中词存进草稿（那一步已被替换成星号），再把星号改回
 // 原词提交 —— 那时文本里已经没有词，拒发会整条失效。
+//
+// 落点也必须是 REJECTED 而不是草稿：草稿是可改的，作者把星号改回原词就能重投，
+// 那正是这条处置要堵住的路径。
 func TestCreateRejectsMaskedBlockTierOnDraft(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +103,7 @@ func TestCreateRejectsMaskedBlockTierOnDraft(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	_, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "冰毒科普",
@@ -94,10 +111,11 @@ func TestCreateRejectsMaskedBlockTierOnDraft(t *testing.T) {
 		TargetStatus:  domain.StatusDraft,
 		SkipExamining: true,
 	})
-	assertContentBlockedError(t, err)
-	if calls := repos.FakeArticles().Calls("Create"); calls != 0 {
-		t.Fatalf("草稿被拒时同样不该写文章，实际 Create 调用了 %d 次", calls)
+	if err != nil {
+		t.Fatalf("命中 reject 的草稿保存同样不报错: %v", err)
 	}
+	// 目标是草稿也一样落「已拒绝」：草稿可改，等于给试探留了后门。
+	assertLandingRejected(t, repos)
 }
 
 // TestCreateMaskedWordsStillPassesSubmitWhenDispositionOff 默认（disposition 关）
@@ -112,6 +130,7 @@ func TestCreateMaskedWordsStillPassesSubmitWhenDispositionOff(t *testing.T) {
 	svc, repos := newFilteredService(t, filter)
 
 	created, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
 		Title:         "关于代开发票的科普",
@@ -143,39 +162,43 @@ func TestCreateMaskedWordsStillPassesSubmitWhenDispositionOff(t *testing.T) {
 	}
 }
 
-// TestUpdateRejectsMaskedBlockTier 更新路径同一口径：拒发时文章一个字段都不改。
+// TestUpdateRejectsMaskedBlockTier 更新路径同一口径：命中的那篇落「已拒绝」。
+//
+// 与建文路径的差别只在"文章本来就在库里"：它被改成已拒绝（不可改、读者看不到）
+// 而不是静默保持原状 —— 否则作者改完重投，看到"保存成功"却仍是草稿/已发布，
+// 完全不知道自己这次提交已经被否决。
 func TestUpdateRejectsMaskedBlockTier(t *testing.T) {
 	t.Parallel()
 
 	filter := &fakeTextFilter{words: []string{"代开发票"}, maskedBlockTier: true}
 	svc, repos := newFilteredService(t, filter)
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
-	original, err := repos.FakeArticles().Find(context.Background(), ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读种子文章失败: %v", err)
-	}
 
 	blockedText := "代开发票找我"
-	_, err = svc.Update(context.Background(), app.UpdateArticleCmd{
+	_, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
 		Content:   &blockedText,
 	})
-	assertContentBlockedError(t, err)
-
-	if calls := repos.FakeArticles().Calls("Update"); calls != 0 {
-		t.Fatalf("被拒的更新不该写文章，实际 Update 调用了 %d 次", calls)
+	if err != nil {
+		t.Fatalf("命中 reject 是一次有结论的更新，不该报错: %v", err)
 	}
+
 	stored, err := repos.FakeArticles().Find(context.Background(), ctype.NewID(1))
 	if err != nil {
 		t.Fatalf("读文章失败: %v", err)
 	}
-	if stored.Content() != original.Content() {
-		t.Fatalf("被拒的更新不该改动正文，期望 %q，实际 %q", original.Content(), stored.Content())
+	if stored.Status() != domain.StatusRejected {
+		t.Fatalf("应落 StatusRejected，实际 %s", stored.Status())
 	}
-	if names := repos.FakeOutbox().Names(); len(names) != 0 {
-		t.Fatalf("被拒的更新不该发领域事件，实际 %v", names)
+	// 不泄露词表：正文入库时已打星（处置不改写这一步）。
+	if strings.Contains(stored.Content(), "代开发票") {
+		t.Fatalf("入库正文不该含命中词原文，实际 %q", stored.Content())
+	}
+	if names := repos.FakeOutbox().Names(); len(names) != 0 && (len(names) != 1 || names[0] == app.EventArticlePublished) {
+		t.Fatalf("被拒的更新不该发发布类事件，实际 %v", names)
 	}
 	if len(filter.calls) == 0 {
 		t.Fatal("过滤端口应被调用过（拒发不等于不做过滤与留痕）")
@@ -196,6 +219,7 @@ func TestUpdateWatchOnlyHitStillSaves(t *testing.T) {
 
 	promoted := "想合作请加微信"
 	result, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -230,6 +254,7 @@ func TestUpdateDoesNotLeakWordTableForForeignArticle(t *testing.T) {
 
 	blockedText := "代开发票找我"
 	_, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
@@ -255,24 +280,29 @@ func TestCreateRejectsMaskedBlockTierWithoutRefundingQuota(t *testing.T) {
 	tx := apptest.NewTx(repos)
 	quota := apptest.NewSubmitQuota(15)
 	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil).
+		WithFilterDisposition(func() app.FilterDisposition {
+			return app.FilterDisposition{Block: app.HitReject, Watch: app.HitRelease}
+		}).
 		WithContentFilter(fakeArticleTextFilter{inner: filter}).
 		WithCollectionContentFilter(fakeCollectionTextFilter{inner: filter})
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者", Username: "u100"})
 	repos.FakeCategories().Seed()
 
 	_, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "关于代开发票的科普",
 		Content:      "代开发票是违法行为",
 		TargetStatus: domain.StatusExamining,
 	})
-	assertContentBlockedError(t, err)
+	if err != nil {
+		t.Fatalf("命中 reject 是有结论的提交，不该报错: %v", err)
+	}
 
 	if got := quota.Used(author); got != 1 {
 		t.Fatalf("被拒的提交也不该归还配额（一次试探消耗一次额度），实际 Used=%d", got)
 	}
-	if ids := repos.FakeArticles().IDs(); len(ids) != 0 {
-		t.Fatalf("被拒的提交不该落库，实际 %v", ids)
-	}
+	// 落点是已拒绝（落库但不可改），不是"什么都没发生"。
+	assertLandingRejected(t, repos)
 }

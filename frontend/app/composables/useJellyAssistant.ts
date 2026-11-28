@@ -49,7 +49,13 @@ export interface JellyMotionPreference {
 }
 
 export interface JellyAssistantOptions {
-  /** AI 总闸是否开启；默认读 siteStore.aiInfo?.enable !== false。 */
+  /**
+   * 「右下角 AI 助手浮窗」是否开启；默认读 siteStore.aiInfo?.assistant_enabled !== false。
+   *
+   * 2026-11-28 起它与「AI 总闸」解耦：总闸（site.ai.enable）管的是"服务端能不能调模型"
+   * （评分 / 合规判定 / 摘要 / 搜索向量全受它管），浮窗开关只管这个入口要不要出现。
+   * 用总闸判浮窗会让"关掉评分"这类操作顺手把助手也关掉 —— 那是两个不同的决定。
+   */
   isAiEnabled?: () => boolean;
   /** 是否已登录；默认读 authStore.isLoggedIn。 */
   isLoggedIn?: () => boolean;

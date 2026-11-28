@@ -277,6 +277,17 @@ export type ArticleSearchResponseData = Omit<
  */
 export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">
 
+/**
+ * AI 合规判定不可用 / 失败时的四种落点（2026-11-28）。
+ *
+ * 契约里是裸 string（枚举值域写在 Go 的 enums tag 上，openapi-typescript 不生成字面量
+ * 联合）；这里补一份字面量供页面做穷举分支 —— 它只是**收敛**契约，不引入新事实。
+ *
+ * manual 转人工 / hold 等次日重投 / draft 退回草稿 / release 直接放行（临时兜底）。
+ * 只有「这次调用失败」受它支配：模型判 suspect 是**结论**不是失败，仍转人工。
+ */
+export type AiFailureAction = "manual" | "hold" | "draft" | "release";
+
 // 发布质量闸门与投稿配额的配置形状（票 304 / 306）：从契约派生，
 // 前端不再手写一份字段清单（contracts.md §4）。
 export type QualityGateConfig = RequiredSchema<"myblogx_conf_site.QualityGate">;
@@ -319,6 +330,18 @@ export type ContentFilterWordStatsData =
  * 过滤层的判据（后端 contentfilter.RequiredCategories），由后端算好下发，
  * 前端不再自己抄一份 —— 抄一份就是同一件事有两个真相。
  */
+/**
+ * 关键词命中处理的三个档位（2026-11-28）。
+ *
+ * 与上面同理：契约给的是 string，这里补字面量让页面的下拉与校验有穷举依据。
+ * release = 打星照常（改造前的 mask）；draft = 落草稿 / 评论拒收；reject = 落已拒绝 / 评论拒收。
+ * 观察档没有 reject（误报代价低的词不设重罚）。
+ */
+export type HitDisposition = "release" | "draft" | "reject";
+
+/** 观察档可选的两档（没有 reject）。 */
+export type WatchHitDisposition = "release" | "draft";
+
 export type ContentFilterRuntimeConfig =
   RequiredSchema<"internal_site_adapter_http.SiteSectionContentFilterResponse">
 

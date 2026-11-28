@@ -53,6 +53,7 @@ func TestCreateRejectsMutedAuthorOnSubmit(t *testing.T) {
 
 	// 提交审核：拒绝，且闸门问询一次。
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "禁言期间的投稿",
@@ -74,6 +75,7 @@ func TestCreateRejectsMutedAuthorOnSubmit(t *testing.T) {
 
 	// 存草稿：放行，且**不问闸门**（问一次就说明还在无条件拦）。
 	if _, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "禁言期间的草稿",
@@ -102,6 +104,7 @@ func TestUpdateRejectsMutedAuthorOnlyOnSubmit(t *testing.T) {
 	seedArticle(t, repos, domain.ArticleID("3001"), author, domain.StatusDraft)
 	title := "改个标题"
 	if _, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     authorViewer(),
 		ArticleID: domain.ArticleID("3001"),
 		Title:     &title,
@@ -119,6 +122,7 @@ func TestUpdateRejectsMutedAuthorOnlyOnSubmit(t *testing.T) {
 	seedArticle(t, repos2, domain.ArticleID("3002"), author, domain.StatusDraft)
 	submit := domain.StatusExamining
 	_, err := svc2.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:         authorViewer(),
 		ArticleID:     domain.ArticleID("3002"),
 		TargetStatus:  &submit,
@@ -138,6 +142,7 @@ func TestPublishGateAllowsNormalAuthor(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "正常发文",

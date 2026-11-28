@@ -307,7 +307,8 @@ describe('站点配置菜单层级（三级）', () => {
     // 三个内容页 + 文章审核设置（审核规则与"改词表 / 定发布线"是同一条链的第三步）。
     expect(byName('内容修改与发布').children!.map(({ label, path }) => ({ label, path }))).toEqual([
       ...CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
-      { label: '文章审核设置', path: '/site/article-review' },
+      // 2026-11-28 第三版：它自己成了分组（没有 path），下挂审核规则与关键词命中处理。
+      { label: '文章审核设置', path: undefined },
     ])
     // 站点界面：装饰来自站点域清单，右栏卡片是运营位（不在清单里，显式挂上）。
     expect(byName('站点界面').children!.map(({ label, path }) => ({ label, path }))).toEqual([
@@ -383,8 +384,26 @@ describe('内容修改与发布（站点配置下的三级分组）', () => {
     expect(group!.path).toBeUndefined()
     expect(group!.children!.map(({ label, path }) => ({ label, path }))).toEqual([
       ...CONTENT_PUBLISH_PAGES.map(({ label, path }) => ({ label, path })),
-      { label: '文章审核设置', path: '/site/article-review' },
+      // 2026-11-28 第三版：它自己成了分组（没有 path），下挂审核规则与关键词命中处理。
+      { label: '文章审核设置', path: undefined },
     ])
+
+    // 那两个子页在深度 4：站点配置(0) → 内容修改与发布(1) → 文章审核设置(2) → 子页(3)。
+    const reviewGroup = group!.children!.find((c) => c.label === '文章审核设置')!
+    expect(reviewGroup.children!.map(({ label, path }) => ({ label, path }))).toEqual([
+      { label: '审核规则', path: '/site/article-review' },
+      { label: '关键词命中处理', path: '/site/article-review/keywords' },
+    ])
+    expect(navItemByPath('/site/article-review')).toMatchObject({
+      label: '审核规则',
+      depth: 3,
+      parentLabel: '文章审核设置',
+    })
+    expect(navItemByPath('/site/article-review/keywords')).toMatchObject({
+      label: '关键词命中处理',
+      depth: 3,
+      parentLabel: '文章审核设置',
+    })
 
     for (const page of CONTENT_PUBLISH_PAGES) {
       const item = navItemByPath(page.path)

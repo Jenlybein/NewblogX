@@ -80,7 +80,14 @@ func WireAI(infra *Infra) {
 		WithSceneSkills(sceneSkillCatalog{catalog: infra.Skills})
 
 	aiService = svc
-	router.SetAIHandler(aihttp.NewHandler(svc, providers))
+	// 评分开关的现读闭包：AI handler 用它把三个评分 type 一起关掉（2026-11-28）。
+	// 每次请求现读 —— 后台关掉评分之后，读者站下一次点"质量总分"就该被拒。
+	router.SetAIHandler(aihttp.NewHandler(svc, providers, func() bool {
+		if infra == nil || infra.Effective == nil {
+			return true
+		}
+		return infra.Effective.Article().ScoreEnabled
+	}))
 
 	// 安装 AI 调用上报：每次调用的场景、模型、token 用量、耗时都落
 	// ai_call_logs（ClickHouse + 每日文件）。

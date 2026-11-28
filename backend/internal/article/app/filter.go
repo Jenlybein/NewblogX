@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+
+	"myblogx/conf"
 	"strings"
 
 	"myblogx/internal/article/domain"
@@ -45,6 +47,12 @@ type FilteredText struct {
 	// "命中即拒"是按站点配置开启的 opt-in 行为。白名单覆盖的 block 命中
 	// 不算（文本没变），所以这个字段为 true 依然意味着"真的改过这段文本"。
 	BlockTierMasked bool
+	// WatchTierMasked 表示"这段文本里确实有 watch 档命中被替换成了星号"。
+	//
+	// 两档各有一套处置档位（拦截词可到 reject，观察词只到 draft），所以调用方
+	// 必须分得清命中的是哪一档 —— 只报"有命中"会让"观察词退草稿、拦截词放行"
+	// 这种配置无法表达。
+	WatchTierMasked bool
 }
 
 // ArticleTextFilterer 在全站唯一的内容过滤层里替换**文章**文本，并记一条关键词风险。
@@ -85,13 +93,16 @@ type articleTexts struct {
 // 标题命中与正文命中没有区别。
 func (s *Service) filterArticle(
 	ctx context.Context, userID domain.UserID, articleID ctype.ID, in articleTexts,
-) (articleTexts, int, bool) {
+) (articleTexts, int, hitFacts) {
 	title, titleCount, titleHit := s.filterArticleText(ctx, userID, articleID, in.Title)
 	abstract, abstractCount, abstractHit := s.filterArticleText(ctx, userID, articleID, in.Abstract)
 	content, contentCount, contentHit := s.filterArticleText(ctx, userID, articleID, in.Content)
 	return articleTexts{Title: title, Abstract: abstract, Content: content},
 		titleCount + abstractCount + contentCount,
-		titleHit || abstractHit || contentHit
+		hitFacts{
+			Block: titleHit.Block || abstractHit.Block || contentHit.Block,
+			Watch: titleHit.Watch || abstractHit.Watch || contentHit.Watch,
+		}
 }
 
 // filterArticleText 过滤一段文章文本；未接入过滤器时原样返回。
@@ -100,9 +111,9 @@ func (s *Service) filterArticle(
 // articleTexts 三件套（nil 指针变成空串会把"不改"写成"清空"）。
 func (s *Service) filterArticleText(
 	ctx context.Context, userID domain.UserID, articleID ctype.ID, text string,
-) (string, int, bool) {
+) (string, int, hitFacts) {
 	if s.filter == nil {
-		return text, 0, false
+		return text, 0, hitFacts{}
 	}
 	return s.filterOne(ctx, userID, articleID, text, s.filter.FilterArticleText)
 }
@@ -137,18 +148,112 @@ func (s *Service) filterCollection(
 func (s *Service) filterOne(
 	ctx context.Context, userID domain.UserID, contentID ctype.ID, text string,
 	apply func(context.Context, FilterText) (FilteredText, error),
-) (string, int, bool) {
+) (string, int, hitFacts) {
 	// apply 恒非 nil：调用方（filterArticleText / filterCollectionText）已经各判过一次
 	// "端口没装配"，方法值也永远不是 nil。这里只判"这段文本是不是空的"。
 	if strings.TrimSpace(text) == "" {
-		return text, 0, false
+		return text, 0, hitFacts{}
 	}
 	got, err := apply(ctx, FilterText{UserID: userID, ContentID: contentID, Text: text})
 	if err != nil {
-		return text, 0, false
+		return text, 0, hitFacts{}
 	}
+	facts := hitFacts{Block: got.BlockTierMasked, Watch: got.WatchTierMasked}
 	if got.Masked == "" {
-		return text, got.FilteredCount, got.BlockTierMasked
+		return text, got.FilteredCount, facts
 	}
-	return got.Masked, got.FilteredCount, got.BlockTierMasked
+	return got.Masked, got.FilteredCount, facts
+}
+
+// hitFacts 是"这次过滤里哪几档词真的命中了"（只含真被打星的那些）。
+//
+// 两档分开报的原因：它们的处置档位是**各自独立配置**的（拦截词可到 reject，
+// 观察词只到 draft）。把两档合成一个 bool 之后，「观察词退草稿、拦截词放行」
+// 这种合法配置就再也表达不出来。
+type hitFacts struct {
+	Block bool
+	Watch bool
+}
+
+// FilterDisposition 是站点当前的「关键词命中处理」口径（串行链路的第①环配置）。
+//
+// 由装配层注入读取函数而不是在用例层读全局配置：article 模块不认识内容过滤段，
+// 它只需要知道"命中之后我该做什么"。取值语义见 conf.ContentFilterAutoDispose。
+type FilterDisposition struct {
+	// Block 是拦截词命中的处置：release / draft / reject。
+	Block string
+	// Watch 是观察词命中的处置：release / draft。
+	Watch string
+}
+
+// 命中处置的三个档位 —— 取值域由配置层定义（`conf.ContentFilterAction*`），
+// 这里只是给用例层一个短名字。
+//
+// 不在这里另写一份字面量：新增一档时如果三处各写一份，漏改一处就是静默的
+// 字符串比较失败（编译不报错、行为悄悄回落到 release）。
+const (
+	// HitRelease 命中只打星，照常继续后面的链路。
+	HitRelease = conf.ContentFilterActionRelease
+	// HitDraft 命中落草稿，作者改完可重投；配额不归还。
+	HitDraft = conf.ContentFilterActionDraft
+	// HitReject 命中落已拒绝且不可改。
+	HitReject = conf.ContentFilterActionReject
+)
+
+// dispositionAfterFilter 把"命中了哪几档"与"站点配置的处置档位"合成本次的处置结论。
+//
+// 两档都命中时取**更重**的那一档（reject > draft > release）：一条内容不该因为
+// 观察词配置更宽松就绕过拦截词的处置。
+//
+// 配置读不到（没注入 / 空串 / 不认识的取值）一律按 release：默认行为必须与改造前
+// 逐字节一致，"配置读不到"不能变成把所有人的文章拒掉（ADR-0032 决策 11 的同一条口径）。
+func (s *Service) dispositionAfterFilter(facts hitFacts) string {
+	if s.disposition == nil {
+		return HitRelease
+	}
+	conf := s.disposition()
+	best := HitRelease
+	if facts.Block {
+		best = maxDisposition(best, conf.Block)
+	}
+	if facts.Watch {
+		best = maxDisposition(best, conf.Watch)
+	}
+	return best
+}
+
+// maxDisposition 按"重度"取较大者；不认识的取值一律当 release。
+func maxDisposition(a, b string) string {
+	return severityDisposition(a, b)
+}
+
+// severityDisposition 返回两者中更重的一档。
+func severityDisposition(a, b string) string {
+	if dispositionRank(b) > dispositionRank(a) {
+		return b
+	}
+	return a
+}
+
+// dispositionRank 是档位的重度排序：reject 3 > draft 2 > release 1 > 其他 0。
+func dispositionRank(d string) int {
+	switch d {
+	case HitReject:
+		return 3
+	case HitDraft:
+		return 2
+	case HitRelease:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// WithFilterDisposition 注入命中处置档位的现读函数（2026-11-28）。
+//
+// 不注入时按 release（改造前的行为）：装配缺失只可能发生在测试里，生产装配
+// 在 backend/app/article_wiring.go 必然给出。
+func (s *Service) WithFilterDisposition(read func() FilterDisposition) *Service {
+	s.disposition = read
+	return s
 }

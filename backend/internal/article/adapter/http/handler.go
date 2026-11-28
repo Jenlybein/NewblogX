@@ -75,6 +75,21 @@ func (h *Handler) skipExamining() bool {
 	return h.effective.Article().SkipExamining
 }
 
+// scoreEnabled 取「文章质量评分」开关的现读值（2026-11-28）。
+//
+// 它决定提交时要不要等质量判据。做成方法而不是构造时的布尔：开关每请求现读，
+// 后台改完下一次提交即按新值判（ADR-0015 决策 4 的同一条口径）。
+func (h *Handler) scoreEnabled() bool {
+	return h.effective.Article().ScoreEnabled
+}
+
+// aiComplianceEnabled 取「AI 合规判定」开关的现读值（2026-11-28）。
+//
+// 与 scoreEnabled 成对使用：两个都关时提交落"已发布 + 可见"，不再进待可见队列。
+func (h *Handler) aiComplianceEnabled() bool {
+	return h.effective.Article().AIComplianceEnabled
+}
+
 // onlyAdminAuthors 取「显示非管理员发布文章」开关的反面，作为读面过滤开关。
 //
 // 做成方法而不是构造时的布尔：开关每请求现读，后台改完下一次请求即生效
@@ -217,6 +232,10 @@ func (h *Handler) Create(c *gin.Context) {
 		Policy:         h.writePolicy(),
 		QualityGate:    h.qualityGate(),
 		TagLimit:       h.tagLimit(),
+		// 两个机器判据开关也每请求现读：它们与 skipExamining 一起决定提交的落点，
+		// 缺一个就会让"关评分"这件事在提交路径上完全不生效。
+		ScoreEnabled:        h.scoreEnabled(),
+		AIComplianceEnabled: h.aiComplianceEnabled(),
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -308,6 +327,10 @@ func (h *Handler) Update(c *gin.Context) {
 		Policy:         h.writePolicy(),
 		QualityGate:    h.qualityGate(),
 		TagLimit:       h.tagLimit(),
+		// 两个机器判据开关也每请求现读：它们与 skipExamining 一起决定提交的落点，
+		// 缺一个就会让"关评分"这件事在提交路径上完全不生效。
+		ScoreEnabled:        h.scoreEnabled(),
+		AIComplianceEnabled: h.aiComplianceEnabled(),
 	})
 	if err != nil {
 		h.fail(c, err)

@@ -82,7 +82,9 @@ const EXPECTED_ADMIN_NAV = [
   // 2026-11-27：白名单从词表页拆出（两者共写 content_filter 段但各管各的字段）。
   { label: '关键词白名单', path: '/content/keywords/whitelist', icon: 'article' },
   { label: '文章发布', path: '/content/publish', icon: 'article' },
-  { label: '文章审核设置', path: '/site/article-review', icon: 'shield' },
+  // 文章审核设置（2026-11-28 第三版）：自己成为分组，两个子页。
+  { label: '审核规则', path: '/site/article-review', icon: 'shield' },
+  { label: '关键词命中处理', path: '/site/article-review/keywords', icon: 'tag' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
@@ -183,13 +185,23 @@ describe('后台菜单拍平视图', () => {
       parentPath: null,
       depth: 1,
     })
-    // 文章审核设置是内容组的**第 4 项**（2026-11-27 第二次调整）：审核规则与
-    // "改词表 / 定发布线"是同一条内容生产链上的第三步。
+    // 文章审核设置（2026-11-28 第三版）是内容组下的**分组**，其下两个子页在深度 4：
+    // 「审核规则」写 site.article 段，「关键词命中处理」写 content_filter 段。
     expect(FLAT_NAV.find(item => item.label === '文章审核设置')).toMatchObject({
-      path: '/site/article-review',
+      path: undefined,
       parentLabel: '内容修改与发布',
       parentPath: null,
       depth: 2,
+    })
+    expect(FLAT_NAV.find(item => item.label === '审核规则')).toMatchObject({
+      path: '/site/article-review',
+      parentLabel: '文章审核设置',
+      depth: 3,
+    })
+    expect(FLAT_NAV.find(item => item.label === '关键词命中处理')).toMatchObject({
+      path: '/site/article-review/keywords',
+      parentLabel: '文章审核设置',
+      depth: 3,
     })
     // 审核域（ADR-0032 决策 7 / ADR-0034）：父项只分组，图片待审与命中处置下沉一级。
     expect(FLAT_NAV.find(item => item.label === '审核')!.path).toBeUndefined()

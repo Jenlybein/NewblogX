@@ -49,6 +49,7 @@ func TestCreateDeniedBySitePolicy(t *testing.T) {
 			svc, repos, tx := newService(t)
 
 			_, err := svc.Create(context.Background(), app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 				Actor:        authorViewer(),
 				Policy:       c.policy,
 				Title:        "被站点策略拦下的文章",
@@ -111,6 +112,7 @@ func TestUpdateDeniedBySitePolicy(t *testing.T) {
 
 			content := "改过的正文"
 			_, err := svc.Update(context.Background(), app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 				Actor:        authorViewer(),
 				Policy:       c.policy,
 				ArticleID:    ctype.NewID(1),
@@ -148,6 +150,7 @@ func TestAdminIgnoresSitePolicy(t *testing.T) {
 	svc, repos, _ := newService(t)
 
 	if _, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        adminViewer(),
 		Policy:       bothOff,
 		Title:        "管理员的草稿",
@@ -160,6 +163,7 @@ func TestAdminIgnoresSitePolicy(t *testing.T) {
 	draft := seedArticle(t, repos, ctype.NewID(2), admin, domain.StatusDraft)
 	content := "管理员的修改"
 	if _, err := svc.Update(ctx, app.UpdateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:     adminViewer(),
 		Policy:    bothOff,
 		ArticleID: draft.ID(),

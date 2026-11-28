@@ -404,9 +404,23 @@ func NewEnv(site conf.Site, ai conf.AI, version, qqURL string) *Env {
 	}
 }
 
+// NewEnvWithAIReady 与 NewEnv 相同，但注入 aiReady 判定。
+//
+// 用途：验证「AI 不可用时拒绝开质量闸门」这类**保存前校验**（ADR-0023 / ADR-0037）。
+// newEnv 传的是 nil（不校验），所以在那些用例里必须显式装一套。
+func NewEnvWithAIReady(aiReady func() bool) *Env {
+	banners := NewBanners()
+	images := NewImages()
+	runtime := NewRuntime(conf.Site{}, conf.AI{})
+	return &Env{
+		Banners: banners,
+		Images:  images,
+		Runtime: runtime,
+		Service: app.New(banners, images, runtime, "test", func() string { return "" }, nil, aiReady),
+	}
+}
+
 // NewDefaultService 用空配置组装服务（路由表测试用）。
 func NewDefaultService() *app.Service {
 	return NewEnv(conf.Site{}, conf.AI{}, "test", "").Service
 }
-
-

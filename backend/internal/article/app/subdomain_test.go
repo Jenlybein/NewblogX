@@ -387,6 +387,7 @@ func TestCreateArticleWithFreshlyCreatedCategory(t *testing.T) {
 	categoryID := saved.ID()
 
 	res, err := svc.Create(ctx, app.CreateArticleCmd{
+		ScoreEnabled: true, AIComplianceEnabled: true,
 		Actor:        authorViewer(),
 		Policy:       domain.OpenWritePolicy(),
 		Title:        "用新分类的文章",

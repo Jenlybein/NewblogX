@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	siteconf "myblogx/conf/site"
 	aipkg "myblogx/internal/ai"
 	"myblogx/internal/ai/moderation"
 	"myblogx/internal/apperr"
@@ -84,6 +85,12 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	// 通知：审核结果与旧链路一致（通过 / 拒绝各一条）。
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
 	relay.On(articleapp.EventArticleRejected, notifySubscriber(infra))
+	// 通知：命中词处置把文章退回草稿（2026-11-28 / ADR-0037 决策 D9）。
+	//
+	// 文案必须**不提命中的词 / 档位 / 类目**：告诉作者"哪个词被拦了"等于把词表
+	// 送出去（ADR-0032 决策 9）。它也不说"内容有问题请修改"之外的任何解释 ——
+	// 那是唯一能既让作者知道往哪改、又不泄露词表的话。
+	relay.On(articleapp.EventArticleFilterDrafted, notifySubscriber(infra))
 
 	// 通知：管理员强制退回草稿（票 481）。
 	//
@@ -242,9 +249,8 @@ func complianceSubscriber(infra *Infra, qualityProof bool) outboxrelay.Subscribe
 		articleSvc := newArticleService(infra)
 		if aiService == nil {
 			// AI 未装配：不能把文章永远留在 pending_review（作者以为发了、
-			// 读者却看不到）。转人工，由管理员决定放行还是驳回。
-			return articleSvc.BackToReviewForCompliance(ctx, articleID,
-				article_review_enum.SourceModelFailure)
+			// 读者却看不到）。按站点配置的「AI 不可用落点」处置。
+			return settleAIFailure(ctx, infra, articleSvc, article, aiFailureAction(infra))
 		}
 
 		// 归属：异步链路没有登录态，只能回查作者与角色。管理员豁免在额度收费点
@@ -274,8 +280,14 @@ func complianceSubscriber(infra *Infra, qualityProof bool) outboxrelay.Subscribe
 			// 自己重试一次与兄弟彻底解耦，且严格只有一次。
 			result, err = aiService.CheckArticleCompliance(checkCtx, articleID.Uint64())
 			if err != nil {
-				return articleSvc.BackToReviewForCompliance(ctx, articleID,
-					article_review_enum.SourceModelFailure)
+				// 重试仍失败：按站点配置的「AI 不可用落点」处置。
+				//
+				// 三种语义在这里分开（这一处是整条链唯一的分流点）：
+				//   - **结论**（suspect / 低风险 violation / 未知档位）→ 仍转人工，
+				//     不受落点配置支配（见下面的 switch）；
+				//   - **额度用完** → 固定 hold（重试注定再被拒、还会白扣一次）；
+				//   - **调用失败** → 受落点配置支配。
+				return settleAIFailure(ctx, infra, articleSvc, article, aiFailureAction(infra))
 			}
 		}
 
@@ -335,6 +347,123 @@ func userIsAdmin(ctx context.Context, infra *Infra, userID ctype.ID) (bool, erro
 		return false, err
 	}
 	return row.Role == enum.RoleAdmin, nil
+}
+
+// aiFailureAction 现读站点配置的「AI 不可用落点」（默认 manual）。
+//
+// 每次投递现读：后台改完，下一条失败的判定即按新值落点（与闸门策略同一条口径）。
+// 读不到运行时配置时返回 manual —— 失败方向的默认必须是「交给人」，不是「自动放行」。
+func aiFailureAction(infra *Infra) string {
+	if infra == nil || infra.Effective == nil {
+		return siteconf.AIFailureManual
+	}
+	return infra.Effective.Article().AIFailureAction
+}
+
+// settleAIFailure 是「AI 合规判定不可用 / 失败」的四档落点（2026-11-28）。
+//
+// 四档各自的代价（写在这里是因为它们不该只活在后台的说明文字里）：
+//
+//   - manual（默认）：转人工 + 建待处理任务。作者要等，但误判不会落在他头上。
+//   - hold：保持「审核中 + 无任务」，次日重投。不需要人，但要等到明天 ——
+//     与额度用完那条路径同一个落点，区别只是「为什么等」。
+//   - draft：退回草稿 + 通知作者「审核服务暂时不可用，请稍后重投」。作者改不了
+//     什么（这不是内容问题），所以文案必须说清是服务侧的问题。
+//   - release：直接放行 + 落「未判定」+ 警告日志。这是**临时兜底**：
+//     文章没有合规结论，事后「AI 判违规自动撤下」的兜底对它不生效。
+//
+// 只有「这次调用失败」走到这里；模型给出结论（哪怕是可疑）都不算失败。
+// 额度用完也不走这里（那条固定 hold，见 deferComplianceForQuota）。
+func settleAIFailure(
+	ctx context.Context, infra *Infra, articleSvc *articleapp.Service,
+	article noticeArticleRow, action string,
+) error {
+	switch aiFailureLandingFor(action) {
+	case aiFailureLandingDraft:
+		// 先退草稿，再发通知：退不了（文章已被别的路径处理）就不该再发一条误导性的通知。
+		if err := articleSvc.DemoteForComplianceFailure(ctx, article.ID,
+			"AI 合规判定不可用，已退回草稿"); err != nil {
+			return err
+		}
+		return notifyComplianceUnavailable(ctx, infra, article)
+	case aiFailureLandingHold:
+		// 保持待可见、次日重投：与额度用完同一个落点（DeferForCompliance 幂等）。
+		if err := articleSvc.DeferForCompliance(ctx, article.ID); err != nil {
+			return err
+		}
+		return &outboxrelay.RescheduleError{
+			At:     nextQuotaReviewTime(time.Now()),
+			Reason: "AI 合规判定不可用，次日自动重试",
+		}
+	case aiFailureLandingRelease:
+		// 临时兜底：放行但不留合规结论，并在日志里点名「这是兜底不是判过」。
+		infra.Logger.Warnf(
+			"AI 合规判定不可用，按站点配置直接放行（该文章没有合规结论）: article=%s", article.ID)
+		return articleSvc.PublishForCompliance(ctx, article.ID, true)
+	default:
+		// manual：转人工。未知取值也落到这里 —— 失败方向必须是「交给人」。
+		return articleSvc.BackToReviewForCompliance(ctx, article.ID,
+			article_review_enum.SourceModelFailure)
+	}
+}
+
+// aiFailureLanding 是「AI 不可用落点」的四个分流结果。
+//
+// 拆成一个枚类型 + 一个纯函数是刻意的：分流表是这段代码唯一的决策点，
+// 把它埋在 settleAIFailure 的 switch 里就只能靠"装一套 DB + 通知服务"来验证，
+// 而那套装置验的是落点函数，不是选对落点。
+type aiFailureLanding int
+
+const (
+	aiFailureLandingManual aiFailureLanding = iota
+	aiFailureLandingHold
+	aiFailureLandingDraft
+	aiFailureLandingRelease
+)
+
+// aiFailureLandingFor 把配置取值映射到分流结果（纯函数）。
+//
+// 未知取值一律 manual：失败方向必须是「交给人」，绝不能是「放行」——
+// 一次手改库写错的值不该变成"文章不经合规判定就公开"。
+func aiFailureLandingFor(action string) aiFailureLanding {
+	switch action {
+	case siteconf.AIFailureDraft:
+		return aiFailureLandingDraft
+	case siteconf.AIFailureHold:
+		return aiFailureLandingHold
+	case siteconf.AIFailureRelease:
+		return aiFailureLandingRelease
+	default:
+		return aiFailureLandingManual
+	}
+}
+
+// notifyComplianceUnavailable 给作者发一条// notifyComplianceUnavailable 给作者发一条「审核服务暂时不可用，已退回草稿」的系统通知。
+//
+// 文案刻意**不提内容**：这不是内容问题，说成「你的文章有问题」会让作者反复改稿找原因。
+// 去重与 notifySubscriber 同一套（接收者 + 链接 + 正文判重）。
+func notifyComplianceUnavailable(ctx context.Context, infra *Infra, article noticeArticleRow) error {
+	content := fmt.Sprintf(
+		"审核服务暂时不可用，您的文章《%s》已退回草稿。服务恢复后请重新提交，内容无需修改。",
+		article.Title)
+	linkHref := fmt.Sprintf("/article/%s", article.ID)
+
+	var exists int64
+	if err := infra.DB.WithContext(ctx).Table(noticeMessageRow{}.TableName()).
+		Where("receiver_id = ? AND link_herf = ? AND content = ?", article.AuthorID, linkHref, content).
+		Count(&exists).Error; err != nil {
+		return err
+	}
+	if exists > 0 || notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
+		Receiver:   article.AuthorID.Uint64(),
+		ActionUser: article.AuthorID.Uint64(),
+		Content:    content,
+		LinkTitle:  article.Title,
+		LinkHref:   linkHref,
+	})
 }
 
 // deferComplianceForQuota 在作者当日合规判定额度用尽时收尾一条事件。
@@ -431,6 +560,11 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			// 等内容检查"（pending_review），此时并没人工审核过。用中性文案，
 			// 不谎称"审核通过"；作者侧已有的"已发布"提示负责说明后续等待。
 			content = fmt.Sprintf("您的文章《%s》已发布!", article.Title)
+		case articleapp.EventArticleFilterDrafted:
+			// 命中处置 = 退回草稿：说清是"内容里包含不允许发布的词"，但不回显是哪个词。
+			content = fmt.Sprintf(
+				"您的文章《%s》已退回草稿：内容包含不允许发布的词，本次提交照常计入当日配额。请修改后重新提交。",
+				article.Title)
 		case articleapp.EventArticleRejected:
 			// 原因取自**审核任务记录**，不是重新查文章：驳回理由一直存在任务行上
 			// （review.Task.Reason），缺的只是"把它带到通知正文里"这一步。

@@ -275,6 +275,13 @@ func (e *EffectiveConfig) Article() siteconf.Article {
 			AllowNonAdminDraft:   true,
 			ShowNonAdminArticles: true,
 			SubmitDailyMax:       DefaultArticleSubmitDailyMax,
+			// 三个新开关（2026-11-28 / ADR-0037）同样按业务默认值兜底：
+			// 站点默认是「全开」（yaml 里显式写 true），装配缺失时也必须全开 ——
+			// 这两个布尔位的零值恰好是「关」，而「关」意味着提交即可见、不再评质量
+			// 也不再调 AI：装配故障不该顺手把全站审核关掉。
+			ScoreEnabled:        true,
+			AIComplianceEnabled: true,
+			AIFailureAction:     siteconf.AIFailureManual,
 			// 闸门这里刻意保持**关闭**（没配置就不拦，与上面"宁可多出内容"同一条口径），
 			// 但放行线给业务默认 50 + 灰带 2 而**不是零值**。
 			//

@@ -11,6 +11,7 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NAlert,
   NEmpty,
   NInput,
   NModal,
@@ -27,6 +28,7 @@ import {
   getArticleReviewTasks,
   batchReviewArticleTasks,
   reviewArticleTask,
+  getSiteRuntimeConfig,
 } from '~/services/admin'
 import type { ArticleReviewReasonItem, ArticleReviewTaskItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
@@ -40,6 +42,33 @@ const page = ref(1)
 const limit = ref(10)
 const total = ref(0)
 const status = ref<'pending' | 'approved' | 'rejected' | 'canceled' | undefined>('pending')
+/**
+ * 两个「机器判据开关」的本地快照（2026-11-28 / ADR-0037）。
+ *
+ * 管理端没有全局 site store，这两项只影响本页两列语义，所以在页面里读一次。
+ * 读失败按"都开着"处理（与原行为一致）：拿不到配置不该让队列变成一片「未评估」。
+ */
+const scoreEnabled = ref(true)
+const aiComplianceEnabled = ref(true)
+/**
+ * AI 不可用落点是否为「直接放行」。
+ *
+ * `release` 是临时兜底：那些文章的合规列也是「未判定」，但原因不是"还没判"，
+ * 而是"判不了就放了"。审核员必须知道这件事，否则会把兜底放行的稿子当成
+ * "检查过且没问题"。
+ */
+const aiReleaseFallback = ref(false)
+
+async function loadJudgeSwitches() {
+  try {
+    const site = await getSiteRuntimeConfig()
+    scoreEnabled.value = site.article?.score_enabled !== false
+    aiComplianceEnabled.value = site.article?.ai_compliance_enabled !== false
+    aiReleaseFallback.value = site.article?.ai_failure_action === "release"
+  } catch {
+    // 配置读不到只是少了两条提示，不该阻断审核队列本身。
+  }
+}
 // 排序由服务端做：风险不落库，前端只能拿到排好序的一页（票 311）。
 const sort = ref<'created_at' | 'risk'>('created_at')
 const rows = ref<ArticleReviewTaskItem[]>([])
@@ -70,10 +99,21 @@ const statusOptions = [
   { label: '已取消', value: 'canceled' },
 ]
 
-const sortOptions = [
+/**
+ * 排序项：评分关闭时**风险排序置灰**（spec §5.4）。
+ *
+ * 风险排序按分数派生标签排（低分 / 维度塌陷 / 篇幅异常），评分一停就没有
+ * 这个量纲可排 —— 留着可选项只会让人以为"按风险排好了"，而实际顺序仍是
+ * 提交时间。禁用它，比排序后加一句解释诚实。
+ */
+const sortOptions = computed(() => [
   { label: '提交时间（默认）', value: 'created_at' },
-  { label: '风险优先', value: 'risk' },
-]
+  {
+    label: scoreEnabled.value ? '风险优先' : '风险优先（评分已关闭，不可用）',
+    value: 'risk',
+    disabled: !scoreEnabled.value,
+  },
+])
 
 const columns = [
   // 勾选列：批量操作（spec 决策 32）的入口。行键是任务 ID。
@@ -85,6 +125,15 @@ const columns = [
     minWidth: 230,
     // 机审前两层（词表 + 评分派生标签）的结论，每次读取现算（票 311）。
     render: (row: ArticleReviewTaskItem) => {
+      // 评分关掉时没有任何风险标签可派生：明确显示「未评估」而不是「无风险」
+      // （后者会被读成"检查过了，没问题"）。
+      if (!scoreEnabled.value) {
+        return h(
+          NTag,
+          { size: 'small', type: 'default', bordered: false },
+          { default: () => '未评估' },
+        )
+      }
       const meta = riskLevelMeta(row.risk_level)
       const labels = (row.risk_labels ?? []).map((code) =>
         h(
@@ -120,7 +169,12 @@ const columns = [
         return h(
           NTag,
           { size: 'small', type: 'default', bordered: false },
-          { default: () => '未判定' },
+          {
+            default: () =>
+              aiComplianceEnabled.value
+                ? '未判定'
+                : '未判定（未开启 AI 合规判定）',
+          },
         )
       }
       const meta = complianceVerdictMeta(compliance.verdict)
@@ -420,6 +474,7 @@ function reportBatch(succeeded: number, failed: number) {
 
 watch([page, status, sort], refresh)
 onMounted(async () => {
+  await loadJudgeSwitches()
   await refresh()
   // 原因清单由后端下发（前端不手抄中文）；拿不到时下拉为空，驳回按钮会被
   // 前置校验挡住——宁可让管理员看到"没得选"，也不发一条注定失败的请求。
@@ -429,6 +484,21 @@ onMounted(async () => {
 
 <template>
   <NSpace vertical :size="20">
+    <!-- 判据开关的状态提示（spec §5.4）：这两条不是操作入口，只是让审核员
+         别把"没检查"读成"检查过没问题"。 -->
+    <NAlert v-if="!scoreEnabled" type="warning" :bordered="false">
+      站点已关闭「文章质量评分」，风险列显示「未评估」且风险排序不可用：
+      风险标签全部由分数派生，没有评分就没有任何标签可显示。
+    </NAlert>
+    <NAlert v-if="!aiComplianceEnabled" type="warning" :bordered="false">
+      站点已关闭「AI 合规判定」，合规列显示「未判定（未开启 AI 合规判定）」：
+      这些文章没有模型结论，质量过线即已对读者可见。
+    </NAlert>
+    <NAlert v-else-if="aiReleaseFallback" type="warning" :bordered="false">
+      AI 不可用落点设为「直接放行」：判定的文章若显示「未判定」，可能是
+      <strong>调不到模型就放行</strong>的兜底结果，而不是"还没判"。
+    </NAlert>
+
     <NCard class="admin-card">
       <div class="admin-toolbar">
         <NSelect v-model:value="status" :options="statusOptions" clearable class="w-full md:w-56" />

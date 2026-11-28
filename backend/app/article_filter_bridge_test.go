@@ -59,9 +59,11 @@ type quietLogger struct{ errors int }
 
 func (l *quietLogger) Errorf(string, ...any) { l.errors++ }
 
-// newBridge 用给定词表、白名单与处置口径构造桥（处置口径为 nil 表示没注入）。
+// newBridge 用给定词表与白名单构造桥。
+//
+// 桥**不再**接处置口径（2026-11-28 三档化）：它只报"哪一档真的被打星"这个事实，
+// 命中之后文章去哪由用例层按站点档位决定 —— 这样 draft 与 reject 才能共用同一份事实。
 func newBridge(t *testing.T, words []contentfilter.Word, whitelist []string,
-	disposition func() bool,
 ) (articleTextFilterBridge, *fakeHitRepo) {
 	t.Helper()
 	engine, err := contentfilter.NewEngine(words, whitelist)
@@ -70,7 +72,7 @@ func newBridge(t *testing.T, words []contentfilter.Word, whitelist []string,
 	}
 	repo := &fakeHitRepo{}
 	svc := filterapp.New(engine, repo, &quietLogger{})
-	return articleTextFilterBridge{svc: svc, disposition: disposition}, repo
+	return articleTextFilterBridge{svc: svc}, repo
 }
 
 // blockWord 是"拦截词"，watchWord 是"观察词"（两档都打星，只有 block 参与拒发）。
@@ -86,49 +88,50 @@ func TestBridgeReportsBlockRejectOnlyWhenConfigured(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		disposition func() bool
-		whitelist   []string
-		text        string
-		want        bool
+		name      string
+		whitelist []string
+		text      string
+		wantBlock bool
+		wantWatch bool
+		// wantRecords 是命中记录的条数：白名单覆盖的命中也会记一条（用于统计误伤），
+		// 只有完全没命中才是 0。
+		wantRecords int
 	}{
 		{
-			name:        "配了 reject + block 命中被打星 → 报命中即拒",
-			disposition: func() bool { return true },
+			name:        "block 命中被打星 → 报 block 档事实",
 			text:        "代开发票找我",
-			want:        true,
+			wantBlock:   true,
+			wantRecords: 1,
 		},
 		{
-			name:        "默认（disposition 为 false）→ 只打星，不拒发",
-			disposition: func() bool { return false },
-			text:        "代开发票找我",
-			want:        false,
-		},
-		{
-			name:        "没注入 disposition（装配遗漏）→ 按默认 mask 处理，不拒发",
-			disposition: nil,
-			text:        "代开发票找我",
-			want:        false,
-		},
-		{
-			name:        "配了 reject 但只有 watch 档命中 → 不拒发（watch 本期只有 mask）",
-			disposition: func() bool { return true },
+			name:        "watch 命中被打星 → 报 watch 档事实（与 block 分开报）",
 			text:        "想合作请加微信",
-			want:        false,
+			wantWatch:   true,
+			wantRecords: 1,
 		},
 		{
-			name:        "配了 reject 但 block 命中被短语白名单完整覆盖 → 不拒发（白名单要生效）",
-			disposition: func() bool { return true },
+			name:        "两档同时命中 → 两个事实都为真（仍只记一条命中记录）",
+			text:        "代开发票找我，也可以加微信",
+			wantBlock:   true,
+			wantWatch:   true,
+			wantRecords: 1,
+		},
+		{
+			name:        "block 命中被短语白名单完整覆盖 → 报未命中，但记录照写（用于统计误伤）",
 			whitelist:   []string{"代开发票的科普"},
 			text:        "代开发票的科普",
-			want:        false,
+			wantRecords: 1,
+		},
+		{
+			name: "没有命中 → 两个事实都为假",
+			text: "这是一篇普通的科普文章",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			bridge, repo := newBridge(t,
-				[]contentfilter.Word{blockWord(), watchWord()}, tc.whitelist, tc.disposition)
+				[]contentfilter.Word{blockWord(), watchWord()}, tc.whitelist)
 
 			got, err := bridge.FilterArticleText(context.Background(), articleapp.FilterText{
 				UserID:    ctype.NewID(7),
@@ -138,29 +141,35 @@ func TestBridgeReportsBlockRejectOnlyWhenConfigured(t *testing.T) {
 			if err != nil {
 				t.Fatalf("过滤不该返回错误: %v", err)
 			}
-			if got.BlockTierMasked != tc.want {
+			if got.BlockTierMasked != tc.wantBlock {
 				t.Fatalf("BlockTierMasked 应为 %v，实际 %v（替换后文本 %q）",
-					tc.want, got.BlockTierMasked, got.Masked)
+					tc.wantBlock, got.BlockTierMasked, got.Masked)
 			}
-			// 拒绝 ≠ 不记录：不管这条最终拒不拒，命中记录都要在。
-			if len(repo.created) != 1 {
-				t.Fatalf("命中记录应已写好，实际 %d 条", len(repo.created))
+			if got.WatchTierMasked != tc.wantWatch {
+				t.Fatalf("WatchTierMasked 应为 %v，实际 %v（替换后文本 %q）",
+					tc.wantWatch, got.WatchTierMasked, got.Masked)
 			}
-			if repo.created[0].Surface != filterdomain.SurfaceArticle {
+			// 拒绝 ≠ 不记录：只要真有命中，命中记录就要在（且与档位无关）。
+			// 没有命中的文本不该产生任何记录 —— 记录一条空的"命中"会让风险页多出噪音。
+			if len(repo.created) != tc.wantRecords {
+				t.Fatalf("命中记录应为 %d 条，实际 %d 条", tc.wantRecords, len(repo.created))
+			}
+			if tc.wantRecords > 0 && repo.created[0].Surface != filterdomain.SurfaceArticle {
 				t.Fatalf("文本面应钉死为 article，实际 %q", repo.created[0].Surface)
 			}
 		})
 	}
 }
 
-// TestBridgeBlockRejectIsReadLive 处置口径必须**每次现读**：后台改完配置之后，
-// 下一次过滤就该按新值走，而不是"改配置要重启"。
-func TestBridgeBlockRejectIsReadLive(t *testing.T) {
+// TestBridgeReportsFactRegardlessOfDisposition 桥只报事实，不受站点档位影响。
+//
+// 三档化之后"拒不拒、退不退草稿"是用例层按现读档位决定的（见
+// internal/article/app/filter.go 的 dispositionAfterFilter），桥这一层必须与档位
+// **无关** —— 否则同一次命中在 draft 档下会被判成"没命中"，命中处置就整条失效。
+func TestBridgeReportsFactRegardlessOfDisposition(t *testing.T) {
 	t.Parallel()
 
-	reject := true
-	bridge, _ := newBridge(t,
-		[]contentfilter.Word{blockWord()}, nil, func() bool { return reject })
+	bridge, _ := newBridge(t, []contentfilter.Word{blockWord()}, nil)
 
 	in := articleapp.FilterText{UserID: ctype.NewID(7), ContentID: ctype.NewID(9001), Text: "代开发票找我"}
 	got, err := bridge.FilterArticleText(context.Background(), in)
@@ -168,16 +177,6 @@ func TestBridgeBlockRejectIsReadLive(t *testing.T) {
 		t.Fatalf("过滤不该返回错误: %v", err)
 	}
 	if !got.BlockTierMasked {
-		t.Fatal("配了 reject 时应报命中即拒")
-	}
-
-	// 后台把配置改回 mask：同一条桥的下一次调用必须立刻跟着变。
-	reject = false
-	got, err = bridge.FilterArticleText(context.Background(), in)
-	if err != nil {
-		t.Fatalf("过滤不该返回错误: %v", err)
-	}
-	if got.BlockTierMasked {
-		t.Fatal("改成 mask 之后不该再拒发（说明口径是启动时捕获的，不是现读）")
+		t.Fatal("block 档真被打星时必须报事实（档位由用例层按现读配置判）")
 	}
 }

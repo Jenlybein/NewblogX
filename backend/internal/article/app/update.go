@@ -27,6 +27,8 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	gateRejected := false
 	var verdict qualityVerdict
 	riskRejected := false
+	// filterDrafted 表示"文章因为命中词被退回草稿"（供事件与通知用）。
+	filterDrafted := false
 
 	// 内容过滤（票 397 / ADR-0032 决策 5/6）：落库前把命中词替换成等长 `*`。
 	//
@@ -34,20 +36,20 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	// 那两个判定要读替换后的文本（先替换、再判定、再落库）。只过滤本次真的要改
 	// 的字段 —— nil 指针代表"不改"，替换成空串会把它变成"清空"。
 	filteredCount := 0
-	// blocked 是"本次要写入的字段里有 block 档命中、且站点要求拒发"（opt-in）。
-	// 三个字段用 `||` 聚合：拒发是整篇文章的结论，标题命中与正文命中没有区别。
-	blocked := false
+	// 命中事实按"哪一档词真的被打星"聚合，三个字段用 `||`：处置是整篇文章的结论，
+	// 标题命中与正文命中没有区别。
+	hits := hitFacts{}
 	if cmd.Title != nil {
 		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Title)
-		cmd.Title, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
+		cmd.Title, filteredCount, hits.Block, hits.Watch = &masked, filteredCount+count, hits.Block || hit.Block, hits.Watch || hit.Watch
 	}
 	if cmd.Abstract != nil {
 		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Abstract)
-		cmd.Abstract, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
+		cmd.Abstract, filteredCount, hits.Block, hits.Watch = &masked, filteredCount+count, hits.Block || hit.Block, hits.Watch || hit.Watch
 	}
 	if cmd.Content != nil {
 		masked, count, hit := s.filterArticleText(ctx, cmd.Actor.UserID, cmd.ArticleID, *cmd.Content)
-		cmd.Content, filteredCount, blocked = &masked, filteredCount+count, blocked || hit
+		cmd.Content, filteredCount, hits.Block, hits.Watch = &masked, filteredCount+count, hits.Block || hit.Block, hits.Watch || hit.Watch
 	}
 
 	// 只读预演 + **事务外**的同步风险扫描与评分。两者都必须在 WithinTx 之外：
@@ -77,9 +79,23 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	// 与 Create 同一口径：只拦 block 档且真被打星的命中（白名单豁免不算），
 	// 草稿也拦（否则"存草稿打星、提交时已不再命中"会让拒发失效）。
 	// 错误里不带命中词 / 档位 / 类目。
-	if blocked {
-		return nil, domain.ErrContentBlocked
-	}
+	// 命中处置（串行链路第①环）：reject 立刻中止，draft 落草稿并跳过后面所有机器判据。
+	//
+	// **位置必须在只读预演之后**：预演里含"这篇文章是不是我的"这条判定。放到它之前，
+	// 任何登录用户都能拿别人的文章 ID 当探针，用两种错误码（content_blocked /
+	// not_found）把词表一条条问出来 —— 而不必拥有任何文章。
+	//
+	// 也必须在本段之前对评分之前：命中即否决，不该再为它烧一次 5–30 秒的评分调用
+	// （那既花额度又毫无意义 —— 结论已经定了）。
+	hitDisposition := s.dispositionAfterFilter(hits)
+	// reject 把文章落「已拒绝」（落库、不可改），draft 落草稿并跳过后面所有机器判据。
+	//
+	// 两种处置都必须走落库路径：只返回错误码的话，这篇稿子还停在原来的状态，
+	// 作者看到一句"内容包含不允许发布的词"却不知道这一篇已经被否决了 —— 而
+	// 审核列表里也找不到它（风险页只有一条与文章无关的命中记录）。
+	filterReject := hitDisposition == HitReject
+	// filterDraft：命中落草稿，后面所有机器判据都要跳过，落点固定为草稿。
+	filterDraft := hitDisposition == HitDraft
 
 	// 账号闸门（票 399 / ADR-0032 决策 8、10）：禁言 / 禁用 / 封禁只拦**发布类**动作。
 	//
@@ -95,6 +111,11 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 	// 预演说"这次会提交"就在事务外把配额、风险扫描、评分一次做完。
 	// 闸门关不关都要扫（票 302 新规则），所以不再分两条路径、也不在事务内补扫。
+	// 命中落草稿时**整段跳过**后续机器判据（配额预占、风险扫描、质量评分）：
+	// 结论已经定了（这篇稿子不该直接发出去），再评一次只是白花额度和 5–30 秒。
+	// 注意配额**不归还**——但这里根本没预占，所以"不归还"等价于"这次提交不记账"吗？
+	// 不是：命中落草稿仍算一次提交动作（与 reject 同一条理由），所以照旧预占
+	// 然后再也不归还（reservation 保持非 nil，末尾的归还分支判 resubmitted）。
 	if preview.NeedsSubmit {
 		res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
 		if err != nil {
@@ -103,7 +124,8 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		reservation = res
 
 		// 站点「文章免审核」开启时全部直接真发布，同步风险扫描也不拦。
-		if !cmd.SkipExamining {
+		// 命中落草稿时不扫：它已经被否决了，扫出来的风险等级没有任何用处。
+		if !cmd.SkipExamining && !filterDraft && !filterReject {
 			risk, err := s.scanSubmitRisk(ctx, cmd.ArticleID)
 			if err != nil {
 				s.releaseSubmitQuota(ctx, reservation)
@@ -112,7 +134,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			riskRejected = risk.Rejected
 		}
 
-		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected {
+		if cmd.QualityGate.Enabled && !cmd.QualityGate.Deferred && !riskRejected && !filterDraft && !filterReject {
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
 				ArticleID:     cmd.ArticleID,
 				AuthorID:      cmd.Actor.UserID,
@@ -194,6 +216,30 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		idempotentSubmit := explicitSubmit && a.Status() == domain.StatusPublished && cmd.SkipExamining
 
 		switch {
+		case filterReject:
+			// 命中关键词处置档位 = reject：落「已拒绝」（不可改、读者看不到）。
+			//
+			// 放在 switch 最前面而不是并进 explicitSubmit 分支：reject 是**终局处置**，
+			// 与"这次更新是不是一次提交"无关 —— 作者只是存草稿也必须落已拒绝，否则
+			// 草稿可改、把星号改回原词就能重投，这条处置整个失效。
+			if err := a.SubmitWithOutcome(domain.StatusRejected, domain.VisibilityVisible, now); err != nil {
+				return err
+			}
+			if err := cancelPendingReviewTasks(ctx, r, a.ID(), "内容包含不允许发布的词", now); err != nil {
+				return err
+			}
+			resubmitted = true
+		case filterDraft:
+			// 命中关键词处置档位 = draft：文章落草稿，作者改完可立刻重投。
+			// 与质量不达标落草稿的区别只在通知文案与来源（这里不算"质量"),
+			// 所以 cancelPendingReviewTasks 的理由要写清楚是哪条链路退回的。
+			if err := a.BackToDraft(now); err != nil {
+				return err
+			}
+			if err := cancelPendingReviewTasks(ctx, r, a.ID(), "内容包含不允许发布的词，已退回草稿", now); err != nil {
+				return err
+			}
+			filterDrafted = true
 		case explicitDraft:
 			if err := a.BackToDraft(now); err != nil {
 				return err
@@ -214,7 +260,11 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			// 这里只消费那些结论，不再做任何事务内的端口调用。
 			// 预演与写事务读到的是同一状态；若并发下状态变了，末尾的
 			// `!result.Resubmitted` 分支会把预占归还。
-			outcome := decideSubmit(cmd.SkipExamining, gateRejected, riskRejected)
+			// 关键词 reject 与「同步风险命中」共用同一条落 REJECTED 的分支：
+			// 两者对作者与读者的效果完全一致（不可改、读者看不到），差别只在原因。
+			outcome := decideSubmit(
+				cmd.SkipExamining, cmd.ScoreEnabled, cmd.AIComplianceEnabled,
+				gateRejected, riskRejected || filterReject)
 			if outcome.Rejected {
 				// 同步风险命中：直接 REJECTED，不给改。留一条复盘任务供管理员看。
 				if err := a.SubmitWithOutcome(domain.StatusRejected, domain.VisibilityVisible, now); err != nil {
@@ -269,8 +319,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			FilteredCount: filteredCount,
 		}
 
-		return emit(ctx, r,
-			submitEventName(a.Status(), riskRejected, explicitDraft, false), a.ID())
+		// 与 create 同一条口径：命中处置 = draft 发专用事件（见 EventArticleFilterDrafted）。
+		eventName := submitEventName(a.Status(), riskRejected, explicitDraft || filterDrafted, false)
+		if filterDrafted {
+			eventName = EventArticleFilterDrafted
+		}
+		return emit(ctx, r, eventName, a.ID())
 	})
 
 	if err != nil {

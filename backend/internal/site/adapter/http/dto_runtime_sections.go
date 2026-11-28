@@ -2,6 +2,7 @@ package http
 
 import (
 	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 )
 
 // 运行时配置段的具名出入口（#283 / ADR-0020；第 11 段见 ADR-0032）。
@@ -75,3 +76,31 @@ type SiteSectionContentFilterRequest conf.ContentFilter
 // 第 12 段 captcha（ADR-0033）：图形验证码的图形与时效参数，同样只有后台具名端点。
 type SiteSectionCaptchaResponse conf.Captcha
 type SiteSectionCaptchaRequest conf.Captcha
+
+// ArticleReviewSaveRequest 是「文章审核设置」两个子页共用的聚合请求体（2026-11-28）。
+//
+// 两段都可选：审核规则子页只传 article，关键词命中处理子页只传 content_filter。
+// 两段都不传由 handler 拒绝（1001）—— 一次「什么都没改」的保存不该变成一次写库。
+//
+// **article 是全量覆盖**：它是整段 site.article 的形状，前端 read-modify-write
+// 之后传回来（与 PUT /site/site 同一条语义）。**content_filter 只认 auto_dispose**
+// 且是字段级补丁：词表 / 白名单 / 保留期仍归 PUT /site/content_filter，
+// 传这一段时不能顺手动它们。
+type ArticleReviewSaveRequest struct {
+	// Article 是 site.article **块**的完整形状（不是整段 site）；nil 表示这次不改审核规则。
+	//
+	// 类型钉成 article 块而不是 `SiteSectionSiteRequest`（= conf.Site）是刻意的：
+	// 后者的零值会把 project / seo / about / login 等七个块一起清零 —— 那是一次
+	// 「审核规则保存」不该发生的事。
+	Article *siteconf.Article `json:"article"`
+	// ContentFilter 只接受 auto_dispose；nil 表示这次不改命中处置。
+	ContentFilter *ArticleReviewContentFilterPatch `json:"content_filter"`
+}
+
+// ArticleReviewContentFilterPatch 是聚合端点里 content_filter 段的白名单。
+//
+// 刻意**只**开 auto_dispose 一个键：词表动辄六万条、与命中处置是完全两件事，
+// 让这个端点也能改词表等于把「一次保存只碰一段」这条约束打开一个缺口。
+type ArticleReviewContentFilterPatch struct {
+	AutoDispose *conf.ContentFilterAutoDispose `json:"auto_dispose"`
+}

@@ -112,3 +112,34 @@ func (s *Service) BackToReviewForCompliance(ctx context.Context, articleID domai
 	})
 }
 
+// DemoteForComplianceFailure 把「已发布待可见」的文章退回草稿（AI 不可用 / 失败时的 draft 落点）。
+//
+// 与 DemotePendingForQuality 的差别：那个只处理「质量不达标」，通知里带分数与放行线；
+// 这个是「机器判不了」，通知里只能说清楚"审核服务暂时不可用、请稍后重投"。
+// 两者落点状态相同（草稿 + visible），但**通知文案不能借用**——给作者看一句
+// "质量未达标：32 分"而他其实一次都没被评过，是最糟的一种误导。
+//
+// 幂等：文章已不在「已发布待可见」时 domain.DemoteForQuality 返回 ErrInvalidTransition，
+// 这里按「目的已达成」吞掉，不把中继推进死信。
+func (s *Service) DemoteForComplianceFailure(ctx context.Context, articleID domain.ArticleID, reason string) error {
+	if articleID.IsZero() {
+		return domain.ErrArticleNotFound
+	}
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		a, err := r.Articles().Find(ctx, articleID)
+		if err != nil {
+			return err
+		}
+		now := s.clock.Now()
+		if err := a.DemoteForQuality(now); err != nil {
+			if err == domain.ErrInvalidTransition {
+				return nil
+			}
+			return err
+		}
+		if err := r.Articles().Update(ctx, a); err != nil {
+			return err
+		}
+		return cancelPendingReviewTasks(ctx, r, articleID, reason, now)
+	})
+}

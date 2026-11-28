@@ -1,5 +1,10 @@
 <script setup lang="ts">
 /**
+ * 文件放在 `article-review/index.vue` 而不是 `article-review.vue`：Nuxt 的嵌套路由
+ * 规则是「同目录下还有别的页面时，同名 .vue 变成**父路由**」，父路由必须自己渲染
+ * `<NuxtPage />` 子出口 —— 本页没有那个出口，于是 `/site/article-review/keywords`
+ * 会出现"标题变了、内容还是这一页"。换成 `index.vue` 后两页是兄弟，各自独立渲染。
+ *
  * 文章审核设置（`/site/article-review`）：审核规则的唯一配置入口（2026-11-27）。
  *
  * 2026-11-28 起它是「文章审核设置」分组下的「审核规则」子页（另一页是「关键词命中处理」）。

@@ -152,8 +152,15 @@ const EXPECTED_SECTIONS: ExpectedSection[] = [
 
 function sitePageFiles(): string[] {
   return readdirSync(join(pagesDir, 'site'), { withFileTypes: true })
-    .filter(entry => entry.isFile() && entry.name.endsWith('.vue'))
-    .map(entry => `site/${entry.name.slice(0, -'.vue'.length)}`)
+    .flatMap(entry => {
+      if (entry.isFile() && entry.name.endsWith('.vue')) {
+        return [`site/${entry.name.slice(0, -'.vue'.length)}`]
+      }
+      if (entry.isDirectory() && existsSync(join(pagesDir, 'site', entry.name, 'index.vue'))) {
+        return [`site/${entry.name}`]
+      }
+      return []
+    })
     .sort()
 }
 
